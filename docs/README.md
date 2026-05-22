@@ -17,6 +17,20 @@ after the core node-building and presentation experience works.
 
 - `DESIGN_SESSION_001_SCOPE_RESET.md` - the new starting decision.
 - `MVP_SCOPE.md` - the current implementation slice.
+- `ROADMAP.md` - implementation order and status.
+- `SYSTEM_MODEL.md` - shared Neo4j-native model for nodes, groups, edges, collapse, and presentation paths.
+- `features/` - short specs for build-ready slices.
+
+## Working Loop
+
+Use this loop for each MVP slice:
+
+```text
+roadmap -> system model -> feature spec -> implementation -> verification -> commit
+```
+
+Do not introduce external project-management tooling until the repo docs stop
+being enough.
 
 ## Archived Reference
 
