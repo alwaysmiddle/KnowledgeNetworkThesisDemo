@@ -10,10 +10,10 @@ status here; it will go stale. Current implementation status belongs in
 
 Start every session by reading:
 
-1. `docs/PROJECT_CONTEXT.md` - current project references that may change.
-2. `docs/README.md` - active-docs index and working loop.
-3. `docs/ROADMAP.md` - current implementation order and status.
-4. The relevant feature spec under `docs/features/` for the slice being built.
+1. `wiki/progress/Project-Context.md` - current project references that may change.
+2. `wiki/Home.md` - wiki index and working loop.
+3. `wiki/Roadmap.md` - current implementation order and status.
+4. The relevant feature spec under `wiki/specs/` for the slice being built.
 
 Do not assume the references in `docs/PROJECT_CONTEXT.md` are permanent.
 Confirm current status in `docs/ROADMAP.md` before implementing.

@@ -1,17 +1,24 @@
 # KnowledgeNetworkThesisDemo Wiki
 
-This wiki is the living knowledge base for the KnowledgeNetworkThesisDemo project.
+The living knowledge base for this project. All design documents, specs, decisions, and progress tracking live here.
 
-It covers:
-
-- **[Vision](Vision)** — the target SDLC infrastructure and why we are building it this way.
-- **[Roadmap](Roadmap)** — the rough phases and milestones for getting there.
-
-The code repository lives on GitHub:
-[alwaysmiddle/KnowledgeNetworkThesisDemo](https://github.com/alwaysmiddle/KnowledgeNetworkThesisDemo)
-
-Architecture diagrams are generated from code via `npm run map` and pushed here by pipeline on each merge to `master`.
+Code repository: [alwaysmiddle/KnowledgeNetworkThesisDemo](https://github.com/alwaysmiddle/KnowledgeNetworkThesisDemo)
 
 ---
 
-> **Convention:** this wiki is textual + graphical. Mermaid diagrams are the graphical layer; wiki pages are the textual layer. Together they form the unified knowledge base that this project is itself an example of.
+## Sections
+
+| Section | Purpose |
+|---------|---------|
+| [Vision](Vision) | Target SDLC infrastructure and why we are building it this way. |
+| [Roadmap](Roadmap) | Product milestones (M0–M7) and infrastructure phases (0–4). |
+| [Requirements](requirements/requirements) | Scope decisions and product requirements. |
+| [Specs](specs/specs) | Feature contracts and system model. |
+| [Architecture](architecture/architecture) | Generated codebase diagrams (pipeline-maintained). |
+| [Decisions](decisions/decisions) | ADRs, setup decisions, design sessions. |
+| [Progress](progress/progress) | WIP, session notes, intermediate tracking. |
+| [Archive](\_archive/\_archive) | Pre-reset design work (historical reference only). |
+
+---
+
+> **Convention:** the wiki is both the textual and graphical knowledge base. Mermaid diagrams are generated from code by pipeline — never hand-authored. Text pages are human-authored but pipeline-validated. Together they are the unified knowledge graph this project is itself an example of.

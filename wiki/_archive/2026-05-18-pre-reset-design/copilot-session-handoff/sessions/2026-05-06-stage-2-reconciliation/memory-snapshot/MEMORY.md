@@ -1,0 +1,2 @@
+- [Communication style](feedback_communication_style.md) — prefer plain conversational language, match user's own style; save dense formatting for spec content
+- [Reimplementation planned](project_reimplementation_planned.md) — Stage 5 code will be rebuilt during Stage 6, so design-doc decisions can move without keeping the current code in lockstep
