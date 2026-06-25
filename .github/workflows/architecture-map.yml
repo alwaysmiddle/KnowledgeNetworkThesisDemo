@@ -1,0 +1,25 @@
+name: architecture-map
+
+# Keeps docs/ARCHITECTURE.md honest: regenerates it from the real imports on
+# every push/PR and fails if the committed copy is stale. The generator has no
+# dependencies, so there is nothing to install.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  verify-map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Regenerate architecture map
+        run: node scripts/architecture-map.mjs
+      - name: Fail if the committed map is out of date
+        run: |
+          git diff --exit-code docs/ARCHITECTURE.md \
+            || (echo "::error::docs/ARCHITECTURE.md is stale — run 'npm run map' and commit." && exit 1)

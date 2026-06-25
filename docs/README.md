@@ -17,6 +17,7 @@ after the core node-building and presentation experience works.
 
 - `DESIGN_SESSION_001_SCOPE_RESET.md` - the new starting decision.
 - `MVP_SCOPE.md` - the current implementation slice.
+- `PROJECT_CONTEXT.md` - project references that may change.
 - `ROADMAP.md` - implementation order and status.
 - `SYSTEM_MODEL.md` - shared Neo4j-native model for nodes, groups, edges, collapse, and presentation paths.
 - `features/` - short specs for build-ready slices.

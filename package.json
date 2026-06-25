@@ -7,23 +7,17 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "map": "node scripts/architecture-map.mjs"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^2.0.4",
     "@xyflow/react": "^12.10.1",
-    "d3-force": "^3.0.0",
-    "elkjs": "^0.11.0",
-    "graphology": "^0.26.0",
-    "graphology-communities-louvain": "^2.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.2.1",
-    "@types/d3-force": "^3.0.10",
-    "@types/dagre": "^0.7.54",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
