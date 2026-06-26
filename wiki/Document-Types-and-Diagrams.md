@@ -57,17 +57,24 @@ flowchart TD
 
 ## Document Types
 
+The full pipeline from raw problem to working code:
+
+**Problem → Ideas (sketch + research per idea, iterative) → Decision → Spec → Build**
+
 | Type | Example pages | Nature | Diagram verdict | Mermaid kind |
 |------|---------------|--------|-----------------|--------------|
-| Vision / narrative | `Vision.md` | Stable concept | Yes | `flowchart` (the loop) |
+| Problem | `problems/*` | Ephemeral→stable | None | — |
+| Idea | `ideas/*` | Living (iterative) | None | — |
+| Decision | `decisions/*` | Point-in-time | Conditional | `flowchart` / before→after |
+| Feature spec | `specs/001-…`, `specs/002-…` | Per-slice | Yes — per-spec delta | `classDiagram` / `stateDiagram` |
 | Domain model | `specs/System-Model.md` | Stable concept | Yes | `classDiagram` / graph |
 | Requirements / scope | `requirements/MVP-Scope.md` | Stable-ish | Yes | `flowchart` (workflow) |
-| Feature spec | `specs/001-…`, `specs/002-…` | Per-slice | Yes — per-spec delta | `classDiagram` / `stateDiagram` |
+| Vision / narrative | `Vision.md` | Stable concept | Yes | `flowchart` (the loop) |
 | Roadmap / status | `Roadmap.md` | Living | Text now, diagram later | `gantt` / `stateDiagram` |
 | Generated architecture | `architecture/Architecture.md` | Living-derived | Yes — generated | `flowchart` via `npm run map` |
-| Decision record (ADR) | `decisions/*` | Point-in-time | Conditional | `flowchart` / before→after |
+| Navigation diagram | `Home.md` pipeline map | Living | Yes — hand-authored now, generated later | `flowchart` |
 | Convention / meta | `Feature-Spec-Convention`, this page | Stable | Optional | `flowchart` if a process |
-| Index / navigation | `Home`, section `*.md` | Living | Home site-map only | `flowchart` |
+| Index / navigation | section `*.md` index pages | Living | None | — |
 | Working state | `progress/Project-Context` | Ephemeral | None | — |
 
 ---
@@ -105,11 +112,4 @@ skeleton and shows exactly what it added.
 - Timeline or plan → `gantt` / `timeline`.
 - Dependency graph (generated) → `flowchart` from `npm run map`.
 
----
-
-## How the Next Session Uses This
-
-When adding or revising any wiki page: classify it with the decision flow above
-first, then — only if it earns a diagram — pick the Mermaid kind from the quick
-reference. Keep hand-authored diagrams on stable concepts; route anything
-derived from code or board state through generation, never hand-editing.
+--
