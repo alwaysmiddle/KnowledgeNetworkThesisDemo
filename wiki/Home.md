@@ -40,4 +40,13 @@ Each problem generates a collection of ideas. Each idea is developed iteratively
 | Section | Purpose |
 |---------|---------|
 | [Vision](Vision) | Target SDLC infrastructure and why we are building it this way. |
-| [Document Types and Diagrams](Document-Types-and-Diagrams) | How each
+| [Document Types and Diagrams](Document-Types-and-Diagrams) | How each page is classified and what visual (if any) it carries. |
+| [Roadmap](Roadmap) | Product milestones (M0–M7) and infrastructure phases (0–4). |
+| [Requirements](requirements/requirements) | Scope decisions and product requirements. |
+| [Architecture](architecture/architecture) | Generated codebase diagrams (pipeline-maintained). |
+| [Progress](progress/progress) | WIP, session notes, intermediate tracking. |
+| [Archive](\_archive/\_archive) | Pre-reset design work (historical reference only). |
+
+---
+
+> **Convention:** the wiki is both the textual and graphical knowledge base. The pipeline diagram above is hand-authored now and will be generated from document links once the pipeline matures.

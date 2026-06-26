@@ -112,4 +112,11 @@ skeleton and shows exactly what it added.
 - Timeline or plan → `gantt` / `timeline`.
 - Dependency graph (generated) → `flowchart` from `npm run map`.
 
---
+---
+
+## How the Next Session Uses This
+
+When adding or revising any wiki page: classify it with the decision flow above
+first, then — only if it earns a diagram — pick the Mermaid kind from the quick
+reference. Keep hand-authored diagrams on stable concepts; route anything
+derived from code or board state through generation, never hand-editing.
