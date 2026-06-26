@@ -11,6 +11,7 @@ Code repository: [alwaysmiddle/KnowledgeNetworkThesisDemo](https://github.com/al
 | Section | Purpose |
 |---------|---------|
 | [Vision](Vision) | Target SDLC infrastructure and why we are building it this way. |
+| [Document Types and Diagrams](Document-Types-and-Diagrams) | How each page is classified and what visual (if any) it carries. Read before adding diagrams. |
 | [Roadmap](Roadmap) | Product milestones (M0–M7) and infrastructure phases (0–4). |
 | [Requirements](requirements/requirements) | Scope decisions and product requirements. |
 | [Specs](specs/specs) | Feature contracts and system model. |

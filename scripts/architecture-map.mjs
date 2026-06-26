@@ -8,7 +8,7 @@
 //   2. ORPHANED files — exist in src/ but nothing live imports them (dead code)
 //   3. UNUSED deps    — packages in package.json that only orphaned files import
 //
-// It then writes docs/ARCHITECTURE.md: a Mermaid diagram (with clickable links
+// It then writes wiki/architecture/Architecture.md: a Mermaid diagram (with clickable links
 // to each file) plus the orphan + unused-dependency lists. The code is the
 // truth; this file just renders it. Re-run after every change:
 //
@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..')
 const SRC = join(ROOT, 'src')
 const ENTRY = join(SRC, 'main.tsx')
-const OUT = join(ROOT, 'docs', 'ARCHITECTURE.md')
+const OUT = join(ROOT, 'wiki', 'architecture', 'Architecture.md')
 
 const CODE_EXT = ['.ts', '.tsx', '.js', '.jsx']
 

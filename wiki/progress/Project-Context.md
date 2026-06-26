@@ -9,15 +9,15 @@ Check `ROADMAP.md` before implementing from anything in this file.
 
 Start with:
 
-1. `docs/README.md` - active-docs index and working loop.
-2. `docs/ROADMAP.md` - current implementation order and status.
-3. `docs/SYSTEM_MODEL.md` - shared Neo4j-native system model.
-4. `docs/features/README.md` - feature-spec convention.
-5. The relevant feature spec under `docs/features/`.
+1. `wiki/Home.md` - wiki index and working loop.
+2. `wiki/Roadmap.md` - current implementation order and status.
+3. `wiki/specs/System-Model.md` - shared Neo4j-native system model.
+4. `wiki/specs/Feature-Spec-Convention.md` - feature-spec convention.
+5. The relevant feature spec under `wiki/specs/`.
 
 Current first feature spec:
 
-- `docs/features/001-neo4j-graph-model.md`
+- `wiki/specs/001-Neo4j-Graph-Model.md`
 
 ## Current Product Direction
 
@@ -44,7 +44,7 @@ Build a PowerPoint-to-knowledge-node authoring demo:
 
 Old ontology/reflexivity-heavy design work is archived under:
 
-- `docs/_archive/2026-05-18-pre-reset-design/`
+- `wiki/_archive/2026-05-18-pre-reset-design/`
 
 Use the archive only as reference or historical context. Do not treat
 `KnowledgeNetworkDemo-design` or the archive as current architecture unless the

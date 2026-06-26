@@ -2,9 +2,10 @@
 
 This project is the restarted implementation-first thesis demo.
 
-Use this file for durable project guidance only. Do not put detailed current
-status here; it will go stale. Current implementation status belongs in
-`docs/ROADMAP.md`.
+**The wiki is the main source of truth for this project.** All current status,
+design decisions, specs, and roadmap live there. `CLAUDE.md` holds only durable
+session guidance — not implementation detail. When `CLAUDE.md` and the wiki
+disagree, trust the wiki.
 
 ## Session Start
 
@@ -15,8 +16,8 @@ Start every session by reading:
 3. `wiki/Roadmap.md` - current implementation order and status.
 4. The relevant feature spec under `wiki/specs/` for the slice being built.
 
-Do not assume the references in `docs/PROJECT_CONTEXT.md` are permanent.
-Confirm current status in `docs/ROADMAP.md` before implementing.
+Do not assume the references in `wiki/progress/Project-Context.md` are permanent.
+Confirm current status in `wiki/Roadmap.md` before implementing.
 
 ## Working Loop
 

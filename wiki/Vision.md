@@ -37,7 +37,7 @@ graph LR
 Captured in ADO Wiki pages. Each requirement links to the ADO Board work item that tracks it. Requirements are the entry point for the loop.
 
 **Spec Design**
-Feature spec files in `docs/features/`. A pipeline run can validate that each Board item in "Active" state has a corresponding spec file, and fail if not. This is the gate before implementation begins.
+Feature spec files in `wiki/specs/`. A pipeline run can validate that each Board item in "Active" state has a corresponding spec file, and fail if not. This is the gate before implementation begins.
 
 **Implementation**
 Code committed to GitHub. Pipeline builds, tests, and lints on each PR. Merge to `master` is the trigger for the next phase.
