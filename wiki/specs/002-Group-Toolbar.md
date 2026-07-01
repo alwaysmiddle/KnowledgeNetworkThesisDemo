@@ -1,3 +1,15 @@
+---
+node: spec-002-group-toolbar
+type: spec
+title: Group Toolbar
+status: planned
+edges:
+  - rel: refines
+    to: spec-system-model
+  - rel: implements
+    to: roadmap
+---
+
 # Feature 002 - Group Toolbar
 
 ## Status

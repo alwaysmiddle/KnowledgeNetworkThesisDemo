@@ -1,3 +1,17 @@
+---
+node: spec-001-neo4j
+type: spec
+title: Neo4j Graph Model
+status: in-progress
+edges:
+  - rel: refines
+    to: spec-system-model
+  - rel: implements
+    to: roadmap
+  - rel: builds
+    to: architecture
+---
+
 # Feature 001 - Neo4j Graph Model
 
 ## Status

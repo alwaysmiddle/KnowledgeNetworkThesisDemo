@@ -1,3 +1,11 @@
+---
+node: convention-document-types
+type: convention
+title: Document Types and Diagram Policy
+status: stable
+edges: []
+---
+
 # Document Types and Diagram Policy
 
 This page defines how the wiki classifies its own documents and decides which

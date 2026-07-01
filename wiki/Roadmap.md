@@ -1,3 +1,11 @@
+---
+node: roadmap
+type: reference
+title: Roadmap
+status: living
+edges: []
+---
+
 # Roadmap
 
 Two parallel tracks: **Product** (what the demo builds) and **Infrastructure** (the SDLC pipeline skeleton we are proving). Both progress together — the product is the thing we run the infrastructure against.

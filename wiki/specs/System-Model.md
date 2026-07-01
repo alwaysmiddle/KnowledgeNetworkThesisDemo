@@ -1,3 +1,13 @@
+---
+node: spec-system-model
+type: spec
+title: System Model (Neo4j-native)
+status: stable
+edges:
+  - rel: implements
+    to: roadmap
+---
+
 # System Model
 
 ## Purpose

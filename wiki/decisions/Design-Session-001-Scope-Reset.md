@@ -1,3 +1,17 @@
+---
+node: decision-001-scope-reset
+type: decision
+title: Scope reset to implementation-first MVP
+status: accepted
+edges:
+  - rel: produces
+    to: spec-001-neo4j
+  - rel: produces
+    to: spec-002-group-toolbar
+  - rel: produces
+    to: requirement-mvp-scope
+---
+
 # Design Session 001 - Scope Reset
 
 ## Decision

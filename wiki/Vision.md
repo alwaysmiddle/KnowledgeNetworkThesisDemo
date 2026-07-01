@@ -1,3 +1,11 @@
+---
+node: vision
+type: reference
+title: Vision — SDLC as connected knowledge infrastructure
+status: living
+edges: []
+---
+
 # Vision: SDLC as a Connected Knowledge Infrastructure
 
 ## What We Are Building

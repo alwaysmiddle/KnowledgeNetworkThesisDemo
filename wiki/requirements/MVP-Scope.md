@@ -1,3 +1,13 @@
+---
+node: requirement-mvp-scope
+type: requirement
+title: MVP Scope
+status: accepted
+edges:
+  - rel: scopes
+    to: spec-001-neo4j
+---
+
 # MVP Scope
 
 ## Product Slice
