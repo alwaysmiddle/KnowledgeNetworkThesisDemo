@@ -66,24 +66,30 @@ Default local Neo4j credentials are configured in `docker-compose.yml`:
 
 ```text
 KnowledgeNetworkThesisDemo/
-├── docs/                  # active design docs and archived prior design corpus
 ├── src/                   # React + TypeScript frontend
 │   ├── components/        # ReactFlow canvas, node, and edge components
 │   ├── data/              # current mock graph data
 │   ├── lib/               # layer, layout, and traversal helpers
 │   └── types.ts           # shared frontend type definitions
+├── scripts/               # deterministic verification and map-generation scripts
+├── wiki/                  # deprecated; migrated to DocHub, do not edit
 ├── docker-compose.yml     # Neo4j only
 └── package.json           # frontend scripts
 ```
 
 ## Current Docs
 
-- `docs/README.md`
-- `docs/DESIGN_SESSION_001_SCOPE_RESET.md`
-- `docs/MVP_SCOPE.md`
+The current knowledge base lives in the sibling DocHub repository:
 
-Previous design work is archived under:
+- `D:\ShiZhong\MyCode\DocHub\docs\knowledge-network-thesis-demo\`
 
+DocHub is the source of truth for goals, problems, ideas, decisions, specs,
+roadmap, and orchestration. This repository holds the app code and deterministic
+generators only.
+
+Deprecated local docs are retained only as historical reference:
+
+- `wiki/`
 - `docs/_archive/2026-05-18-pre-reset-design/`
 
 ## Scripts
@@ -92,6 +98,9 @@ Previous design work is archived under:
 npm run dev
 npm run build
 npm run lint
+npm run map
+npm run spec-gate
+npm run verify
 ```
 
 ## License

@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "map": "node scripts/architecture-map.mjs"
+    "map": "node scripts/architecture-map.mjs",
+    "spec-gate": "node scripts/spec-gate.mjs",
+    "docs:validate": "npm --prefix ../DocHub run validate",
+    "verify": "npm run map && npm run spec-gate && npm run lint && npm run docs:validate"
   },
   "dependencies": {
     "@xyflow/react": "^12.10.1",

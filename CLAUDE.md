@@ -1,31 +1,40 @@
 # KnowledgeNetworkThesisDemo Orientation
 
-This project is the restarted implementation-first thesis demo.
+This repository holds the **code** for the implementation-first thesis demo (the
+ReactFlow app under `src/` and the deterministic `npm run map` architecture
+generator).
 
-**The wiki is the main source of truth for this project.** All current status,
-design decisions, specs, and roadmap live there. `CLAUDE.md` holds only durable
-session guidance — not implementation detail. When `CLAUDE.md` and the wiki
-disagree, trust the wiki.
+**The knowledge base is NOT in this repo — it lives in the DocHub project.**
+DocHub (`D:\ShiZhong\MyCode\DocHub`, a Docusaurus site) is the single source of
+truth for goals, problems, ideas, decisions, specs, the roadmap, and the
+orchestration design, under `docs/knowledge-network-thesis-demo/`. The `wiki/`
+folder in THIS repo is **deprecated** — its content was migrated into DocHub and
+it should not be edited. When this file or the old `wiki/` disagree with DocHub,
+trust DocHub.
 
 ## Session Start
 
-Start every session by reading:
+Read, in the DocHub project (`docs/knowledge-network-thesis-demo/`):
 
-1. `wiki/progress/Project-Context.md` - current project references that may change.
-2. `wiki/Home.md` - wiki index and working loop.
-3. `wiki/Roadmap.md` - current implementation order and status.
-4. The relevant feature spec under `wiki/specs/` for the slice being built.
+1. `index.md` — wiki index and the document pipeline.
+2. `goals/Goal-Map.md` — the root Goal and its decomposition (the entry point).
+3. `Roadmap.md` — product milestones (M0–M7) and infrastructure phases.
+4. `Orchestration.md` — how LangGraph + the agents drive the loop (current MVP).
+5. The relevant page under `goals/`, `problems/`, `ideas/`, `decisions/`, or
+   `specs/` for the slice being worked.
 
-Do not assume the references in `wiki/progress/Project-Context.md` are permanent.
-Confirm current status in `wiki/Roadmap.md` before implementing.
+DocHub enforces its own conventions: `scripts/validate-docs.mjs` is the
+verifier (run it before declaring any doc change done), and the `write-goal-page`
+skill is the authoring guide. Author knowledge docs there, not here.
 
-## Working Loop
+## This repo's role
 
-Use this loop for each MVP slice:
+- The app code (`src/`) and the deterministic architecture generator
+  (`npm run map`).
+- Agents open PRs here; the orchestration's `reconcile` step runs `npm run map`
+  and writes the generated diagram back into DocHub.
+- Do **not** author knowledge/design docs in this repo.
 
-```text
-ROADMAP -> SYSTEM_MODEL -> one feature spec -> implementation -> verification -> commit
-```
+## Deprecated
 
-Keep feature specs small. Update the roadmap after implementation instead of
-creating external project-management state.
+- `wiki/` — migrated into DocHub. Retained only for history; do not edit.
