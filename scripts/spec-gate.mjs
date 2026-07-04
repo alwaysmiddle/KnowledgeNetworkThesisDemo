@@ -18,7 +18,7 @@ const DOCS_ROOT = join(DOCHUB, 'docs', 'knowledge-network-thesis-demo')
 const ROADMAP = join(DOCS_ROOT, 'Roadmap.md')
 
 const ACTIVE = /\b(in progress|active)\b/i
-const ROW = /^\|\s*(M\d+)\s*\|(.+)\|\s*$/
+const ROW = /^\|\s*([a-z][a-z0-9-]*)\s*\|(.+)\|\s*$/
 
 function resolveSpec(target) {
   const clean = target.trim().replace(/^\.\//, '')

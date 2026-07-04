@@ -18,7 +18,7 @@ Read, in the DocHub project (`docs/knowledge-network-thesis-demo/`):
 
 1. `index.md` — wiki index and the document pipeline.
 2. `goals/Goal-Map.md` — the root Goal and its decomposition (the entry point).
-3. `Roadmap.md` — product milestones (M0–M7) and infrastructure phases.
+3. `Roadmap.md` — product milestone slices (docs-reset → presentation-preview) and infrastructure phases.
 4. `Orchestration.md` — how LangGraph + the agents drive the loop (current MVP).
 5. The relevant page under `goals/`, `problems/`, `ideas/`, `decisions/`, or
    `specs/` for the slice being worked.
