@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+/* Expand/collapse in the map view relayouts every box; animating the transform
+   makes the reshaping legible (nodes visibly make room) instead of teleporting.
+   Safe globally because node dragging is disabled in all experiment views. */
+.react-flow__node {
+  transition: transform 300ms ease, opacity 250ms ease;
+}
+
+/* Link tracing (map + drill): hovering/selecting a node restyles every edge's
+   opacity; transitioning it makes the rest of the graph visibly recede instead
+   of blinking off. */
+.react-flow__edge path {
+  transition: opacity 180ms ease, stroke-width 180ms ease;
+}
+
+/* Drill view: each scope change enters FROM its navigation direction —
+   deeper zooms in, up zooms out, proxy travel slides in from the side the
+   proxy column sits on. The wrapper is remounted per scope (keyed), so the
+   animation plays exactly once per navigation. */
+@keyframes drill-down  { from { opacity: 0; transform: scale(0.82); } }
+@keyframes drill-up    { from { opacity: 0; transform: scale(1.18); } }
+@keyframes drill-left  { from { opacity: 0; transform: translateX(-90px); } }
+@keyframes drill-right { from { opacity: 0; transform: translateX(90px); } }
+.drill-enter-down  { animation: drill-down 280ms ease-out; }
+.drill-enter-up    { animation: drill-up 280ms ease-out; }
+.drill-enter-left  { animation: drill-left 280ms ease-out; }
+.drill-enter-right { animation: drill-right 280ms ease-out; }
