@@ -357,3 +357,40 @@ export function levelSet(topK: number): Set<string> {
   }
   return out
 }
+
+// ── Countries: the map's unit of disclosure ─────────────────────────────────
+// GMap's color/shape and ZMLT's filtration used to be gated separately, which
+// let cities appear on uncolored ground. One record per country now joins the
+// two papers' halves — identity (label, color), anchor (capital), and the
+// importance ranking the zoom walks down — so a country reveals as ONE thing.
+const importanceRank = new Map(importanceOrder.map((id, i) => [id, i]))
+
+export interface Country {
+  label: string
+  color: string
+  capital: string // most important member: the one node shown even undisclosed
+  byRank: string[] // all members, most important first — the zoom's descent order
+}
+
+export const countries: Country[] = communities.map((members, ci) => {
+  const byRank = [...members].sort((a, b) => importanceRank.get(a)! - importanceRank.get(b)!)
+  return { label: communityLabel[ci], color: communityColor[ci], capital: byRank[0], byRank }
+})
+
+// The level set for a PER-COUNTRY depth vector: country ci contributes its
+// top-k[ci] members. Terminals are still closed over the spanning tree, so the
+// set stays connected and monotone (ZMLT's persistence property) — closure may
+// pull in a few pass-through nodes from shallower countries: roads need towns.
+export function countryLevelSet(kByCountry: number[]): Set<string> {
+  const out = new Set<string>()
+  countries.forEach((c, ci) => {
+    for (const t of c.byRank.slice(0, kByCountry[ci])) {
+      let cur: string | null = t
+      while (cur !== null && !out.has(cur)) {
+        out.add(cur)
+        cur = treeParent.get(cur) ?? null
+      }
+    }
+  })
+  return out
+}

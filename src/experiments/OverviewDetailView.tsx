@@ -38,10 +38,17 @@ const PORT_GAP = 16
 
 type NavDir = 'down' | 'up' | 'left' | 'right'
 
-export default function OverviewDetailView() {
-  const [path, setPath] = useState<string[]>([ROOT_ID])
+export interface OverviewDetailViewProps {
+  /** leaf to land on: opens its module's panel with the leaf's edges lit */
+  initialFocus?: string | null
+}
+
+export default function OverviewDetailView({ initialFocus = null }: OverviewDetailViewProps) {
+  const [path, setPath] = useState<string[]>(() =>
+    initialFocus ? pathTo(byId.get(initialFocus)!.parentId!) : [ROOT_ID],
+  )
   const [navDir, setNavDir] = useState<NavDir>('down')
-  const [hovered, setHovered] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<string | null>(initialFocus)
 
   const open = path.length > 1
   const model = useMemo(() => (open ? deriveDrill(path) : null), [path, open])

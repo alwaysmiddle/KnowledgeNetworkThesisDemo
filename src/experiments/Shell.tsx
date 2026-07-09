@@ -1,33 +1,47 @@
-// The experiment shell, remodeled against the literature: ONE deterministic
-// 50-leaf / 200-edge corpus, and one tab per PAPER POSITION where the papers
-// genuinely disagree —
-//   E · GMap '10          hard tessellation: communities as countries
-//   F · Bubble/Kelp '09-13 soft contours over the SAME fixed layout
-//   G · ZMLT '20          real nodes only, importance-filtered semantic zoom
-//   H · Overview+Detail '24 hierarchy kept, expansion adjacent, never in place
-// E and F share one embedding on purpose: flipping between them changes only
-// the thing the papers actually dispute (hard vs soft regions).
+// The experiment shell, now organized around the three navigation QUESTIONS
+// instead of one tab per paper:
+//   Map          where is everything?      GMap '10 countries × ZMLT '20 zoom
+//   Walk         how does flow move?       step-by-step downstream paths
+//   Neighborhood what surrounds one thing? Overview+Detail '24, expand adjacent
+//   Contours     (reference) soft vs hard grouping — Bubble Sets/KelpFusion
+// The glue is shared state: the walk route glows on the map, and a pinned map
+// node can jump into a walk or into its neighborhood.
 
 import { useState } from 'react'
 
 import { byId, domainIds, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from './graph'
 import type { EdgeType } from './graph'
-import GMapView from './GMapView'
+import MapView from './MapView'
+import WalkView from './WalkView'
 import ContourView from './ContourView'
-import ZmltView from './ZmltView'
 import OverviewDetailView from './OverviewDetailView'
+import EvocView from './EvocView'
+import CockpitView from './cockpit/CockpitView'
 
-type Tab = 'gmap' | 'contours' | 'zmlt' | 'ovd'
+type Tab = 'map' | 'walk' | 'ovd' | 'contours' | 'evoc' | 'cockpit'
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
-  { id: 'gmap', label: 'E · GMap', hint: 'communities as countries — hard tessellation' },
-  { id: 'contours', label: 'F · Contours', hint: 'soft group shapes over one fixed layout' },
-  { id: 'zmlt', label: 'G · Semantic Zoom', hint: 'real nodes only, importance filtration' },
-  { id: 'ovd', label: 'H · Overview+Detail', hint: 'expand adjacent, never in place' },
+  { id: 'map', label: 'Map', hint: 'where is everything — countries + semantic zoom' },
+  { id: 'walk', label: 'Walk', hint: 'how does flow move — step-by-step paths' },
+  { id: 'ovd', label: 'Neighborhood', hint: 'what surrounds one thing — expand adjacent' },
+  { id: 'contours', label: 'Contours', hint: 'reference — soft groups over the same layout' },
+  { id: 'evoc', label: 'EVoC', hint: 'can auto-clustering recover our pipeline? — 800 mocked Infra artifacts' },
+  { id: 'cockpit', label: 'Cockpit', hint: 'map + tree + trail + document — the three-instrument navigation model' },
 ]
 
 export default function Shell() {
-  const [tab, setTab] = useState<Tab>('gmap')
+  const [tab, setTab] = useState<Tab>('map')
+  const [route, setRoute] = useState<string[]>([])
+  const [focusLeaf, setFocusLeaf] = useState<string | null>(null)
+
+  const startWalk = (id: string) => {
+    setRoute([id])
+    setTab('walk')
+  }
+  const openNeighborhood = (id: string) => {
+    setFocusLeaf(id)
+    setTab('ovd')
+  }
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
@@ -35,7 +49,7 @@ export default function Shell() {
         <div className="flex items-center gap-4">
           <h1 className="text-[15px] font-bold text-slate-800">Graph Disclosure Lab</h1>
           <span className="text-[11px] text-slate-400">
-            one corpus — 50 leaves / 200 typed links, seeded · four papers, one tab each · E+F share one embedding
+            one corpus — 50 leaves / 200 typed links, seeded · three navigation modes + one reference · the walk route glows on the map
           </span>
           <span className="flex-1" />
           {/* legend: domains (node identity) vs link types — hue-disjoint on purpose */}
@@ -69,16 +83,21 @@ export default function Shell() {
               ].join(' ')}
             >
               {t.label} <span className="font-normal opacity-60">— {t.hint}</span>
+              {t.id === 'walk' && route.length > 0 && (
+                <span className="ml-1.5 px-1.5 rounded-full bg-amber-100 text-amber-700 font-bold">{route.length}</span>
+              )}
             </button>
           ))}
         </nav>
       </header>
 
       <main className="flex-1 min-h-0">
-        {tab === 'gmap' && <GMapView />}
+        {tab === 'map' && <MapView route={route} onStartWalk={startWalk} onOpenNeighborhood={openNeighborhood} />}
+        {tab === 'walk' && <WalkView route={route} setRoute={setRoute} />}
+        {tab === 'ovd' && <OverviewDetailView key={focusLeaf ?? 'plain'} initialFocus={focusLeaf} />}
         {tab === 'contours' && <ContourView />}
-        {tab === 'zmlt' && <ZmltView />}
-        {tab === 'ovd' && <OverviewDetailView />}
+        {tab === 'evoc' && <EvocView />}
+        {tab === 'cockpit' && <CockpitView />}
       </main>
     </div>
   )

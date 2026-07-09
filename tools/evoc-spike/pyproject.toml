@@ -1,0 +1,11 @@
+[project]
+name = "evoc-spike"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "evoc",
+  "umap-learn",
+  "numpy",
+  "scikit-learn",
+  "matplotlib",  # evoc's label_propagation.py imports this at module load but doesn't declare it
+]
