@@ -17,8 +17,9 @@ import ContourView from './ContourView'
 import OverviewDetailView from './OverviewDetailView'
 import EvocView from './EvocView'
 import CockpitView from './cockpit/CockpitView'
+import UnfoldView from './UnfoldView'
 
-type Tab = 'map' | 'walk' | 'ovd' | 'contours' | 'evoc' | 'cockpit'
+type Tab = 'map' | 'walk' | 'ovd' | 'contours' | 'evoc' | 'cockpit' | 'unfold'
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'map', label: 'Map', hint: 'where is everything — countries + semantic zoom' },
@@ -27,6 +28,7 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'contours', label: 'Contours', hint: 'reference — soft groups over the same layout' },
   { id: 'evoc', label: 'EVoC', hint: 'can auto-clustering recover our pipeline? — 800 mocked Infra artifacts' },
   { id: 'cockpit', label: 'Cockpit', hint: 'map + tree + trail + document — the three-instrument navigation model' },
+  { id: 'unfold', label: 'Unfold', hint: 'click to reveal links, pick one to grow the tree' },
 ]
 
 export default function Shell() {
@@ -98,6 +100,7 @@ export default function Shell() {
         {tab === 'contours' && <ContourView />}
         {tab === 'evoc' && <EvocView />}
         {tab === 'cockpit' && <CockpitView />}
+        {tab === 'unfold' && <UnfoldView />}
       </main>
     </div>
   )
