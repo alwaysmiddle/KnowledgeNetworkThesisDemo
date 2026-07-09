@@ -12,6 +12,8 @@ import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, pathT
 import { edgesTouching } from '../flat'
 import { DOC_BODY } from './docs'
 import { WALKS } from './walks'
+import PlexPanel from './PlexPanel'
+import { EDGE_TYPES } from './state'
 
 export interface KnowledgePanelProps {
   currentId: string
@@ -47,6 +49,11 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
 
       <div className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100">{DOC_BODY[currentId]}</div>
 
+      <div className="px-4 pt-3 pb-1 border-b border-slate-100">
+        <div className="text-[10.5px] font-bold text-slate-500 mb-1">Neighborhood</div>
+        <PlexPanel currentId={currentId} onSelect={onSelectChild} onJump={onJump} />
+      </div>
+
       {n.kind === 'container' && (
         <div className="px-4 py-3 border-b border-slate-100">
           <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Contained ({kids.length})</div>
@@ -74,33 +81,47 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
           {roads.length === 0 ? (
             <div className="text-[11px] text-slate-400">no typed links touch this node</div>
           ) : (
-            <div className="flex flex-col gap-1" aria-label="roads-from-here">
-              {outgoing.map((e) => (
-                <button
-                  key={e.id}
-                  onClick={() => onJump(e.target)}
-                  className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
-                >
-                  <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[e.type] }} />
-                  <span className="text-slate-400 shrink-0">{EDGE_LABEL[e.type]} →</span>
-                  <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(e.target)] }}>
-                    {byId.get(e.target)!.title}
-                  </span>
-                </button>
-              ))}
-              {incoming.map((e) => (
-                <button
-                  key={e.id}
-                  onClick={() => onJump(e.source)}
-                  className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
-                >
-                  <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[e.type] }} />
-                  <span className="text-slate-400 shrink-0">← {EDGE_LABEL[e.type]}</span>
-                  <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(e.source)] }}>
-                    {byId.get(e.source)!.title}
-                  </span>
-                </button>
-              ))}
+            <div className="flex flex-col gap-2.5" aria-label="roads-from-here">
+              {EDGE_TYPES.map((type) => {
+                const outs = outgoing.filter((e) => e.type === type)
+                const ins = incoming.filter((e) => e.type === type)
+                if (outs.length + ins.length === 0) return null
+                return (
+                  <div key={type}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[type] }} />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{EDGE_LABEL[type]}</span>
+                      <span className="text-[10px] text-slate-400">({outs.length + ins.length})</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {outs.map((e) => (
+                        <button
+                          key={e.id}
+                          onClick={() => onJump(e.target)}
+                          className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
+                        >
+                          <span className="text-slate-400 shrink-0">→</span>
+                          <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(e.target)] }}>
+                            {byId.get(e.target)!.title}
+                          </span>
+                        </button>
+                      ))}
+                      {ins.map((e) => (
+                        <button
+                          key={e.id}
+                          onClick={() => onJump(e.source)}
+                          className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
+                        >
+                          <span className="text-slate-400 shrink-0">←</span>
+                          <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(e.source)] }}>
+                            {byId.get(e.source)!.title}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

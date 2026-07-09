@@ -4,9 +4,14 @@
 // the handoff's file list verbatim (it says "optionally layout.ts"); adding
 // this one small file for the same reason logged as a deviation in RESULTS.
 
-import { byId, childrenOf, pathTo, ROOT_ID } from '../graph'
+import { byId, childrenOf, EDGE_LABEL, pathTo, ROOT_ID } from '../graph'
+import type { EdgeType } from '../graph'
 
 export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk'
+
+/** Fixed edge-type order, derived once from graph.ts's own declaration order
+ * so the plex's rings and the knowledge panel's grouped list always agree. */
+export const EDGE_TYPES = Object.keys(EDGE_LABEL) as EdgeType[]
 
 export interface TrailEntry {
   id: string

@@ -212,3 +212,85 @@ Nothing was cut from §6's protected list — map stability, breadcrumb-vs-trail
 and JUMP semantics all shipped intact, along with everything on the
 cut-if-overrunning list (Walk 2, per-stop notes, downstream dimming): none of
 it was cut.
+
+## Addendum — Plex (2026-07-09)
+
+Follow-up to feedback that the Knowledge panel's Roads-from-here section read
+as a flat, direction-then-appearance-order button list — functionally correct
+but visually indistinguishable from any typed-link list (Jira's "linked
+issues," GitHub's "linked PRs"). Added `cockpit/PlexPanel.tsx`: a small radial
+diagram, embedded above that list, centered on the current node. Containment
+is vertical (parent above, children below — the tree's own axis, at a point
+scale) and, for leaves, typed links fan left (incoming) and right (outgoing),
+one concentric ring per edge type, so same-type neighbors group by radius
+*and* color instead of by list position. The adjacent list was regrouped to
+match (by type, not by direction), sharing one `EDGE_TYPES` order (`state.ts`,
+derived from `EDGE_LABEL`'s own key order) so the diagram and the list always
+agree on grouping. No contract change: parent/child clicks still SELECT,
+ring-neighbor clicks still JUMP, both through the same callbacks CockpitView
+already passed into the Knowledge panel — `PlexPanel` took no new wiring.
+
+**Closes a gap this report flagged as real** (line 73-78, original): a
+container's Roads/Walks sections showed nothing, because both are leaf-only
+by construction. The plex doesn't extend those sections — leaf-to-leaf edges
+still don't reach containers — but it gives every container a populated,
+useful diagram of its own (parent above, children below), so opening on
+System no longer opens on an empty relationship panel. Confirmed in
+`plex-container.png`: System (root, no parent, 5 children) renders 6 circles
+and the honest note "graph links connect leaves only — this container shows
+containment," rather than nothing.
+
+**Two bugs found by looking at the render, not by the type-checker** — `tsc
+-b` and `npm run lint` were clean both times; both bugs were only visible in
+a screenshot:
+- The center node's fill was `DOMAIN_COLOR[domainOf(currentId)]` with no
+  fallback. `domainOf(ROOT_ID)` has no domain (root isn't inside a domain, it
+  IS the root), so the lookup was `undefined` — which SVG renders as black.
+  Confirmed in the first `plex-container.png` capture: a black center circle,
+  not the intended neutral slate. KnowledgePanel's own header already guards
+  this (`?? '#475569'`); `PlexPanel` didn't. Fixed by adding the same
+  fallback to the two lookups that can legitimately receive `ROOT_ID` — the
+  center and, separately, the parent slot (hit when viewing a domain
+  container directly, whose parent *is* root). Children and neighbor lookups
+  don't need the guard: every child and every edge endpoint in this corpus
+  has a real domain ancestor by construction, so the fallback there would
+  guard against a case that can't occur.
+- The center's label was white text inside the 44px circle, sized for the
+  longest node title. Wider than the circle, its overflow rendered white
+  text on the page's white background — invisible past the fill's edge. The
+  first `plex-hub.png` shows exactly this: "Embedding Builder" reads as
+  "bedding," the only portion still overlapping the dark fill. Fixed by
+  moving the label below the circle, matching how parent and child labels
+  were already positioned — one label placement rule for every node in the
+  diagram instead of an inside/outside split.
+
+**Verification.** `tsc -b` clean · `npm run lint` 0 errors / the same 1
+pre-existing warning · new script `tools/cockpit-spike/shots-plex.mjs`
+(mirrors `shots.mjs`'s pattern) exit 0, 0 page/console errors. Re-ran the
+original `shots.mjs` too, since regrouping the roads list by type changes its
+DOM order and that script's JUMP demonstration depends on clicking a specific
+list position (`roads.last()`) — still lands on Search Index, so no
+regression, but order-dependent by luck rather than by guarantee (see
+`shots.mjs`'s own comment on why "last" was chosen; that reasoning gets
+weaker once the list is grouped by type rather than by generation order).
+
+Screenshots (`tools/cockpit-spike/out/`):
+- `plex-container.png` — System's plex: 6 circles (center + 5 domain
+  children), no parent, no rings, the containment-only note.
+- `plex-hub.png` — Embedding Builder's plex (the same 20-road hub the
+  original spike used): 22 circles (center + parent + all 20 roads), rings
+  visibly dominated by data-flow orange with a thin depends-on slate ring,
+  legible even at the corpus's highest degree.
+- `plex-jump.png` — clicked a ring node directly (Search Index, cross-domain,
+  not the adjacent list) and captured the result: breadcrumb rewrote to
+  `System / Presentation / Search`, trail gained a `⤳ … LNK` chip — the plex
+  is a real JUMP surface, not decoration alongside one.
+
+**Parking lot**, unchanged in spirit from the original report — not done,
+not blocking:
+- Neighbor labels are hover-only (`<title>`); a hub's outermost ring is
+  visually dense enough that a persistent label would need real collision
+  avoidance, not just truncation.
+- No animation on JUMP — the center recomposes instantly to the new node's
+  own neighborhood. Ties to the separate "make navigation feel like
+  traveling" direction raised alongside this request; not attempted here.
