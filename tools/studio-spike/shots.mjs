@@ -70,24 +70,25 @@ if (onPanes !== 4) fail(`expected 4 panes on by default, got ${onPanes}`)
 await page.screenshot({ path: `${OUT}/01-coding-empty.png` })
 console.log('01-coding-empty.png taken')
 
-// ── 2. tree: expand Enrichment, click the Embedding Builder leaf ──────────
+// ── 2. tree: expand Cryptography, click the TLS & Certificates leaf ───────
 const treePane = page.locator('[aria-label="studio-pane-tree"]')
-// Ingestion is expanded by default (depth-2 from ROOT); Enrichment is one
-// level deeper and starts collapsed.
-const enrichmentToggle = treePane.getByText('Enrichment', { exact: true }).locator('..').locator('button').first()
-await enrichmentToggle.click()
+// Domains are expanded by default (depth-2 from ROOT); the Cryptography
+// module is one level deeper and starts collapsed. TLS is the corpus's
+// richest builds-on cone — the lens/curriculum showcase.
+const cryptoToggle = treePane.getByText('Cryptography', { exact: true }).locator('..').locator('button').first()
+await cryptoToggle.click()
 await page.waitForTimeout(200)
-await treePane.getByText('Embedding Builder', { exact: true }).click()
+await treePane.getByText('TLS & Certificates', { exact: true }).click()
 await page.waitForTimeout(300)
 
 const focusVal = await focusReadout.getAttribute('data-focus')
-console.log('focus after leaf click =', focusVal, '(expect enr-embedding-builder)')
-if (focusVal !== 'enr-embedding-builder') fail(`expected focus enr-embedding-builder, got ${focusVal}`)
+console.log('focus after leaf click =', focusVal, '(expect cry-tls-certificates)')
+if (focusVal !== 'cry-tls-certificates') fail(`expected focus cry-tls-certificates, got ${focusVal}`)
 
 for (const t of LENS_TYPES) {
   const header = page.locator(`[data-lens="${t}"] header`)
   const text = await header.innerText()
-  if (!text.includes('Embedding Builder')) fail(`lens ${t} header does not show focus title: "${text.replace(/\s+/g, ' ')}"`)
+  if (!text.includes('TLS & Certificates')) fail(`lens ${t} header does not show focus title: "${text.replace(/\s+/g, ' ')}"`)
   const nodeCount = await page.locator(`[data-lens="${t}"] [data-lens-node]`).count()
   console.log(`lens ${t}: header ok, data-lens-node count = ${nodeCount}`)
   if (t === 'depends_on' && nodeCount === 0) fail(`deps pane has zero data-lens-node chips`)
@@ -119,6 +120,12 @@ await page.screenshot({ path: `${OUT}/03-coding-recentered.png` })
 console.log('03-coding-recentered.png taken')
 
 // ── 4. depth toggle in the deps pane: 1 then 2 → chip count changes ───────
+// Re-focus TLS first: scenario 3 left focus on Cryptographic Hashing, whose
+// builds-on cone is only ONE level deep (foundations are nearby in the
+// authored corpus), so depth 1 and 2 would render identically there. Depth
+// semantics need a deep cone — TLS's reaches 3 levels.
+await treePane.getByText('TLS & Certificates', { exact: true }).click()
+await page.waitForTimeout(300)
 const depsPane = page.locator('[data-lens="depends_on"]')
 const depthCountBefore = await depsPane.locator('[data-lens-node]').count()
 await depsPane.getByRole('button', { name: '1', exact: true }).click()
@@ -177,18 +184,22 @@ if (!walkStripVisible) fail('walk strip not visible under teaching preset')
 await page.screenshot({ path: `${OUT}/06-teaching-empty.png` })
 console.log('06-teaching-empty.png taken')
 
-// ── 7. unfold from the hub picker, grow 2 fresh nodes ──────────────────────
+// ── 7. unfold from the hub picker, grow 2 NAMED fresh nodes ────────────────
+// Growth is deterministic on purpose: HTTP & REST → TCP & UDP → IP & Routing.
+// Blind fresh.first() could land focus on a foundation topic whose builds-on
+// cone is EMPTY (the corpus has roots now), which would starve scenario 8's
+// curriculum — a named path guarantees a real prerequisite cone.
 const unfoldPane = page.locator('[aria-label="studio-pane-unfoldg"]')
 const mapPane = page.locator('[aria-label="studio-pane-map"]')
 const docPane = page.locator('[aria-label="studio-pane-doc"]')
 
-await unfoldPane.getByRole('button', { name: /Embedding Builder/ }).first().click()
+await unfoldPane.getByRole('button', { name: /HTTP & REST/ }).first().click()
 await page.waitForTimeout(400)
 
-for (let i = 0; i < 2; i++) {
-  const fresh = unfoldPane.locator('button[data-onmap="false"]')
+for (const title of ['TCP & UDP', 'IP & Routing']) {
+  const fresh = unfoldPane.locator('button[data-onmap="false"]', { hasText: title })
   if ((await fresh.count()) === 0) {
-    fail(`unfold: no fresh (data-onmap=false) candidate available at growth step ${i + 1}`)
+    fail(`unfold: fresh candidate "${title}" not offered — corpus assumption broke`)
     break
   }
   await fresh.first().click()

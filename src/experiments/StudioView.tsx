@@ -101,9 +101,9 @@ const LABEL: Record<InstrumentId, string> = {
   evoc: 'EVoC',
   tree: 'Tree',
   doc: 'Document',
-  'lens-depends_on': 'Lens: dependencies',
-  'lens-references': 'Lens: references',
-  'lens-data_flow': 'Lens: data flow',
+  'lens-depends_on': 'Lens: builds on',
+  'lens-references': 'Lens: see also',
+  'lens-data_flow': 'Lens: uses',
 }
 
 const LENS_TYPE: Partial<Record<InstrumentId, EdgeType>> = {

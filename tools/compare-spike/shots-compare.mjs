@@ -39,7 +39,7 @@ await page.screenshot({ path: `${OUT}/compare-default.png` })
 console.log('compare-default.png taken')
 
 // ── grow unfold state so benching has something to preserve ─────────────
-await paneUnfold.getByText('Embedding Builder', { exact: true }).click()
+await paneUnfold.getByText('Trees & Heaps', { exact: true }).click()
 await page.waitForTimeout(300)
 const circlesBefore = await paneUnfold.locator('circle').count()
 console.log('UNFOLD started: circles =', circlesBefore, '(expect >= 1)')
@@ -57,11 +57,11 @@ await page.waitForTimeout(300)
 console.log('AFTER SWAP: map =', await slotOf(paneMap), '(expect B) · walk =', await slotOf(paneWalk), '(expect A)')
 
 // ── start a real walk; the shared route should glow on the map pane ─────
-await paneWalk.getByText('Embedding Builder', { exact: true }).click()
+await paneWalk.getByText('Trees & Heaps', { exact: true }).click()
 await page.waitForTimeout(400)
-console.log('WALK started — first stop rendered in pane =', await paneWalk.getByText('Embedding Builder', { exact: true }).first().isVisible())
+console.log('WALK started — first stop rendered in pane =', await paneWalk.getByText('Trees & Heaps', { exact: true }).first().isVisible())
 // extend one step so the shared route has an EDGE — that's what glows on the map
-await paneWalk.getByText('Language Detector', { exact: true }).first().click()
+await paneWalk.getByText('Arrays & Lists', { exact: true }).first().click()
 await page.waitForTimeout(400)
 await page.screenshot({ path: `${OUT}/compare-walk-route.png` })
 console.log('compare-walk-route.png taken (check map glow by eye)')

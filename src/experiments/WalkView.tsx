@@ -75,7 +75,7 @@ export default function WalkView({ route, setRoute }: WalkViewProps) {
             pick a node, then follow its outgoing links one step at a time — the route glows on the Map tab
           </div>
 
-          <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the five hubs (busiest starting points)</div>
+          <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the busiest topics (computed hubs — good starting points)</div>
           <div className="flex gap-2 flex-wrap mb-5">
             {HUB_IDS.map((id) => (
               <button
@@ -90,7 +90,7 @@ export default function WalkView({ route, setRoute }: WalkViewProps) {
             ))}
           </div>
 
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-6 gap-4">
             {domainIds.map((d) => (
               <div key={d}>
                 <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_COLOR[d] }}>
@@ -177,7 +177,7 @@ export default function WalkView({ route, setRoute }: WalkViewProps) {
                         </span>
                         <span className="flex-1" />
                         {revisitAt >= 0 && revisitAt <= i && (
-                          <span className="text-slate-400 shrink-0" title={`already step ${revisitAt + 1} — the corpus is one big cycle`}>
+                          <span className="text-slate-400 shrink-0" title={`already step ${revisitAt + 1} — topics interlink, walks can circle back`}>
                             ↺ {revisitAt + 1}
                           </span>
                         )}

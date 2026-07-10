@@ -25,37 +25,37 @@ await page.waitForTimeout(500)
 
 const plex = page.locator('[aria-label="plex-panel"]')
 
-// ── container case: System (the default root) has no parent (it IS root)
-// and no graph edges (edges are leaf-to-leaf only) — the plex should show
-// only its 5 domain children plus the "containment only" note.
-console.log('CONTAINER PLEX (System, the default root):')
+// ── container case: Computer Science (the default root) has no parent (it
+// IS root) and no graph edges (edges are leaf-to-leaf only) — the plex
+// should show only its 6 domain children plus the "containment only" note.
+console.log('CONTAINER PLEX (Computer Science, the default root):')
 console.log(`  circles: ${await plex.locator('circle').count()}`)
 console.log(`  note text: "${((await plex.locator('div').last().textContent()) ?? '').trim()}"`)
 await page.screenshot({ path: `${OUT}/plex-container.png` })
 console.log('plex-container.png taken')
 
-// ── leaf case: zoom into Ingestion, select Embedding Builder — the same
-// named hub the original spike used to demonstrate JUMP.
-const ingestionLabel = page.locator('[aria-label="map-panel"] svg text', { hasText: 'Ingestion' }).first()
-const ingestionBox = await ingestionLabel.boundingBox()
-if (!ingestionBox) throw new Error('could not find the Ingestion label on the map')
-await page.mouse.dblclick(ingestionBox.x + ingestionBox.width / 2, ingestionBox.y + ingestionBox.height / 2)
+// ── leaf case: zoom into Computer Systems, select Binary & Data
+// Representation — the same computed hub shots.mjs uses to demonstrate JUMP.
+const sysLabel = page.locator('[aria-label="map-panel"] svg text', { hasText: 'Computer Systems' }).first()
+const sysBox = await sysLabel.boundingBox()
+if (!sysBox) throw new Error('could not find the Computer Systems label on the map')
+await page.mouse.dblclick(sysBox.x + sysBox.width / 2, sysBox.y + sysBox.height / 2)
 await page.waitForTimeout(400)
-await page.getByText('Embedding Builder', { exact: true }).click()
+await page.getByText('Binary & Data Representation', { exact: true }).click()
 await page.waitForTimeout(300)
 
-console.log('LEAF PLEX (Embedding Builder, a named hub):')
+console.log('LEAF PLEX (Binary & Data Representation, a computed hub):')
 console.log(`  circles: ${await plex.locator('circle').count()} (center + parent + every road, split across up to 4 rings per side)`)
 await page.screenshot({ path: `${OUT}/plex-hub.png` })
 console.log('plex-hub.png taken')
 
 // ── click a plex ring node directly (not the adjacent list) to prove the
-// diagram itself is a real JUMP surface, not decoration. Search Index is a
-// confirmed cross-domain neighbor of Embedding Builder from the original
-// spike's verified run (tools/cockpit-spike/RESULTS.md).
+// diagram itself is a real JUMP surface, not decoration. Modular Arithmetic
+// is Binary & Data Representation's authored see-also neighbor — a
+// deterministic cross-domain link into Mathematical Foundations.
 const breadcrumbBefore = (await surfaceText('breadcrumb')).trim()
-const target = plex.locator('circle').filter({ has: page.locator('title', { hasText: 'Search Index' }) })
-if ((await target.count()) === 0) throw new Error("Search Index not found among Embedding Builder's plex neighbors — corpus assumption broke")
+const target = plex.locator('circle').filter({ has: page.locator('title', { hasText: 'Modular Arithmetic' }) })
+if ((await target.count()) === 0) throw new Error("Modular Arithmetic not found among Binary & Data Representation's plex neighbors — corpus assumption broke")
 await target.first().click()
 await page.waitForTimeout(400)
 const breadcrumbAfter = (await surfaceText('breadcrumb')).trim()

@@ -2,7 +2,7 @@
 // The successor to old A (map) and B (drill), built on their diagnosed
 // failures: A's expand-in-place "obscures higher level structure" (the paper
 // names this exact defect) and B's drill loses all context. Here the OVERVIEW
-// — the 5 domains and their lifted edges — is laid out once and NEVER
+// — the domains and their lifted edges — is laid out once and NEVER
 // reshapes. Expanding draws the container's internals in a framed panel
 // ADJACENT to it; an amber tether ties panel to its collapsed counterpart,
 // and "ports" on the panel border keep boundary edges traceable from the

@@ -35,39 +35,38 @@ for (const label of ['breadcrumb', 'map-panel', 'tree-panel', 'knowledge-panel',
 await page.screenshot({ path: `${OUT}/cockpit-initial.png` })
 console.log('cockpit-initial.png taken')
 
-// step 2: cockpit-zoomed — double-click the Ingestion region on the map.
-// The label text itself is pointer-events:none (it's a caption on the rect
-// beneath it), so click by coordinate rather than by locator, exactly like a
-// real double-click on that spot would hit-test to the rect underneath.
-const ingestionLabel = page.locator('[aria-label="map-panel"] svg text', { hasText: 'Ingestion' }).first()
-const ingestionBox = await ingestionLabel.boundingBox()
-if (!ingestionBox) throw new Error('could not find the Ingestion label on the map')
-await page.mouse.dblclick(ingestionBox.x + ingestionBox.width / 2, ingestionBox.y + ingestionBox.height / 2)
+// step 2: cockpit-zoomed — double-click the Computer Systems region on the
+// map. The label text itself is pointer-events:none (it's a caption on the
+// rect beneath it), so click by coordinate rather than by locator, exactly
+// like a real double-click on that spot would hit-test to the rect underneath.
+const sysLabel = page.locator('[aria-label="map-panel"] svg text', { hasText: 'Computer Systems' }).first()
+const sysBox = await sysLabel.boundingBox()
+if (!sysBox) throw new Error('could not find the Computer Systems label on the map')
+await page.mouse.dblclick(sysBox.x + sysBox.width / 2, sysBox.y + sysBox.height / 2)
 await page.waitForTimeout(400)
 const breadcrumbAfterZoom = (await surfaceText('breadcrumb')).trim()
 console.log('BREADCRUMB AFTER ZOOM:', breadcrumbAfterZoom)
 await page.screenshot({ path: `${OUT}/cockpit-zoomed.png` })
 console.log('cockpit-zoomed.png taken')
 
-// step 3: cockpit-jump — SELECT a leaf (now visible: zooming into Ingestion
-// re-roots the tree there, and its modules default-expand two levels deep),
-// log the pre-jump breadcrumb + trail, then JUMP via a cross-domain link.
-await page.getByText('Embedding Builder', { exact: true }).click()
+// step 3: cockpit-jump — SELECT a leaf (now visible: zooming into Computer
+// Systems re-roots the tree there, and its modules default-expand two levels
+// deep), log the pre-jump breadcrumb + trail, then JUMP via a cross-domain link.
+await page.getByText('Binary & Data Representation', { exact: true }).click()
 await page.waitForTimeout(300)
 const breadcrumbBeforeJump = (await surfaceText('breadcrumb')).trim()
 const trailBeforeJump = (await surfaceText('trail-strip')).trim()
 console.log('BREADCRUMB BEFORE JUMP:', breadcrumbBeforeJump)
 console.log('TRAIL STRIP BEFORE JUMP (raw text):', trailBeforeJump)
 
-// graph.ts generates edges in passes — local-cohesion chains (intra-module)
-// first, hub-attraction and uniform fill last — and edgesTouching() preserves
-// that order, so Roads-from-here's FIRST entry is reliably an intra-module
-// neighbor, not a cross-domain link. Embedding Builder is a named hub, so its
-// LAST road is almost certainly from the hub-attraction/fill passes, which
-// draw from every leaf uniformly. Picking last over first is deliberate.
+// graph.ts's edges are authored in story order and edgesTouching() preserves
+// it, so Binary & Data Representation's roads start with its intra-domain
+// dependents (circuits, ISA) and END with its see-also to Modular Arithmetic
+// — a deterministic cross-domain link into Mathematical Foundations.
+// Picking last over first is deliberate: it forces the cross-domain JUMP.
 const roads = page.locator('[aria-label="roads-from-here"] button')
 const roadCount = await roads.count()
-if (roadCount === 0) throw new Error('Embedding Builder (a named hub) has no roads — corpus assumption broke')
+if (roadCount === 0) throw new Error('Binary & Data Representation (a computed hub) has no roads — corpus assumption broke')
 console.log(`ROADS FROM HERE: ${roadCount} total, clicking the last (see comment above for why)`)
 await roads.last().click()
 await page.waitForTimeout(400)
@@ -85,13 +84,12 @@ console.log(
 await page.screenshot({ path: `${OUT}/cockpit-jump.png` })
 console.log('cockpit-jump.png taken')
 
-// step 4: cockpit-walk — activate Walk 1, advance to stop 5 of 14.
-// Scoped to the trail strip specifically: the jump above landed on Search
-// Index, which is itself a stop in both walks, so Knowledge panel's "Walks
-// through here" now ALSO renders a same-named button — an unscoped locator
-// would hit both and throw a strict-mode violation.
+// step 4: cockpit-walk — activate Walk 1, advance to stop 5 of 12.
+// Scoped to the trail strip specifically: if the current node is itself a
+// walk stop, Knowledge panel's "Walks through here" renders a same-named
+// button too — an unscoped locator would throw a strict-mode violation.
 const trailStrip = page.locator('[aria-label="trail-strip"]')
-await trailStrip.getByRole('button', { name: /How an article becomes knowledge/ }).click()
+await trailStrip.getByRole('button', { name: /From transistor to running program/ }).click()
 await page.waitForTimeout(300)
 for (let i = 0; i < 4; i++) {
   await trailStrip.getByRole('button', { name: 'next ▶' }).click()

@@ -1,6 +1,6 @@
 // Shared SVG pieces for the flat paper views (GMap / Contours / ZMLT):
 // arrowhead defs, the node dot + label, hover-traced REAL edges, and the
-// all-200-edges hairball layer (kept available as a toggle on purpose —
+// all-edges hairball layer (kept available as a toggle on purpose —
 // seeing it is the argument for hiding it, ComfyUI's "hide links" precedent).
 
 import { edges, EDGE_COLOR, byId, domainOf, DOMAIN_COLOR } from './graph'
@@ -52,7 +52,7 @@ export function HoverEdges({ traced, visible, scale = 1 }: { traced: string | nu
   )
 }
 
-/** All 200 raw edges, faint — the hairball the papers are trying to avoid. */
+/** All raw edges, faint — the hairball the papers are trying to avoid. */
 export function AllEdges({ visible }: { visible?: Set<string> }) {
   return (
     <g opacity={0.3}>

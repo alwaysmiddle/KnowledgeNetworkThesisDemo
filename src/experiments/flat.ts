@@ -1,5 +1,5 @@
 // Shared substrate for the flat (non-compound) paper views — E·GMap,
-// F·Contours, G·ZMLT. ONE deterministic force embedding of the 50 leaves,
+// F·Contours, G·ZMLT. ONE deterministic force embedding of all topic leaves,
 // structural communities (CNM modularity, ported from the analysis script),
 // a max-weight spanning tree (ZMLT's backbone) and importance ranks.
 // All three views render THESE positions, so switching tabs changes only
@@ -47,7 +47,9 @@ for (const { a, b, w } of pairs) {
   degreeOf.set(b, degreeOf.get(b)! + w)
 }
 
-export const HUB_IDS = ['sto-node-repository', 'run-event-bus', 'ont-type-registry', 'enr-embedding-builder', 'qry-query-parser']
+// Hubs are COMPUTED, not declared: the five busiest topics by total link
+// degree. With authored edges, which topics are central is itself a finding.
+export const HUB_IDS = [...leafIds].sort((a, b) => degreeOf.get(b)! - degreeOf.get(a)! || a.localeCompare(b)).slice(0, 5)
 
 const rawAdj = new Map<string, GEdge[]>()
 for (const e of edges) {

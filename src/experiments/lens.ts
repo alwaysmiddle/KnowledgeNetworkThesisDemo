@@ -144,7 +144,7 @@ export function curriculum(goal: string, type: EdgeType, maxDepth: number): Curr
 
 // ── Module-load guards (idiom: graph.ts throws if the deterministic corpus
 // ever stops matching what these functions assume) ─────────────────────────
-const HUB = 'enr-embedding-builder' // Embedding Builder leaf — one of graph.ts's declared hubs
+const HUB = 'cry-tls-certificates' // TLS & Certificates — the corpus's richest builds-on cone
 if (!byId.has(HUB)) throw new Error(`lens.ts guard: hub id typo, not in corpus: ${HUB}`)
 
 {

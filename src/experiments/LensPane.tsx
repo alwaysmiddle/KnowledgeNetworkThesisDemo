@@ -8,8 +8,8 @@
 // same focused leaf read three different ways at once.
 //
 // Layout differs by type because the RELATION shape differs: depends_on
-// reads as build layers (needs above, needed-by below); data_flow reads as
-// a pipeline (producers left, consumers right); references reads as a fan
+// reads as build layers (prerequisites above, dependents below); data_flow
+// reads as a pipeline (used-by left, uses right); references reads as a fan
 // (no natural up/down or left/right, so it's a ring). A node that appears on
 // BOTH sides (a cycle) gets two independent chips, one per side's own
 // position map — drawing its two roles separately is the point: it visibly
@@ -39,14 +39,14 @@ interface LensConfig {
   inLabel: string
 }
 
-// depends_on: build layers (needs above, needed-by below)
-// data_flow: pipeline (producers left, consumers right)
+// depends_on: build layers (what it builds on above, what builds on it below)
+// data_flow: pipeline (what uses it left, what it uses right)
 // references / implements: no natural axis — a fan
 const LENS_CONFIG: Record<EdgeType, LensConfig> = {
-  depends_on: { orientation: 'vertical', outLabel: 'needs', inLabel: 'needed by' },
-  data_flow: { orientation: 'horizontal', outLabel: 'consumers', inLabel: 'producers' },
-  references: { orientation: 'fan', outLabel: 'references', inLabel: 'referenced by' },
-  implements: { orientation: 'fan', outLabel: 'implements', inLabel: 'implemented by' },
+  depends_on: { orientation: 'vertical', outLabel: 'builds on', inLabel: 'built on by' },
+  data_flow: { orientation: 'horizontal', outLabel: 'uses', inLabel: 'used by' },
+  references: { orientation: 'fan', outLabel: 'see also', inLabel: 'noted by' },
+  implements: { orientation: 'fan', outLabel: 'implemented with', inLabel: 'underpins' },
 }
 
 const DEFAULT_DEPTH: Record<EdgeType, 1 | 2> = { depends_on: 2, data_flow: 2, references: 1, implements: 1 }

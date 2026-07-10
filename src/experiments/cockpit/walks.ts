@@ -1,11 +1,7 @@
-// Authored walks (Part A of the cockpit spike) — first-class narrative
-// artifacts over the same corpus docs.ts describes as terrain. Domain
-// sequence is fixed as ingestion(0) < model(1) < reasoning(2) <
-// presentation(3) < platform(4); a "twist" in Walk 1 is a jump between
-// consecutive stops whose domain index differs by 2 or more (skipping over
-// or doubling back across at least one domain), vs. a plain step to a
-// neighboring domain. That reading of "not tree-adjacent" was the simplest
-// one available — recorded here since the handoff left it ambiguous.
+// Authored walks — first-class narrative artifacts over the same corpus
+// docs.ts describes as terrain. Each walk is a story a teacher would actually
+// tell across the map, and the stops deliberately jump domains where the
+// story does: understanding lives in the crossings, not inside one country.
 
 import { byId } from '../graph'
 
@@ -18,64 +14,53 @@ export interface Walk {
 
 export const WALKS: Walk[] = [
   {
-    id: 'article-to-knowledge',
-    title: 'How an article becomes knowledge',
+    id: 'transistor-to-program',
+    title: 'From transistor to running program',
     description:
-      'Follows one article from the moment it arrives through Ingestion to the moment it is searchable — ' +
-      'including the feedback loops that make it a real pipeline instead of a straight line.',
+      'The bottom-up ladder of computing: pure logic becomes silicon, silicon becomes a machine, ' +
+      'a compiler crosses the abstraction gap, and the operating system turns one machine into many.',
     stops: [
-      { id: 'src-rss-connector', note: "An article lands through the RSS connector — the walk's first foothold in Ingestion." },
-      { id: 'prs-markdown-parser', note: 'The raw feed gets normalized to markdown before anything else can touch it.' },
-      { id: 'enr-entity-tagger', note: 'A tagging pass pulls out the entities the rest of the system will index by.' },
+      { id: 'dm-propositional-logic', note: 'Before any hardware: AND, OR, NOT as pure mathematics — truth as something you can calculate with.' },
+      { id: 'dig-transistors-logic-gates', note: 'The same logic cast in silicon: a transistor is a switch, a few switches make a gate. Math becomes physics.' },
+      { id: 'dig-binary-data-representation', note: 'Two voltage levels means base 2 — numbers, text, everything encoded as bit patterns the gates can chew.' },
+      { id: 'dig-combinational-circuits', note: 'Gates compose into circuits that compute: an adder is just logic arranged to carry.' },
+      { id: 'dig-sequential-logic-memory', note: 'Feedback lets a circuit remember. State is the difference between a calculator and a computer.' },
+      { id: 'arc-instruction-set-architecture', note: 'Registers plus circuits plus a clock define a machine language — the contract everything above will speak.' },
+      { id: 'arc-memory-hierarchy-caches', note: 'Where the program and its data actually live: a stack of memories, each pretending to be big AND fast.' },
       {
-        id: 'enr-embedding-builder',
-        note: "Now that it's parsed and tagged, its embedding is what makes it findable by meaning, not just keyword.",
+        id: 'pl-grammars-parsing',
+        note: 'First twist — jump to languages: humans won’t write bit patterns, so source code needs structure a machine can recover.',
       },
-      { id: 'sto-node-repository', note: 'The embedded node is written into the graph store, crossing from Ingestion into the Knowledge Model.' },
-      { id: 'ont-type-registry', note: "Before it's trusted, the node is classified against the ontology's type registry." },
-      { id: 'qry-query-parser', note: 'A live query happens to touch the freshly typed node on its way through Query parsing.' },
-      { id: 'inf-cluster-detector', note: 'Background inference sweeps it into a cluster with related material.' },
+      { id: 'pl-compilers-interpreters', note: 'The compiler crosses the map’s biggest gap: parsed source in, ISA instructions out.' },
       {
-        id: 'enr-summarizer',
-        note:
-          'First twist: the new cluster is different enough to trigger a re-summarization pass back in ' +
-          'Enrichment, two domains back.',
+        id: 'os-processes-threads',
+        note: 'Second twist — back into systems: the compiled program starts running and becomes a process, a living thing the OS manages.',
       },
-      {
-        id: 'inf-suggestion-builder',
-        note: 'Second twist: the refreshed summary flows forward again to build a suggestion — Reasoning picking up where it left off.',
-      },
-      { id: 'cnv-node-renderer', note: 'The suggestion finally reaches the canvas and gets rendered for a human to see.' },
-      { id: 'del-telemetry', note: 'Every render emits a telemetry event, landing the walk in Platform.' },
-      {
-        id: 'ont-schema-validator',
-        note:
-          'Third twist: telemetry catches a schema drift and routes the alert straight back to the ' +
-          "ontology's validator — Platform talking directly to the Knowledge Model.",
-      },
-      {
-        id: 'sch-search-index',
-        note:
-          'Fourth twist: once validated, the corrected node is indexed for search — an article that started ' +
-          'as an RSS item is now something you can find.',
-      },
+      { id: 'os-virtual-memory', note: 'The process believes it owns all of memory. That belief is an illusion the OS maintains page by page.' },
+      { id: 'os-cpu-scheduling', note: 'And it takes turns: the scheduler multiplexes the very CPU the walk started by building.' },
     ],
   },
   {
-    id: 'query-journey',
-    title: 'Where a query goes',
-    description: "A shorter walk in the opposite direction: what happens between typing a search and seeing results.",
+    id: 'loading-a-webpage',
+    title: 'What happens when you load a webpage',
+    description:
+      'The classic interview question as a walk: from a typed name, down the protocol stack, through ' +
+      'the cryptography that secures the connection, up to the application — and out to the team that shipped it.',
     stops: [
-      { id: 'sch-search-index', note: 'A search box in Presentation is where every query begins.' },
-      { id: 'qry-query-parser', note: 'The raw text gets parsed into a structured query shape.' },
-      { id: 'qry-path-resolver', note: 'The parser hands off to the path resolver, which figures out which part of the graph to walk.' },
-      { id: 'qry-filter-engine', note: 'A filter engine narrows the candidate set before anything expensive runs.' },
-      { id: 'sto-edge-repository', note: 'The filtered path pulls real edges out of the graph store.' },
-      { id: 'qry-result-ranker', note: 'Back in Query, a ranker orders what came back by relevance.' },
-      { id: 'sch-result-list', note: "The ranked results reach the result list — the query's answer, made visible." },
+      { id: 'stk-dns-naming', note: 'A typed name is useless to routers — DNS walks its hierarchical namespace to turn it into an address.' },
+      { id: 'stk-ip-routing', note: 'Packets head for that address hop by hop, each router moving them one step closer with no promises.' },
+      { id: 'stk-tcp-udp', note: 'TCP builds a reliable, ordered stream out of those unreliable packets — acknowledgments and retransmission doing quiet work.' },
       {
-        id: 'nav-history-stack',
-        note: 'The query itself gets pushed onto the navigation history, so the walk back is as easy as the walk forward.',
+        id: 'cry-tls-certificates',
+        note: 'Twist into security: before any content moves, the handshake — a certificate proves the server’s name, and a session key is agreed.',
+      },
+      { id: 'cry-public-key-cryptography', note: 'The mathematics under that handshake: a key pair and a modular-arithmetic trapdoor make trust transferable.' },
+      { id: 'web-http-rest', note: 'Back up the stack: over the secured stream, the browser finally speaks — a GET request, a status code, a body.' },
+      { id: 'web-sockets-apis', note: 'On both ends, that conversation is just sockets: endpoints a program opens, writes, and reads.' },
+      { id: 'app-authentication-authorization', note: 'The site knows who you are — a session token rides along, and authorization decides what this page will show you.' },
+      {
+        id: 'auto-deployment-monitoring',
+        note: 'Final twist — the page exists because someone shipped it: a deploy put it here, and telemetry is watching this very request land.',
       },
     ],
   },

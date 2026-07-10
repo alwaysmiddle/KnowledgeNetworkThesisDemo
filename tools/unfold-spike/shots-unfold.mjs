@@ -3,11 +3,11 @@
 // click at a time. Same pattern as the cockpit spike's scripts:
 // createRequire -> playwright-core, msedge, headless, viewport 1750x950,
 // collect pageerror/console errors, exit nonzero on any. The one thing
-// worth specifically provoking here is a REVISIT — the corpus is one
-// strongly-connected component, so a node's own link list almost always
-// contains its own tree-parent, and that's exactly the case where a naive
-// keying scheme would collide. If React logs a duplicate-key warning, it
-// shows up as a console error and fails this script.
+// worth specifically provoking here is a REVISIT — the list shows a node's
+// edges in BOTH directions, so a materialized child's own list contains its
+// tree-parent, and that's exactly the case where a naive keying scheme
+// would collide. If React logs a duplicate-key warning, it shows up as a
+// console error and fails this script.
 import { createRequire } from 'node:module'
 const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
 const { chromium } = require('playwright-core')
@@ -28,13 +28,13 @@ await page.getByText('Unfold —', { exact: false }).click()
 await page.waitForTimeout(400)
 
 // ── picker screen ────────────────────────────────────────────────────────
-console.log('PICKER: hub buttons visible =', await page.getByText('Embedding Builder', { exact: true }).isVisible())
+console.log('PICKER: hub buttons visible =', await page.getByText('Trees & Heaps', { exact: true }).isVisible())
 await page.screenshot({ path: `${OUT}/unfold-picker.png` })
 console.log('unfold-picker.png taken')
 
-// start at Embedding Builder — the same named hub the cockpit spike used,
-// so results are comparable across spikes
-await page.getByText('Embedding Builder', { exact: true }).click()
+// start at Trees & Heaps — a computed hub (six other topics are implemented
+// with it), so results are comparable across spikes
+await page.getByText('Trees & Heaps', { exact: true }).click()
 await page.waitForTimeout(300)
 
 const canvas = page.locator('[aria-label="unfold-canvas"]')
@@ -59,7 +59,7 @@ console.log('EDGE LABEL rendered:', await canvas.locator('svg text').allTextCont
 // to force a deterministic revisit.
 const rootTitle = (await page.locator('[aria-label="unfold-list"] .font-bold').first().textContent()) ?? ''
 console.log('CHILD A LIST HEADER:', rootTitle)
-const revisitRow = list.locator('button', { hasText: 'Embedding Builder' })
+const revisitRow = list.locator('button', { hasText: 'Trees & Heaps' })
 const revisitCount = await revisitRow.count()
 console.log('REVISIT CANDIDATE FOUND IN CHILD A LIST:', revisitCount > 0)
 if (revisitCount > 0) {

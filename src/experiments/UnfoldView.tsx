@@ -107,7 +107,7 @@ export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; 
         <div className="text-[13px] font-bold text-slate-800">{heading}</div>
         <div className="text-[11px] text-slate-500 mt-0.5 mb-4">{sub}</div>
 
-        <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the five hubs (busiest starting points)</div>
+        <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the busiest topics (computed hubs — good starting points)</div>
         <div className="flex gap-2 flex-wrap mb-5">
           {HUB_IDS.map((id) => (
             <button
@@ -122,7 +122,7 @@ export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; 
           ))}
         </div>
 
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-6 gap-4">
           {domainIds.map((d) => (
             <div key={d}>
               <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_COLOR[d] }}>

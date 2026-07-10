@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, domainIds, leavesUnder } from './graph'
+import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, leavesUnder } from './graph'
 import {
   FLAT_W,
   FLAT_H,
@@ -176,7 +176,7 @@ export default function ContourView() {
         <span className="w-px h-4 bg-slate-200" />
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input type="checkbox" checked={hairball} onChange={(ev) => setHairball(ev.target.checked)} />
-          all 200 edges
+          all {edges.length} edges
         </label>
         {traced && (
           <>

@@ -28,7 +28,7 @@ await page.waitForTimeout(600)
 await page.getByRole('button', { name: /every node once, revisits snap back/ }).click()
 await page.waitForTimeout(300)
 console.log('PICKER visible =', await page.getByText('Start unfolding a graph').isVisible())
-await page.getByRole('button', { name: /Embedding Builder/ }).first().click()
+await page.getByRole('button', { name: /Trees & Heaps/ }).first().click()
 await page.waitForTimeout(400)
 
 const canvas = page.locator('[aria-label="unfoldg-canvas"]')
@@ -82,7 +82,7 @@ if (!revisited) {
 //    land in the trial with that node as the start ───────────────────────
 await page.getByRole('button', { name: /where is everything/ }).click()
 await page.waitForTimeout(600)
-const capital = page.locator('svg').getByText('Embedding Builder', { exact: true }).first()
+const capital = page.locator('svg').getByText('Trees & Heaps', { exact: true }).first()
 await capital.click()
 await page.waitForTimeout(300)
 let bar = page.getByText('◳ open neighborhood')

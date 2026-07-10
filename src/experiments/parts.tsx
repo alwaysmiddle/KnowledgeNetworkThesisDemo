@@ -7,6 +7,7 @@ import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 
 import { CARD_W, CARD_H } from './derive'
+import { edges, nodes } from './graph'
 
 // Handles exist only so edges have anchor points; they are invisible and inert.
 const handleStyle = {
@@ -157,7 +158,7 @@ export function BudgetHud({ boxes, links }: { boxes: number; links: number }) {
   const tone = boxes <= 25 ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : boxes <= 60 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-rose-700 bg-rose-50 border-rose-200'
   return (
     <div className={`absolute bottom-3 left-3 z-10 rounded-full border px-3 py-1 text-[11px] font-medium shadow-sm ${tone}`}>
-      on screen: {boxes} boxes · {links} links <span className="opacity-50">/ 68 nodes · 200 links total</span>
+      on screen: {boxes} boxes · {links} links <span className="opacity-50">/ {nodes.length} nodes · {edges.length} links total</span>
     </div>
   )
 }
