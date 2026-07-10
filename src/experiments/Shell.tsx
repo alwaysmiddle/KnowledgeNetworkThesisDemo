@@ -19,10 +19,12 @@ import EvocView from './EvocView'
 import CockpitView from './cockpit/CockpitView'
 import UnfoldView from './UnfoldView'
 import CompareView from './CompareView'
+import StudioView from './StudioView'
 
-type Tab = 'map' | 'walk' | 'unfoldg' | 'contours' | 'evoc' | 'cockpit' | 'unfold' | 'compare'
+type Tab = 'map' | 'walk' | 'unfoldg' | 'contours' | 'evoc' | 'cockpit' | 'unfold' | 'compare' | 'studio'
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
+  { id: 'studio', label: 'Studio', hint: 'instrument palette — pick views, sync on one bus, presets for coding & teaching' },
   { id: 'map', label: 'Map', hint: 'where is everything — countries + semantic zoom' },
   { id: 'walk', label: 'Walk', hint: 'how does flow move — step-by-step paths' },
   { id: 'unfoldg', label: 'Unfold·Graph', hint: 'trial — unfold into a graph: every node once, revisits snap back' },
@@ -104,6 +106,7 @@ export default function Shell() {
         {tab === 'cockpit' && <CockpitView />}
         {tab === 'unfold' && <UnfoldView />}
         {tab === 'compare' && <CompareView />}
+        {tab === 'studio' && <StudioView />}
       </main>
     </div>
   )

@@ -119,9 +119,12 @@ export interface MapViewProps {
   route: string[]
   onStartWalk: (id: string) => void
   onOpenNeighborhood: (id: string) => void
+  visited?: Set<string>
+  onFocus?: (id: string) => void
+  compact?: boolean
 }
 
-export default function MapView({ route, onStartWalk, onOpenNeighborhood }: MapViewProps) {
+export default function MapView({ route, onStartWalk, onOpenNeighborhood, visited, onFocus, compact }: MapViewProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [view, setView] = useState<View>({ tx: 0, ty: 0, s: 1 })
   const [hovered, setHovered] = useState<string | null>(null)
@@ -172,6 +175,7 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood }: MapV
   const kByCountry = countryReveal.map((r) => (r ? LEVEL_K[level] : 1))
   const visible = countryLevelSet(kByCountry)
   for (const id of route) visible.add(id) // the walk is always on the map, whatever the altitude
+  for (const id of visited ?? []) if (leafPos[id]) visible.add(id) // visited stays on the map at any altitude
 
   // client px -> viewBox user coords (before the pan/zoom transform)
   const toUser = (clientX: number, clientY: number) => {
@@ -321,6 +325,29 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood }: MapV
 
           {hairball && <AllEdges visible={visible} />}
 
+          {/* visited nodes: quiet dashed slate rings, deliberately distinct from
+              the amber route channel and the five saturated domain hues */}
+          {visited && visited.size > 0 && (
+            <g pointerEvents="none">
+              {[...visited].map((id) =>
+                visible.has(id) && leafPos[id] ? (
+                  <circle
+                    key={`v-${id}`}
+                    data-visited={id}
+                    cx={leafPos[id].x}
+                    cy={leafPos[id].y}
+                    r={10 / view.s}
+                    fill="none"
+                    stroke="#475569"
+                    strokeWidth={1.6 / view.s}
+                    strokeDasharray="3 3"
+                    opacity={0.65}
+                  />
+                ) : null,
+              )}
+            </g>
+          )}
+
           {/* the walk route, glowing amber across the geography */}
           {route.length > 0 && (
             <g pointerEvents="none">
@@ -370,7 +397,10 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood }: MapV
                   hi={id === traced}
                   onEnter={setHovered}
                   onLeave={() => setHovered(null)}
-                  onClick={(n) => setPinned((prev) => (prev === n ? null : n))}
+                  onClick={(n) => {
+                    setPinned((prev) => (prev === n ? null : n))
+                    onFocus?.(n)
+                  }}
                 />
               )
             })}
@@ -399,24 +429,26 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood }: MapV
         </g>
       </svg>
 
-      <div className="absolute top-3 left-3 z-10 rounded-lg bg-white/95 border border-slate-200 shadow-sm px-3 py-2 text-[11px] text-slate-600 max-w-[560px]">
-        <div className="font-bold text-slate-800 text-[12px]">Map — GMap '10 countries × ZMLT '20 semantic zoom</div>
-        <div className="mt-0.5">
-          The countries never change (CNM Q = {modularityQ.toFixed(3)}, {(domainPurity * 100).toFixed(0)}% agree with authored domains);
-          each country descends past its ★ capital once zoom reaches THAT capital's own global rank — hub-heavy countries first,
-          everyone by L2 — and only while the capital is on screen. Color, territory, and cities arrive as one.
-        </div>
-        {hubNote ? (
-          <div className="mt-1 text-amber-700 font-medium">{hubNote}</div>
-        ) : (
-          <div className="mt-1 text-slate-400">
-            wheel to zoom (levels switch with it; a country discloses — color AND cities — only while its ★ capital is on screen) · drag to pan · hover a node for its real links · click to pin
-            {traced && beyondCount > 0 && (
-              <span className="text-amber-700 font-medium"> · {beyondCount} of {byId.get(traced)!.title}'s links lead deeper than this level</span>
-            )}
+      {!compact && (
+        <div className="absolute top-3 left-3 z-10 rounded-lg bg-white/95 border border-slate-200 shadow-sm px-3 py-2 text-[11px] text-slate-600 max-w-[560px]">
+          <div className="font-bold text-slate-800 text-[12px]">Map — GMap '10 countries × ZMLT '20 semantic zoom</div>
+          <div className="mt-0.5">
+            The countries never change (CNM Q = {modularityQ.toFixed(3)}, {(domainPurity * 100).toFixed(0)}% agree with authored domains);
+            each country descends past its ★ capital once zoom reaches THAT capital's own global rank — hub-heavy countries first,
+            everyone by L2 — and only while the capital is on screen. Color, territory, and cities arrive as one.
           </div>
-        )}
-      </div>
+          {hubNote ? (
+            <div className="mt-1 text-amber-700 font-medium">{hubNote}</div>
+          ) : (
+            <div className="mt-1 text-slate-400">
+              wheel to zoom (levels switch with it; a country discloses — color AND cities — only while its ★ capital is on screen) · drag to pan · hover a node for its real links · click to pin
+              {traced && beyondCount > 0 && (
+                <span className="text-amber-700 font-medium"> · {beyondCount} of {byId.get(traced)!.title}'s links lead deeper than this level</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="absolute bottom-3 left-3 z-10 flex items-center gap-3 rounded-lg bg-white/95 border border-slate-200 shadow-sm px-3 py-1.5 text-[11px] text-slate-600">
         <span className="text-slate-400">level</span>

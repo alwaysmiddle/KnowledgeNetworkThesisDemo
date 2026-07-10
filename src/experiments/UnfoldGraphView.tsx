@@ -84,9 +84,15 @@ const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '
 export interface UnfoldGraphViewProps {
   /** start unfolding at this leaf immediately (the map's "open neighborhood") */
   initialStart?: string | null
+  /** counter-keyed external reseed — alternative to key-remounting */
+  resetTo?: { id: string; n: number } | null
+  /** a node was PLACED on the map (start + fresh pickLink) */
+  onVisit?: (id: string) => void
+  /** a node became the open/inspected one */
+  onOpen?: (id: string) => void
 }
 
-export default function UnfoldGraphView({ initialStart = null }: UnfoldGraphViewProps) {
+export default function UnfoldGraphView({ initialStart = null, resetTo = null, onVisit, onOpen }: UnfoldGraphViewProps) {
   const [nodes, setNodes] = useState<GNode[]>(() =>
     initialStart ? [{ id: initialStart, x: CX, y: CY, enterAngle: 0 }] : [],
   )
@@ -115,6 +121,30 @@ export default function UnfoldGraphView({ initialStart = null }: UnfoldGraphView
     return () => window.clearTimeout(t)
   }, [flash])
 
+  // External reseed (the map's "open neighborhood"): Studio bumps `resetTo.n`
+  // on every request, even to the same id, so the dependency is the counter,
+  // not id equality. onVisit/onOpen are plain (unmemoized) callbacks from the
+  // parent, so a ref keeps the latest ones without pulling them into the
+  // effect's deps — refreshed every render (in its own effect, refs must not
+  // be written during render) and read only inside the reset effect below,
+  // which fires after this one in the same commit.
+  const latestReset = useRef({ resetTo, onVisit, onOpen })
+  useEffect(() => {
+    latestReset.current = { resetTo, onVisit, onOpen }
+  })
+  useEffect(() => {
+    const current = latestReset.current.resetTo
+    if (!current) return
+    const { id } = current
+    setNodes([{ id, x: CX, y: CY, enterAngle: 0 }])
+    setGedges([])
+    setOpenId(id)
+    setFlash(null)
+    pendingPan.current = { x: CX, y: CY, smooth: false }
+    latestReset.current.onVisit?.(id)
+    latestReset.current.onOpen?.(id)
+  }, [resetTo?.n])
+
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
   const drawn = useMemo(() => new Set(gedges.map((e) => e.key)), [gedges])
 
@@ -124,6 +154,8 @@ export default function UnfoldGraphView({ initialStart = null }: UnfoldGraphView
     setOpenId(id)
     setFlash(null)
     pendingPan.current = { x: CX, y: CY, smooth: false }
+    onVisit?.(id)
+    onOpen?.(id)
   }
 
   const pickLink = (from: GNode, targetId: string, type: EdgeType, out: boolean) => {
@@ -137,12 +169,15 @@ export default function UnfoldGraphView({ initialStart = null }: UnfoldGraphView
       setOpenId(targetId)
       setFlash((f) => ({ id: targetId, n: (f?.n ?? 0) + 1 }))
       pendingPan.current = { x: existing.x, y: existing.y, smooth: true }
+      onOpen?.(targetId)
     } else {
       const pos = place(from, nodes)
       setNodes((prev) => [...prev, { id: targetId, ...pos }])
       setGedges((prev) => [...prev, { key, source, target, type, revisit: false }])
       setOpenId(targetId)
       pendingPan.current = { x: pos.x, y: pos.y, smooth: true }
+      onVisit?.(targetId)
+      onOpen?.(targetId)
     }
   }
 
@@ -261,7 +296,10 @@ export default function UnfoldGraphView({ initialStart = null }: UnfoldGraphView
                     stroke={isOpen ? '#f59e0b' : '#fff'}
                     strokeWidth={isOpen ? 3 : 2}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => setOpenId((cur) => (cur === n.id ? null : n.id))}
+                    onClick={() => {
+                      if (openId !== n.id) onOpen?.(n.id)
+                      setOpenId((cur) => (cur === n.id ? null : n.id))
+                    }}
                   />
                   <text x={n.x} y={n.y + R + 14} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="#1e293b" style={{ pointerEvents: 'none' }}>
                     {truncate(byId.get(n.id)!.title, 20)}
