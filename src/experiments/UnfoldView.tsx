@@ -98,6 +98,55 @@ function shortenToEdge(from: { x: number; y: number }, to: { x: number; y: numbe
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
+/** The "pick a starting node" screen — hubs first, then every leaf by domain.
+ * Shared with UnfoldGraphView.tsx, which grows the same corpus a different shape. */
+export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; sub: string; onStart: (id: string) => void }) {
+  return (
+    <div className="h-full overflow-auto bg-slate-50 p-6">
+      <div className="max-w-[900px] mx-auto">
+        <div className="text-[13px] font-bold text-slate-800">{heading}</div>
+        <div className="text-[11px] text-slate-500 mt-0.5 mb-4">{sub}</div>
+
+        <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the five hubs (busiest starting points)</div>
+        <div className="flex gap-2 flex-wrap mb-5">
+          {HUB_IDS.map((id) => (
+            <button
+              key={id}
+              onClick={() => onStart(id)}
+              className="px-2.5 py-1 rounded-lg border-2 text-[12px] font-semibold bg-white hover:bg-amber-50"
+              style={{ borderColor: DOMAIN_COLOR[domainOf(id)], color: DOMAIN_COLOR[domainOf(id)] }}
+            >
+              {byId.get(id)!.title}
+              <span className="text-slate-400 font-normal ml-1.5">{degreeOf.get(id)} links</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-5 gap-4">
+          {domainIds.map((d) => (
+            <div key={d}>
+              <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_COLOR[d] }}>
+                {byId.get(d)!.title}
+              </div>
+              <div className="flex flex-col gap-1">
+                {leavesUnder(d).map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => onStart(id)}
+                    className="px-2 py-1 rounded border border-slate-200 bg-white text-left text-[11px] text-slate-600 hover:border-slate-400 hover:bg-slate-100"
+                  >
+                    {byId.get(id)!.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function UnfoldView() {
   const [root, setRoot] = useState<UNode | null>(null)
   const [openKey, setOpenKey] = useState<string | null>(null)
@@ -127,50 +176,11 @@ export default function UnfoldView() {
 
   if (!root || !layout) {
     return (
-      <div className="h-full overflow-auto bg-slate-50 p-6">
-        <div className="max-w-[900px] mx-auto">
-          <div className="text-[13px] font-bold text-slate-800">Start growing a tree</div>
-          <div className="text-[11px] text-slate-500 mt-0.5 mb-4">
-            pick a node — click it to reveal its typed links, click a link to grow it into a real node
-          </div>
-
-          <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the five hubs (busiest starting points)</div>
-          <div className="flex gap-2 flex-wrap mb-5">
-            {HUB_IDS.map((id) => (
-              <button
-                key={id}
-                onClick={() => start(id)}
-                className="px-2.5 py-1 rounded-lg border-2 text-[12px] font-semibold bg-white hover:bg-amber-50"
-                style={{ borderColor: DOMAIN_COLOR[domainOf(id)], color: DOMAIN_COLOR[domainOf(id)] }}
-              >
-                {byId.get(id)!.title}
-                <span className="text-slate-400 font-normal ml-1.5">{degreeOf.get(id)} links</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-5 gap-4">
-            {domainIds.map((d) => (
-              <div key={d}>
-                <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_COLOR[d] }}>
-                  {byId.get(d)!.title}
-                </div>
-                <div className="flex flex-col gap-1">
-                  {leavesUnder(d).map((id) => (
-                    <button
-                      key={id}
-                      onClick={() => start(id)}
-                      className="px-2 py-1 rounded border border-slate-200 bg-white text-left text-[11px] text-slate-600 hover:border-slate-400 hover:bg-slate-100"
-                    >
-                      {byId.get(id)!.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <UnfoldStartPicker
+        heading="Start growing a tree"
+        sub="pick a node — click it to reveal its typed links, click a link to grow it into a real node"
+        onStart={start}
+      />
     )
   }
 

@@ -2,7 +2,7 @@
 // instead of one tab per paper:
 //   Map          where is everything?      GMap '10 countries × ZMLT '20 zoom
 //   Walk         how does flow move?       step-by-step downstream paths
-//   Neighborhood what surrounds one thing? Overview+Detail '24, expand adjacent
+//   Unfold·Graph what surrounds one thing? unfold trial — deduped graph, snap-back
 //   Contours     (reference) soft vs hard grouping — Bubble Sets/KelpFusion
 // The glue is shared state: the walk route glows on the map, and a pinned map
 // node can jump into a walk or into its neighborhood.
@@ -14,21 +14,23 @@ import type { EdgeType } from './graph'
 import MapView from './MapView'
 import WalkView from './WalkView'
 import ContourView from './ContourView'
-import OverviewDetailView from './OverviewDetailView'
+import UnfoldGraphView from './UnfoldGraphView'
 import EvocView from './EvocView'
 import CockpitView from './cockpit/CockpitView'
 import UnfoldView from './UnfoldView'
+import CompareView from './CompareView'
 
-type Tab = 'map' | 'walk' | 'ovd' | 'contours' | 'evoc' | 'cockpit' | 'unfold'
+type Tab = 'map' | 'walk' | 'unfoldg' | 'contours' | 'evoc' | 'cockpit' | 'unfold' | 'compare'
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'map', label: 'Map', hint: 'where is everything — countries + semantic zoom' },
   { id: 'walk', label: 'Walk', hint: 'how does flow move — step-by-step paths' },
-  { id: 'ovd', label: 'Neighborhood', hint: 'what surrounds one thing — expand adjacent' },
+  { id: 'unfoldg', label: 'Unfold·Graph', hint: 'trial — unfold into a graph: every node once, revisits snap back' },
   { id: 'contours', label: 'Contours', hint: 'reference — soft groups over the same layout' },
   { id: 'evoc', label: 'EVoC', hint: 'can auto-clustering recover our pipeline? — 800 mocked Infra artifacts' },
   { id: 'cockpit', label: 'Cockpit', hint: 'map + tree + trail + document — the three-instrument navigation model' },
   { id: 'unfold', label: 'Unfold', hint: 'click to reveal links, pick one to grow the tree' },
+  { id: 'compare', label: 'Compare', hint: 'layout mock — togglable folder tree + ⅔/⅓ panes, instruments swap' },
 ]
 
 export default function Shell() {
@@ -42,7 +44,7 @@ export default function Shell() {
   }
   const openNeighborhood = (id: string) => {
     setFocusLeaf(id)
-    setTab('ovd')
+    setTab('unfoldg')
   }
 
   return (
@@ -96,11 +98,12 @@ export default function Shell() {
       <main className="flex-1 min-h-0">
         {tab === 'map' && <MapView route={route} onStartWalk={startWalk} onOpenNeighborhood={openNeighborhood} />}
         {tab === 'walk' && <WalkView route={route} setRoute={setRoute} />}
-        {tab === 'ovd' && <OverviewDetailView key={focusLeaf ?? 'plain'} initialFocus={focusLeaf} />}
+        {tab === 'unfoldg' && <UnfoldGraphView key={focusLeaf ?? 'plain'} initialStart={focusLeaf} />}
         {tab === 'contours' && <ContourView />}
         {tab === 'evoc' && <EvocView />}
         {tab === 'cockpit' && <CockpitView />}
         {tab === 'unfold' && <UnfoldView />}
+        {tab === 'compare' && <CompareView />}
       </main>
     </div>
   )
