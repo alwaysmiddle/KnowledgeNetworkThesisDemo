@@ -22,13 +22,22 @@
 // over the focused leaf's depends_on cone and drops the ordered walk onto
 // the shared route, surfacing a cycle note when the topo-sort had to fall
 // back to fewest-unmet-prerequisites.
+//
+// The map's CAMERA is on the bus too, one-way, via counter-keyed
+// MapFlyCommands (so the map's own pin-clicks never echo back into a
+// move): opening a node in Unfold·Graph fits the map to that node plus its
+// graph neighbors and pins it; any walk interaction pans the map to the
+// new tip at the current altitude; "teach me this", switching the Walk
+// instrument on, or the walk header's ⤢ button fit the WHOLE path.
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, ROOT_ID } from './graph'
 import type { EdgeType } from './graph'
+import { edgesTouching } from './flat'
 import MapView from './MapView'
+import type { MapFlyCommand } from './MapView'
 import WalkView from './WalkView'
 import UnfoldView from './UnfoldView'
 import UnfoldGraphView from './UnfoldGraphView'
@@ -123,6 +132,7 @@ export default function StudioView() {
   const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>({})
   const [unfoldSeed, setUnfoldSeed] = useState<{ id: string; n: number } | null>(null)
   const [cycleNote, setCycleNote] = useState(false)
+  const [mapFly, setMapFly] = useState<MapFlyCommand | null>(null)
 
   // ── the sync bus ────────────────────────────────────────────────────────
   const addVisited = (id: string | null) => {
@@ -146,10 +156,32 @@ export default function StudioView() {
     setCycleNote(false)
   }
 
+  // ── map camera sync ─────────────────────────────────────────────────────
+  // one-way commands into MapView; counter-keyed so identical payloads still
+  // re-fly, and so the map's own focus writes never bounce back into a move
+  const flyMap = (ids: string[], pin: string | null, mode: 'fit' | 'center') =>
+    setMapFly((prev) => ({ ids, pin, mode, n: (prev?.n ?? 0) + 1 }))
+
+  // opening a node in Unfold·Graph zooms the map to it WITH its graph
+  // neighbors in frame, pinned so its typed links trace on the geography
+  const openFromUnfold = (id: string) => {
+    setFocus(id)
+    flyMap([id, ...edgesTouching(id).map((e) => (e.source === id ? e.target : e.source))], id, 'fit')
+  }
+
+  // every walk interaction (extend / fork / backtrack / start) leaves the
+  // clicked node as the route tip — pan the map to it, keep the altitude
+  const writeRouteFromWalk = (r: string[]) => {
+    writeRoute(r)
+    if (r.length > 0) flyMap([r[r.length - 1]], null, 'center')
+  }
+
   // ── composition ─────────────────────────────────────────────────────────
   const mount = (inst: InstrumentId) => setMounted((prev) => (prev.has(inst) ? prev : new Set(prev).add(inst)))
 
   const toggle = (inst: InstrumentId) => {
+    // selecting the Walk instrument with a route in hand shows the whole path
+    if (inst === 'walk' && !active.includes(inst) && route.length > 0) flyMap(route, null, 'fit')
     setActive((prev) => (prev.includes(inst) ? prev.filter((i) => i !== inst) : [...prev, inst]))
     mount(inst)
     setPresetId(null)
@@ -173,6 +205,7 @@ export default function StudioView() {
     setCycleNote(c.hadCycle)
     ensureActive('walk')
     ensureActive('map')
+    if (c.order.length > 0) flyMap(c.order, null, 'fit') // the whole curriculum in frame
   }
 
   const applyPreset = (p: Preset) => {
@@ -191,7 +224,8 @@ export default function StudioView() {
     if (!w || stopIndex < 0 || stopIndex >= w.stops.length) return
     // mirrors CockpitView's activateWalkAtStop guard shape, but writes into
     // the studio bus's route instead of cockpit's own currentId/trail state
-    writeRoute(w.stops.slice(0, stopIndex + 1).map((s) => s.id))
+    // (a walk interaction, so the map pans to the activated stop)
+    writeRouteFromWalk(w.stops.slice(0, stopIndex + 1).map((s) => s.id))
   }
 
   // ── instrument rendering ────────────────────────────────────────────────
@@ -209,6 +243,7 @@ export default function StudioView() {
             route={route}
             visited={visited}
             compact
+            flyTo={mapFly}
             onFocus={setFocus}
             onStartWalk={(id) => {
               writeRoute([id])
@@ -222,9 +257,9 @@ export default function StudioView() {
           />
         )
       case 'walk':
-        return <WalkView route={route} setRoute={writeRoute} />
+        return <WalkView route={route} setRoute={writeRouteFromWalk} />
       case 'unfoldg':
-        return <UnfoldGraphView resetTo={unfoldSeed} onVisit={addVisited} onOpen={setFocus} />
+        return <UnfoldGraphView resetTo={unfoldSeed} onVisit={addVisited} onOpen={openFromUnfold} />
       case 'unfold':
         return <UnfoldView />
       case 'contours':
@@ -253,6 +288,19 @@ export default function StudioView() {
         <header className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
           <span className="font-bold text-slate-700 truncate">{LABEL[inst]}</span>
           <span className="flex-1" />
+          {inst === 'walk' && route.length > 0 && (
+            <button
+              aria-label="studio-walk-fit"
+              onClick={() => {
+                ensureActive('map')
+                flyMap(route, null, 'fit')
+              }}
+              title="fit the whole walk path on the map"
+              className="px-1.5 rounded border border-amber-300 text-amber-700 hover:bg-amber-50 text-[10px] font-medium"
+            >
+              ⤢ path on map
+            </button>
+          )}
           <button
             onClick={() => toggle(inst)}
             title="remove from composition"

@@ -23,6 +23,11 @@
 //      benched instrument (kept mounted, display:none) keeps its own state,
 //      so switching Teaching -> Coding -> Teaching must not lose the grown
 //      unfold graph or the route.
+//   10. MAP CAMERA SYNC (asserted in 7, 8 and 10 via the svg's data-tx /
+//      data-ty / data-zoom): an unfold-graph open FLIES the map to the node
+//      plus its graph neighbors and pins it (neighbors held visible);
+//      "teach me this" refits to the WHOLE path; a walk step click pans at
+//      CONSTANT zoom; the walk header's ⤢ button refits the path on demand.
 import { createRequire } from 'node:module'
 const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
 const { chromium } = require('playwright-core')
@@ -193,6 +198,14 @@ const unfoldPane = page.locator('[aria-label="studio-pane-unfoldg"]')
 const mapPane = page.locator('[aria-label="studio-pane-map"]')
 const docPane = page.locator('[aria-label="studio-pane-doc"]')
 
+const mapSvg = mapPane.locator('svg').first()
+const mapCam = async () => ({
+  tx: parseFloat(await mapSvg.getAttribute('data-tx')),
+  ty: parseFloat(await mapSvg.getAttribute('data-ty')),
+  zoom: parseFloat(await mapSvg.getAttribute('data-zoom')),
+})
+const camBefore = await mapCam()
+
 await unfoldPane.getByRole('button', { name: /HTTP & REST/ }).first().click()
 await page.waitForTimeout(400)
 
@@ -205,6 +218,17 @@ for (const title of ['TCP & UDP', 'IP & Routing']) {
   await fresh.first().click()
   await page.waitForTimeout(500)
 }
+
+// map sync: the last unfold open (IP & Routing) must have FLOWN the camera,
+// pinned the node, and held its graph neighbors visible on the map
+await page.waitForTimeout(700) // let the camera tween land
+const camAfterGrow = await mapCam()
+console.log('map camera: before =', JSON.stringify(camBefore), '· after unfold growth =', JSON.stringify(camAfterGrow), '(expect moved)')
+if (camAfterGrow.tx === camBefore.tx && camAfterGrow.ty === camBefore.ty && camAfterGrow.zoom === camBefore.zoom)
+  fail('map camera did not move after unfold-graph opens')
+if (!(await mapPane.getByRole('button', { name: /start walk here/ }).isVisible())) fail('map did not pin the unfold-opened node')
+if (!(await mapPane.getByText('Link Layer & Ethernet', { exact: true }).isVisible()))
+  fail('IP & Routing neighbor "Link Layer & Ethernet" not on the map after the fly (flyHold broken?)')
 
 const lastOpenedTitle = (await focusReadout.innerText()).trim()
 console.log('after growing 2 nodes: focus title =', JSON.stringify(lastOpenedTitle))
@@ -249,6 +273,13 @@ const lastCardText = (await stepCards.nth(stepCount - 1).innerText()).trim()
 console.log('last step card text =', JSON.stringify(lastCardText.replace(/\s+/g, ' ')), '· focused node title =', JSON.stringify(focusTitleAtTeach), '(expect last card to contain it — the goal comes last)')
 if (!lastCardText.includes(focusTitleAtTeach)) fail(`last step card "${lastCardText}" does not contain focused node title "${focusTitleAtTeach}"`)
 
+// teach also refits the map to the WHOLE curriculum path
+await page.waitForTimeout(700)
+const camAfterTeach = await mapCam()
+console.log('map camera after teach (whole-path fit) =', JSON.stringify(camAfterTeach), '(expect ≠ after-grow)')
+if (camAfterTeach.tx === camAfterGrow.tx && camAfterTeach.zoom === camAfterGrow.zoom)
+  fail('map camera did not change for the teach whole-path fit')
+
 await page.screenshot({ path: `${OUT}/08-teaching-curriculum.png` })
 console.log('08-teaching-curriculum.png taken')
 
@@ -277,6 +308,36 @@ if (routeBadgeAfterRoundtrip !== routeBadgeAtScenario8) fail(`expected route bad
 
 await page.screenshot({ path: `${OUT}/09-roundtrip.png` })
 console.log('09-roundtrip.png taken')
+
+// ── 10. map camera sync from the walk strip ────────────────────────────────
+// Drag the camera away by hand, refit the whole path with the walk header's
+// ⤢ button, then click an earlier step card: 'center' mode must PAN the map
+// (tx/ty move) without changing altitude (zoom identical).
+const mapBox = await mapSvg.boundingBox()
+await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2)
+await page.mouse.down()
+await page.mouse.move(mapBox.x + mapBox.width / 2 + 140, mapBox.y + mapBox.height / 2 + 60, { steps: 5 })
+await page.mouse.up()
+const camDragged = await mapCam()
+
+const fitBtn = page.locator('[aria-label="studio-walk-fit"]')
+if (!(await fitBtn.isVisible())) fail('walk header ⤢ path-on-map button missing')
+await fitBtn.click()
+await page.waitForTimeout(800)
+const camFit = await mapCam()
+console.log('cam dragged away =', JSON.stringify(camDragged), '→ after ⤢ path on map =', JSON.stringify(camFit), '(expect moved back)')
+if (camFit.tx === camDragged.tx && camFit.ty === camDragged.ty) fail('⤢ path on map did not move the camera')
+
+// no \b here: the card's textContent runs "step 2" straight into the title
+const step2Card = walkPane.locator('button', { hasText: /step 2(?!\d)/ }).first()
+await step2Card.click() // backtrack to step 2 — a walk interaction, so the map pans to it
+await page.waitForTimeout(800)
+const camStep = await mapCam()
+console.log('cam after step-2 card click =', JSON.stringify(camStep), '(expect same zoom, new center)')
+if (camStep.zoom !== camFit.zoom) fail(`walk step centering changed zoom: ${camFit.zoom} → ${camStep.zoom}`)
+if (Math.abs(camStep.tx - camFit.tx) < 1 && Math.abs(camStep.ty - camFit.ty) < 1) fail('walk step centering did not pan the map')
+await page.screenshot({ path: `${OUT}/10-walk-map-sync.png` })
+console.log('10-walk-map-sync.png taken')
 
 await browser.close()
 if (errors.length) {

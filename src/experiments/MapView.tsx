@@ -10,6 +10,14 @@
 //
 // Cross-view glue lives here too: a pinned node offers "start walk" and
 // "open neighborhood", and the current walk route glows amber on the map.
+// The camera itself is commandable from outside via the counter-keyed
+// `flyTo` prop (same pattern as UnfoldGraphView's resetTo): Studio flies
+// the map to whatever the user is exploring in the OTHER instruments —
+// 'fit' frames a set of nodes (an unfold neighborhood, a whole walk path),
+// 'center' pans to one node at the current altitude. While a fly-pinned
+// node stays pinned, the command's ids are held visible whatever the
+// disclosure level says — that's the "keep the neighbors on screen" half
+// of the sync.
 
 import { useEffect, useRef, useState } from 'react'
 import { Delaunay } from 'd3-delaunay'
@@ -115,6 +123,27 @@ interface View {
   s: number
 }
 
+// the visible user-space center is ALWAYS the viewBox center (meet
+// letterboxing only widens the extents symmetrically), so camera math can
+// use these constants without knowing the client size
+const U_CX = VB_X + VB_W / 2
+const U_CY = VB_Y + VB_H / 2
+const FLY_PAD = 90 // world-units margin around a fitted bbox (labels stick out right)
+const FLY_S_MIN = 0.85
+const FLY_S_MAX = 2.8 // past L2's 2.4 threshold: a fitted neighborhood arrives fully disclosed
+const FLY_MS = 650
+
+export interface MapFlyCommand {
+  /** nodes to bring into frame (unknown ids are ignored) */
+  ids: string[]
+  /** pin this node on arrival (traces its links, holds `ids` visible) */
+  pin?: string | null
+  /** fit = frame the ids' bbox; center = pan to their center, keep zoom */
+  mode: 'fit' | 'center'
+  /** bump to re-issue, even with identical payload */
+  n: number
+}
+
 export interface MapViewProps {
   route: string[]
   onStartWalk: (id: string) => void
@@ -122,9 +151,11 @@ export interface MapViewProps {
   visited?: Set<string>
   onFocus?: (id: string) => void
   compact?: boolean
+  /** external camera command — see MapFlyCommand */
+  flyTo?: MapFlyCommand | null
 }
 
-export default function MapView({ route, onStartWalk, onOpenNeighborhood, visited, onFocus, compact }: MapViewProps) {
+export default function MapView({ route, onStartWalk, onOpenNeighborhood, visited, onFocus, compact, flyTo = null }: MapViewProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [view, setView] = useState<View>({ tx: 0, ty: 0, s: 1 })
   const [hovered, setHovered] = useState<string | null>(null)
@@ -144,6 +175,79 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood, visite
     ro.observe(svg)
     return () => ro.disconnect()
   }, [])
+
+  // ── the commandable camera ─────────────────────────────────────────────────
+  // A fly is an rAF tween over the SAME view state the wheel and drag write —
+  // one rendering path, and user input simply cancels the flight. The world
+  // point at the viewport center interpolates linearly while scale moves
+  // geometrically, the standard zoom-and-pan camera feel. All state writes
+  // happen inside the rAF callbacks, never in the effect body itself.
+  const viewRef = useRef(view)
+  useEffect(() => {
+    viewRef.current = view
+  })
+  const anim = useRef<number | null>(null)
+  const cancelFlight = () => {
+    if (anim.current != null) cancelAnimationFrame(anim.current)
+    anim.current = null
+  }
+  useEffect(() => () => cancelFlight(), [])
+
+  // while the fly-pinned node stays pinned, the command's ids stay visible
+  // regardless of disclosure level — the "keep the neighbors on screen" hold
+  const [flyHold, setFlyHold] = useState<{ pin: string | null; ids: string[] } | null>(null)
+
+  // counter-keyed command execution, UnfoldGraphView's resetTo pattern: the
+  // dep is the counter (and clientBox — a command that arrives while this
+  // pane is benched at zero size waits, then executes when the box returns).
+  const latestFly = useRef(flyTo)
+  useEffect(() => {
+    latestFly.current = flyTo
+  })
+  const executedFly = useRef(0)
+  useEffect(() => {
+    const cmd = latestFly.current
+    if (!cmd || cmd.n === executedFly.current) return
+    if (!clientBox || clientBox.w < 40 || clientBox.h < 40) return // benched — retry on resize
+    const pts = cmd.ids.filter((id) => leafPos[id]).map((id) => leafPos[id])
+    if (pts.length === 0) return
+    executedFly.current = cmd.n
+    const minX = Math.min(...pts.map((p) => p.x))
+    const maxX = Math.max(...pts.map((p) => p.x))
+    const minY = Math.min(...pts.map((p) => p.y))
+    const maxY = Math.max(...pts.map((p) => p.y))
+    // true letterboxed extents: meet can show more than the viewBox on one axis
+    const f = Math.max(VB_W / clientBox.w, VB_H / clientBox.h)
+    const s =
+      cmd.mode === 'center'
+        ? viewRef.current.s
+        : Math.min(
+            FLY_S_MAX,
+            Math.max(FLY_S_MIN, Math.min((clientBox.w * f) / (maxX - minX + 2 * FLY_PAD), (clientBox.h * f) / (maxY - minY + 2 * FLY_PAD))),
+          )
+    const target = { s, tx: U_CX - ((minX + maxX) / 2) * s, ty: U_CY - ((minY + maxY) / 2) * s }
+    if (anim.current != null) cancelAnimationFrame(anim.current)
+    const from = viewRef.current
+    const c0 = { x: (U_CX - from.tx) / from.s, y: (U_CY - from.ty) / from.s }
+    const c1 = { x: (U_CX - target.tx) / target.s, y: (U_CY - target.ty) / target.s }
+    const t0 = performance.now()
+    let started = false
+    const tick = (now: number) => {
+      if (!started) {
+        started = true
+        setPinned(cmd.pin ?? null)
+        setFlyHold({ pin: cmd.pin ?? null, ids: cmd.ids })
+      }
+      const t = Math.min(1, (now - t0) / FLY_MS)
+      const e = 1 - Math.pow(1 - t, 3) // cubic ease-out
+      const sNow = from.s * Math.pow(target.s / from.s, e)
+      const cx = c0.x + (c1.x - c0.x) * e
+      const cy = c0.y + (c1.y - c0.y) * e
+      setView({ s: sNow, tx: U_CX - cx * sNow, ty: U_CY - cy * sNow })
+      anim.current = t < 1 ? requestAnimationFrame(tick) : null
+    }
+    anim.current = requestAnimationFrame(tick)
+  }, [flyTo?.n, clientBox])
 
   const level = LEVEL_AT(view.s)
 
@@ -176,6 +280,8 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood, visite
   const visible = countryLevelSet(kByCountry)
   for (const id of route) visible.add(id) // the walk is always on the map, whatever the altitude
   for (const id of visited ?? []) if (leafPos[id]) visible.add(id) // visited stays on the map at any altitude
+  // a flown-to neighborhood stays on screen while its pin holds
+  if (flyHold?.pin && pinned === flyHold.pin) for (const id of flyHold.ids) if (leafPos[id]) visible.add(id)
 
   // client px -> viewBox user coords (before the pan/zoom transform)
   const toUser = (clientX: number, clientY: number) => {
@@ -194,6 +300,7 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood, visite
     if (!svg) return
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault()
+      cancelFlight() // user input takes the camera back instantly
       const u = toUser(ev.clientX, ev.clientY)
       setView((v) => {
         const s = Math.min(4.5, Math.max(0.7, v.s * Math.exp(-ev.deltaY * 0.0016)))
@@ -247,8 +354,12 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood, visite
         ref={svgRef}
         viewBox={`${VB_X} ${VB_Y} ${VB_W} ${VB_H}`}
         className="w-full h-full"
+        data-tx={view.tx.toFixed(1)}
+        data-ty={view.ty.toFixed(1)}
+        data-zoom={view.s.toFixed(2)}
         style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
         onPointerDown={(ev) => {
+          cancelFlight()
           drag.current = { x: ev.clientX, y: ev.clientY }
           setDragging(true)
           ;(ev.target as Element).setPointerCapture(ev.pointerId)
