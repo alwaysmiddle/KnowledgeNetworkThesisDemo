@@ -136,7 +136,7 @@ export default function StudioView() {
 
   // ── the sync bus ────────────────────────────────────────────────────────
   const addVisited = (id: string | null) => {
-    if (!id || byId.get(id)?.kind !== 'leaf') return // containers would crash leaf-keyed lookups downstream
+    if (!id || !byId.get(id)?.topic) return // non-topics would crash topic-keyed lookups downstream
     setVisited((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
   }
   const setFocus = (id: string) => {
@@ -333,11 +333,11 @@ export default function StudioView() {
         <button
           aria-label="studio-teach"
           onClick={teach}
-          disabled={!focus || byId.get(focus)?.kind !== 'leaf'}
+          disabled={!focus || !byId.get(focus)?.topic}
           title="generate a depends_on curriculum ending at the focused node and walk it"
           className={[
             'px-2 py-0.5 rounded border font-medium',
-            focus && byId.get(focus)?.kind === 'leaf'
+            focus && byId.get(focus)?.topic
               ? 'border-amber-400 text-amber-700 hover:bg-amber-50'
               : 'border-slate-200 text-slate-300 cursor-not-allowed',
           ].join(' ')}

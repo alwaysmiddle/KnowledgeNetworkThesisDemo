@@ -3,8 +3,10 @@
 // Bodies describe terrain, not narrative: a body may say what a topic's own
 // role is (e.g. "the first rung of the ladder"), but never references any
 // walk's sequence. Walk order and story live in walks.ts, not here.
+// The deep layers below the topics carry one-line blurbs, authored next to
+// their structure in deep.ts and merged in at the bottom (DEEP_DOC).
 
-import { nodes } from '../graph'
+import { DEEP_DOC, nodes } from '../graph'
 
 export const DOC_BODY: Record<string, string> = {
   // ── Root ────────────────────────────────────────────────────────────────
@@ -321,6 +323,9 @@ export const DOC_BODY: Record<string, string> = {
     'Shipping as a routine, observed activity: automated deploys that can roll back, and telemetry — ' +
     'errors, latency, saturation — watching production afterward. The feedback loop that closes the ' +
     'engineering cycle: code is not done when it merges, it is done when it behaves in the world.',
+
+  // ── Deep layers: one-line blurbs authored alongside their structure ──────
+  ...DEEP_DOC,
 }
 
 // Module-load guard: every graph node must have a body, and every body key

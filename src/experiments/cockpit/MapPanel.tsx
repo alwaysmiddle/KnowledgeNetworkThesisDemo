@@ -1,10 +1,11 @@
 // Map instrument — "where am I." Authored-hierarchy regions (domains, then
-// modules nested inside) with leaves as dots, from layout.ts's MAP_LAYOUT.
+// modules nested inside) with topics as dots, from layout.ts's MAP_LAYOUT
+// (collapsed at the topic level — deep layers never surface here).
 // Pan/zoom is copied from MapView's proven pattern (non-passive wheel
 // listener attached in an effect; refs only ever read inside handlers, never
 // during render) — but positions themselves NEVER change with navigation.
 // Only overlays do: the you-are-here ring, the current domain's highlight,
-// edges incident to the current leaf, the active walk's route, and — while a
+// edges incident to the current topic, the active walk's route, and — while a
 // walk is active and dimming is on — everything outside its downstream set.
 
 import { useEffect, useRef, useState } from 'react'
@@ -66,11 +67,13 @@ export default function MapPanel({ currentId, onSelectLeaf, onZoomContainer, act
   const dimmed = (id: string) => keepBright !== null && !keepBright.has(id)
 
   const currentNode = byId.get(currentId)
-  const currentIsLeaf = currentNode?.kind === 'leaf'
+  const currentIsTopic = currentNode?.topic === true
   const currentDomain = currentId === ROOT_ID ? null : domainOf(currentId)
 
-  const containers = MAP_LAYOUT.visible.filter((n) => n.kind === 'container')
-  const leaves = MAP_LAYOUT.visible.filter((n) => n.kind === 'leaf')
+  // topics render as dots even though they are containers now (their deep
+  // layers are collapsed out of this layout); boxes are the levels above them
+  const containers = MAP_LAYOUT.visible.filter((n) => n.kind === 'container' && !n.topic)
+  const topicDots = MAP_LAYOUT.visible.filter((n) => n.topic)
 
   return (
     <div className="relative h-full bg-slate-50" aria-label="map-panel">
@@ -138,9 +141,9 @@ export default function MapPanel({ currentId, onSelectLeaf, onZoomContainer, act
             )
           })}
 
-          {/* edges incident to the current leaf — the map's only edge overlay
+          {/* edges incident to the current topic — the map's only edge overlay
               outside an active walk's route */}
-          {currentIsLeaf &&
+          {currentIsTopic &&
             edgesTouching(currentId).map((e) => {
               const a = centerOf(e.source)
               const b = centerOf(e.target)
@@ -190,8 +193,8 @@ export default function MapPanel({ currentId, onSelectLeaf, onZoomContainer, act
             </g>
           )}
 
-          {/* leaves */}
-          {leaves.map((n) => {
+          {/* topics */}
+          {topicDots.map((n) => {
             const c = centerOf(n.id)
             const isHere = n.id === currentId
             return (

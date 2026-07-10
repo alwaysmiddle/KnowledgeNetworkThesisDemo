@@ -172,7 +172,7 @@ export default function LensPane({ focus, type, onFocus }: LensPaneProps) {
   const [depth, setDepth] = useState<1 | 2>(DEFAULT_DEPTH[type])
 
   const model = useMemo(
-    () => (focus && byId.get(focus)?.kind === 'leaf' ? lensModel(focus, type, depth) : null),
+    () => (focus && byId.get(focus)?.topic ? lensModel(focus, type, depth) : null),
     [focus, type, depth],
   )
   const config = LENS_CONFIG[type]
@@ -276,10 +276,10 @@ export default function LensPane({ focus, type, onFocus }: LensPaneProps) {
   let body: ReactNode
   if (!focus) {
     body = <EmptyState text="click a node in the tree — every lens recenters on it" />
-  } else if (byId.get(focus)?.kind !== 'leaf') {
-    body = <EmptyState text="lenses read leaves — pick a leaf" />
+  } else if (!byId.get(focus)?.topic) {
+    body = <EmptyState text="lenses read topics — typed links live at the topic level" />
   } else if (!model || !scene) {
-    body = null // unreachable in practice: focus is a leaf, so model/scene always compute
+    body = null // unreachable in practice: focus is a topic, so model/scene always compute
   } else if (model.out.levels.length === 0 && model.in.levels.length === 0) {
     body = <EmptyState text={`no ${EDGE_LABEL[type]} links touch this node`} />
   } else {

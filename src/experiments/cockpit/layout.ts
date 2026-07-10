@@ -1,7 +1,9 @@
 // Map panel geometry. Reuses derive.ts's authored-hierarchy shelf-packer
-// (layoutMap) with nothing collapsed, so every domain, module, and leaf gets
-// a slot in ONE nested layout — computed once, at module scope, so the map
-// never re-lays-out on navigation (the map-stability invariant, §3.3).
+// (layoutMap) collapsed AT THE TOPIC LEVEL, so every domain, module, and
+// topic gets a slot in ONE nested layout — the deep layers below topics stay
+// off this map (they are containment detail, not geography). Computed once,
+// at module scope, so the map never re-lays-out on navigation (the
+// map-stability invariant, §3.3).
 //
 // Deliberately NOT flat.ts's leafPos: that embedding is keyed to CNM-detected
 // communities, and the whole point of this cockpit is authored hierarchy
@@ -10,8 +12,9 @@
 
 import { layoutMap } from '../derive'
 import type { XY } from '../derive'
+import { topicIds } from '../graph'
 
-export const MAP_LAYOUT = layoutMap(new Set())
+export const MAP_LAYOUT = layoutMap(new Set(topicIds))
 
 export function centerOf(id: string): XY {
   const p = MAP_LAYOUT.pos[id]

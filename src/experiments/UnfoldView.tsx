@@ -24,7 +24,7 @@
 
 import { useMemo, useState } from 'react'
 
-import { byId, domainIds, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, leavesUnder } from './graph'
+import { byId, domainIds, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, topicsUnder } from './graph'
 import type { EdgeType } from './graph'
 import { degreeOf, edgesTouching, HUB_IDS } from './flat'
 
@@ -129,7 +129,7 @@ export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; 
                 {byId.get(d)!.title}
               </div>
               <div className="flex flex-col gap-1">
-                {leavesUnder(d).map((id) => (
+                {topicsUnder(d).map((id) => (
                   <button
                     key={id}
                     onClick={() => onStart(id)}

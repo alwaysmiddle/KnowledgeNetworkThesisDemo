@@ -3,7 +3,7 @@
 // how visible boxes get packed, and what an ego (radial) neighborhood is.
 // Everything here is deterministic and side-effect free — views just render it.
 
-import { byId, childrenOf, edges, leavesUnder, ROOT_ID } from './graph'
+import { byId, childrenOf, edges, topicsUnder, ROOT_ID } from './graph'
 import type { EdgeType, GNode } from './graph'
 
 export interface XY {
@@ -274,7 +274,7 @@ export interface Choice {
 export function deriveChoices(from: string): Choice[] {
   const n = byId.get(from)
   if (!n) return []
-  const inside = new Set(n.kind === 'container' ? leavesUnder(from) : [from])
+  const inside = new Set(n.kind === 'container' ? topicsUnder(from) : [from])
   const agg = new Map<string, Choice>()
   for (const e of edges) {
     if (!inside.has(e.source) || inside.has(e.target)) continue

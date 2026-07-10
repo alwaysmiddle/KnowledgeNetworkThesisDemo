@@ -59,7 +59,7 @@ export default function PlexPanel({ currentId, onSelect, onJump }: PlexPanelProp
   const n = byId.get(currentId)!
   const parentId = n.parentId
   const kids = n.kind === 'container' ? (childrenOf.get(currentId) ?? []) : []
-  const roads = n.kind === 'leaf' ? edgesTouching(currentId) : []
+  const roads = n.topic ? edgesTouching(currentId) : []
   const outgoing = roads.filter((e) => e.source === currentId)
   const incoming = roads.filter((e) => e.target === currentId)
 
@@ -222,7 +222,7 @@ export default function PlexPanel({ currentId, onSelect, onJump }: PlexPanelProp
       </svg>
 
       {n.kind === 'container' && (
-        <div className="text-center text-[10px] text-slate-400 italic -mt-1 mb-1">graph links connect leaves only — this container shows containment</div>
+        <div className="text-center text-[10px] text-slate-400 italic -mt-1 mb-1">typed links connect topics only — this node shows containment</div>
       )}
     </div>
   )

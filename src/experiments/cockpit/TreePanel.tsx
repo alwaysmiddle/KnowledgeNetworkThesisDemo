@@ -91,7 +91,7 @@ function TreeRow({
   const isContainer = n.kind === 'container'
   const isOpen = expanded.has(id)
   const kids = isContainer ? childrenOf.get(id) ?? [] : []
-  const linkCount = n.kind === 'leaf' ? edgesTouching(id).length : 0
+  const linkCount = edgesTouching(id).length // nonzero only at the topic level
   const isCurrent = id === currentId
   const pendingSelect = useRef<number | null>(null)
 
@@ -126,6 +126,7 @@ function TreeRow({
         style={{ paddingLeft: 10 + depth * 16 }}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
+        data-node-id={id}
       >
         {isContainer ? (
           <button
@@ -142,7 +143,7 @@ function TreeRow({
         )}
         <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: DOMAIN_COLOR[domainOf(id)] }} />
         <span className={['truncate', isCurrent ? 'font-bold text-slate-800' : 'text-slate-600'].join(' ')}>{n.title}</span>
-        {n.kind === 'leaf' && linkCount > 0 && <span className="text-slate-400 shrink-0">⤳ {linkCount}</span>}
+        {linkCount > 0 && <span className="text-slate-400 shrink-0">⤳ {linkCount}</span>}
       </div>
       {isContainer &&
         isOpen &&

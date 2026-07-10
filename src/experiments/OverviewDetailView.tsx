@@ -12,7 +12,7 @@ import { useMemo, useState } from 'react'
 import { Background, Controls, ReactFlow } from '@xyflow/react'
 import type { Edge, Node } from '@xyflow/react'
 
-import { allContainerIds, byId, domainIds, domainOf, DOMAIN_COLOR, leavesUnder, pathTo, ROOT_ID } from './graph'
+import { allContainerIds, byId, domainIds, domainOf, DOMAIN_COLOR, topicsUnder, pathTo, ROOT_ID } from './graph'
 import { CARD_H, CARD_W, deriveDrill, hiddenIds, liftEdges } from './derive'
 import type { LiftedEdge } from './derive'
 import { BudgetHud } from './parts'
@@ -75,7 +75,7 @@ export default function OverviewDetailView({ initialFocus = null }: OverviewDeta
       draggable: false,
       selectable: false,
       type: 'containerChip',
-      data: { title: byId.get(d)!.title, count: leavesUnder(d).length, color: DOMAIN_COLOR[d], active: open && d === path[1] },
+      data: { title: byId.get(d)!.title, count: topicsUnder(d).length, color: DOMAIN_COLOR[d], active: open && d === path[1] },
     }))
 
     if (model && panel) {
@@ -111,7 +111,7 @@ export default function OverviewDetailView({ initialFocus = null }: OverviewDeta
           type: it.kind === 'container' ? 'containerChip' : 'leafCard',
           data:
             it.kind === 'container'
-              ? { title: it.title, count: leavesUnder(it.id).length, color: DOMAIN_COLOR[domainOf(it.id)] }
+              ? { title: it.title, count: topicsUnder(it.id).length, color: DOMAIN_COLOR[domainOf(it.id)] }
               : { title: it.title, color: DOMAIN_COLOR[domainOf(it.id)] },
         })
       }

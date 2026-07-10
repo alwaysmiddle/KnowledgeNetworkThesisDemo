@@ -9,7 +9,7 @@
 
 import { useState } from 'react'
 
-import { byId, domainIds, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, edges, leafIds } from './graph'
+import { byId, domainIds, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, edges, MAX_DEPTH, nodes, topicIds } from './graph'
 import type { EdgeType } from './graph'
 import MapView from './MapView'
 import WalkView from './WalkView'
@@ -55,7 +55,7 @@ export default function Shell() {
         <div className="flex items-center gap-4">
           <h1 className="text-[15px] font-bold text-slate-800">Graph Disclosure Lab</h1>
           <span className="text-[11px] text-slate-400">
-            one corpus — {leafIds.length} CS topics / {edges.length} typed links, hand-authored · three navigation modes + one reference · the walk route glows on the map
+            one corpus — {nodes.length} nodes on {MAX_DEPTH} levels / {topicIds.length} CS topics / {edges.length} typed links, hand-authored · the walk route glows on the map
           </span>
           <span className="flex-1" />
           {/* legend: domains (node identity) vs link types — hue-disjoint on purpose */}

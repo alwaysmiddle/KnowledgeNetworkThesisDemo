@@ -1,22 +1,31 @@
 // Hand-authored CS teaching corpus for the disclosure experiments:
-// 53 topic leaves in a 6-domain / 16-module tree (one branch goes to depth 4),
-// plus typed leaf-to-leaf edges authored one by one — every edge is a claim a
-// CS teacher would defend, none are generated. The corpus doubles as content:
-// the same graph a map draws is a curriculum a person could actually follow.
+// 53 edge-bearing TOPICS in a 6-domain / 16-module tree, each topic opening
+// into hand-authored deep layers (deep.ts) — subtopics, concepts, details —
+// with one flagship spine per domain reaching level 8 (root = level 1).
+// Typed edges are authored one by one between topics ONLY — every edge is a
+// claim a CS teacher would defend, none are generated; below the topic level
+// the structure is pure containment. The corpus doubles as content: the same
+// graph a map draws is a curriculum a person could actually follow.
+
+import { DEEP } from './deep'
+import type { DeepSpec } from './deep'
 
 export type EdgeType = 'depends_on' | 'data_flow' | 'references' | 'implements'
 
 export interface GNode {
   id: string
+  /** tree role, DERIVED from the authored structure: has children or not */
   kind: 'container' | 'leaf'
   parentId: string | null // null only for root
   title: string
+  /** the edge-bearing level: one of the 53 teaching topics */
+  topic?: true
 }
 
 export interface GEdge {
   id: string
-  source: string // always a leaf
-  target: string // always a leaf
+  source: string // always a topic
+  target: string // always a topic
   type: EdgeType
 }
 
@@ -58,27 +67,29 @@ function container(id: string, parentId: string, title: string): string {
   N.push({ id, kind: 'container', parentId, title })
   return id
 }
-function leaves(parentId: string, prefix: string, titles: string[]) {
+const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+function topics(parentId: string, prefix: string, titles: string[]) {
   for (const t of titles) {
     N.push({
-      id: `${prefix}-${t.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      kind: 'leaf',
+      id: `${prefix}-${slug(t)}`,
+      kind: 'leaf', // provisional — kind is derived after the deep layers attach
       parentId,
       title: t,
+      topic: true,
     })
   }
 }
 
-// depth 1: domains, depth 2: modules, depth 3: topics…
+// level 2: domains, level 3: modules, level 4 (5 in the tooling branch): topics…
 const sys = container('sys', ROOT_ID, 'Computer Systems')
-leaves(container('dig', sys, 'Digital Logic'), 'dig', [
+topics(container('dig', sys, 'Digital Logic'), 'dig', [
   'Binary & Data Representation',
   'Transistors & Logic Gates',
   'Combinational Circuits',
   'Sequential Logic & Memory',
 ])
-leaves(container('arc', sys, 'Machine Organization'), 'arc', ['Instruction Set Architecture', 'Memory Hierarchy & Caches'])
-leaves(container('os', sys, 'Operating Systems'), 'os', [
+topics(container('arc', sys, 'Machine Organization'), 'arc', ['Instruction Set Architecture', 'Memory Hierarchy & Caches'])
+topics(container('os', sys, 'Operating Systems'), 'os', [
   'Processes & Threads',
   'CPU Scheduling',
   'Virtual Memory',
@@ -87,19 +98,19 @@ leaves(container('os', sys, 'Operating Systems'), 'os', [
 ])
 
 const math = container('math', ROOT_ID, 'Mathematical Foundations')
-leaves(container('dm', math, 'Discrete Mathematics'), 'dm', [
+topics(container('dm', math, 'Discrete Mathematics'), 'dm', [
   'Propositional Logic',
   'Set Theory & Functions',
   'Graph Theory',
   'Combinatorics & Counting',
   'Induction & Recursion',
 ])
-leaves(container('am', math, 'Applied Mathematics'), 'am', ['Probability & Statistics', 'Linear Algebra', 'Modular Arithmetic'])
+topics(container('am', math, 'Applied Mathematics'), 'am', ['Probability & Statistics', 'Linear Algebra', 'Modular Arithmetic'])
 
 const cs = container('cs', ROOT_ID, 'Core Computer Science')
-leaves(container('ds', cs, 'Data Structures'), 'ds', ['Arrays & Lists', 'Hash Tables', 'Trees & Heaps', 'Graph Representations'])
-leaves(container('alg', cs, 'Algorithms'), 'alg', ['Complexity & Big-O', 'Sorting & Searching', 'Graph Traversal', 'Dynamic Programming'])
-leaves(container('pl', cs, 'Languages & Compilers'), 'pl', [
+topics(container('ds', cs, 'Data Structures'), 'ds', ['Arrays & Lists', 'Hash Tables', 'Trees & Heaps', 'Graph Representations'])
+topics(container('alg', cs, 'Algorithms'), 'alg', ['Complexity & Big-O', 'Sorting & Searching', 'Graph Traversal', 'Dynamic Programming'])
+topics(container('pl', cs, 'Languages & Compilers'), 'pl', [
   'Regular Expressions & Automata',
   'Grammars & Parsing',
   'Type Systems',
@@ -107,25 +118,53 @@ leaves(container('pl', cs, 'Languages & Compilers'), 'pl', [
 ])
 
 const net = container('net', ROOT_ID, 'Networking')
-leaves(container('stk', net, 'Protocol Stack'), 'stk', ['Link Layer & Ethernet', 'IP & Routing', 'TCP & UDP', 'DNS & Naming'])
-leaves(container('web', net, 'Web & Services'), 'web', ['HTTP & REST', 'Sockets & APIs'])
+topics(container('stk', net, 'Protocol Stack'), 'stk', ['Link Layer & Ethernet', 'IP & Routing', 'TCP & UDP', 'DNS & Naming'])
+topics(container('web', net, 'Web & Services'), 'web', ['HTTP & REST', 'Sockets & APIs'])
 
 const sec = container('sec', ROOT_ID, 'Security')
-leaves(container('cry', sec, 'Cryptography'), 'cry', [
+topics(container('cry', sec, 'Cryptography'), 'cry', [
   'Symmetric Encryption',
   'Public-Key Cryptography',
   'Cryptographic Hashing',
   'TLS & Certificates',
 ])
-leaves(container('app', sec, 'Applied Security'), 'app', ['Authentication & Authorization', 'Common Vulnerabilities'])
+topics(container('app', sec, 'Applied Security'), 'app', ['Authentication & Authorization', 'Common Vulnerabilities'])
 
 const se = container('se', ROOT_ID, 'Software Engineering')
-leaves(container('prc', se, 'Practices'), 'prc', ['Version Control', 'Code Review', 'Design Patterns'])
-leaves(container('tst', se, 'Testing'), 'tst', ['Unit Testing', 'Integration Testing', 'Property-Based Testing'])
+topics(container('prc', se, 'Practices'), 'prc', ['Version Control', 'Code Review', 'Design Patterns'])
+topics(container('tst', se, 'Testing'), 'tst', ['Unit Testing', 'Integration Testing', 'Property-Based Testing'])
 const tool = container('tool', se, 'Tooling')
-leaves(tool, 'tool', ['Shell & Scripting', 'Debuggers & Profilers'])
-// …and ONE depth-4 branch, to exercise the "limit depth to 3–4" constraint.
-leaves(container('auto', tool, 'Automation'), 'auto', ['Continuous Integration', 'Deployment & Monitoring'])
+topics(tool, 'tool', ['Shell & Scripting', 'Debuggers & Profilers'])
+// …and ONE module nested a level deeper — its topics sit at level 5, so the
+// container strata themselves are already ragged before the deep layers start.
+topics(container('auto', tool, 'Automation'), 'auto', ['Continuous Integration', 'Deployment & Monitoring'])
+
+// ── Deep layers ─────────────────────────────────────────────────────────────
+// deep.ts authors the strata below each topic; ids chain downward from the
+// topic id, one slug per level. Every deep node's one-line blurb is collected
+// into DEEP_DOC for docs.ts to merge — structure and content authored in one
+// place, in one pass.
+export const DEEP_DOC: Record<string, string> = {}
+function attach(parentId: string, children: Record<string, DeepSpec>) {
+  for (const [title, spec] of Object.entries(children)) {
+    const id = `${parentId}-${slug(title)}`
+    N.push({ id, kind: 'leaf', parentId, title })
+    DEEP_DOC[id] = spec.d
+    if (spec.c) attach(id, spec.c)
+  }
+}
+for (const [topicId, children] of Object.entries(DEEP)) {
+  const t = N.find((n) => n.id === topicId)
+  if (!t?.topic) throw new Error(`deep.ts keys a non-topic id: ${topicId}`)
+  attach(topicId, children)
+}
+
+// kind is DERIVED, not trusted: a node with children is a container no matter
+// what the authoring helpers guessed — "leaf with children" cannot exist here.
+{
+  const hasKids = new Set(N.filter((n) => n.parentId !== null).map((n) => n.parentId!))
+  for (const n of N) n.kind = hasKids.has(n.id) ? 'container' : 'leaf'
+}
 
 export const nodes: GNode[] = N
 
@@ -140,7 +179,9 @@ for (const n of nodes) {
 }
 
 export const allContainerIds = nodes.filter((n) => n.kind === 'container' && n.id !== ROOT_ID).map((n) => n.id)
-export const leafIds = nodes.filter((n) => n.kind === 'leaf').map((n) => n.id)
+/** the 53 edge-bearing topics, in authoring order (the graph views' node set) */
+export const topicIds = nodes.filter((n) => n.topic).map((n) => n.id)
+export const isTopic = (id: string) => byId.get(id)?.topic === true
 
 /** [root, …, node] — the containment path down to (and including) the node. */
 export function pathTo(id: string): string[] {
@@ -161,17 +202,23 @@ export function domainOf(id: string): string {
 
 export const domainIds = (childrenOf.get(ROOT_ID) ?? []).map((d) => d.id)
 
-export function leavesUnder(id: string): string[] {
+/** Topic ids inside the subtree rooted at `id` — the id itself if it IS a
+ * topic, every topic below it for containers above the topic level, and []
+ * for deep nodes (typed edges never reach below topics). */
+export function topicsUnder(id: string): string[] {
   const out: string[] = []
   const stack = [id]
   while (stack.length) {
     const cur = stack.pop()!
-    const node = byId.get(cur)!
-    if (node.kind === 'leaf') out.push(cur)
+    if (byId.get(cur)!.topic) out.push(cur)
     else for (const c of childrenOf.get(cur) ?? []) stack.push(c.id)
   }
   return out
 }
+
+/** containment level, root = 1 */
+export const depthOf = (id: string) => pathTo(id).length
+export const MAX_DEPTH = Math.max(...nodes.map((n) => depthOf(n.id)))
 
 // ── Authored edges ──────────────────────────────────────────────────────────
 // Four relations, each with one teaching meaning:
@@ -185,9 +232,9 @@ export function leavesUnder(id: string): string[] {
 //   also(A, B) see also — related reading. The ONLY relation allowed to be
 //              reciprocal; a few deliberate A⇄B pairs keep revisit/cycle
 //              mechanics in the views exercisable.
-// addEdge is strict: unknown ids, container ids, self-loops and duplicate
-// same-direction pairs all throw at module load — an authoring typo cannot
-// ship silently.
+// addEdge is strict: unknown ids, non-topic ids (containers above, deep nodes
+// below), self-loops and duplicate same-direction pairs all throw at module
+// load — an authoring typo cannot ship silently.
 
 const E: GEdge[] = []
 const seen = new Set<string>()
@@ -195,7 +242,7 @@ function addEdge(source: string, target: string, type: EdgeType) {
   for (const id of [source, target]) {
     const n = byId.get(id)
     if (!n) throw new Error(`edge references unknown id: ${id}`)
-    if (n.kind !== 'leaf') throw new Error(`edge endpoint is not a leaf: ${id}`)
+    if (!n.topic) throw new Error(`edge endpoint is not a topic: ${id}`)
   }
   if (source === target) throw new Error(`self-loop: ${source}`)
   const key = `${source}>${target}`
@@ -352,17 +399,35 @@ export const edges: GEdge[] = E
 // The corpus is hand-authored, so the guards are structural, not numeric: they
 // catch the mistakes a human editor can actually make.
 
+// 0. Tree shape — ids unique; every topic opens into at least two deep
+// children; the corpus is exactly 8 levels at its deepest, and EVERY domain
+// has a flagship spine reaching level 8 (ragged everywhere else is fine).
+{
+  if (byId.size !== nodes.length) {
+    const seenIds = new Set<string>()
+    const dups = nodes.filter((n) => (seenIds.has(n.id) ? true : (seenIds.add(n.id), false))).map((n) => n.id)
+    throw new Error(`duplicate node ids: ${dups.join(', ')}`)
+  }
+  const thin = topicIds.filter((t) => (childrenOf.get(t) ?? []).length < 2)
+  if (thin.length) throw new Error(`topics with fewer than 2 deep children: ${thin.join(', ')}`)
+  if (MAX_DEPTH !== 8) throw new Error(`expected max containment depth 8, got ${MAX_DEPTH}`)
+  for (const d of domainIds) {
+    const deepest = Math.max(...nodes.filter((n) => pathTo(n.id)[1] === d).map((n) => depthOf(n.id)))
+    if (deepest !== 8) throw new Error(`domain ${d} has no level-8 spine (deepest: ${deepest})`)
+  }
+}
+
 // 1. "builds on" is a DAG — a curriculum must never be circular.
 {
   const dep = edges.filter((e) => e.type === 'depends_on')
-  const unmet = new Map<string, number>(leafIds.map((id) => [id, 0]))
+  const unmet = new Map<string, number>(topicIds.map((id) => [id, 0]))
   for (const e of dep) unmet.set(e.source, unmet.get(e.source)! + 1)
   const dependants = new Map<string, string[]>()
   for (const e of dep) {
     if (!dependants.has(e.target)) dependants.set(e.target, [])
     dependants.get(e.target)!.push(e.source)
   }
-  const queue = leafIds.filter((id) => unmet.get(id) === 0)
+  const queue = topicIds.filter((id) => unmet.get(id) === 0)
   let emitted = 0
   while (queue.length) {
     const cur = queue.pop()!
@@ -372,8 +437,8 @@ export const edges: GEdge[] = E
       if (unmet.get(d) === 0) queue.push(d)
     }
   }
-  if (emitted !== leafIds.length) {
-    const stuck = leafIds.filter((id) => unmet.get(id)! > 0)
+  if (emitted !== topicIds.length) {
+    const stuck = topicIds.filter((id) => unmet.get(id)! > 0)
     throw new Error(`"builds on" edges contain a cycle through: ${stuck.join(', ')}`)
   }
 }
@@ -381,18 +446,18 @@ export const edges: GEdge[] = E
 // 2. Connected + no orphans — flat.ts's spanning tree and the map embedding
 // both assume every topic is reachable from every other, ignoring direction.
 {
-  const adj = new Map<string, string[]>(leafIds.map((id) => [id, []]))
+  const adj = new Map<string, string[]>(topicIds.map((id) => [id, []]))
   for (const e of edges) {
     adj.get(e.source)!.push(e.target)
     adj.get(e.target)!.push(e.source)
   }
-  const orphans = leafIds.filter((id) => adj.get(id)!.length === 0)
+  const orphans = topicIds.filter((id) => adj.get(id)!.length === 0)
   if (orphans.length) throw new Error(`topics with no edges at all: ${orphans.join(', ')}`)
-  const visited = new Set<string>([leafIds[0]])
-  const queue = [leafIds[0]]
+  const visited = new Set<string>([topicIds[0]])
+  const queue = [topicIds[0]]
   while (queue.length) for (const nb of adj.get(queue.pop()!)!) if (!visited.has(nb)) { visited.add(nb); queue.push(nb) }
-  if (visited.size !== leafIds.length) {
-    throw new Error(`corpus is disconnected — unreachable: ${leafIds.filter((id) => !visited.has(id)).join(', ')}`)
+  if (visited.size !== topicIds.length) {
+    throw new Error(`corpus is disconnected — unreachable: ${topicIds.filter((id) => !visited.has(id)).join(', ')}`)
   }
 }
 

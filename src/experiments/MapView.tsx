@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Delaunay } from 'd3-delaunay'
 
-import { byId, domainOf, DOMAIN_COLOR, leafIds } from './graph'
+import { byId, domainOf, DOMAIN_COLOR, topicIds } from './graph'
 import type { XY } from './derive'
 import {
   FLAT_W,
@@ -575,7 +575,7 @@ export default function MapView({ route, onStartWalk, onOpenNeighborhood, visite
           ))}
         </div>
         <span className="text-slate-400">
-          {visible.size} of {leafIds.length} · zoom ×{view.s.toFixed(2)}
+          {visible.size} of {topicIds.length} · zoom ×{view.s.toFixed(2)}
         </span>
         <span className="w-px h-4 bg-slate-200" />
         <label className="flex items-center gap-1.5 cursor-pointer">

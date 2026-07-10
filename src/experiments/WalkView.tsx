@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from 'react'
 
-import { byId, domainIds, domainOf, DOMAIN_COLOR, edges, EDGE_COLOR, EDGE_LABEL, leavesUnder } from './graph'
+import { byId, domainIds, domainOf, DOMAIN_COLOR, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from './graph'
 import type { EdgeType } from './graph'
 import { degreeOf, HUB_IDS } from './flat'
 
@@ -97,7 +97,7 @@ export default function WalkView({ route, setRoute }: WalkViewProps) {
                   {byId.get(d)!.title}
                 </div>
                 <div className="flex flex-col gap-1">
-                  {leavesUnder(d).map((id) => (
+                  {topicsUnder(d).map((id) => (
                     <button
                       key={id}
                       onClick={() => setRoute([id])}

@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, leavesUnder } from './graph'
+import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, topicsUnder } from './graph'
 import {
   FLAT_W,
   FLAT_H,
@@ -53,7 +53,7 @@ function emst(members: string[]): [string, string][] {
 const domainGroups: Group[] = domainIds.map((d) => ({
   label: byId.get(d)!.title,
   color: DOMAIN_COLOR[d],
-  members: leavesUnder(d),
+  members: topicsUnder(d),
 }))
 const communityGroups: Group[] = communities.map((members, ci) => ({
   label: communityLabel[ci],

@@ -1,11 +1,12 @@
 // Shared substrate for the flat (non-compound) paper views — E·GMap,
-// F·Contours, G·ZMLT. ONE deterministic force embedding of all topic leaves,
+// F·Contours, G·ZMLT. ONE deterministic force embedding of the 53 topics
+// (the edge-bearing level — deep layers never surface in the flat views),
 // structural communities (CNM modularity, ported from the analysis script),
 // a max-weight spanning tree (ZMLT's backbone) and importance ranks.
 // All three views render THESE positions, so switching tabs changes only
 // what each paper says to draw around them — never where anything sits.
 
-import { byId, domainOf, DOMAIN_COLOR, edges, leafIds } from './graph'
+import { byId, domainOf, DOMAIN_COLOR, edges, topicIds } from './graph'
 import type { GEdge } from './graph'
 import type { XY } from './derive'
 
@@ -41,7 +42,7 @@ export const pairs: Pair[] = [...pairWeight].map(([k, w]) => {
   return { a, b, w }
 })
 
-export const degreeOf = new Map<string, number>(leafIds.map((id) => [id, 0]))
+export const degreeOf = new Map<string, number>(topicIds.map((id) => [id, 0]))
 for (const { a, b, w } of pairs) {
   degreeOf.set(a, degreeOf.get(a)! + w)
   degreeOf.set(b, degreeOf.get(b)! + w)
@@ -49,7 +50,7 @@ for (const { a, b, w } of pairs) {
 
 // Hubs are COMPUTED, not declared: the five busiest topics by total link
 // degree. With authored edges, which topics are central is itself a finding.
-export const HUB_IDS = [...leafIds].sort((a, b) => degreeOf.get(b)! - degreeOf.get(a)! || a.localeCompare(b)).slice(0, 5)
+export const HUB_IDS = [...topicIds].sort((a, b) => degreeOf.get(b)! - degreeOf.get(a)! || a.localeCompare(b)).slice(0, 5)
 
 const rawAdj = new Map<string, GEdge[]>()
 for (const e of edges) {
@@ -65,11 +66,11 @@ export const edgesTouching = (id: string): GEdge[] => rawAdj.get(id) ?? []
 // Direction collapsed, weight = parallel-edge count. Merges the best pair of
 // connected communities until one remains, keeps the partition with max Q.
 function detectCommunities(): { groups: string[][]; Q: number } {
-  const index = new Map(leafIds.map((id, i) => [id, i]))
+  const index = new Map(topicIds.map((id, i) => [id, i]))
   const twoM = 2 * edges.length
 
-  const comm = new Map<number, Set<number>>(leafIds.map((_, i) => [i, new Set([i])]))
-  const a = new Map<number, number>(leafIds.map((id, i) => [i, degreeOf.get(id)! / twoM]))
+  const comm = new Map<number, Set<number>>(topicIds.map((_, i) => [i, new Set([i])]))
+  const a = new Map<number, number>(topicIds.map((id, i) => [i, degreeOf.get(id)! / twoM]))
   const e = new Map<string, number>() // "ci|cj" ci<cj -> edge fraction between
   for (const p of pairs) {
     const i = index.get(p.a)!
@@ -120,7 +121,7 @@ function detectCommunities(): { groups: string[][]; Q: number } {
   }
 
   const groups = best.groups
-    .map((g) => g.map((i) => leafIds[i]).sort())
+    .map((g) => g.map((i) => topicIds[i]).sort())
     .sort((x, y) => y.length - x.length || x[0].localeCompare(y[0]))
   return { groups, Q: best.Q }
 }
@@ -160,7 +161,7 @@ export const domainPurity =
     const count = new Map<string, number>()
     for (const id of members) count.set(domainOf(id), (count.get(domainOf(id)) ?? 0) + 1)
     return sum + Math.max(...count.values())
-  }, 0) / leafIds.length
+  }, 0) / topicIds.length
 
 /** hub id -> how many distinct communities its neighbors span (incl. its own) */
 export const hubBridging = new Map<string, number>(
@@ -177,8 +178,8 @@ export const hubBridging = new Map<string, number>(
 // ── The one shared embedding: weighted Fruchterman–Reingold, seeded ─────────
 function embed(): Record<string, XY> {
   const rnd = mulberry32(97)
-  const n = leafIds.length
-  const index = new Map(leafIds.map((id, i) => [id, i]))
+  const n = topicIds.length
+  const index = new Map(topicIds.map((id, i) => [id, i]))
   const px = new Float64Array(n)
   const py = new Float64Array(n)
   for (let i = 0; i < n; i++) {
@@ -271,7 +272,7 @@ function embed(): Record<string, XY> {
   }
 
   const out: Record<string, XY> = {}
-  leafIds.forEach((id, i) => (out[id] = { x: px[i], y: py[i] }))
+  topicIds.forEach((id, i) => (out[id] = { x: px[i], y: py[i] }))
   return out
 }
 export const leafPos: Record<string, XY> = embed()
@@ -279,7 +280,7 @@ export const leafPos: Record<string, XY> = embed()
 // ── Max-weight spanning tree: the "road network" ZMLT filters along ─────────
 function maxSpanningTree(): Pair[] {
   const sorted = [...pairs].sort((x, y) => y.w - x.w || pairKey(x.a, x.b).localeCompare(pairKey(y.a, y.b)))
-  const parent = new Map<string, string>(leafIds.map((id) => [id, id]))
+  const parent = new Map<string, string>(topicIds.map((id) => [id, id]))
   const find = (x: string): string => {
     while (parent.get(x) !== x) {
       parent.set(x, parent.get(parent.get(x)!)!)
@@ -294,14 +295,14 @@ function maxSpanningTree(): Pair[] {
     if (ra === rb) continue
     parent.set(ra, rb)
     out.push(p)
-    if (out.length === leafIds.length - 1) break
+    if (out.length === topicIds.length - 1) break
   }
   return out
 }
 export const treePairs: Pair[] = maxSpanningTree()
 
 // ── Importance filtration (ZMLT levels) ─────────────────────────────────────
-export const importanceOrder = [...leafIds].sort(
+export const importanceOrder = [...topicIds].sort(
   (a, b) => degreeOf.get(b)! - degreeOf.get(a)! || a.localeCompare(b),
 )
 
@@ -311,7 +312,7 @@ export const importanceOrder = [...leafIds].sort(
 // monotone: zooming in only ever ADDS nodes (ZMLT's persistence property).
 const treeParent = new Map<string, string | null>()
 {
-  const adj = new Map<string, string[]>(leafIds.map((id) => [id, []]))
+  const adj = new Map<string, string[]>(topicIds.map((id) => [id, []]))
   for (const p of treePairs) {
     adj.get(p.a)!.push(p.b)
     adj.get(p.b)!.push(p.a)

@@ -28,6 +28,11 @@
 //      plus its graph neighbors and pins it (neighbors held visible);
 //      "teach me this" refits to the WHOLE path; a walk step click pans at
 //      CONSTANT zoom; the walk header's ⤢ button refits the path on demand.
+//   11. DEEP LAYERS — the tree discloses the corpus below the topic level:
+//      expanding the cs flagship spine reaches the level-8 node (Lomuto vs.
+//      Hoare); focusing it leaves the topic-only machinery honest (lenses
+//      show their topic-level empty state, teach disabled), and focusing a
+//      topic again restores the full lens picture.
 import { createRequire } from 'node:module'
 const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
 const { chromium } = require('playwright-core')
@@ -338,6 +343,63 @@ if (camStep.zoom !== camFit.zoom) fail(`walk step centering changed zoom: ${camF
 if (Math.abs(camStep.tx - camFit.tx) < 1 && Math.abs(camStep.ty - camFit.ty) < 1) fail('walk step centering did not pan the map')
 await page.screenshot({ path: `${OUT}/10-walk-map-sync.png` })
 console.log('10-walk-map-sync.png taken')
+
+// ── 11. deep layers: walk the cs flagship spine to level 8 in the tree ─────
+await page.locator('[aria-label="studio-preset-coding"]').click()
+await page.waitForTimeout(400)
+
+// domains start expanded (depth-2 default); everything below needs its ▸.
+// data-node-id hooks were added to TreeRow exactly for this walk.
+const SPINE = [
+  'alg',
+  'alg-sorting-searching',
+  'alg-sorting-searching-comparison-sorts',
+  'alg-sorting-searching-comparison-sorts-quicksort',
+  'alg-sorting-searching-comparison-sorts-quicksort-partitioning-schemes',
+]
+for (const id of SPINE) {
+  const toggle = treePane.locator(`[data-node-id="${id}"] button`).first()
+  if (!(await toggle.isVisible().catch(() => false))) {
+    fail(`tree row for ${id} has no expand toggle — deep layers missing?`)
+    break
+  }
+  await toggle.click()
+  await page.waitForTimeout(150)
+}
+const L8 = 'alg-sorting-searching-comparison-sorts-quicksort-partitioning-schemes-lomuto-vs-hoare'
+const l8row = treePane.locator(`[data-node-id="${L8}"]`)
+console.log('level-8 row visible =', await l8row.isVisible(), '(expect true)')
+if (!(await l8row.isVisible())) fail('level-8 spine node not reachable in the tree')
+
+// the ⤳ link badge lives at the topic level only
+const topicRowText = await treePane.locator('[data-node-id="alg-sorting-searching"]').innerText()
+const l8rowText = await l8row.innerText()
+if (!topicRowText.includes('⤳')) fail('topic row lost its ⤳ typed-link badge')
+if (l8rowText.includes('⤳')) fail('deep row shows a ⤳ badge — deep nodes must not carry typed links')
+
+await l8row.click() // deep leaf: immediate select
+await page.waitForTimeout(300)
+const deepFocus = await focusReadout.getAttribute('data-focus')
+console.log('focus after level-8 click =', deepFocus)
+if (deepFocus !== L8) fail(`expected focus ${L8}, got ${deepFocus}`)
+
+const teachDisabledDeep = await page.locator('[aria-label="studio-teach"]').isDisabled()
+const lensEmptyState = await page
+  .locator('[data-lens="depends_on"]')
+  .getByText('lenses read topics — typed links live at the topic level')
+  .isVisible()
+console.log('deep focus: teach disabled =', teachDisabledDeep, '· lens topic-only empty state =', lensEmptyState, '(both expect true)')
+if (!teachDisabledDeep) fail('teach button enabled on a deep (non-topic) focus')
+if (!lensEmptyState) fail('deps lens did not show the topic-only empty state for a deep focus')
+
+// focusing a topic again restores the lens picture (container row: select
+// fires after the double-click grace timeout)
+await treePane.locator('[data-node-id="alg-sorting-searching"]').click()
+await page.waitForTimeout(400)
+const lensHeaderBack = await page.locator('[data-lens="depends_on"] header').innerText()
+if (!lensHeaderBack.includes('Sorting & Searching')) fail(`deps lens did not recenter on the topic: "${lensHeaderBack.replace(/\s+/g, ' ')}"`)
+await page.screenshot({ path: `${OUT}/11-deep-spine.png` })
+console.log('11-deep-spine.png taken')
 
 await browser.close()
 if (errors.length) {

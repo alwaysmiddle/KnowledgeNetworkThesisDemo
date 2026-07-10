@@ -3,10 +3,10 @@
 // navigation loop: Contained (down the tree — a SELECT, same as a tree-panel
 // click), Roads from here (typed cross-links — a JUMP), and Walks through
 // here (walks-as-content, made visible instead of staying implicit history).
-// Roads and Walks only resolve for leaves: edges are always leaf-to-leaf in
-// graph.ts, and a Walk's stops are always leaf ids (see walks.ts) — a
-// container currently shows neither section's contents, which is a real
-// limitation worth reporting, not silently working around.
+// Roads and Walks only resolve for topics: edges are always topic-to-topic in
+// graph.ts, and a Walk's stops are always topic ids (see walks.ts) — nodes
+// above the topic level (domains, modules) and below it (deep layers) show
+// containment and the document, which is honest: that IS all they have.
 
 import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, pathTo } from '../graph'
 import { edgesTouching } from '../flat'
@@ -29,7 +29,7 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
     .join(' / ')
   const color = DOMAIN_COLOR[domainOf(currentId)] ?? '#475569'
   const kids = n.kind === 'container' ? childrenOf.get(currentId) ?? [] : []
-  const roads = n.kind === 'leaf' ? edgesTouching(currentId) : []
+  const roads = n.topic ? edgesTouching(currentId) : []
   const outgoing = roads.filter((e) => e.source === currentId)
   const incoming = roads.filter((e) => e.target === currentId)
   const throughWalks = WALKS.flatMap((w) => {
@@ -40,7 +40,7 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
   return (
     <div className="h-full overflow-auto bg-white" aria-label="knowledge-panel">
       <div className="px-4 pt-3 pb-2 border-b border-slate-100">
-        <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{n.kind}</div>
+        <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{n.topic ? 'topic' : n.kind}</div>
         <div className="text-[15px] font-bold" style={{ color }}>
           {n.title}
         </div>
@@ -75,7 +75,7 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
         </div>
       )}
 
-      {n.kind === 'leaf' && (
+      {n.topic && (
         <div className="px-4 py-3 border-b border-slate-100">
           <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Roads from here ({roads.length})</div>
           {roads.length === 0 ? (

@@ -66,11 +66,11 @@ export const WALKS: Walk[] = [
   },
 ]
 
-// Module-load guard: every stop id must be a real leaf in graph.ts.
+// Module-load guard: every stop id must be a real topic in graph.ts.
 for (const w of WALKS) {
   for (const s of w.stops) {
     const n = byId.get(s.id)
     if (!n) throw new Error(`walk "${w.id}" references unknown node id: ${s.id}`)
-    if (n.kind !== 'leaf') throw new Error(`walk "${w.id}" stop ${s.id} is not a leaf`)
+    if (!n.topic) throw new Error(`walk "${w.id}" stop ${s.id} is not a topic`)
   }
 }
