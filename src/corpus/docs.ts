@@ -6,7 +6,7 @@
 // The deep layers below the topics carry one-line blurbs, authored next to
 // their structure in deep.ts and merged in at the bottom (DEEP_DOC).
 
-import { DEEP_DOC, nodes } from '../graph'
+import { DEEP_DOC, nodes } from './graph'
 
 export const DOC_BODY: Record<string, string> = {
   // ── Root ────────────────────────────────────────────────────────────────

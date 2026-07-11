@@ -10,8 +10,8 @@
 // Pure, hand-rolled, no React. Adjacency is built once at module load from
 // graph.ts's `edges`; everything below is synchronous and deterministic.
 
-import { byId, edges } from './graph'
-import type { EdgeType } from './graph'
+import { byId, edges } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
 
 type Adjacency = Map<EdgeType, Map<string, string[]>>
 

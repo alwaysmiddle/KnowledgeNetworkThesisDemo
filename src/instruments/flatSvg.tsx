@@ -3,8 +3,8 @@
 // all-edges hairball layer (kept available as a toggle on purpose —
 // seeing it is the argument for hiding it, ComfyUI's "hide links" precedent).
 
-import { edges, EDGE_COLOR, byId, domainOf, DOMAIN_COLOR } from './graph'
-import { leafPos, HUB_IDS, edgesTouching } from './flat'
+import { edges, EDGE_COLOR, byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { leafPos, HUB_IDS, edgesTouching } from '../model/flat'
 
 export function EdgeMarkers() {
   return (

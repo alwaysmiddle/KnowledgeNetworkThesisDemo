@@ -4,10 +4,10 @@
 // the handoff's file list verbatim (it says "optionally layout.ts"); adding
 // this one small file for the same reason logged as a deviation in RESULTS.
 
-import { byId, childrenOf, EDGE_LABEL, pathTo, ROOT_ID } from '../graph'
-import type { EdgeType } from '../graph'
+import { byId, childrenOf, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
 
-export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk'
+export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk' | 'graph'
 
 /** Fixed edge-type order, derived once from graph.ts's own declaration order
  * so the plex's rings and the knowledge panel's grouped list always agree. */
@@ -40,17 +40,6 @@ export function depth2Expanded(rootId: string): Set<string> {
   const out = new Set<string>([rootId])
   for (const c of childrenOf.get(rootId) ?? []) {
     if (c.kind === 'container') out.add(c.id)
-  }
-  return out
-}
-
-/** Ids to keep at full opacity while a walk's downstream filter is active:
- * the remaining stops (from `cursor` on) plus their containment ancestors,
- * so the regions that still matter stay legible against the dimmed rest. */
-export function walkKeepBright(stopIds: string[], cursor: number): Set<string> {
-  const out = new Set<string>()
-  for (const id of stopIds.slice(cursor)) {
-    for (const anc of pathTo(id)) out.add(anc)
   }
   return out
 }

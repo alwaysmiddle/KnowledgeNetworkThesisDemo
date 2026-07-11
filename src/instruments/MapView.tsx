@@ -19,8 +19,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Delaunay } from 'd3-delaunay'
 
-import { byId, domainIds, domainOf, DOMAIN_COLOR, topicIds } from './graph'
-import type { XY } from './derive'
+import { byId, domainIds, domainOf, DOMAIN_COLOR, topicIds } from '../corpus/graph'
+import type { XY } from '../model/derive'
 import {
   FLAT_W,
   FLAT_H,
@@ -38,8 +38,8 @@ import {
   spreadLabels,
   topicAnchorOf,
   treePairs,
-} from './flat'
-import type { DeepPlace } from './flat'
+} from '../model/flat'
+import type { DeepPlace } from '../model/flat'
 import { AllEdges, EdgeMarkers, HoverEdges, LeafDot } from './flatSvg'
 
 // ── Tessellation (module-level: deterministic, computed once) ───────────────

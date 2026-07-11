@@ -9,9 +9,9 @@
 // names. Neither replaces the other, matching what a flat Jira-style link
 // list couldn't do on its own.
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR } from '../graph'
-import { edgesTouching } from '../flat'
-import { EDGE_TYPES } from './state'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR } from '../corpus/graph'
+import { edgesTouching } from '../model/flat'
+import { EDGE_TYPES } from '../model/nav'
 
 export interface PlexPanelProps {
   currentId: string

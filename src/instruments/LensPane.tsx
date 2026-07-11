@@ -18,10 +18,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from './graph'
-import type { EdgeType } from './graph'
-import { lensModel } from './lens'
-import type { ConeSide, LensModel } from './lens'
+import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
+import { lensModel } from '../model/lens'
+import type { ConeSide, LensModel } from '../model/lens'
 
 export interface LensPaneProps {
   focus: string | null

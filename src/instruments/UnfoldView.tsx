@@ -24,9 +24,9 @@
 
 import { useMemo, useState } from 'react'
 
-import { byId, domainIds, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, topicsUnder } from './graph'
-import type { EdgeType } from './graph'
-import { degreeOf, edgesTouching, HUB_IDS } from './flat'
+import { byId, domainIds, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
+import { degreeOf, edgesTouching, HUB_IDS } from '../model/flat'
 
 const EDGE_TYPES = Object.keys(EDGE_LABEL) as EdgeType[]
 

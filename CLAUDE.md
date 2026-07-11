@@ -1,7 +1,8 @@
 # KnowledgeNetworkThesisDemo Orientation
 
 This repository holds the **code** for the implementation-first thesis demo (the
-ReactFlow app under `src/` and the deterministic `npm run map` architecture
+React app under `src/` — the Graph Disclosure Lab, one Studio of composable
+navigation instruments — and the deterministic `npm run map` architecture
 generator).
 
 **The knowledge base is NOT in this repo — it lives in the DocHub project.**

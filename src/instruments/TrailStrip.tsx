@@ -1,15 +1,15 @@
 // Trail (walked path) + walk controls — the bottom strip. The trail is the
-// temporal history of every SELECT, append-only; CockpitView renders the
-// breadcrumb separately, from treeRootId's ancestry. The two diverge exactly
-// when a JUMP happens — jump chips are visually accented so that divergence
-// is legible in a screenshot, not just in the DOM text the verification
-// script pulls out.
+// temporal history of every focus write, append-only — where the breadcrumb
+// answers "where am I in the containment tree," the trail answers "how did I
+// get here." The two diverge exactly when a JUMP happens — jump chips are
+// visually accented so that divergence is legible in a screenshot, not just
+// in the DOM text a verification script pulls out.
 
 import { useEffect, useRef } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR } from '../graph'
-import { WALKS } from './walks'
-import type { ActiveWalkState, TrailEntry, TrailVia } from './state'
+import { byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { WALKS } from '../corpus/walks'
+import type { ActiveWalkState, TrailEntry, TrailVia } from '../model/nav'
 
 const VIA_TAG: Record<TrailVia, string> = {
   map: 'MAP',
@@ -17,6 +17,7 @@ const VIA_TAG: Record<TrailVia, string> = {
   link: 'LNK',
   trail: 'TRL',
   walk: 'WLK',
+  graph: 'GPH',
 }
 
 export interface TrailStripProps {
@@ -27,8 +28,6 @@ export interface TrailStripProps {
   onAdvanceWalk: () => void
   onJumpToStop: (index: number) => void
   onDeactivateWalk: () => void
-  dimmingOn: boolean
-  onToggleDimming: () => void
 }
 
 export default function TrailStrip({
@@ -39,8 +38,6 @@ export default function TrailStrip({
   onAdvanceWalk,
   onJumpToStop,
   onDeactivateWalk,
-  dimmingOn,
-  onToggleDimming,
 }: TrailStripProps) {
   const scroller = useRef<HTMLDivElement>(null)
 
@@ -109,10 +106,6 @@ export default function TrailStrip({
                 next ▶
               </button>
             )}
-            <label className="flex items-center gap-1 text-slate-500 shrink-0 cursor-pointer">
-              <input type="checkbox" checked={dimmingOn} onChange={onToggleDimming} />
-              dim
-            </label>
             <button onClick={onDeactivateWalk} className="px-1.5 py-0.5 rounded border border-slate-300 text-slate-500 hover:bg-slate-100 shrink-0">
               ✕
             </button>

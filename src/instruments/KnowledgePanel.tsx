@@ -3,17 +3,18 @@
 // navigation loop: Contained (down the tree — a SELECT, same as a tree-panel
 // click), Roads from here (typed cross-links — a JUMP), and Walks through
 // here (walks-as-content, made visible instead of staying implicit history).
+// The radial neighborhood diagram that used to sit above the lists is now
+// its own Studio instrument (PlexPanel) — compose them side by side instead.
 // Roads and Walks only resolve for topics: edges are always topic-to-topic in
 // graph.ts, and a Walk's stops are always topic ids (see walks.ts) — nodes
 // above the topic level (domains, modules) and below it (deep layers) show
 // containment and the document, which is honest: that IS all they have.
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, pathTo } from '../graph'
-import { edgesTouching } from '../flat'
-import { DOC_BODY } from './docs'
-import { WALKS } from './walks'
-import PlexPanel from './PlexPanel'
-import { EDGE_TYPES } from './state'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, pathTo } from '../corpus/graph'
+import { edgesTouching } from '../model/flat'
+import { DOC_BODY } from '../corpus/docs'
+import { WALKS } from '../corpus/walks'
+import { EDGE_TYPES } from '../model/nav'
 
 export interface KnowledgePanelProps {
   currentId: string
@@ -48,11 +49,6 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
       </div>
 
       <div className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100">{DOC_BODY[currentId]}</div>
-
-      <div className="px-4 pt-3 pb-1 border-b border-slate-100">
-        <div className="text-[10.5px] font-bold text-slate-500 mb-1">Neighborhood</div>
-        <PlexPanel currentId={currentId} onSelect={onSelectChild} onJump={onJump} />
-      </div>
 
       {n.kind === 'container' && (
         <div className="px-4 py-3 border-b border-slate-100">

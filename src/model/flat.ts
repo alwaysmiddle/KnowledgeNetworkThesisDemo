@@ -9,8 +9,8 @@
 // filtration. CNM community detection stays exported for Contours, which
 // draws detected-vs-authored disagreement over the same positions.
 
-import { byId, childrenOf, domainIds, domainOf, DOMAIN_COLOR, edges, pathTo, topicIds, topicsUnder } from './graph'
-import type { GEdge } from './graph'
+import { byId, childrenOf, domainIds, domainOf, DOMAIN_COLOR, edges, pathTo, topicIds, topicsUnder } from '../corpus/graph'
+import type { GEdge } from '../corpus/graph'
 import type { XY } from './derive'
 
 export const FLAT_W = 1360

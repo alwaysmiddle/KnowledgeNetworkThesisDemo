@@ -14,9 +14,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR } from '../graph'
-import { edgesTouching } from '../flat'
-import { depth2Expanded } from './state'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { edgesTouching } from '../model/flat'
+import { depth2Expanded } from '../model/nav'
 
 export interface TreePanelProps {
   treeRootId: string

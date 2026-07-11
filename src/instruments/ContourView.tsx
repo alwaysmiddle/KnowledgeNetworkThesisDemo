@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, topicsUnder } from './graph'
+import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, topicsUnder } from '../corpus/graph'
 import {
   FLAT_W,
   FLAT_H,
@@ -21,7 +21,7 @@ import {
   leafPos,
   spreadLabels,
   edgesTouching,
-} from './flat'
+} from '../model/flat'
 import { AllEdges, EdgeMarkers, HoverEdges, LeafDot } from './flatSvg'
 
 interface Group {

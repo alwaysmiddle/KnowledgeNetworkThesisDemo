@@ -10,9 +10,9 @@
 
 import { useEffect, useRef } from 'react'
 
-import { byId, domainIds, domainOf, DOMAIN_COLOR, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from './graph'
-import type { EdgeType } from './graph'
-import { degreeOf, HUB_IDS } from './flat'
+import { byId, domainIds, domainOf, DOMAIN_COLOR, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
+import { degreeOf, HUB_IDS } from '../model/flat'
 
 interface Choice {
   target: string

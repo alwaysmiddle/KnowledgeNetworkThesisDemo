@@ -20,9 +20,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from './graph'
-import type { EdgeType } from './graph'
-import { edgesTouching } from './flat'
+import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
+import { edgesTouching } from '../model/flat'
 import { UnfoldStartPicker } from './UnfoldView'
 
 const EDGE_TYPES = Object.keys(EDGE_LABEL) as EdgeType[]

@@ -3,8 +3,8 @@
 // how visible boxes get packed, and what an ego (radial) neighborhood is.
 // Everything here is deterministic and side-effect free — views just render it.
 
-import { byId, childrenOf, edges, topicsUnder, ROOT_ID } from './graph'
-import type { EdgeType, GNode } from './graph'
+import { byId, childrenOf, edges, topicsUnder, ROOT_ID } from '../corpus/graph'
+import type { EdgeType, GNode } from '../corpus/graph'
 
 export interface XY {
   x: number

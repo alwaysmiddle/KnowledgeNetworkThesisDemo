@@ -3,7 +3,7 @@
 // tell across the map, and the stops deliberately jump domains where the
 // story does: understanding lives in the crossings, not inside one country.
 
-import { byId } from '../graph'
+import { byId } from './graph'
 
 export interface Walk {
   id: string
