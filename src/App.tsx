@@ -1,6 +1,6 @@
-// The app is currently the Graph Disclosure Lab: three ways to navigate a
-// dense typed-edge graph without showing it all at once. The earlier
-// container-nodes spike lives in git history (and src/data/nodes.ts).
+// The app is the Graph Disclosure Lab: navigation-UX prototypes over one
+// hand-authored typed-edge graph. See src/experiments/Shell.tsx for the
+// current tab list. (The earlier container-nodes spike lives in git history.)
 import Shell from './experiments/Shell'
 
 export default function App() {

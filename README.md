@@ -1,96 +1,52 @@
 # KnowledgeNetworkThesisDemo
 
-Thesis demo prototype for turning course material into an editable knowledge
-node network and a presentation path.
+Implementation-first thesis demo: turning course material into a navigable
+knowledge-node network with an editable presentation path.
 
-The current implementation-first scope starts with PowerPoint import:
+The app today is the **Graph Disclosure Lab** — a client-only React
+prototyping ground for graph-navigation UX (map, walk, unfold, cockpit,
+studio, and more — see the tab list in `src/experiments/Shell.tsx`), running
+over one hand-authored corpus (a CS-topics domain, ~70 nodes, typed edges).
+It exists to answer navigation-UX questions before they get built into the
+product roadmap's later slices (canvas organization, presentation path,
+presentation preview).
 
-1. Import a `.pptx` deck.
-2. Convert slides into editable nodes.
-3. Show those nodes on a ReactFlow canvas.
-4. Let the user edit, connect, group, and collapse nodes.
-5. Let the user build and preview a presentation sequence through the graph.
-
-Ontology, RDF, SPARQL, Fuseki/Jena, OWL inference, EVOC, and external ontology
-alignment are deferred. They may return after the node-building and
-presentation experience works.
-
-## Architecture
-
-```text
-React (Vite) :5173  - frontend graph canvas
-Neo4j 5      :7474  - graph database browser
-Neo4j Bolt   :7687  - application database connection
-```
-
-The current frontend uses mock data while the Neo4j-backed persistence layer is
-rebuilt.
-
-## Prerequisites
-
-- Node.js
-- Docker Desktop
+The roadmap's earlier slices — a graph-model backend and PPTX import — are
+tracked in DocHub and have not started yet. There is currently no backend
+and no PPTX import in this repo.
 
 ## Getting Started
 
-Install frontend dependencies:
-
 ```powershell
 npm install
-```
-
-Start Neo4j:
-
-```powershell
-docker compose up -d
-```
-
-Start the frontend dev server:
-
-```powershell
 npm run dev
 ```
-
-## Service Health Checks
-
-| Service | URL |
-|---|---|
-| Neo4j Browser | http://localhost:7474 |
-
-Default local Neo4j credentials are configured in `docker-compose.yml`:
-
-- user: `neo4j`
-- password: `kndemopw`
 
 ## Project Structure
 
 ```text
 KnowledgeNetworkThesisDemo/
-├── src/                   # React + TypeScript frontend
-│   ├── components/        # ReactFlow canvas, node, and edge components
-│   ├── data/              # current mock graph data
-│   ├── lib/               # layer, layout, and traversal helpers
-│   └── types.ts           # shared frontend type definitions
-├── scripts/               # deterministic verification and map-generation scripts
-├── wiki/                  # deprecated; migrated to DocHub, do not edit
-├── docker-compose.yml     # Neo4j only
-└── package.json           # frontend scripts
+├── src/
+│   ├── experiments/        # the Graph Disclosure Lab: one file per navigation prototype
+│   │   └── cockpit/        # the map + tree + trail + document instrument
+│   ├── App.tsx, main.tsx
+│   └── index.css
+├── scripts/                 # deterministic verification and DocHub map-generation scripts
+├── tools/*-spike/           # spike verification scripts + RESULTS.md write-ups
+└── package.json
 ```
 
 ## Current Docs
 
-The current knowledge base lives in the sibling DocHub repository:
+The knowledge base lives in the sibling DocHub repository — goals, problems,
+ideas, decisions, specs, roadmap, and orchestration:
 
 - `D:\ShiZhong\MyCode\DocHub\docs\knowledge-network-thesis-demo\`
 
-DocHub is the source of truth for goals, problems, ideas, decisions, specs,
-roadmap, and orchestration. This repository holds the app code and deterministic
-generators only.
-
-Deprecated local docs are retained only as historical reference:
-
-- `wiki/`
-- `docs/_archive/2026-05-18-pre-reset-design/`
+This repository holds app code, deterministic generators, and spike tooling
+only; DocHub is the source of truth. See its `progress/` section for spike
+write-ups (`EVoC-Auto-Clustering-Spike.md`, `Map-Tree-Walk-Navigation-Model.md`,
+`Relation-Graphs-Lens-and-Preset-Model.md`).
 
 ## Scripts
 
@@ -98,7 +54,7 @@ Deprecated local docs are retained only as historical reference:
 npm run dev
 npm run build
 npm run lint
-npm run map
+npm run map          # regenerate DocHub's Architecture page from src/ imports
 npm run spec-gate
 npm run verify
 ```
