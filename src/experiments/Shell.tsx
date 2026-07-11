@@ -25,7 +25,7 @@ type Tab = 'map' | 'walk' | 'unfoldg' | 'contours' | 'evoc' | 'cockpit' | 'unfol
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'studio', label: 'Studio', hint: 'instrument palette — pick views, sync on one bus, presets for coding & teaching' },
-  { id: 'map', label: 'Map', hint: 'where is everything — countries + semantic zoom' },
+  { id: 'map', label: 'Map', hint: 'where is everything — the atlas: domains → modules → topics → concepts, zoom discloses depth in place' },
   { id: 'walk', label: 'Walk', hint: 'how does flow move — step-by-step paths' },
   { id: 'unfoldg', label: 'Unfold·Graph', hint: 'trial — unfold into a graph: every node once, revisits snap back' },
   { id: 'contours', label: 'Contours', hint: 'reference — soft groups over the same layout' },
