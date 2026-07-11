@@ -400,8 +400,10 @@ export const edges: GEdge[] = E
 // catch the mistakes a human editor can actually make.
 
 // 0. Tree shape — ids unique; every topic opens into at least two deep
-// children; the corpus is exactly 8 levels at its deepest, and EVERY domain
-// has a flagship spine reaching level 8 (ragged everywhere else is fine).
+// children; every SUBTOPIC opens into at least two concepts (the depth floor:
+// no branch ends at level 5); every topic's subtree reaches level 7 somewhere;
+// the corpus is exactly 8 levels at its deepest, and EVERY domain has a
+// flagship spine reaching level 8 (ragged tips everywhere else are fine).
 {
   if (byId.size !== nodes.length) {
     const seenIds = new Set<string>()
@@ -410,6 +412,14 @@ export const edges: GEdge[] = E
   }
   const thin = topicIds.filter((t) => (childrenOf.get(t) ?? []).length < 2)
   if (thin.length) throw new Error(`topics with fewer than 2 deep children: ${thin.join(', ')}`)
+  const thinSub = topicIds.flatMap((t) => (childrenOf.get(t) ?? []).filter((s) => (childrenOf.get(s.id) ?? []).length < 2))
+  if (thinSub.length) throw new Error(`subtopics with fewer than 2 concepts: ${thinSub.map((s) => s.id).join(', ')}`)
+  const deepestUnder = (id: string): number => {
+    const kids = childrenOf.get(id) ?? []
+    return kids.length ? Math.max(...kids.map((k) => deepestUnder(k.id))) : depthOf(id)
+  }
+  const shallow = topicIds.filter((t) => deepestUnder(t) < 7)
+  if (shallow.length) throw new Error(`topics whose subtree never reaches level 7: ${shallow.join(', ')}`)
   if (MAX_DEPTH !== 8) throw new Error(`expected max containment depth 8, got ${MAX_DEPTH}`)
   for (const d of domainIds) {
     const deepest = Math.max(...nodes.filter((n) => pathTo(n.id)[1] === d).map((n) => depthOf(n.id)))
