@@ -114,6 +114,22 @@ const spots = await page.locator('[data-spot]').count()
 if (litStars !== 1 || spots !== 1 || litRows < 1)
   errors.push(`hover sync: expected 1 lit star + >=1 lit row + 1 map spotlight, got ${litStars} / ${litRows} / ${spots}`)
 
+// 4c — THE GENERATED LENS. `implements` is the corpus's fourth relation type
+// and it never had a lens pane — not because LensPane couldn't render one (its
+// config is Record<EdgeType, …>, so TS forced an `implements` entry years ago)
+// but because a lens needed four hand-edits in four parallel structures inside
+// StudioView, and nobody made them. The registry now generates one per edge
+// type, so this pane exists for free. Toggle it on over the focused topic, check
+// it renders, toggle it back off so the cockpit is intact for the frames below.
+await page.getByLabel('studio-inst-lens-implements').click()
+await page.waitForTimeout(600)
+await page.screenshot({ path: OUT + '/4c-generated-lens.png' })
+const lensPane = page.locator('[aria-label="studio-pane-lens-implements"][data-slot="on"]')
+if ((await lensPane.count()) !== 1) errors.push('generated lens: the lens-implements pane did not mount')
+else if (!(await lensPane.innerText()).trim()) errors.push('generated lens: the pane mounted but rendered nothing')
+await page.getByLabel('studio-inst-lens-implements').click()
+await page.waitForTimeout(300)
+
 // 5 — atlas at L4 (concepts): deep-tier wrap + honest label drops
 await page.getByLabel('nested-level-4').click()
 await page.waitForTimeout(1000)

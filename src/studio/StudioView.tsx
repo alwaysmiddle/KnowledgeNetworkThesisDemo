@@ -1,229 +1,47 @@
-// Studio — the instrument palette. Every view (Map, Walk, Unfold,
-// Unfold·Graph, Contours, EVoC, Tree, Document, Plex, Trail) plus the three
-// relation lenses are pickable INSTRUMENTS sharing one sync bus (focus /
-// route / trail): selecting a leaf anywhere writes focus, and every
-// instrument that reads focus recenters on it. A PRESET is just a curated
-// instrument list plus layout weights — Coding (tree + three lenses),
-// Teaching (map + unfold-graph + document + walk), and Cockpit (map +
-// connections + document — the snap-only atlas with its subtree wheel and the
-// prose page, all on one focus). Toggling instruments by hand after applying
-// a preset de-highlights it — the composition is "custom" from then on.
+// Studio — the shell. It owns three things and nothing else: the header chrome,
+// the COMPOSITION (which panes are on, in what order, at what weight), and the
+// flexbox that lays them out.
 //
-// The TRAIL is the bus's temporal channel, absorbed from the cockpit:
-// every focus write appends an entry (append-only, via-tagged, jumps
-// accented) and the header's visited count is DERIVED from it (topics only).
-// The cockpit's other contracts live here too: AUTO-RE-ROOT (a focus outside
-// the tree's current root re-roots it to the node's parent, only ever
-// reactively) and the authored-walk cursor (activate from the document
-// panel's "Walks through here" or the trail strip, advance stop by stop —
-// each stop lands the walked-so-far prefix on the shared route).
+// What it no longer owns: the session state, which is studio/bus.ts, and the
+// list of what a pane even IS, which is studio/instruments.tsx. It used to own
+// both — six useStates, eight closures, an InstrumentId union, a CATALOG order,
+// a LABEL record, a LENS_TYPE lookup, and a switch that hand-wired every
+// instrument's props and was not exhaustiveness-checked. Adding a channel cost
+// an edit in every pane that read it; deleting one flat map cost nine edit sites
+// here and still left a false sentence in a file this one never mentions.
 //
-// ONE MAP (2026-07-14): the old flat MapView is deleted and Map·Nested is now
-// simply "Map". Two things the flat map alone drove went with it. Its CAMERA
-// bus: counter-keyed MapFlyCommands that fit a walk path, centred on a walk
-// tip, or framed an Unfold·Graph neighborhood — but the nested atlas has a
-// snap-only LEVEL camera with no "fit these ids" in its model, so those
-// commands had no receiver and were removed rather than left dangling
-// (re-adding a fit means first deciding which canonical level it lands on:
-// a design question, not wiring). And its "open neighborhood" pin action,
-// which seeded the Unfold·Graph canvas — that instrument has its own start
-// picker, so it simply always starts from there now.
+// The split that fixed it: an instrument is an entry in a registry, and it takes
+// ONE prop — the bus. A pane that ignores a channel does not know it exists.
 
-import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, ROOT_ID } from '../corpus/graph'
-import type { EdgeType } from '../corpus/graph'
-import NestedAtlasView from '../instruments/NestedAtlasView'
-import WalkView from '../instruments/WalkView'
-import UnfoldView from '../instruments/UnfoldView'
-import UnfoldGraphView from '../instruments/UnfoldGraphView'
-import ContourView from '../instruments/ContourView'
-import EvocView from '../instruments/EvocView'
-import LensPane from '../instruments/LensPane'
-import TreePanel from '../instruments/TreePanel'
-import KnowledgePanel from '../instruments/KnowledgePanel'
-import PlexPanel from '../instruments/PlexPanel'
-import ChildrenPanel from '../instruments/ChildrenPanel'
-import TrailStrip from '../instruments/TrailStrip'
-import { WALKS } from '../corpus/walks'
-import { isInSubtree, parentOf } from '../model/nav'
-import type { ActiveWalkState, TrailEntry, TrailVia } from '../model/nav'
-import { curriculum } from '../model/lens'
-
-type InstrumentId =
-  | 'nested'
-  | 'walk'
-  | 'unfold'
-  | 'unfoldg'
-  | 'contours'
-  | 'evoc'
-  | 'tree'
-  | 'children'
-  | 'doc'
-  | 'plex'
-  | 'trail'
-  | 'lens-depends_on'
-  | 'lens-references'
-  | 'lens-data_flow'
-
-// 'walk' and 'trail' render as bottom strips, everything else as columns
-const STRIPS: InstrumentId[] = ['walk', 'trail']
-
-interface Preset {
-  id: 'coding' | 'teaching' | 'cockpit'
-  label: string
-  hint: string
-  active: InstrumentId[] // column order; strips always sit at the bottom
-  flex?: Partial<Record<InstrumentId, number>>
-}
-
-const PRESETS: Preset[] = [
-  {
-    id: 'coding',
-    label: 'Coding',
-    hint: 'tree + three lenses — every pane recenters on focus',
-    active: ['tree', 'lens-depends_on', 'lens-references', 'lens-data_flow'],
-  },
-  {
-    id: 'teaching',
-    label: 'Teaching',
-    hint: 'map + unfold + document + walk — accumulating, authored order',
-    active: ['nested', 'unfoldg', 'doc', 'walk'],
-    flex: { nested: 2, unfoldg: 1.4, doc: 1 },
-  },
-  {
-    id: 'cockpit',
-    label: 'Cockpit',
-    hint: 'nested map + connections + document — territory, subtree wheel, and prose on one focus',
-    active: ['nested', 'children', 'doc'],
-    flex: { nested: 1.8, children: 1, doc: 1 },
-  },
-]
-
-// fixed sidebar order — every view, then the three lenses
-const CATALOG: InstrumentId[] = [
-  'nested',
-  'walk',
-  'unfold',
-  'unfoldg',
-  'contours',
-  'evoc',
-  'tree',
-  'children',
-  'doc',
-  'plex',
-  'trail',
-  'lens-depends_on',
-  'lens-references',
-  'lens-data_flow',
-]
-
-const LABEL: Record<InstrumentId, string> = {
-  nested: 'Map',
-  walk: 'Walk',
-  unfold: 'Unfold',
-  unfoldg: 'Unfold·Graph',
-  contours: 'Contours',
-  evoc: 'EVoC',
-  tree: 'Tree',
-  children: 'Connections',
-  doc: 'Document',
-  plex: 'Plex',
-  trail: 'Trail',
-  'lens-depends_on': 'Lens: builds on',
-  'lens-references': 'Lens: see also',
-  'lens-data_flow': 'Lens: uses',
-}
-
-const LENS_TYPE: Partial<Record<InstrumentId, EdgeType>> = {
-  'lens-depends_on': 'depends_on',
-  'lens-references': 'references',
-  'lens-data_flow': 'data_flow',
-}
+import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR } from '../corpus/graph'
+import { useStudioBus } from './bus'
+import { INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
+import type { Instrument, InstrumentId, Preset } from './instruments'
 
 export default function StudioView() {
-  const [focus, setFocusState] = useState<string | null>(null)
-  const [route, setRouteState] = useState<string[]>([])
-  const [trail, setTrail] = useState<TrailEntry[]>([])
-  const [activeWalk, setActiveWalk] = useState<ActiveWalkState | null>(null)
+  // ── composition: which panes are on screen, and how big ───────────────────
+  // `mounted` is a superset of `active`: a benched pane stays mounted at
+  // display:none so its internal state (an unfold canvas, a zoom level) survives
+  // being toggled off and back on.
   const [active, setActive] = useState<InstrumentId[]>(PRESETS[0].active)
   const [mounted, setMounted] = useState<Set<InstrumentId>>(() => new Set(PRESETS[0].active))
   const [presetId, setPresetId] = useState<Preset['id'] | null>('coding')
-  const [treeRootId, setTreeRootId] = useState(ROOT_ID)
   const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>({})
-  const [cycleNote, setCycleNote] = useState(false)
-  // the HOVER channel — a transient, display-only sibling of focus (2026-07-14).
-  // It appends no trail entry, re-roots nothing, moves no camera: an instrument
-  // may only recolor on it. Unlike focus it carries NO source tag, because a
-  // hover write is idempotent — an instrument that receives back the id it just
-  // published lights up exactly the thing under its own cursor, which is what it
-  // wanted anyway. So there is no echo to suppress, and one id is the whole bus.
-  const [hoverId, setHoverId] = useState<string | null>(null)
-
-  // ── the sync bus ────────────────────────────────────────────────────────
-  // visited is DERIVED from the trail: topics only, matching the grain the
-  // header's count is about
-  const visited = useMemo(() => new Set(trail.filter((t) => byId.get(t.id)?.topic).map((t) => t.id)), [trail])
-
-  // append-only, but a write identical to the tip is dropped — re-clicking
-  // the same pin shouldn't spam chips (the cockpit never had that path;
-  // Studio's bus fans one click out to several writers)
-  const appendTrail = (id: string | null, via: TrailVia, jump = false) => {
-    if (!id || !byId.get(id)) return
-    setTrail((t) => (t.length > 0 && t[t.length - 1].id === id ? t : [...t, { id, via, jump }]))
-  }
-  const setFocus = (id: string, via: TrailVia, jump = false) => {
-    setFocusState(id)
-    appendTrail(id, via, jump)
-    // AUTO-RE-ROOT — the cockpit invariant: reactive only, never on its own
-    setTreeRootId((root) => (isInSubtree(id, root) ? root : parentOf(id)))
-  }
-  const writeRoute = (r: string[]) => {
-    setRouteState(r)
-    if (r.length > 0) appendTrail(r[r.length - 1], 'walk')
-  }
-  const resetSession = () => {
-    // deliberately doesn't touch the unfold canvas or instrument composition
-    // — "reset session" clears WHERE you are, not WHAT you have on screen
-    setFocusState(null)
-    setRouteState([])
-    setTrail([])
-    setActiveWalk(null)
-    setCycleNote(false)
-  }
-
-  // ── composition ─────────────────────────────────────────────────────────
-  const mount = (inst: InstrumentId) => setMounted((prev) => (prev.has(inst) ? prev : new Set(prev).add(inst)))
 
   const toggle = (inst: InstrumentId) => {
     setActive((prev) => (prev.includes(inst) ? prev.filter((i) => i !== inst) : [...prev, inst]))
-    mount(inst)
-    setPresetId(null)
+    setMounted((prev) => new Set(prev).add(inst))
+    setPresetId(null) // hand-toggling makes the composition "custom" from now on
   }
 
-  // a newly-mounting pane reflows the grid mid-gesture — the nested atlas
-  // delays its children-reveal so a double-click can finish on a stable map
-  const nestedRevealTimer = useRef<number | undefined>(undefined)
-
-  // used by instrument glue (e.g. "open neighborhood") to reveal a pane
-  // without disturbing an already-active composition
+  /** an instrument handing off to another one: reveal it WITHOUT disturbing the
+   * rest of the composition. This is the bus's `reveal`. */
   const ensureActive = (inst: InstrumentId) => {
-    if (active.includes(inst)) return
     setActive((prev) => (prev.includes(inst) ? prev : [...prev, inst]))
-    mount(inst)
-    setPresetId(null)
-  }
-
-  // "★ teach me this": a generated curriculum over the focused leaf's
-  // depends_on cone, dropped straight onto the shared route
-  const teach = () => {
-    if (!focus) return
-    const c = curriculum(focus, 'depends_on', 3)
-    writeRoute(c.order)
-    setCycleNote(c.hadCycle)
-    ensureActive('walk')
-    ensureActive('nested')
+    setMounted((prev) => (prev.has(inst) ? prev : new Set(prev).add(inst)))
+    setPresetId((p) => (active.includes(inst) ? p : null))
   }
 
   const applyPreset = (p: Preset) => {
@@ -237,126 +55,56 @@ export default function StudioView() {
     })
   }
 
-  // ── authored walks (cockpit's cursor, on the bus) ───────────────────────
-  // activating a walk lands the walked-so-far prefix on the shared route and
-  // reveals the trail strip, where the next-stop controls live
-  const activateWalkAtStop = (walkId: string, stopIndex: number) => {
-    const w = WALKS.find((x) => x.id === walkId)
-    if (!w || stopIndex < 0 || stopIndex >= w.stops.length) return
-    setActiveWalk({ walkId, cursor: stopIndex })
-    ensureActive('trail')
-    writeRoute(w.stops.slice(0, stopIndex + 1).map((s) => s.id))
-  }
-  const advanceWalk = () => {
-    if (!activeWalk) return
-    activateWalkAtStop(activeWalk.walkId, activeWalk.cursor + 1)
-  }
-  const deactivateWalk = () => setActiveWalk(null)
+  // ── the bus ───────────────────────────────────────────────────────────────
+  const bus = useStudioBus(ensureActive)
+  const canTeach = !!bus.focus && byId.get(bus.focus)?.topic === true
 
-  // ── instrument rendering ────────────────────────────────────────────────
-  const renderInstrument = (inst: InstrumentId): ReactNode => {
-    const lensType = LENS_TYPE[inst]
-    if (lensType) return <LensPane focus={focus} type={lensType} onFocus={(id) => setFocus(id, 'link', true)} />
-    switch (inst) {
-      case 'tree':
-        return <TreePanel treeRootId={treeRootId} currentId={focus ?? ROOT_ID} onSelect={(id) => setFocus(id, 'tree')} onZoom={setTreeRootId} />
-      case 'doc':
-        return (
-          <KnowledgePanel
-            currentId={focus ?? ROOT_ID}
-            onSelectChild={(id) => setFocus(id, 'tree')}
-            onActivateWalkAtStop={activateWalkAtStop}
-            hoverId={hoverId}
-            onHover={setHoverId}
-          />
-        )
-      case 'children':
-        return (
-          <div className="h-full overflow-hidden bg-white">
-            <ChildrenPanel currentId={focus ?? ROOT_ID} onSelect={(id) => setFocus(id, 'tree')} hoverId={hoverId} onHover={setHoverId} />
-          </div>
-        )
-      case 'plex':
-        return (
-          <div className="h-full overflow-auto bg-white px-2 py-1">
-            <PlexPanel currentId={focus ?? ROOT_ID} onSelect={(id) => setFocus(id, 'tree')} onJump={(id) => setFocus(id, 'link', true)} />
-          </div>
-        )
-      case 'trail':
-        return (
-          <TrailStrip
-            trail={trail}
-            onSelectTrailEntry={(id) => setFocus(id, 'trail')}
-            activeWalk={activeWalk}
-            onActivateWalk={(walkId) => activateWalkAtStop(walkId, 0)}
-            onAdvanceWalk={advanceWalk}
-            onJumpToStop={(index) => activeWalk && activateWalkAtStop(activeWalk.walkId, index)}
-            onDeactivateWalk={deactivateWalk}
-          />
-        )
-      case 'nested':
-        return (
-          <NestedAtlasView
-            hoverId={hoverId}
-            onHover={setHoverId}
-            onFocus={(id) => {
-              setFocus(id, 'map')
-              // any container territory (domain, module, topic, subtopic…)
-              // opens its contents — the drill-down works at every depth here.
-              // Delayed: mounting the pane reflows the grid, and the second
-              // click of a zoom double-click must land on an unmoved map.
-              if (byId.get(id)?.kind === 'container') {
-                window.clearTimeout(nestedRevealTimer.current)
-                nestedRevealTimer.current = window.setTimeout(() => ensureActive('children'), 350)
-              }
-            }}
-          />
-        )
-      case 'walk':
-        return <WalkView route={route} setRoute={writeRoute} />
-      case 'unfoldg':
-        return <UnfoldGraphView onVisit={(id) => appendTrail(id, 'graph')} onOpen={(id) => setFocus(id, 'graph')} />
-      case 'unfold':
-        return <UnfoldView />
-      case 'contours':
-        return <ContourView />
-      case 'evoc':
-        return <EvocView />
-    }
-  }
-
-  const paneShell = (inst: InstrumentId, strip = false) => {
-    const idx = active.indexOf(inst)
+  // ── layout ────────────────────────────────────────────────────────────────
+  const paneShell = (inst: Instrument) => {
+    const idx = active.indexOf(inst.id as InstrumentId)
     const on = idx >= 0
-    const flexStyle = strip ? undefined : inst === 'tree' ? '0 0 240px' : `${flexMap[inst] ?? 1} 1 0%`
+    const strip = inst.slot === 'strip'
+    const fixed = typeof inst.flex === 'object' ? inst.flex.fixed : null
+
     return (
       <section
-        key={inst}
-        aria-label={`studio-pane-${inst}`}
+        key={inst.id}
+        aria-label={`studio-pane-${inst.id}`}
         data-slot={on ? 'on' : 'benched'}
         className={
           strip
-            ? // walk gets a working-height strip; the trail strip sizes itself
-              `flex-col min-w-0 min-h-0 bg-white w-full border-t border-slate-200${inst === 'walk' ? ' h-[240px]' : ''}`
+            ? 'flex-col min-w-0 min-h-0 bg-white w-full border-t border-slate-200'
             : 'flex-col min-w-0 min-h-0 bg-white border-r border-slate-200'
         }
-        style={{ display: on ? 'flex' : 'none', order: idx, flex: flexStyle }}
+        style={{
+          display: on ? 'flex' : 'none',
+          // `order` is what makes the PRESET's array order the visual order,
+          // independent of the registry's (DOM) order
+          order: idx,
+          ...(strip
+            ? { height: inst.height ? `${inst.height}px` : undefined }
+            : { flex: fixed !== null ? `0 0 ${fixed}px` : `${flexMap[inst.id as InstrumentId] ?? inst.flex ?? 1} 1 0%` }),
+        }}
       >
         <header className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
-          <span className="font-bold text-slate-700 truncate">{LABEL[inst]}</span>
+          <span className="font-bold text-slate-700 truncate">{inst.label}</span>
           <span className="flex-1" />
           <button
-            onClick={() => toggle(inst)}
+            onClick={() => toggle(inst.id as InstrumentId)}
             title="remove from composition"
             className="px-1.5 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
           >
             ✕
           </button>
         </header>
-        <div className={inst === 'trail' ? 'shrink-0' : 'flex-1 min-h-0'}>{renderInstrument(inst)}</div>
+        {/* a strip with no declared height sizes itself to its content */}
+        <div className={strip && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}>{inst.render(bus)}</div>
       </section>
     )
   }
+
+  const columns = INSTRUMENTS.filter((i) => i.slot === 'column' && mounted.has(i.id as InstrumentId))
+  const strips = INSTRUMENTS.filter((i) => i.slot === 'strip' && mounted.has(i.id as InstrumentId))
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
@@ -364,11 +112,11 @@ export default function StudioView() {
         <span className="font-bold text-slate-800 text-[12px]">Studio</span>
         <span className="text-slate-400">instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus</span>
         <span className="flex-1" />
-        <span data-focus={focus ?? ''} className="flex items-center gap-1.5">
-          {focus ? (
+        <span data-focus={bus.focus ?? ''} className="flex items-center gap-1.5">
+          {bus.focus ? (
             <>
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: DOMAIN_COLOR[domainOf(focus)] }} />
-              <span className="font-medium text-slate-700">{byId.get(focus)!.title}</span>
+              <span className="w-2 h-2 rounded-full inline-block" style={{ background: DOMAIN_COLOR[domainOf(bus.focus)] }} />
+              <span className="font-medium text-slate-700">{byId.get(bus.focus)!.title}</span>
             </>
           ) : (
             <span className="text-slate-400">no focus</span>
@@ -376,34 +124,25 @@ export default function StudioView() {
         </span>
         <button
           aria-label="studio-teach"
-          onClick={teach}
-          disabled={!focus || !byId.get(focus)?.topic}
+          onClick={bus.teach}
+          disabled={!canTeach}
           title="generate a depends_on curriculum ending at the focused node and walk it"
           className={[
             'px-2 py-0.5 rounded border font-medium',
-            focus && byId.get(focus)?.topic
-              ? 'border-amber-400 text-amber-700 hover:bg-amber-50'
-              : 'border-slate-200 text-slate-300 cursor-not-allowed',
+            canTeach ? 'border-amber-400 text-amber-700 hover:bg-amber-50' : 'border-slate-200 text-slate-300 cursor-not-allowed',
           ].join(' ')}
         >
           ★ teach me this
         </button>
-        {cycleNote && <span className="text-[10px] text-slate-400">contains a cycle — order approximate</span>}
+        {bus.cycleNote && <span className="text-[10px] text-slate-400">contains a cycle — order approximate</span>}
         <span aria-label="studio-visited" className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-          {visited.size} visited
+          {bus.visited.size} visited
         </span>
-        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{route.length} route</span>
-        <button
-          onClick={() => {
-            writeRoute([])
-            setActiveWalk(null)
-            setCycleNote(false)
-          }}
-          className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100"
-        >
+        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{bus.route.length} route</span>
+        <button onClick={bus.clearRoute} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
           clear route
         </button>
-        <button onClick={resetSession} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
+        <button onClick={bus.reset} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
           reset session
         </button>
       </div>
@@ -421,7 +160,9 @@ export default function StudioView() {
                   onClick={() => applyPreset(p)}
                   className={[
                     'text-left px-2 py-1 rounded border text-[11px]',
-                    presetId === p.id ? 'border-amber-400 bg-amber-50 font-semibold text-amber-800' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-600',
+                    presetId === p.id
+                      ? 'border-amber-400 bg-amber-50 font-semibold text-amber-800'
+                      : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-600',
                   ].join(' ')}
                 >
                   {p.label}
@@ -436,22 +177,23 @@ export default function StudioView() {
           <div className="p-2 flex-1 overflow-auto">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Instruments</div>
             <div className="flex flex-col gap-0.5">
-              {CATALOG.map((inst) => {
-                const idx = active.indexOf(inst)
+              {INSTRUMENTS.map((inst) => {
+                const idx = active.indexOf(inst.id as InstrumentId)
                 const on = idx >= 0
-                const lensType = LENS_TYPE[inst]
+                const lensType = lensTypeOf(inst.id)
                 return (
                   <button
-                    key={inst}
-                    aria-label={`studio-inst-${inst}`}
-                    onClick={() => toggle(inst)}
-                    className={['flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-left', on ? 'bg-slate-100 text-slate-800 font-medium' : 'text-slate-500 hover:bg-slate-50'].join(
-                      ' ',
-                    )}
+                    key={inst.id}
+                    aria-label={`studio-inst-${inst.id}`}
+                    onClick={() => toggle(inst.id as InstrumentId)}
+                    className={[
+                      'flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-left',
+                      on ? 'bg-slate-100 text-slate-800 font-medium' : 'text-slate-500 hover:bg-slate-50',
+                    ].join(' ')}
                   >
                     <span className="w-3 text-center shrink-0">{on ? '●' : '○'}</span>
                     {lensType && <span className="w-2 h-2 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[lensType] }} />}
-                    <span className="truncate flex-1">{LABEL[inst]}</span>
+                    <span className="truncate flex-1">{inst.label}</span>
                     {on && <span className="text-slate-400 shrink-0">{idx + 1}</span>}
                   </button>
                 )
@@ -461,9 +203,8 @@ export default function StudioView() {
         </aside>
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 min-h-0 flex">{CATALOG.filter((i) => !STRIPS.includes(i) && mounted.has(i)).map((inst) => paneShell(inst))}</div>
-          {mounted.has('walk') && paneShell('walk', true)}
-          {mounted.has('trail') && paneShell('trail', true)}
+          <div className="flex-1 min-h-0 flex">{columns.map(paneShell)}</div>
+          {strips.map((i) => paneShell(i))}
         </div>
       </div>
     </div>

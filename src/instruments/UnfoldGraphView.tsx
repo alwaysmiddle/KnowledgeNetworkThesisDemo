@@ -24,6 +24,7 @@ import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/
 import type { EdgeType } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
 import { UnfoldStartPicker } from './UnfoldView'
+import type { Bus } from '../studio/bus'
 
 const EDGE_TYPES = Object.keys(EDGE_LABEL) as EdgeType[]
 
@@ -82,17 +83,22 @@ function shortenToEdge(from: { x: number; y: number }, to: { x: number; y: numbe
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
 export interface UnfoldGraphViewProps {
-  /** start unfolding at this leaf immediately (the map's "open neighborhood") */
+  bus: Bus
+  /** start unfolding at this leaf immediately. Nothing passes it today — the
+   * map's "open neighborhood" pin action went with the flat MapView — but the
+   * re-seed API is kept intact for whatever re-adds a framing command. */
   initialStart?: string | null
   /** counter-keyed external reseed — alternative to key-remounting */
   resetTo?: { id: string; n: number } | null
-  /** a node was PLACED on the map (start + fresh pickLink) */
-  onVisit?: (id: string) => void
-  /** a node became the open/inspected one */
-  onOpen?: (id: string) => void
 }
 
-export default function UnfoldGraphView({ initialStart = null, resetTo = null, onVisit, onOpen }: UnfoldGraphViewProps) {
+export default function UnfoldGraphView({ bus, initialStart = null, resetTo = null }: UnfoldGraphViewProps) {
+  // PLACING a node on this canvas is a trail entry and nothing more — the rest
+  // of the Studio does not get dragged along by someone drawing on their own
+  // canvas. OPENING one is a real focus.
+  const onVisit = (id: string) => bus.visit(id, 'graph')
+  const onOpen = (id: string) => bus.setFocus(id, 'graph')
+
   const [nodes, setNodes] = useState<GNode[]>(() =>
     initialStart ? [{ id: initialStart, x: CX, y: CY, enterAngle: 0 }] : [],
   )

@@ -59,6 +59,7 @@ import { countryLabels, outlineOf, provinceLabels, ringsCrossT, roadsFor } from 
 import { fitLabel } from '../model/labelfit'
 import type { FitLine } from '../model/labelfit'
 import { parentOf } from '../model/nav'
+import type { Bus } from '../studio/bus'
 
 const VB_X = -40
 const VB_Y = -40
@@ -106,47 +107,48 @@ interface View {
   s: number
 }
 
-export interface NestedAtlasViewProps {
-  onFocus?: (id: string) => void
-  /** the Studio hover channel — display-only, never moves the camera */
-  hoverId?: string | null
-  onHover?: (id: string | null) => void
-}
+export default function NestedAtlasView({ bus }: { bus: Bus }) {
+  const onFocus = (id: string) => bus.setFocus(id, 'map')
 
-export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: NestedAtlasViewProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [view, setView] = useState<View>({ tx: 0, ty: 0, s: LEVEL_S[0] })
   const [level, setLevel] = useState(0)
   const [clientBox, setClientBox] = useState<{ w: number; h: number } | null>(null)
   /** selected region — its topics' typed edges stay drawn until click-off */
   const [sel, setSel] = useState<string | null>(null)
-  /** hover preselection — outline + tint on the cell a click would pick */
-  const [hover, setHover] = useState<string | null>(null)
 
-  // The pointer does two jobs at once: it preselects LOCALLY (the dashed
-  // outline) and it publishes to the Studio hover bus, which lights the same
-  // node's row/star/wheel entry over in Connections. onHover is an unmemoized
-  // parent callback, so it rides a ref — putting it in an effect's deps would
-  // re-run that effect every render.
-  const onHoverRef = useRef(onHover)
-  useEffect(() => {
-    onHoverRef.current = onHover
-  })
+  // TWO HOVERS, and they are genuinely different questions.
+  //   `hover` (local) — the cell MY cursor is on. Draws the dashed preselect.
+  //   `bus.hover`     — the cell ANYONE's cursor is on, this pane included.
+  // The bus channel deliberately carries no source tag, so the only way this
+  // pane can tell "someone else is pointing at that" from "I am pointing at
+  // that" is to remember what it published. Hence the local copy: the spotlight
+  // below fires only when the two DISAGREE.
+  //
+  // The writers are pulled out by name because they are the STABLE part of the
+  // bus (useCallback'd for exactly this) — `bus` itself is a fresh object every
+  // render, so an effect depending on it would fire every render.
+  const { setHover: busSetHover, endHover: busEndHover } = bus
+  const [hover, setHover] = useState<string | null>(null)
+  const hoverId = bus.hover
+
   const enterCell = (id: string) => {
     setHover(id)
-    onHover?.(id)
+    busSetHover(id)
   }
   const leaveCell = (id: string) => {
     setHover((h) => (h === id ? null : h))
-    if (hoverId === id) onHover?.(null)
+    busEndHover(id)
   }
   // a level change swaps which paths are hit targets mid-hover, so no
   // pointerleave ever fires on the old one — clear it explicitly, on the bus
-  // too, or a spotlight stays lit on a cell the cursor already left
+  // too, or a spotlight stays lit on a cell the cursor already left.
+  // (This used to need a whole ref-mirror, because onHover was an unmemoized
+  // parent callback. A stable writer deletes the ref.)
   useEffect(() => {
     setHover(null)
-    onHoverRef.current?.(null)
-  }, [level])
+    busSetHover(null)
+  }, [level, busSetHover])
 
   // refs mirror state for the raw wheel listener (deps [])
   const viewRef = useRef(view)
@@ -249,6 +251,14 @@ export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: Ne
   const dragDist = useRef(0)
   const [dragging, setDragging] = useState(false)
 
+  // A newly-mounting pane reflows the grid mid-gesture, so the children-reveal
+  // is DELAYED: the second click of a zoom double-click has to land on a map
+  // that has not moved. This glue used to live in StudioView's switch, but it is
+  // the map's own behaviour — "selecting a container opens the pane that shows
+  // what is inside it" — and it belongs with the map.
+  const revealTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(revealTimer.current), [])
+
   const regionClick = (id: string) => {
     if (dragDist.current > 4) return
     // clicking the selected cell again DESELECTS it (2026-07-13)
@@ -257,7 +267,13 @@ export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: Ne
       return
     }
     setSel(id)
-    onFocus?.(id)
+    onFocus(id)
+    // any container territory — domain, module, topic, subtopic — opens its
+    // contents; the drill-down works at every depth here
+    if (byId.get(id)?.kind === 'container') {
+      window.clearTimeout(revealTimer.current)
+      revealTimer.current = window.setTimeout(() => bus.reveal('children'), 350)
+    }
   }
 
   // ── the selection overlay, whole: which topics the selection resolves to,

@@ -43,20 +43,14 @@
 
 import { useMemo, useRef, useState } from 'react'
 
-import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo } from '../corpus/graph'
+import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
 import type { GEdge } from '../corpus/graph'
 import { colorOf, fillOf } from '../model/color'
 import { EDGE_TYPES } from '../model/nav'
 import { paneGraph, placeLabels, RING, subtreeSize } from '../model/panegraph'
 import { R_STAR, starFor } from '../model/star'
-
-export interface ChildrenPanelProps {
-  currentId: string
-  onSelect: (id: string) => void
-  /** the Studio hover channel — display-only, may never move anything */
-  hoverId?: string | null
-  onHover?: (id: string | null) => void
-}
+import { useHover } from '../studio/bus'
+import type { Bus } from '../studio/bus'
 
 // half viewBox — wider than tall, because English titles are wide: labels
 // near the horizontal extremes also flip to hang below/above their node
@@ -77,18 +71,15 @@ const BOW = 38
 // type. Sized just under the node labels' 12: subordinate to them, still legible.
 const EDGE_FS = 11
 
-export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onHover }: ChildrenPanelProps) {
+export default function ChildrenPanel({ bus }: { bus: Bus }) {
+  const currentId = bus.focus ?? ROOT_ID
+  const onSelect = (id: string) => bus.setFocus(id, 'tree')
+  // the guarded enter/leave that used to be hand-rolled here (and again in the
+  // atlas, and again in the document pane) is the bus's job now
+  const hover = useHover(bus)
+
   const node = byId.get(currentId)!
   const path = pathTo(currentId)
-
-  // publishing to the hover bus. The leave is GUARDED: moving between two rows
-  // that share a counterpart (a reciprocal pair lists the same topic twice)
-  // fires leave(X) then enter(X), and an unguarded leave would blank the id the
-  // enter just set if the two ever landed out of order.
-  const enterHover = (id: string) => onHover?.(id)
-  const leaveHover = (id: string) => {
-    if (hoverId === id) onHover?.(null)
-  }
 
   // interactive disclosure: which containers are OPEN. Starts all-closed on
   // every refocus — only the direct children ring shows until clicks open it
@@ -167,21 +158,19 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
   // starLit is what licenses the dim: only when the hovered id really is one
   // of this star's counterparts do the others recede. Hovering a wheel node or
   // an unrelated map cell must not gray out a star it has nothing to say about.
-  const starLit = star.some((s) => s.id === hoverId)
+  const starLit = star.some((s) => hover.lit(s.id))
   const anchorTitle = anchorTopic ? byId.get(anchorTopic)!.title : ''
 
   /** one relationship row — the outgoing and incoming lists differ only in
    * which end is the counterpart, so they share this */
   const relRow = (e: GEdge, cp: string, out: boolean) => {
-    const lit = hoverId === cp
+    const lit = hover.lit(cp)
     return (
       <button
         key={e.id}
         data-relrow={e.id}
-        data-lit={lit ? 1 : 0}
+        {...hover.bind(cp)}
         onClick={() => onSelect(cp)}
-        onPointerEnter={() => enterHover(cp)}
-        onPointerLeave={() => leaveHover(cp)}
         className={[
           'text-left px-2 py-1 rounded border text-[11.5px] flex items-center gap-1.5',
           lit ? 'border-slate-400 font-semibold' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50',
@@ -295,7 +284,7 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
                   const len = Math.hypot(sn.x, sn.y) || 1
                   const ux = sn.x / len
                   const uy = sn.y / len
-                  const lit = hoverId === sn.id
+                  const lit = hover.lit(sn.id)
                   const dim = starLit && !lit
                   const n = sn.edges.length
                   // both ends anchored: tail at the anchor's rim, head at the
@@ -379,14 +368,14 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
                   what turns "one of these is hovered" into "THIS one is". */}
               {star.map((sn) => {
                 const horiz = Math.abs(sn.x) > HORIZ
-                const lit = hoverId === sn.id
+                const lit = hover.lit(sn.id)
                 const dim = starLit && !lit
                 return (
                   <g key={sn.id} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity 120ms' }}>
                     {lit && <circle cx={sn.x} cy={sn.y} r={15} fill={colorOf(sn.id)} fillOpacity={0.18} pointerEvents="none" />}
                     <circle
                       data-starnode={sn.id}
-                      data-lit={lit ? 1 : 0}
+                      {...hover.bind(sn.id)}
                       cx={sn.x}
                       cy={sn.y}
                       r={9}
@@ -395,8 +384,6 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
                       strokeWidth={lit ? 3.4 : 2}
                       style={{ cursor: 'pointer' }}
                       onClick={() => onSelect(sn.id)}
-                      onPointerEnter={() => enterHover(sn.id)}
-                      onPointerLeave={() => leaveHover(sn.id)}
                     >
                       <title>
                         {byId.get(sn.id)!.title} — {sn.edges.length} link{sn.edges.length === 1 ? '' : 's'} · click to re-root
@@ -491,7 +478,7 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
                   const open = n.depth > 0 && n.container && expanded.has(n.id)
                   // lit from the bus — either this pane's own cursor, or the
                   // map telling us the pointer is standing on this territory
-                  const lit = !ghost && n.depth > 0 && hoverId === n.id
+                  const lit = !ghost && n.depth > 0 && hover.lit(n.id)
                   const r = n.depth === 0 ? 15 : n.container ? 10.5 : 7
                   return (
                     <g key={n.id} opacity={ghost ? 0.55 : 1}>
@@ -528,11 +515,15 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
                             : undefined
                         }
                         onDoubleClick={n.depth > 0 && !ghost && n.container ? () => onSelect(n.id) : undefined}
+                        // this one cannot just spread hover.bind() — the pointer
+                        // here does two jobs (publish to the bus AND arm the
+                        // preview) and is suppressed mid-drag, so it calls the
+                        // bus primitives that bind() is itself built from
                         onPointerEnter={
                           n.depth > 0 && !ghost
                             ? () => {
                                 if (dragP.current) return
-                                enterHover(n.id)
+                                bus.setHover(n.id)
                                 if (n.container) setHoverPrev(n.id)
                               }
                             : undefined
@@ -540,7 +531,7 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
                         onPointerLeave={
                           n.depth > 0 && !ghost
                             ? () => {
-                                leaveHover(n.id)
+                                bus.endHover(n.id)
                                 if (n.container) setHoverPrev((h) => (h === n.id ? null : h))
                               }
                             : undefined

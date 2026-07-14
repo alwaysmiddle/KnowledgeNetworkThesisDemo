@@ -3,7 +3,10 @@
 // REAL directed edges. One column per step: the step's node on top, its
 // outgoing links below. Clicking a choice extends the route; clicking a
 // choice in an EARLIER column forks the walk there; clicking a step card
-// backtracks to it. The route is shared state — it glows amber on the Map.
+// backtracks to it. The route is a bus channel: every stop lands on the shared
+// focus, so the other instruments follow. (It is not drawn on a map — the flat
+// MapView painted the route amber and was deleted 2026-07-14; the nested atlas
+// has never drawn it. See model/atlas.ts if that comes back.)
 //
 // The corpus is one giant SCC on purpose, so walks WILL revisit nodes;
 // revisits are marked instead of forbidden.
@@ -11,6 +14,7 @@
 import { useEffect, useRef } from 'react'
 
 import { byId, domainIds, domainOf, DOMAIN_COLOR, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import type { Bus } from '../studio/bus'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, HUB_IDS } from '../model/flat'
 
@@ -53,12 +57,8 @@ const typeChips = (types: [EdgeType, number][]) => (
   </span>
 )
 
-export interface WalkViewProps {
-  route: string[]
-  setRoute: (r: string[]) => void
-}
-
-export default function WalkView({ route, setRoute }: WalkViewProps) {
+export default function WalkView({ bus }: { bus: Bus }) {
+  const { route, setRoute } = bus
   const scroller = useRef<HTMLDivElement>(null)
 
   // keep the newest column in view as the walk grows

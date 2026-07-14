@@ -9,7 +9,8 @@ import { useEffect, useRef } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
 import { WALKS } from '../corpus/walks'
-import type { ActiveWalkState, TrailEntry, TrailVia } from '../model/nav'
+import type { TrailVia } from '../model/nav'
+import type { Bus } from '../studio/bus'
 
 const VIA_TAG: Record<TrailVia, string> = {
   map: 'MAP',
@@ -20,25 +21,14 @@ const VIA_TAG: Record<TrailVia, string> = {
   graph: 'GPH',
 }
 
-export interface TrailStripProps {
-  trail: TrailEntry[]
-  onSelectTrailEntry: (id: string) => void
-  activeWalk: ActiveWalkState | null
-  onActivateWalk: (walkId: string) => void
-  onAdvanceWalk: () => void
-  onJumpToStop: (index: number) => void
-  onDeactivateWalk: () => void
-}
+export default function TrailStrip({ bus }: { bus: Bus }) {
+  const { trail, activeWalk } = bus
+  const onSelectTrailEntry = (id: string) => bus.setFocus(id, 'trail')
+  const onActivateWalk = (walkId: string) => bus.activateWalk(walkId, 0)
+  const onAdvanceWalk = bus.advanceWalk
+  const onJumpToStop = (index: number) => activeWalk && bus.activateWalk(activeWalk.walkId, index)
+  const onDeactivateWalk = bus.deactivateWalk
 
-export default function TrailStrip({
-  trail,
-  onSelectTrailEntry,
-  activeWalk,
-  onActivateWalk,
-  onAdvanceWalk,
-  onJumpToStop,
-  onDeactivateWalk,
-}: TrailStripProps) {
   const scroller = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

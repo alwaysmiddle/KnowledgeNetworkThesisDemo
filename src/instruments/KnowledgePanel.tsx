@@ -18,22 +18,21 @@
 // (deep layers) show containment and the document, which is honest: that IS
 // all they have.
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, pathTo } from '../corpus/graph'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { WALKS } from '../corpus/walks'
+import { useHover } from '../studio/bus'
+import type { Bus } from '../studio/bus'
 
-export interface KnowledgePanelProps {
-  currentId: string
-  onSelectChild: (id: string) => void
-  onActivateWalkAtStop: (walkId: string, stopIndex: number) => void
-  /** the Studio hover channel — display-only. The Contained rows ARE node ids,
-   * so they bind to the same channel as the wheel and the map's territories:
-   * hover a child here and its cell lights up on the map, and vice versa. */
-  hoverId?: string | null
-  onHover?: (id: string | null) => void
-}
+export default function KnowledgePanel({ bus }: { bus: Bus }) {
+  const currentId = bus.focus ?? ROOT_ID
+  const onSelectChild = (id: string) => bus.setFocus(id, 'tree')
+  const onActivateWalkAtStop = bus.activateWalk
+  // the Contained rows ARE node ids, so they join the same hover channel as the
+  // wheel and the map's territories: hover a child here, its cell lights up over
+  // there. bind() carries the data-lit test hook with it.
+  const hover = useHover(bus)
 
-export default function KnowledgePanel({ currentId, onSelectChild, onActivateWalkAtStop, hoverId = null, onHover }: KnowledgePanelProps) {
   const n = byId.get(currentId)!
   const ancestry = pathTo(currentId)
     .map((id) => byId.get(id)!.title)
@@ -62,16 +61,12 @@ export default function KnowledgePanel({ currentId, onSelectChild, onActivateWal
           <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Contained ({kids.length})</div>
           <div className="flex flex-col gap-1">
             {kids.map((k) => {
-              const lit = hoverId === k.id
+              const lit = hover.lit(k.id)
               return (
                 <button
                   key={k.id}
-                  data-lit={lit ? 1 : 0}
+                  {...hover.bind(k.id)}
                   onClick={() => onSelectChild(k.id)}
-                  onPointerEnter={() => onHover?.(k.id)}
-                  onPointerLeave={() => {
-                    if (hoverId === k.id) onHover?.(null)
-                  }}
                   className={[
                     'text-left px-2 py-1 rounded border text-[11.5px] flex items-center gap-1.5',
                     lit ? 'border-slate-400 font-semibold bg-slate-100' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50',

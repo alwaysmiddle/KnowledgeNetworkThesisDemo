@@ -9,15 +9,10 @@
 // names. Neither replaces the other, matching what a flat Jira-style link
 // list couldn't do on its own.
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR } from '../corpus/graph'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, ROOT_ID } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
 import { EDGE_TYPES } from '../model/nav'
-
-export interface PlexPanelProps {
-  currentId: string
-  onSelect: (id: string) => void
-  onJump: (id: string) => void
-}
+import type { Bus } from '../studio/bus'
 
 const CX = 320
 const CY = 150
@@ -55,7 +50,13 @@ const childX = (i: number, count: number) => {
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-export default function PlexPanel({ currentId, onSelect, onJump }: PlexPanelProps) {
+export default function PlexPanel({ bus }: { bus: Bus }) {
+  const currentId = bus.focus ?? ROOT_ID
+  // two writers, two vias: stepping into a child is tree movement; crossing a
+  // typed road is a JUMP, and the trail chip says so
+  const onSelect = (id: string) => bus.setFocus(id, 'tree')
+  const onJump = (id: string) => bus.setFocus(id, 'link', true)
+
   const n = byId.get(currentId)!
   const parentId = n.parentId
   const kids = n.kind === 'container' ? (childrenOf.get(currentId) ?? []) : []

@@ -14,18 +14,19 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR, ROOT_ID } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
 import { depth2Expanded } from '../model/nav'
+import type { Bus } from '../studio/bus'
 
-export interface TreePanelProps {
-  treeRootId: string
-  currentId: string
-  onSelect: (id: string) => void
-  onZoom: (containerId: string) => void
-}
+export default function TreePanel({ bus }: { bus: Bus }) {
+  // the tree reads its root from the bus, and the bus re-roots it REACTIVELY
+  // when a focus lands outside — this pane still never re-roots itself
+  const treeRootId = bus.treeRoot
+  const currentId = bus.focus ?? ROOT_ID
+  const onSelect = (id: string) => bus.setFocus(id, 'tree')
+  const onZoom = bus.setTreeRoot
 
-export default function TreePanel({ treeRootId, currentId, onSelect, onZoom }: TreePanelProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => depth2Expanded(treeRootId))
 
   useEffect(() => {

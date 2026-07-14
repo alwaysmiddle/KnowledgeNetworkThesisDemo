@@ -22,11 +22,14 @@ import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/
 import type { EdgeType } from '../corpus/graph'
 import { lensModel } from '../model/lens'
 import type { ConeSide, LensModel } from '../model/lens'
+import type { Bus } from '../studio/bus'
 
 export interface LensPaneProps {
-  focus: string | null
+  bus: Bus
+  /** which relation this lens is about — CONFIG, not bus state. It is what makes
+   * one component into four panes, and it is why the registry can generate a
+   * lens per edge type instead of anyone hand-writing them. */
   type: EdgeType
-  onFocus: (id: string) => void
 }
 
 type Orientation = 'vertical' | 'horizontal' | 'fan'
@@ -168,7 +171,11 @@ function EmptyState({ text }: { text: string }) {
   return <div className="h-full flex items-center justify-center text-[11px] text-slate-400 text-center px-6">{text}</div>
 }
 
-export default function LensPane({ focus, type, onFocus }: LensPaneProps) {
+export default function LensPane({ bus, type }: LensPaneProps) {
+  const focus = bus.focus
+  // a lens click is a JUMP: it crosses a typed edge rather than walking the tree
+  const onFocus = (id: string) => bus.setFocus(id, 'link', true)
+
   const [depth, setDepth] = useState<1 | 2>(DEFAULT_DEPTH[type])
 
   const model = useMemo(
