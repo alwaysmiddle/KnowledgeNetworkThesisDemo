@@ -72,7 +72,7 @@ export default function WalkView({ route, setRoute }: WalkViewProps) {
         <div className="max-w-[900px] mx-auto">
           <div className="text-[13px] font-bold text-slate-800">Start a walk</div>
           <div className="text-[11px] text-slate-500 mt-0.5 mb-4">
-            pick a node, then follow its outgoing links one step at a time — the route glows on the Map tab
+            pick a node, then follow its outgoing links one step at a time — every stop lands on the shared focus, so the other instruments follow
           </div>
 
           <div className="text-[11px] text-slate-400 font-semibold mb-1.5">the busiest topics (computed hubs — good starting points)</div>
@@ -123,7 +123,7 @@ export default function WalkView({ route, setRoute }: WalkViewProps) {
           click a link to extend · click a link in an earlier column to fork there · click a step card to backtrack · ↺ marks a revisit
         </span>
         <span className="flex-1" />
-        <span className="text-amber-700 font-medium">{route.length} steps · route glows on the Map tab</span>
+        <span className="text-amber-700 font-medium">{route.length} steps</span>
         <button onClick={() => setRoute([])} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
           ✕ clear walk
         </button>

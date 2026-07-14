@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# screenshot-driver output
+tools/studio-spike/shots/

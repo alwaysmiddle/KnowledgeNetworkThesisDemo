@@ -1,38 +1,45 @@
 // Knowledge instrument — the current node's document. Reading happens here;
-// the other instruments are for moving. Three outgoing lists close the
+// the other instruments are for moving. Two outgoing lists close the
 // navigation loop: Contained (down the tree — a SELECT, same as a tree-panel
-// click), Roads from here (typed cross-links — a JUMP), and Walks through
-// here (walks-as-content, made visible instead of staying implicit history).
-// The radial neighborhood diagram that used to sit above the lists is now
-// its own Studio instrument (PlexPanel) — compose them side by side instead.
-// Roads and Walks only resolve for topics: edges are always topic-to-topic in
-// graph.ts, and a Walk's stops are always topic ids (see walks.ts) — nodes
-// above the topic level (domains, modules) and below it (deep layers) show
-// containment and the document, which is honest: that IS all they have.
+// click) and Walks through here (walks-as-content, made visible instead of
+// staying implicit history). The radial neighborhood diagram that used to sit
+// above the lists is now its own Studio instrument (PlexPanel) — compose them
+// side by side instead.
+//
+// TYPED RELATIONS ARE NOT HERE (2026-07-14). "Roads from here" used to
+// duplicate, row for row, the relationship list in the Connections pane; two
+// copies of one truth, side by side in the Cockpit preset. Relationships now
+// have exactly ONE home — Connections — where the star canvas and the list are
+// two readings of the same edges and hover binds them together. The document
+// pane reads; it does not also index the graph.
+//
+// Walks only resolve for topics: a Walk's stops are always topic ids (see
+// walks.ts) — nodes above the topic level (domains, modules) and below it
+// (deep layers) show containment and the document, which is honest: that IS
+// all they have.
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, pathTo } from '../corpus/graph'
-import { edgesTouching } from '../model/flat'
+import { byId, childrenOf, domainOf, DOMAIN_COLOR, pathTo } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { WALKS } from '../corpus/walks'
-import { EDGE_TYPES } from '../model/nav'
 
 export interface KnowledgePanelProps {
   currentId: string
   onSelectChild: (id: string) => void
-  onJump: (id: string) => void
   onActivateWalkAtStop: (walkId: string, stopIndex: number) => void
+  /** the Studio hover channel — display-only. The Contained rows ARE node ids,
+   * so they bind to the same channel as the wheel and the map's territories:
+   * hover a child here and its cell lights up on the map, and vice versa. */
+  hoverId?: string | null
+  onHover?: (id: string | null) => void
 }
 
-export default function KnowledgePanel({ currentId, onSelectChild, onJump, onActivateWalkAtStop }: KnowledgePanelProps) {
+export default function KnowledgePanel({ currentId, onSelectChild, onActivateWalkAtStop, hoverId = null, onHover }: KnowledgePanelProps) {
   const n = byId.get(currentId)!
   const ancestry = pathTo(currentId)
     .map((id) => byId.get(id)!.title)
     .join(' / ')
   const color = DOMAIN_COLOR[domainOf(currentId)] ?? '#475569'
   const kids = n.kind === 'container' ? childrenOf.get(currentId) ?? [] : []
-  const roads = n.topic ? edgesTouching(currentId) : []
-  const outgoing = roads.filter((e) => e.source === currentId)
-  const incoming = roads.filter((e) => e.target === currentId)
   const throughWalks = WALKS.flatMap((w) => {
     const idx = w.stops.findIndex((s) => s.id === currentId)
     return idx >= 0 ? [{ walk: w, idx }] : []
@@ -54,72 +61,31 @@ export default function KnowledgePanel({ currentId, onSelectChild, onJump, onAct
         <div className="px-4 py-3 border-b border-slate-100">
           <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Contained ({kids.length})</div>
           <div className="flex flex-col gap-1">
-            {kids.map((k) => (
-              <button
-                key={k.id}
-                onClick={() => onSelectChild(k.id)}
-                className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
-              >
-                <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: DOMAIN_COLOR[domainOf(k.id)] }} />
-                <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(k.id)] }}>
-                  {k.title}
-                </span>
-                <span className="text-slate-400 ml-auto shrink-0">{k.kind}</span>
-              </button>
-            ))}
+            {kids.map((k) => {
+              const lit = hoverId === k.id
+              return (
+                <button
+                  key={k.id}
+                  data-lit={lit ? 1 : 0}
+                  onClick={() => onSelectChild(k.id)}
+                  onPointerEnter={() => onHover?.(k.id)}
+                  onPointerLeave={() => {
+                    if (hoverId === k.id) onHover?.(null)
+                  }}
+                  className={[
+                    'text-left px-2 py-1 rounded border text-[11.5px] flex items-center gap-1.5',
+                    lit ? 'border-slate-400 font-semibold bg-slate-100' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: DOMAIN_COLOR[domainOf(k.id)] }} />
+                  <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(k.id)] }}>
+                    {k.title}
+                  </span>
+                  <span className="text-slate-400 ml-auto shrink-0">{k.kind}</span>
+                </button>
+              )
+            })}
           </div>
-        </div>
-      )}
-
-      {n.topic && (
-        <div className="px-4 py-3 border-b border-slate-100">
-          <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Roads from here ({roads.length})</div>
-          {roads.length === 0 ? (
-            <div className="text-[11px] text-slate-400">no typed links touch this node</div>
-          ) : (
-            <div className="flex flex-col gap-2.5" aria-label="roads-from-here">
-              {EDGE_TYPES.map((type) => {
-                const outs = outgoing.filter((e) => e.type === type)
-                const ins = incoming.filter((e) => e.type === type)
-                if (outs.length + ins.length === 0) return null
-                return (
-                  <div key={type}>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[type] }} />
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{EDGE_LABEL[type]}</span>
-                      <span className="text-[10px] text-slate-400">({outs.length + ins.length})</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {outs.map((e) => (
-                        <button
-                          key={e.id}
-                          onClick={() => onJump(e.target)}
-                          className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
-                        >
-                          <span className="text-slate-400 shrink-0">→</span>
-                          <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(e.target)] }}>
-                            {byId.get(e.target)!.title}
-                          </span>
-                        </button>
-                      ))}
-                      {ins.map((e) => (
-                        <button
-                          key={e.id}
-                          onClick={() => onJump(e.source)}
-                          className="text-left px-2 py-1 rounded border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-[11.5px] flex items-center gap-1.5"
-                        >
-                          <span className="text-slate-400 shrink-0">←</span>
-                          <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(e.source)] }}>
-                            {byId.get(e.source)!.title}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </div>
       )}
 

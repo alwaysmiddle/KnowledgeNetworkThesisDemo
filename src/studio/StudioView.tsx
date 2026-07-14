@@ -4,35 +4,37 @@
 // route / trail): selecting a leaf anywhere writes focus, and every
 // instrument that reads focus recenters on it. A PRESET is just a curated
 // instrument list plus layout weights — Coding (tree + three lenses),
-// Teaching (map + unfold-graph + document + walk), and Cockpit (map + tree +
-// document + plex + trail — the spike-verified navigation model, formerly
-// its own tab). Toggling instruments by hand after applying a preset
-// de-highlights it — the composition is "custom" from then on.
+// Teaching (map + unfold-graph + document + walk), and Cockpit (map +
+// connections + document — the snap-only atlas with its subtree wheel and the
+// prose page, all on one focus). Toggling instruments by hand after applying
+// a preset de-highlights it — the composition is "custom" from then on.
 //
 // The TRAIL is the bus's temporal channel, absorbed from the cockpit:
 // every focus write appends an entry (append-only, via-tagged, jumps
-// accented), and the map's dashed visited-rings are DERIVED from it (topics
-// only). The cockpit's other contracts live here too: AUTO-RE-ROOT (a focus
-// outside the tree's current root re-roots it to the node's parent, only
-// ever reactively) and the authored-walk cursor (activate from the document
+// accented) and the header's visited count is DERIVED from it (topics only).
+// The cockpit's other contracts live here too: AUTO-RE-ROOT (a focus outside
+// the tree's current root re-roots it to the node's parent, only ever
+// reactively) and the authored-walk cursor (activate from the document
 // panel's "Walks through here" or the trail strip, advance stop by stop —
 // each stop lands the walked-so-far prefix on the shared route).
 //
-// The map's CAMERA is on the bus too, one-way, via counter-keyed
-// MapFlyCommands (so the map's own pin-clicks never echo back into a
-// move): opening a node in Unfold·Graph fits the map to that node plus its
-// graph neighbors and pins it; any walk interaction pans the map to the
-// new tip at the current altitude; "teach me this", switching the Walk
-// instrument on, or the walk header's ⤢ button fit the WHOLE path.
+// ONE MAP (2026-07-14): the old flat MapView is deleted and Map·Nested is now
+// simply "Map". Two things the flat map alone drove went with it. Its CAMERA
+// bus: counter-keyed MapFlyCommands that fit a walk path, centred on a walk
+// tip, or framed an Unfold·Graph neighborhood — but the nested atlas has a
+// snap-only LEVEL camera with no "fit these ids" in its model, so those
+// commands had no receiver and were removed rather than left dangling
+// (re-adding a fit means first deciding which canonical level it lands on:
+// a design question, not wiring). And its "open neighborhood" pin action,
+// which seeded the Unfold·Graph canvas — that instrument has its own start
+// picker, so it simply always starts from there now.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, ROOT_ID } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
-import { edgesTouching } from '../model/flat'
-import MapView from '../instruments/MapView'
-import type { MapFlyCommand } from '../instruments/MapView'
+import NestedAtlasView from '../instruments/NestedAtlasView'
 import WalkView from '../instruments/WalkView'
 import UnfoldView from '../instruments/UnfoldView'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
@@ -42,6 +44,7 @@ import LensPane from '../instruments/LensPane'
 import TreePanel from '../instruments/TreePanel'
 import KnowledgePanel from '../instruments/KnowledgePanel'
 import PlexPanel from '../instruments/PlexPanel'
+import ChildrenPanel from '../instruments/ChildrenPanel'
 import TrailStrip from '../instruments/TrailStrip'
 import { WALKS } from '../corpus/walks'
 import { isInSubtree, parentOf } from '../model/nav'
@@ -49,13 +52,14 @@ import type { ActiveWalkState, TrailEntry, TrailVia } from '../model/nav'
 import { curriculum } from '../model/lens'
 
 type InstrumentId =
-  | 'map'
+  | 'nested'
   | 'walk'
   | 'unfold'
   | 'unfoldg'
   | 'contours'
   | 'evoc'
   | 'tree'
+  | 'children'
   | 'doc'
   | 'plex'
   | 'trail'
@@ -85,27 +89,28 @@ const PRESETS: Preset[] = [
     id: 'teaching',
     label: 'Teaching',
     hint: 'map + unfold + document + walk — accumulating, authored order',
-    active: ['map', 'unfoldg', 'doc', 'walk'],
-    flex: { map: 2, unfoldg: 1.4, doc: 1 },
+    active: ['nested', 'unfoldg', 'doc', 'walk'],
+    flex: { nested: 2, unfoldg: 1.4, doc: 1 },
   },
   {
     id: 'cockpit',
     label: 'Cockpit',
-    hint: 'map + tree + document + plex + trail — the spike-verified navigation model',
-    active: ['map', 'tree', 'doc', 'plex', 'trail'],
-    flex: { map: 1.6, doc: 1.2, plex: 1 },
+    hint: 'nested map + connections + document — territory, subtree wheel, and prose on one focus',
+    active: ['nested', 'children', 'doc'],
+    flex: { nested: 1.8, children: 1, doc: 1 },
   },
 ]
 
 // fixed sidebar order — every view, then the three lenses
 const CATALOG: InstrumentId[] = [
-  'map',
+  'nested',
   'walk',
   'unfold',
   'unfoldg',
   'contours',
   'evoc',
   'tree',
+  'children',
   'doc',
   'plex',
   'trail',
@@ -115,13 +120,14 @@ const CATALOG: InstrumentId[] = [
 ]
 
 const LABEL: Record<InstrumentId, string> = {
-  map: 'Map',
+  nested: 'Map',
   walk: 'Walk',
   unfold: 'Unfold',
   unfoldg: 'Unfold·Graph',
   contours: 'Contours',
   evoc: 'EVoC',
   tree: 'Tree',
+  children: 'Connections',
   doc: 'Document',
   plex: 'Plex',
   trail: 'Trail',
@@ -146,13 +152,18 @@ export default function StudioView() {
   const [presetId, setPresetId] = useState<Preset['id'] | null>('coding')
   const [treeRootId, setTreeRootId] = useState(ROOT_ID)
   const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>({})
-  const [unfoldSeed, setUnfoldSeed] = useState<{ id: string; n: number } | null>(null)
   const [cycleNote, setCycleNote] = useState(false)
-  const [mapFly, setMapFly] = useState<MapFlyCommand | null>(null)
+  // the HOVER channel — a transient, display-only sibling of focus (2026-07-14).
+  // It appends no trail entry, re-roots nothing, moves no camera: an instrument
+  // may only recolor on it. Unlike focus it carries NO source tag, because a
+  // hover write is idempotent — an instrument that receives back the id it just
+  // published lights up exactly the thing under its own cursor, which is what it
+  // wanted anyway. So there is no echo to suppress, and one id is the whole bus.
+  const [hoverId, setHoverId] = useState<string | null>(null)
 
   // ── the sync bus ────────────────────────────────────────────────────────
-  // visited is DERIVED from the trail: topics only, because the map's
-  // dashed-ring overlay does topic-keyed lookups
+  // visited is DERIVED from the trail: topics only, matching the grain the
+  // header's count is about
   const visited = useMemo(() => new Set(trail.filter((t) => byId.get(t.id)?.topic).map((t) => t.id)), [trail])
 
   // append-only, but a write identical to the tip is dropped — re-clicking
@@ -182,36 +193,18 @@ export default function StudioView() {
     setCycleNote(false)
   }
 
-  // ── map camera sync ─────────────────────────────────────────────────────
-  // one-way commands into MapView; counter-keyed so identical payloads still
-  // re-fly, and so the map's own focus writes never bounce back into a move
-  const flyMap = (ids: string[], pin: string | null, mode: 'fit' | 'center') =>
-    setMapFly((prev) => ({ ids, pin, mode, n: (prev?.n ?? 0) + 1 }))
-
-  // opening a node in Unfold·Graph zooms the map to it WITH its graph
-  // neighbors in frame, pinned so its typed links trace on the geography
-  const openFromUnfold = (id: string) => {
-    setFocus(id, 'graph')
-    flyMap([id, ...edgesTouching(id).map((e) => (e.source === id ? e.target : e.source))], id, 'fit')
-  }
-
-  // every walk interaction (extend / fork / backtrack / start) leaves the
-  // clicked node as the route tip — pan the map to it, keep the altitude
-  const writeRouteFromWalk = (r: string[]) => {
-    writeRoute(r)
-    if (r.length > 0) flyMap([r[r.length - 1]], null, 'center')
-  }
-
   // ── composition ─────────────────────────────────────────────────────────
   const mount = (inst: InstrumentId) => setMounted((prev) => (prev.has(inst) ? prev : new Set(prev).add(inst)))
 
   const toggle = (inst: InstrumentId) => {
-    // selecting the Walk instrument with a route in hand shows the whole path
-    if (inst === 'walk' && !active.includes(inst) && route.length > 0) flyMap(route, null, 'fit')
     setActive((prev) => (prev.includes(inst) ? prev.filter((i) => i !== inst) : [...prev, inst]))
     mount(inst)
     setPresetId(null)
   }
+
+  // a newly-mounting pane reflows the grid mid-gesture — the nested atlas
+  // delays its children-reveal so a double-click can finish on a stable map
+  const nestedRevealTimer = useRef<number | undefined>(undefined)
 
   // used by instrument glue (e.g. "open neighborhood") to reveal a pane
   // without disturbing an already-active composition
@@ -230,8 +223,7 @@ export default function StudioView() {
     writeRoute(c.order)
     setCycleNote(c.hadCycle)
     ensureActive('walk')
-    ensureActive('map')
-    if (c.order.length > 0) flyMap(c.order, null, 'fit') // the whole curriculum in frame
+    ensureActive('nested')
   }
 
   const applyPreset = (p: Preset) => {
@@ -253,7 +245,7 @@ export default function StudioView() {
     if (!w || stopIndex < 0 || stopIndex >= w.stops.length) return
     setActiveWalk({ walkId, cursor: stopIndex })
     ensureActive('trail')
-    writeRouteFromWalk(w.stops.slice(0, stopIndex + 1).map((s) => s.id))
+    writeRoute(w.stops.slice(0, stopIndex + 1).map((s) => s.id))
   }
   const advanceWalk = () => {
     if (!activeWalk) return
@@ -273,9 +265,16 @@ export default function StudioView() {
           <KnowledgePanel
             currentId={focus ?? ROOT_ID}
             onSelectChild={(id) => setFocus(id, 'tree')}
-            onJump={(id) => setFocus(id, 'link', true)}
             onActivateWalkAtStop={activateWalkAtStop}
+            hoverId={hoverId}
+            onHover={setHoverId}
           />
+        )
+      case 'children':
+        return (
+          <div className="h-full overflow-hidden bg-white">
+            <ChildrenPanel currentId={focus ?? ROOT_ID} onSelect={(id) => setFocus(id, 'tree')} hoverId={hoverId} onHover={setHoverId} />
+          </div>
         )
       case 'plex':
         return (
@@ -295,29 +294,28 @@ export default function StudioView() {
             onDeactivateWalk={deactivateWalk}
           />
         )
-      case 'map':
+      case 'nested':
         return (
-          <MapView
-            route={route}
-            visited={visited}
-            compact
-            flyTo={mapFly}
-            onFocus={(id) => setFocus(id, 'map')}
-            onStartWalk={(id) => {
-              writeRoute([id])
-              ensureActive('walk')
-            }}
-            onOpenNeighborhood={(id) => {
+          <NestedAtlasView
+            hoverId={hoverId}
+            onHover={setHoverId}
+            onFocus={(id) => {
               setFocus(id, 'map')
-              setUnfoldSeed((s) => ({ id, n: (s?.n ?? 0) + 1 }))
-              ensureActive('unfoldg')
+              // any container territory (domain, module, topic, subtopic…)
+              // opens its contents — the drill-down works at every depth here.
+              // Delayed: mounting the pane reflows the grid, and the second
+              // click of a zoom double-click must land on an unmoved map.
+              if (byId.get(id)?.kind === 'container') {
+                window.clearTimeout(nestedRevealTimer.current)
+                nestedRevealTimer.current = window.setTimeout(() => ensureActive('children'), 350)
+              }
             }}
           />
         )
       case 'walk':
-        return <WalkView route={route} setRoute={writeRouteFromWalk} />
+        return <WalkView route={route} setRoute={writeRoute} />
       case 'unfoldg':
-        return <UnfoldGraphView resetTo={unfoldSeed} onVisit={(id) => appendTrail(id, 'graph')} onOpen={openFromUnfold} />
+        return <UnfoldGraphView onVisit={(id) => appendTrail(id, 'graph')} onOpen={(id) => setFocus(id, 'graph')} />
       case 'unfold':
         return <UnfoldView />
       case 'contours':
@@ -347,19 +345,6 @@ export default function StudioView() {
         <header className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
           <span className="font-bold text-slate-700 truncate">{LABEL[inst]}</span>
           <span className="flex-1" />
-          {inst === 'walk' && route.length > 0 && (
-            <button
-              aria-label="studio-walk-fit"
-              onClick={() => {
-                ensureActive('map')
-                flyMap(route, null, 'fit')
-              }}
-              title="fit the whole walk path on the map"
-              className="px-1.5 rounded border border-amber-300 text-amber-700 hover:bg-amber-50 text-[10px] font-medium"
-            >
-              ⤢ path on map
-            </button>
-          )}
           <button
             onClick={() => toggle(inst)}
             title="remove from composition"
