@@ -8,10 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -b",
     "map": "node scripts/architecture-map.mjs",
     "spec-gate": "node scripts/spec-gate.mjs",
     "docs:validate": "npm --prefix ../DocHub run validate",
-    "verify": "npm run map && npm run spec-gate && npm run lint && npm run docs:validate"
+    "verify": "npm run map && npm run spec-gate && npm run typecheck && npm run lint && npm run test && npm run docs:validate"
   },
   "dependencies": {
     "@types/d3-delaunay": "^6.0.4",
@@ -34,6 +36,7 @@
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.10"
   }
 }
