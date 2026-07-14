@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // the evoc spike carries a Python venv; eslint was walking into its vendored
+  // matplotlib JS and reporting on it. Noise in every `npm run verify`.
+  globalIgnores(['dist', '**/.venv/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
