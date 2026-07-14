@@ -17,7 +17,7 @@
 // typed relations left it 2026-07-12 for the pane's grouped list (and edge
 // geometry stays the map's selection overlay alone).
 
-import { childrenOf } from '../corpus/graph'
+import { byId, childrenOf } from '../corpus/graph'
 import type { GNode } from '../corpus/graph'
 import { nestedDots, territories } from './nested'
 import type { XY } from './derive'
@@ -73,6 +73,12 @@ function weight(id: string): number {
 }
 /** what a child's sector is proportional to — see the header on √ */
 const sector = (id: string) => Math.sqrt(weight(id))
+
+/** descendants beneath a node, excluding itself — the pane's "n of N beneath"
+ * counter. Shares the memo with the sector weights (weight = self + descendants)
+ * rather than walking the tree a second time, which is what ChildrenPanel used
+ * to do with its own private copy. */
+export const subtreeSize = (id: string) => weight(id) - 1
 
 const DEPTH_BELOW = new Map<string, number>()
 export function depthBelow(id: string): number {
@@ -141,4 +147,93 @@ export function paneGraph(root: string, expanded: ReadonlySet<string>): PaneGrap
   }
 
   return { root, nodes, depthAvail, shown }
+}
+
+// ── Label placement (lifted out of ChildrenPanel 2026-07-14) ────────────────
+// Deterministic de-overlap. Labels keep their node's ANGLE — the order never
+// re-deals, same contract as the layout itself — but step OUTWARD through up to
+// three radial lanes when their box would land on an already-placed one, and a
+// displaced label grows a leader line back to its node.
+//
+// COMMITTED LABELS PLACE FIRST, ghosts fit in around them. That is the no-jitter
+// invariant applied to typography: a hover preview can never re-seat a label
+// that was already on screen. The last lane accepts overlap rather than hide a
+// name — a missing name was the complaint this replaced.
+
+/** viewBox units PER RING — deep rings pan into view rather than being squeezed */
+export const RING = 100
+const CHAR_W = 7 // ≈ viewBox units per glyph at the pane's 12px label size
+const HORIZ = 105 // |x| beyond this = "horizontal extreme": the label goes under/over
+const LANE_OFF = 24 // radial units per label lane; lane > 0 gets a leader line
+/** past this many nodes, leaf names are noise — only containers keep them */
+const LEAF_LABEL_MAX = 110
+
+/** a placed label: its node's angle kept, radially staggered on collision */
+export interface LblPlace {
+  id: string
+  x: number
+  y: number
+  anchor: 'start' | 'end' | 'middle'
+  ghost: boolean
+  leader: { x1: number; y1: number; x2: number; y2: number } | null
+}
+
+interface Box {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+export function placeLabels(pg: PaneGraph, committed: ReadonlySet<string>): LblPlace[] {
+  const title = (id: string) => byId.get(id)!.title
+  const leafLabels = pg.nodes.length <= LEAF_LABEL_MAX
+  const cand = pg.nodes.filter((n) => n.depth > 0 && (n.container || leafLabels))
+  const ang = (n: PaneNode) => Math.atan2(n.y, n.x)
+
+  // committed first, ghosts after — so a preview fits around what is already read
+  const order = [
+    ...cand.filter((n) => committed.has(n.id)).sort((a, b) => a.depth - b.depth || ang(a) - ang(b)),
+    ...cand.filter((n) => !committed.has(n.id)).sort((a, b) => a.depth - b.depth || ang(a) - ang(b)),
+  ]
+
+  const rootW = title(pg.root).length * CHAR_W + 8
+  const boxes: Box[] = [{ x0: -rootW / 2, y0: -37, x1: rootW / 2, y1: -23 }] // the root title is pre-placed
+  const hits = (b: Box) => boxes.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1)
+
+  const out: LblPlace[] = []
+  for (const n of order) {
+    const w = title(n.id).length * CHAR_W
+    const nodeR = n.container ? 10.5 : 7
+    const ux = n.x / n.depth
+    const uy = n.y / n.depth
+    for (let lane = 0; lane < 3; lane++) {
+      const r = n.depth * RING + lane * LANE_OFF
+      const lx = ux * r
+      const ly = uy * r
+      const horiz = Math.abs(lx) > HORIZ
+      let place: LblPlace
+      let box: Box
+      if (horiz) {
+        const y = ly >= 0 ? ly + (lane === 0 ? nodeR + 13 : 11) : ly - (lane === 0 ? nodeR + 7 : 5)
+        place = { id: n.id, x: lx, y, anchor: 'middle', ghost: !committed.has(n.id), leader: null }
+        box = { x0: lx - w / 2, y0: y - 11, x1: lx + w / 2, y1: y + 3 }
+      } else {
+        const off = lane === 0 ? 14 : 6
+        const x = lx + (n.x >= 0 ? off : -off)
+        const y = ly + 4
+        place = { id: n.id, x, y, anchor: n.x >= 0 ? 'start' : 'end', ghost: !committed.has(n.id), leader: null }
+        box = n.x >= 0 ? { x0: x, y0: y - 11, x1: x + w, y1: y + 3 } : { x0: x - w, y0: y - 11, x1: x, y1: y + 3 }
+      }
+      if (lane > 0) {
+        place.leader = { x1: n.x * RING + ux * (nodeR + 2), y1: n.y * RING + uy * (nodeR + 2), x2: lx - ux * 3, y2: ly - uy * 3 }
+      }
+      if (lane === 2 || !hits(box)) {
+        boxes.push(box)
+        out.push(place)
+        break
+      }
+    }
+  }
+  return out
 }

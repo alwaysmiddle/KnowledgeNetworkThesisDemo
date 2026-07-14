@@ -35,15 +35,20 @@
 // and pretending otherwise would be theatre. What the wheel gets instead is the
 // cross-pane half: hover a node here, its cell lights up on the map.
 
+// The two LAYOUTS this pane draws are model code now (2026-07-14): the wheel's
+// nodes and label placement live in model/panegraph.ts, the star in
+// model/star.ts. Both are pure functions of the corpus and one id, both have
+// tests, and neither belongs inside a render function. What is left here is the
+// pane's own business: which mode, what is open, what the cursor is on.
+
 import { useMemo, useRef, useState } from 'react'
 
 import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo } from '../corpus/graph'
 import type { GEdge } from '../corpus/graph'
 import { colorOf, fillOf } from '../model/color'
-import { edgesTouching, leafPos } from '../model/flat'
 import { EDGE_TYPES } from '../model/nav'
-import { paneGraph } from '../model/panegraph'
-import type { PaneNode } from '../model/panegraph'
+import { paneGraph, placeLabels, RING, subtreeSize } from '../model/panegraph'
+import { R_STAR, starFor } from '../model/star'
 
 export interface ChildrenPanelProps {
   currentId: string
@@ -53,35 +58,12 @@ export interface ChildrenPanelProps {
   onHover?: (id: string | null) => void
 }
 
-// the corpus is static, so subtree weights memoize at module level
-const SUBTREE = new Map<string, number>()
-function subtreeSize(id: string): number {
-  const hit = SUBTREE.get(id)
-  if (hit !== undefined) return hit
-  const size = (childrenOf.get(id) ?? []).reduce((s, c) => s + 1 + subtreeSize(c.id), 0)
-  SUBTREE.set(id, size)
-  return size
-}
-
-const RING = 100 // fixed viewBox units PER RING — deep rings pan into view
 // half viewBox — wider than tall, because English titles are wide: labels
 // near the horizontal extremes also flip to hang below/above their node
 const VBX = 272
 const VBY = 178
 const HORIZ = 105 // |x| beyond this = "horizontal extreme", label goes under
-const CHAR_W = 7 // ≈ viewBox units per glyph at the pane's 12px label size
-const LANE_OFF = 24 // radial units per label lane — lane > 0 gets a leader line
 
-// ── the relations star (2026-07-13: typed relations come back to the canvas,
-// as a MODE, not mixed into the wheel — two graphs in one picture was what
-// killed the rim satellites). One-hop ego graph: the anchor topic pinned at
-// the center, counterparts on a ring. A pinned-center one-hop graph's force
-// equilibrium IS a ring, so it is constructed, not simulated. ───────────────
-const R_STAR = 128
-// min angular gap between counterparts. Generous on purpose: neighbors often
-// CLUSTER on one bearing (they live in the same map region), and at 0.28 the
-// first real test stacked two labels — order stays compass-true, gaps don't.
-const MIN_GAP = 0.55
 // Parallel edges (one counterpart, several typed links) separate by BOWING
 // apart, not by sliding sideways (2026-07-14). Two reasons: both ends stay
 // anchored on the two nodes, so the arrowheads keep pointing AT them instead
@@ -94,36 +76,6 @@ const BOW = 38
 // so viewBox units land at roughly 0.7 CSS px — 8.5 rendered as unreadable 6px
 // type. Sized just under the node labels' 12: subordinate to them, still legible.
 const EDGE_FS = 11
-
-/** keep ring order, force a minimum angular gap — 1-D relaxation, no solver */
-function relaxRing(sorted: number[], gap: number): number[] {
-  const n = sorted.length
-  if (n < 2) return [...sorted]
-  if (gap * n >= 2 * Math.PI) return sorted.map((_, i) => sorted[0] + (2 * Math.PI * i) / n)
-  const a = [...sorted]
-  for (let round = 0; round < 40; round++) {
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n
-      const d = (j === 0 ? a[j] + 2 * Math.PI : a[j]) - a[i]
-      if (d < gap) {
-        const push = (gap - d) / 2
-        a[i] -= push
-        a[j] += push
-      }
-    }
-  }
-  return a
-}
-
-/** a placed wheel label: node angle kept, radially staggered on collision */
-interface LblPlace {
-  id: string
-  x: number
-  y: number
-  anchor: 'start' | 'end' | 'middle'
-  ghost: boolean
-  leader: { x1: number; y1: number; x2: number; y2: number } | null
-}
 
 export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onHover }: ChildrenPanelProps) {
   const node = byId.get(currentId)!
@@ -200,92 +152,13 @@ export default function ChildrenPanel({ currentId, onSelect, hoverId = null, onH
 
   // relations exist at the topic grain only: the focused topic itself, or —
   // below one — the topic on the containment path (listed as "via <topic>").
-  // Containers ABOVE the topic tier honestly get no relationship section.
-  const anchorTopic = useMemo(() => path.find((id) => byId.get(id)!.topic) ?? null, [path])
-  const rels = useMemo(() => (anchorTopic ? edgesTouching(anchorTopic) : []), [anchorTopic])
+  // Containers ABOVE the topic tier honestly get no relationship section, which
+  // is why starFor's anchor is nullable.
+  const { anchor: anchorTopic, rels, nodes: star } = useMemo(() => starFor(currentId), [currentId])
 
-  // hundreds of leaf labels are noise — past this, only containers get names
-  const leafLabels = pg.nodes.length <= 110
-
-  // ── label placement: deterministic de-overlap (2026-07-13) ────────────────
-  // Labels keep their node's ANGLE (order never re-deals) but step OUTWARD
-  // through up to two radial lanes when their box would land on an already-
-  // placed label; displaced labels get a leader line back to their node.
-  // Committed labels place FIRST, ghosts fit in around them — a hover preview
-  // can never re-seat a label that was already on screen (the same no-jitter
-  // contract the layout itself keeps). The last lane accepts overlap rather
-  // than hide a name — hiding names was the complaint this pass fixes.
-  const labels = useMemo<LblPlace[]>(() => {
-    const cand = pg.nodes.filter((n) => n.depth > 0 && (n.container || leafLabels))
-    const ang = (n: PaneNode) => Math.atan2(n.y, n.x)
-    const order = [
-      ...cand.filter((n) => baseIds.has(n.id)).sort((a, b) => a.depth - b.depth || ang(a) - ang(b)),
-      ...cand.filter((n) => !baseIds.has(n.id)).sort((a, b) => a.depth - b.depth || ang(a) - ang(b)),
-    ]
-    type Box = { x0: number; y0: number; x1: number; y1: number }
-    const rootW = node.title.length * CHAR_W + 8
-    const boxes: Box[] = [{ x0: -rootW / 2, y0: -37, x1: rootW / 2, y1: -23 }] // the root title is pre-placed
-    const hits = (b: Box) => boxes.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1)
-    const out: LblPlace[] = []
-    for (const n of order) {
-      const w = byId.get(n.id)!.title.length * CHAR_W
-      const nodeR = n.container ? 10.5 : 7
-      const ux = n.x / n.depth
-      const uy = n.y / n.depth
-      for (let lane = 0; lane < 3; lane++) {
-        const r = n.depth * RING + lane * LANE_OFF
-        const lx = ux * r
-        const ly = uy * r
-        const horiz = Math.abs(lx) > HORIZ
-        let place: LblPlace
-        let box: Box
-        if (horiz) {
-          const y = ly >= 0 ? ly + (lane === 0 ? nodeR + 13 : 11) : ly - (lane === 0 ? nodeR + 7 : 5)
-          place = { id: n.id, x: lx, y, anchor: 'middle', ghost: !baseIds.has(n.id), leader: null }
-          box = { x0: lx - w / 2, y0: y - 11, x1: lx + w / 2, y1: y + 3 }
-        } else {
-          const off = lane === 0 ? 14 : 6
-          const x = lx + (n.x >= 0 ? off : -off)
-          const y = ly + 4
-          place = { id: n.id, x, y, anchor: n.x >= 0 ? 'start' : 'end', ghost: !baseIds.has(n.id), leader: null }
-          box = n.x >= 0 ? { x0: x, y0: y - 11, x1: x + w, y1: y + 3 } : { x0: x - w, y0: y - 11, x1: x, y1: y + 3 }
-        }
-        if (lane > 0)
-          place.leader = { x1: n.x * RING + ux * (nodeR + 2), y1: n.y * RING + uy * (nodeR + 2), x2: lx - ux * 3, y2: ly - uy * 3 }
-        if (lane === 2 || !hits(box)) {
-          boxes.push(box)
-          out.push(place)
-          break
-        }
-      }
-    }
-    return out
-  }, [pg, baseIds, leafLabels, node])
-
-  // ── the relations star: counterparts on a ring at their TRUE map bearings
-  // (same compass as the map), relaxed apart to MIN_GAP
-  const star = useMemo(() => {
-    if (!anchorTopic) return []
-    const origin = leafPos[anchorTopic]
-    const group = new Map<string, GEdge[]>()
-    for (const e of rels) {
-      const cp: string = e.source === anchorTopic ? e.target : e.source
-      if (cp === anchorTopic) continue
-      const g = group.get(cp)
-      if (g) g.push(e)
-      else group.set(cp, [e])
-    }
-    const seeded = [...group.keys()]
-      .map((id) => ({ id, a: Math.atan2(leafPos[id].y - origin.y, leafPos[id].x - origin.x) }))
-      .sort((p, q) => p.a - q.a || p.id.localeCompare(q.id))
-    const angles = relaxRing(seeded.map((s) => s.a), MIN_GAP)
-    return seeded.map((s, i) => ({
-      id: s.id,
-      x: Math.cos(angles[i]) * R_STAR,
-      y: Math.sin(angles[i]) * R_STAR,
-      edges: group.get(s.id)!.slice().sort((a, b) => EDGE_TYPES.indexOf(a.type) - EDGE_TYPES.indexOf(b.type)),
-    }))
-  }, [anchorTopic, rels])
+  // committed labels place first, ghosts fit around them — the no-jitter
+  // contract applied to typography
+  const labels = useMemo(() => placeLabels(pg, baseIds), [pg, baseIds])
 
   // ── hover binding (2026-07-14, item 4) ──────────────────────────────────
   // The star and the list are two readings of the SAME edge set, keyed by

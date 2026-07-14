@@ -41,15 +41,23 @@
 // gets no arrowhead at all — which links, of which type, in which direction is
 // the Connections star's question, and it is one pane away.
 
+// The DERIVATION lives in model/atlas.ts (2026-07-14) — which roads a selection
+// draws, how they roll up to a coarser grain, how parallel links collapse into
+// one road. It is a pure function of the corpus and one id, it is the piece a
+// walk route would reuse, and it has its own tests. What is left here is what a
+// component should be: a camera, a hover, and a paint order.
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { byId, domainIds, domainOf, EDGE_COLOR, topicIds, topicsUnder } from '../corpus/graph'
-import type { EdgeType, GEdge } from '../corpus/graph'
-import { edgesTouching, FLAT_H, FLAT_W, leafPos, provinceIds, provinceOf, spreadLabels, topicAnchorOf } from '../model/flat'
+import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR } from '../corpus/graph'
+import type { EdgeType } from '../corpus/graph'
+import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, fillOf, inkOf } from '../model/color'
-import { chordAt, countryPath, countryRings, maxTier, nestedDots, provincePath, provinceRings, territories, topicPoly } from '../model/nested'
-import type { Territory } from '../model/nested'
+import { countryPath, maxTier, nestedDots, provincePath, territories } from '../model/nested'
+import { countryLabels, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
+import { fitLabel } from '../model/labelfit'
+import type { FitLine } from '../model/labelfit'
 import { parentOf } from '../model/nav'
 
 const VB_X = -40
@@ -90,144 +98,7 @@ const PARENT_LABEL_PX = 26
 const ancBorderO = (d: number) => (d === 1 ? 0.6 : 0)
 const ancLabelO = (d: number) => (d === 1 ? 0.15 : 0)
 
-// ghost labels, same construction as the Map
-const centroidOf = (members: string[]) => ({
-  x: members.reduce((s, id) => s + leafPos[id].x, 0) / members.length,
-  y: members.reduce((s, id) => s + leafPos[id].y, 0) / members.length,
-})
-const countryLabels = spreadLabels(
-  domainIds.map((d) => ({ ...centroidOf(topicIds.filter((t) => domainOf(t) === d)), label: byId.get(d)!.title, key: d })),
-)
-const provinceLabels = provinceIds.map((m) => ({
-  ...centroidOf(topicIds.filter((t) => provinceOf(t) === m)),
-  label: byId.get(m)!.title,
-  key: m,
-}))
-
-// region anchor points for the rolled-up arrows (raw centroids, not the
-// overlap-spread label positions)
-const domainCenter = new Map(domainIds.map((d) => [d, centroidOf(topicIds.filter((t) => domainOf(t) === d))]))
-const provinceCenter = new Map(provinceIds.map((m) => [m, centroidOf(topicIds.filter((t) => provinceOf(t) === m))]))
-
-const terrD = new Map(territories.map((t) => [t.id, t.d]))
 const EDGE_ORDER: EdgeType[] = ['depends_on', 'data_flow', 'implements', 'references']
-/** a bundle whose links are not all the same type has no honest type color */
-const MIXED_EDGE = '#64748b'
-
-/** param t along a→b where the segment crosses the polygon boundary. Topic
- * cells are convex and the capitals sit inside them, so the line LEAVES the
- * source cell at the smallest crossing ('min') and ENTERS the target cell at
- * the largest ('max') — exactly the two border points the edge trim needs. */
-function polyCrossT(a: XY, b: XY, poly: XY[] | undefined, pick: 'min' | 'max'): number | null {
-  if (!poly) return null
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  let best: number | null = null
-  for (let i = 0; i < poly.length; i++) {
-    const p = poly[i]
-    const q = poly[(i + 1) % poly.length]
-    const ex = q.x - p.x
-    const ey = q.y - p.y
-    const den = dx * ey - dy * ex
-    if (Math.abs(den) < 1e-9) continue
-    const t = ((p.x - a.x) * ey - (p.y - a.y) * ex) / den
-    const u = ((p.x - a.x) * dy - (p.y - a.y) * dx) / den
-    if (t <= 0 || t >= 1 || u < 0 || u > 1) continue
-    if (best === null || (pick === 'min' ? t < best : t > best)) best = t
-  }
-  return best
-}
-
-/** same, over a multi-ring region outline: first exit / last entry wins */
-function ringsCrossT(a: XY, b: XY, rings: XY[][] | undefined, pick: 'min' | 'max'): number | null {
-  if (!rings) return null
-  let best: number | null = null
-  for (const r of rings) {
-    const t = polyCrossT(a, b, r, pick)
-    if (t !== null && (best === null || (pick === 'min' ? t < best : t > best))) best = t
-  }
-  return best
-}
-
-// ── LABEL FITTING (2026-07-13: capitals dropped, names wrap instead) ─────────
-// SVG text does not wrap, so wrapping is ours: split the title into ≤2 lines
-// and center each line on the horizontal CHORD of the (convex) cell at that
-// line's height — the exact room a horizontal line of text has there. A name
-// whose best split still overflows is DROPPED: not every place is named at
-// every scale — zooming in names it (the hover tooltip always has it).
-// force=true (the parent watermark ghost) returns its best split regardless:
-// orientation text may bleed, it must not vanish.
-const CHAR_W = 0.58 // ≈ average glyph width / font-size of the UI sans
-const FIT = 0.88 // fraction of the chord a line may fill
-interface FitLine {
-  x: number
-  y: number
-  text: string
-}
-
-function fitLabel(title: string, t: Territory, fs: number, force: boolean): FitLine[] | null {
-  const lh = fs * 1.12
-  const wOf = (s: string) => s.length * fs * CHAR_W
-  const at = (y: number, text: string) => {
-    const c = chordAt(t.poly, y)
-    return {
-      x: c ? (c[0] + c[1]) / 2 : t.cx,
-      y: y + fs * 0.35,
-      text,
-      over: wOf(text) - (c ? (c[1] - c[0]) * FIT : 0),
-    }
-  }
-  const one = at(t.cy, title)
-  if (one.over <= 0) return [one]
-  const words = title.split(' ')
-  let best: { l1: FitLine; l2: FitLine; over: number } | null = null
-  for (let k = 1; k < words.length; k++) {
-    const l1 = at(t.cy - lh / 2, words.slice(0, k).join(' '))
-    const l2 = at(t.cy + lh / 2, words.slice(k).join(' '))
-    const over = Math.max(l1.over, l2.over)
-    if (!best || over < best.over) best = { l1, l2, over }
-  }
-  if (best && best.over <= 0) return [best.l1, best.l2]
-  return force ? (best ? [best.l1, best.l2] : [one]) : null
-}
-
-/** an overlay arrow — one raw edge at topic grain, or a rolled-up bundle at
- * the domain/module grain */
-interface Arrow {
-  key: string
-  src: string
-  tgt: string
-  type: EdgeType
-  /** raw edges bundled into this arrow (1 at the topic grain) */
-  n: number
-  a: XY
-  b: XY
-  srcRings: XY[][] | undefined
-  tgtRings: XY[][] | undefined
-}
-
-/** every arrow between one PAIR of cells, collapsed into a single drawn line
- * (2026-07-14, item 7). Two topics wired by four links used to be four curves
- * fanned apart by a bulge index — legible as geometry, unreadable as a map. The
- * map's question is "is there a road here, and how busy", so one road is drawn
- * and its traffic is a number. WHICH links and WHICH WAY they run is the star's
- * and the list's question, and they are one pane away. */
-interface Bundle {
-  key: string
-  src: string
-  tgt: string
-  /** raw edges collapsed in here — the ×n badge */
-  n: number
-  /** the one relation type, or null when the bundle mixes types */
-  type: EdgeType | null
-  /** all links run src→tgt, or the pair is reciprocal (then: no arrowheads —
-   * a two-way road with one head drawn on it would be a lie) */
-  dir: 'fwd' | 'both'
-  a: XY
-  b: XY
-  srcRings: XY[][] | undefined
-  tgtRings: XY[][] | undefined
-}
 
 interface View {
   tx: number
@@ -389,93 +260,10 @@ export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: Ne
     onFocus?.(id)
   }
 
-  // ── the selection's edges: relations live at the topic grain, so any
-  // selection resolves to topics first (itself, everything under it, or its
-  // owning topic for deep nodes) and the overlay draws THEIR typed edges
-  const selTopics = useMemo(() => {
-    if (!sel) return []
-    const under = topicsUnder(sel)
-    return under.length ? under : [topicAnchorOf(sel)]
-  }, [sel])
-  const selEdges = useMemo(() => {
-    const seen = new Map<string, GEdge>()
-    for (const t of selTopics) for (const e of edgesTouching(t)) seen.set(e.id, e)
-    return [...seen.values()]
-  }, [selTopics])
-
-  // ── roll the edges up to the SELECTED LEVEL: a domain/module selection
-  // draws region↔region arrows (one per counterpart+type+direction, ×n for
-  // the bundle, internal edges dropped); topic and deeper keep raw edges
-  const selTier = sel ? (countryPath[sel] ? 0 : provincePath[sel] ? 1 : 2) : -1
-  const arrows = useMemo<Arrow[]>(() => {
-    if (!sel) return []
-    if (selTier >= 2)
-      return selEdges.map((e) => ({
-        key: e.id,
-        src: e.source,
-        tgt: e.target,
-        type: e.type,
-        n: 1,
-        a: leafPos[e.source],
-        b: leafPos[e.target],
-        srcRings: topicPoly.has(e.source) ? [topicPoly.get(e.source)!] : undefined,
-        tgtRings: topicPoly.has(e.target) ? [topicPoly.get(e.target)!] : undefined,
-      }))
-    const regionOf = (t: string) => (selTier === 0 ? domainOf(t) : provinceOf(t))
-    const center = selTier === 0 ? domainCenter : provinceCenter
-    const rings = selTier === 0 ? countryRings : provinceRings
-    const groups = new Map<string, { src: string; tgt: string; type: EdgeType; n: number }>()
-    for (const e of selEdges) {
-      const rs = regionOf(e.source)
-      const rt = regionOf(e.target)
-      if (rs === rt) continue // internal — the children's affair, not the region's
-      const k = `${rs}>${rt}|${e.type}`
-      const g = groups.get(k)
-      if (g) g.n++
-      else groups.set(k, { src: rs, tgt: rt, type: e.type, n: 1 })
-    }
-    return [...groups.entries()].map(([key, g]) => ({
-      key,
-      ...g,
-      a: center.get(g.src)!,
-      b: center.get(g.tgt)!,
-      srcRings: rings[g.src],
-      tgtRings: rings[g.tgt],
-    }))
-  }, [sel, selTier, selEdges])
-
-  // ── collapse every arrow between the same PAIR of cells into one line
-  // (item 7). Grouping is by UNORDERED pair, so a reciprocal A→B / B→A becomes
-  // one two-way road, not two curves bowed past each other. Geometry comes from
-  // the first arrow in the group, which fixes the drawn orientation; the rest
-  // are compared against it to decide whether the road is one-way.
-  const bundles = useMemo<Bundle[]>(() => {
-    const by = new Map<string, Arrow[]>()
-    for (const ar of arrows) {
-      const k = ar.src < ar.tgt ? `${ar.src}|${ar.tgt}` : `${ar.tgt}|${ar.src}`
-      const g = by.get(k)
-      if (g) g.push(ar)
-      else by.set(k, [ar])
-    }
-    return [...by.entries()].map(([key, group]) => {
-      const head = group[0]
-      const types = new Set(group.map((ar) => ar.type))
-      return {
-        key,
-        src: head.src,
-        tgt: head.tgt,
-        n: group.reduce((s, ar) => s + ar.n, 0),
-        type: types.size === 1 ? head.type : null,
-        // head defines the drawn direction, so "every arrow agrees with head"
-        // is exactly "one-way"
-        dir: group.every((ar) => ar.src === head.src) ? ('fwd' as const) : ('both' as const),
-        a: head.a,
-        b: head.b,
-        srcRings: head.srcRings,
-        tgtRings: head.tgtRings,
-      }
-    })
-  }, [arrows])
+  // ── the selection overlay, whole: which topics the selection resolves to,
+  // which of their edges survive the roll-up to this grain, and how those
+  // collapse into one road per pair. All of it is model/atlas.ts's job now.
+  const { tier: selTier, arrows, bundles } = useMemo(() => roadsFor(sel), [sel])
 
   // viewport in world coords, for culling the deep tiers
   const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
@@ -518,8 +306,8 @@ export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: Ne
   const isActive = (t: { tier: number; leaf: boolean }) => t.tier === level || (t.leaf && t.tier < level)
   const isMuted = (t: { tier: number; leaf: boolean }) => t.leaf && t.tier < level
 
-  const selOutline = sel ? countryPath[sel] ?? provincePath[sel] ?? terrD.get(sel) : undefined
-  const hoverOutline = hover && hover !== sel && !dragging ? countryPath[hover] ?? provincePath[hover] ?? terrD.get(hover) : undefined
+  const selOutline = sel ? outlineOf(sel) : undefined
+  const hoverOutline = hover && hover !== sel && !dragging ? outlineOf(hover) : undefined
 
   // SPOTLIGHT — a hover published by ANOTHER instrument: "the thing your cursor
   // is on over there lives HERE". Suppressed when it is just our own preselected
@@ -528,7 +316,7 @@ export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: Ne
   // topic, which is exactly the "where does this sit?" answer. Display only —
   // the camera never moves, so a hover can never steal the view.
   const spotId = hoverId && hoverId !== hover ? hoverId : null
-  const spotOutline = spotId ? countryPath[spotId] ?? provincePath[spotId] ?? terrD.get(spotId) : undefined
+  const spotOutline = spotId ? outlineOf(spotId) : undefined
 
   // ── item 10: "labels blocking when zoomed in" ────────────────────────────
   // The watermark never blocked a CLICK — every label layer is pointerEvents:
@@ -862,7 +650,7 @@ export default function NestedAtlasView({ onFocus, hoverId = null, onHover }: Ne
                 // traffic count sits
                 const mx = 0.25 * ax + 0.5 * cx + 0.25 * bx
                 const my = 0.25 * ay + 0.5 * cy + 0.25 * by
-                const col = bd.type ? EDGE_COLOR[bd.type] : MIXED_EDGE
+                const col = bd.type ? EDGE_COLOR[bd.type] : MIXED_EDGE_COLOR
                 return (
                   <g key={bd.key} data-seledge={`${bd.src}>${bd.tgt}`} data-en={bd.n} data-dir={bd.dir}>
                     <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(3.6)} strokeOpacity={0.75} />
