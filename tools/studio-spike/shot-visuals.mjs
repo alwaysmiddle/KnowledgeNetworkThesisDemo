@@ -114,6 +114,20 @@ const spots = await page.locator('[data-spot]').count()
 if (litStars !== 1 || spots !== 1 || litRows < 1)
   errors.push(`hover sync: expected 1 lit star + >=1 lit row + 1 map spotlight, got ${litStars} / ${litRows} / ${spots}`)
 
+// item 3: the SAME relrow hover must also light the ROAD to that counterpart on
+// the map — not just spotlight its territory. The lit star node names the
+// counterpart topic; the lit road must carry that id as one of its endpoints.
+const litStarId = await page.locator('[data-starnode][data-lit="1"]').first().getAttribute('data-starnode')
+const litRoads = await page.locator('[data-seledge][data-elit="1"]').count()
+const litRoadEnds = await page.$$eval('[data-seledge][data-elit="1"]', (gs) => gs.map((g) => g.getAttribute('data-seledge')))
+if (litRoads < 1) errors.push('item 3: hovering a relationship lit no road on the map')
+else if (!litRoadEnds.some((k) => k.split('>').includes(litStarId)))
+  errors.push(`item 3: lit road(s) ${litRoadEnds.join(',')} do not touch the hovered counterpart ${litStarId}`)
+
+// item 2: the map's immediate title chip must name that same spotlit counterpart
+const chipId = await page.locator('[data-hoverchip]').getAttribute('data-hoverchip')
+if (chipId !== litStarId) errors.push(`item 2: hover chip names ${chipId}, expected the spotlit counterpart ${litStarId}`)
+
 // 4c — THE GENERATED LENS. `implements` is the corpus's fourth relation type
 // and it never had a lens pane — not because LensPane couldn't render one (its
 // config is Record<EdgeType, …>, so TS forced an `implements` entry years ago)
@@ -166,6 +180,11 @@ if (!cell) {
     () => [...document.querySelectorAll('[data-ghostlabel]')].map((e) => Number(e.getAttribute('opacity'))).filter((o) => o < 0.05).length,
   )
   if (faded !== 1) errors.push(`item 10: expected exactly 1 faded watermark under the cursor, got ${faded}`)
+
+  // item 2 (direct map hover): the title chip names the cell under the cursor —
+  // an immediate read, not the ~half-second native <title> tooltip
+  const chipDirect = await page.locator('[data-hoverchip]').getAttribute('data-hoverchip')
+  if (chipDirect !== cell.id) errors.push(`item 2: map hover chip names ${chipDirect}, expected the hovered cell ${cell.id}`)
 }
 
 // 5b — a DOMAIN selection at L0. This is the ROLLED-UP grain: topic edges are

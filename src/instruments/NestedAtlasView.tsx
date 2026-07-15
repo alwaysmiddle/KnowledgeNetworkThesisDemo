@@ -55,7 +55,7 @@ import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, fillOf, inkOf } from '../model/color'
 import { countryPath, maxTier, nestedDots, provincePath, territories } from '../model/nested'
-import { countryLabels, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
+import { countryLabels, endpointAtTier, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { fitLabel } from '../model/labelfit'
 import type { FitLine } from '../model/labelfit'
 import { parentOf } from '../model/nav'
@@ -333,6 +333,20 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   // the camera never moves, so a hover can never steal the view.
   const spotId = hoverId && hoverId !== hover ? hoverId : null
   const spotOutline = spotId ? outlineOf(spotId) : undefined
+
+  // item 2: the styled, IMMEDIATE title readout — whichever cell is highlighted
+  // on the map right now, be it my own cursor's (hover) or a cross-pane hover's
+  // spotlight (spotId). Not the native <title>, which lags ~half a second and is
+  // OS-styled; this reads the moment the pointer lands.
+  const hoverChip = hover ?? spotId
+
+  // item 3: a hovered counterpart lights the ROAD to it, not just its territory.
+  // The bus hover arrives as a topic id (a Connections relationship row) or a map
+  // cell; lift it to the road's grain (selTier) and the bundle whose end it
+  // matches is the connection to the selected node. The rest dim, the same way
+  // the star dims its other spokes one pane over.
+  const litRoad = hoverId && bundles.length ? endpointAtTier(hoverId, selTier) : null
+  const anyRoadLit = litRoad != null && bundles.some((b) => b.src === litRoad || b.tgt === litRoad)
 
   // ── item 10: "labels blocking when zoomed in" ────────────────────────────
   // The watermark never blocked a CLICK — every label layer is pointerEvents:
@@ -667,10 +681,21 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 const mx = 0.25 * ax + 0.5 * cx + 0.25 * bx
                 const my = 0.25 * ay + 0.5 * cy + 0.25 * by
                 const col = bd.type ? EDGE_COLOR[bd.type] : MIXED_EDGE_COLOR
+                // item 3: this road lights when the hovered counterpart is its end
+                const lit = litRoad != null && (bd.src === litRoad || bd.tgt === litRoad)
+                const dim = anyRoadLit && !lit
                 return (
-                  <g key={bd.key} data-seledge={`${bd.src}>${bd.tgt}`} data-en={bd.n} data-dir={bd.dir}>
-                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(3.6)} strokeOpacity={0.75} />
-                    <path d={d} fill="none" stroke={col} strokeWidth={px(bd.n > 1 ? 2.4 : 1.8)} strokeOpacity={0.92} />
+                  <g
+                    key={bd.key}
+                    data-seledge={`${bd.src}>${bd.tgt}`}
+                    data-en={bd.n}
+                    data-dir={bd.dir}
+                    data-elit={lit ? 1 : 0}
+                    opacity={dim ? 0.22 : 1}
+                    style={{ transition: 'opacity 120ms' }}
+                  >
+                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(lit ? 4.6 : 3.6)} strokeOpacity={0.75} />
+                    <path d={d} fill="none" stroke={col} strokeWidth={px(lit ? 3.4 : bd.n > 1 ? 2.4 : 1.8)} strokeOpacity={0.92} />
                     {bd.dir === 'fwd' && (
                       <path
                         d={`M0,0 L${-px(5.5)},${px(2.8)} L${-px(5.5)},${-px(2.8)} Z`}
@@ -701,6 +726,22 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           )}
         </g>
       </svg>
+
+      {/* item 2: immediate title readout for the hovered (or cross-pane spotlit)
+          cell — tinted by its tree color, the same hue its territory and any
+          road to it carry. pointer-events-none so it never eats a click. */}
+      {hoverChip && (
+        <div
+          data-hoverchip={hoverChip}
+          className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-white/95 border border-slate-200 shadow-sm px-2.5 py-1 text-[12px] select-none pointer-events-none"
+        >
+          <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: colorOf(hoverChip) }} />
+          <span className="font-semibold truncate max-w-[240px]" style={{ color: colorOf(hoverChip) }}>
+            {byId.get(hoverChip)!.title}
+          </span>
+          <span className="text-slate-400 shrink-0">{byId.get(hoverChip)!.topic ? 'topic' : byId.get(hoverChip)!.kind}</span>
+        </div>
+      )}
 
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 max-w-[calc(100%-24px)] rounded-lg bg-white/95 border border-slate-200 shadow-sm px-3 py-1.5 text-[12px] text-slate-600 select-none">
         <span className="text-slate-400">level</span>

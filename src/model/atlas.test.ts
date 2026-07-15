@@ -5,9 +5,9 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { byId, domainIds, edges, nodes, topicIds, topicsUnder } from '../corpus/graph'
-import { provinceIds } from './flat'
-import { outlineOf, roadsFor, tierOf } from './atlas'
+import { byId, domainIds, domainOf, edges, nodes, topicIds, topicsUnder } from '../corpus/graph'
+import { provinceIds, provinceOf, topicAnchorOf } from './flat'
+import { endpointAtTier, outlineOf, roadsFor, tierOf } from './atlas'
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
@@ -152,5 +152,39 @@ describe('outlineOf and tierOf — one question, one answer', () => {
   test('the root is not a region — it has no outline', () => {
     expect(outlineOf('root')).toBeUndefined()
     expect(byId.get('root')!.parentId).toBeNull()
+  })
+})
+
+describe('endpointAtTier — the road a hovered counterpart lights (item 3)', () => {
+  test('every bundle endpoint is idempotent under the lift at its own grain', () => {
+    // this IS the feature: hovering a counterpart cell must resolve to itself,
+    // or the road drawn to it would never light. Checked on every road the
+    // corpus can draw, at every grain, not the two the driver happens to hover.
+    for (const sel of SELECTABLE) {
+      const { tier, bundles } = roadsFor(sel)
+      for (const b of bundles) {
+        expect(endpointAtTier(b.src, tier), `${sel}:${b.src}`).toBe(b.src)
+        expect(endpointAtTier(b.tgt, tier), `${sel}:${b.tgt}`).toBe(b.tgt)
+      }
+    }
+  })
+
+  test('a topic lifts to itself at topic grain, to its region when rolled up', () => {
+    // a relationship row publishes a TOPIC id; at a domain/module selection that
+    // topic must lift to the region whose road is actually on screen
+    for (const t of topicIds) {
+      expect(endpointAtTier(t, 2), t).toBe(t)
+      expect(endpointAtTier(t, 1), t).toBe(provinceOf(t))
+      expect(endpointAtTier(t, 0), t).toBe(domainOf(t))
+    }
+  })
+
+  test('a deep node lifts through its owning topic — the "via" a hover follows', () => {
+    const deep = nodes.filter((n) => !n.topic && n.parentId && topicsUnder(n.id).length === 0).slice(0, 30)
+    for (const d of deep) {
+      const owner = topicAnchorOf(d.id)
+      expect(endpointAtTier(d.id, 2), d.id).toBe(owner)
+      expect(endpointAtTier(d.id, 0), d.id).toBe(domainOf(owner))
+    }
   })
 })

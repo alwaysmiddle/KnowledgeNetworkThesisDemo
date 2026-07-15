@@ -19,9 +19,10 @@
 // back as a MODE instead: the pane toggles wheel ⇄ relations STAR — a one-hop
 // ego graph, anchor topic pinned at the center, counterparts ringed at their
 // TRUE map bearings (min-gap relaxed), one line per typed edge, arrowhead for
-// direction. The bottom half stays the grouped relationship list in both
-// modes, same construction as the document page's "Roads from here": one
-// group per relation type, arrows for direction, click a row to re-root.
+// direction. The bottom half is the LIST reading of whichever mode is up:
+// internal → the contained children (moved here from the document page
+// 2026-07-14, which now only reads), external → the grouped typed relations,
+// one group per type with arrows for direction. Click a row to re-root either way.
 // Edges live at the topic grain, so a deep focus shows its OWNING topic's
 // relations ("via …"). Every node click is a plain bus refocus, so map, tree
 // and document follow.
@@ -80,6 +81,11 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
 
   const node = byId.get(currentId)!
   const path = pathTo(currentId)
+  // containment's LIST reading — the focus's direct children ([] for a leaf).
+  // Moved out of the document pane 2026-07-14; the wheel above is the same
+  // children as a graph, this is the scannable list. Shares the hover channel,
+  // so a row lights its wheel node and its map territory in one hue.
+  const containedKids = childrenOf.get(currentId) ?? []
 
   // interactive disclosure: which containers are OPEN. Starts all-closed on
   // every refocus — only the direct children ring shows until clicks open it
@@ -600,15 +606,54 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
         </div>
       )}
 
-      {/* item 8: the section is ALWAYS here now. It used to disappear outright
-          above the topic tier, so selecting a domain left the pane's bottom half
-          simply blank — and a blank half reads as "broken", not as "nothing to
-          say". An empty list that says it is empty is the honest version, and it
-          keeps the pane's two halves at a stable height. NB: with all 53 topics
-          carrying at least one link, "a topic with no relationships" is not
-          currently reachable — the no-anchor case below is the one users hit. */}
-      {!anchorTopic ? (
-        <div aria-label="children-relationships" className="shrink-0 max-h-[48%] overflow-auto border-t border-slate-100 px-3 pt-2 pb-1.5">
+      {/* The bottom half is the LIST reading, and it now MATCHES the mode above
+          it: internal → the contained children (moved out of the document pane
+          2026-07-14, which now only reads), external → the typed relations. Each
+          mode is a graph reading (wheel / star) stacked over a list reading of
+          the SAME thing. The border-t-2 is deliberately heavy — these are two
+          distinct instruments sharing a pane, not one scrolling column — and it
+          is the "visible border between the relationships view and the graph".
+          The section is a FIXED 48% of the pane (item 6), not content-sized, so
+          toggling internal ⇄ external never shifts the graph/list boundary — the
+          window is static and the list scrolls inside it. Empty states still say
+          so out loud rather than collapsing the frame to blank. */}
+      {mode === 'wheel' ? (
+        <div aria-label="children-contained" className="shrink-0 h-[48%] overflow-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+          <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Contained ({containedKids.length})</div>
+          {containedKids.length === 0 ? (
+            <div className="text-[11px] text-slate-400">no children — {node.title} is a leaf</div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {containedKids.map((k) => {
+                const lit = hover.lit(k.id)
+                return (
+                  <button
+                    key={k.id}
+                    data-containedrow={k.id}
+                    {...hover.bind(k.id)}
+                    onClick={() => onSelect(k.id)}
+                    className={[
+                      'text-left px-2 py-1 rounded border text-[11.5px] flex items-center gap-1.5',
+                      lit ? 'border-slate-400 font-semibold' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50',
+                    ].join(' ')}
+                    // lit tint is the child's OWN tree color — the row, its wheel
+                    // node and its map territory all say it in the same hue
+                    style={lit ? { borderColor: colorOf(k.id), background: fillOf(k.id) } : undefined}
+                    title={`${byId.get(k.id)!.title} — re-root there`}
+                  >
+                    <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: colorOf(k.id) }} />
+                    <span className="truncate font-medium" style={{ color: colorOf(k.id) }}>
+                      {byId.get(k.id)!.title}
+                    </span>
+                    <span className="text-slate-400 ml-auto shrink-0">{byId.get(k.id)!.kind}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : !anchorTopic ? (
+        <div aria-label="children-relationships" className="shrink-0 h-[48%] overflow-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
           <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Relationships (0)</div>
           <div className="text-[11px] text-slate-400">no relationships to display</div>
           <div className="text-[10.5px] text-slate-400 italic mt-0.5">
@@ -616,7 +661,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           </div>
         </div>
       ) : (
-        <div aria-label="children-relationships" className="shrink-0 max-h-[48%] overflow-auto border-t border-slate-100 px-3 pt-2 pb-1.5">
+        <div aria-label="children-relationships" className="shrink-0 h-[48%] overflow-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
           <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">
             Relationships ({rels.length})
             {anchorTopic !== currentId && (
@@ -649,12 +694,6 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           )}
         </div>
       )}
-
-      <div className="shrink-0 px-3 pb-1.5 text-[11px] text-slate-400 italic select-none" style={{ borderTop: `2px solid ${fillOf(currentId)}`, paddingTop: 4 }}>
-        {mode === 'wheel'
-          ? "internal = containment, same compass as the map · drag to pan · hover previews what's inside and lights its territory on the map · double-click re-roots"
-          : 'external = typed relations at the topic grain, bearings match the map · hover a node or a row — the other lights up, and so does the map · click to re-root'}
-      </div>
     </div>
   )
 }

@@ -48,6 +48,19 @@ export const outlineOf = (id: string): string | undefined => countryPath[id] ?? 
 /** which grain a selection sits on: 0 = domain, 1 = module, 2+ = topic-or-deeper */
 export const tierOf = (id: string): number => (countryPath[id] ? 0 : provincePath[id] ? 1 : 2)
 
+/** Which src/tgt in a selection's Bundle a node would touch — the grain-lift a
+ * hovered counterpart needs to find its road. A road is drawn at the selection's
+ * grain (see tierOf), but a hover arrives as a TOPIC id (a relationship row one
+ * pane over) or a deeper node; both must resolve to the region that actually
+ * carries the road. At the topic grain that is the node's own owning topic;
+ * rolled up, that topic's module or domain. Idempotent on an id already at the
+ * grain — so the counterpart cell itself resolves to itself, and the road it is
+ * on lights. */
+export const endpointAtTier = (id: string, tier: number): string => {
+  const topic = topicAnchorOf(id)
+  return tier <= 0 ? domainOf(topic) : tier === 1 ? provinceOf(topic) : topic
+}
+
 // ── Edge trimming against cell borders ──────────────────────────────────────
 /** param t along a→b where the segment crosses the polygon boundary. Topic
  * cells are convex and the capitals sit inside them, so the line LEAVES the
