@@ -317,6 +317,12 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
   // hover preview — a closed container the pointer is on shows its children
   // as ghosts; the click that follows just makes what's already there solid
   const [hoverPrev, setHoverPrev] = useState<string | null>(null)
+  // #10: a container just clicked (its children toggled) must NOT re-assert the
+  // hover ghost-preview while the pointer still sits on it — otherwise
+  // de-selecting (click-to-collapse) instantly re-shows the faded children. The
+  // suppression holds until the pointer LEAVES the node; re-hovering it then
+  // previews again as normal.
+  const [suppressPrev, setSuppressPrev] = useState<string | null>(null)
   // which reading the canvas shows: the containment wheel or the typed-
   // relations star. Sticky across refocus, so clicking a counterpart in star
   // mode hops the relation graph node to node.
@@ -333,6 +339,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
     // remember the view); all-closed the first time a focus is ever seen
     setExpanded(expandMemo.get(currentId) ?? new Set())
     setHoverPrev(null)
+    setSuppressPrev(null)
   }
   // #9: set the open set AND remember it for THIS focus, so back/forward (and
   // any return here) restores exactly this graph, not the bare node. Every
@@ -368,8 +375,8 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
   // preview moves nothing — ghosts only appear, so hovering never jitters.
   const pgBase = useMemo(() => paneGraph(currentId, expanded), [currentId, expanded])
   const expandedEff = useMemo(
-    () => (hoverPrev && !expanded.has(hoverPrev) ? new Set([...expanded, hoverPrev]) : expanded),
-    [expanded, hoverPrev],
+    () => (hoverPrev && hoverPrev !== suppressPrev && !expanded.has(hoverPrev) ? new Set([...expanded, hoverPrev]) : expanded),
+    [expanded, hoverPrev, suppressPrev],
   )
   const pg = useMemo(() => (expandedEff === expanded ? pgBase : paneGraph(currentId, expandedEff)), [currentId, expandedEff, expanded, pgBase])
   const at = useMemo(() => new Map(pg.nodes.map((n) => [n.id, n])), [pg])
@@ -984,7 +991,10 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                             ? () => lookAt(n.id)
                             : !ghost
                               ? () => {
-                                  if (n.container) toggleOpen(n.id)
+                                  if (n.container) {
+                                    toggleOpen(n.id)
+                                    setSuppressPrev(n.id) // #10: no hover re-preview until the pointer leaves
+                                  }
                                   lookAt(n.id)
                                 }
                               : undefined
@@ -1009,7 +1019,10 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                             ? () => {
                                 setOwn((o) => (o === n.id ? null : o))
                                 bus.endHover(n.id)
-                                if (n.container) setHoverPrev((h) => (h === n.id ? null : h))
+                                if (n.container) {
+                                  setHoverPrev((h) => (h === n.id ? null : h))
+                                  setSuppressPrev((s) => (s === n.id ? null : s)) // #10: leaving re-arms the preview
+                                }
                               }
                             : undefined
                         }
