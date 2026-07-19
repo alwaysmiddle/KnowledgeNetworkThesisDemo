@@ -753,15 +753,18 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                     </g>
                   )
                 })}
-              {/* item 9: the selected cell used to be a hairline outline and
-                  nothing else — far too quiet once the capital dots went. It now
-                  also TINTS, in its own tree color: a saturated cell among pale
-                  ones reads as selected at a glance, from across the pane, with
-                  no hunting for a thin border. */}
+              {/* The selected cell is the LOUDEST thing on the map (issue #8: a
+                  hairline + faint tint was still easy to lose, especially once
+                  the neighbourhood wash tinted its connections at 0.1). Three
+                  layers, back to front: a soft outer GLOW in its tree color, a
+                  white separator that also tints the cell body, and a crisp
+                  heavy border. A saturated, haloed cell among pale ones reads as
+                  selected at a glance, from across the pane. */}
               {selOutline && (
                 <>
-                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.2} stroke="#ffffff" strokeWidth={px(5)} strokeOpacity={0.95} />
-                  <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(3)} />
+                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(11)} strokeOpacity={0.22} strokeLinejoin="round" />
+                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.3} stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
+                  <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(4)} strokeLinejoin="round" />
                 </>
               )}
               {bundles.map((bd) => {
