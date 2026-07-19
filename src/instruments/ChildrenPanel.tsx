@@ -306,6 +306,14 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
   // every refocus — only the direct children ring shows until clicks open it
   // (render-time reset — the "adjust state when a prop changes" pattern)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  // #9: the expansion is REMEMBERED per focus, so back/forward (and any return
+  // to a node) restores the graph you had open there — not just the bare node
+  // with its immediate children. Keyed by focus id, because the nav stack
+  // mutates (a fresh selection truncates the forward entries) and a positional
+  // key would go stale. Held in STATE, not a ref: the restore below reads it
+  // during render (the no-flash "adjust state on change" pattern), and reading
+  // a ref during render is both unsafe and lint-forbidden.
+  const [expandMemo, setExpandMemo] = useState<ReadonlyMap<string, ReadonlySet<string>>>(() => new Map())
   // hover preview — a closed container the pointer is on shows its children
   // as ghosts; the click that follows just makes what's already there solid
   const [hoverPrev, setHoverPrev] = useState<string | null>(null)
@@ -321,16 +329,26 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
   const [expandedFor, setExpandedFor] = useState(currentId)
   if (expandedFor !== currentId) {
     setExpandedFor(currentId)
-    setExpanded(new Set())
+    // #9: restore what was open here last (this is what makes back/forward
+    // remember the view); all-closed the first time a focus is ever seen
+    setExpanded(expandMemo.get(currentId) ?? new Set())
     setHoverPrev(null)
   }
-  const toggleOpen = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  // #9: set the open set AND remember it for THIS focus, so back/forward (and
+  // any return here) restores exactly this graph, not the bare node. Every
+  // caller is an event handler, so reading `expanded`/`currentId` from the
+  // render closure is the committed value — and writing the memo here, not in
+  // an effect, keeps both react-hooks rules happy (no ref-read, no set-in-effect).
+  const setOpen = (next: ReadonlySet<string>) => {
+    setExpanded(next)
+    setExpandMemo((m) => new Map(m).set(currentId, next))
+  }
+  const toggleOpen = (id: string) => {
+    const next = new Set(expanded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setOpen(next)
+  }
   const openAll = () => {
     const all = new Set<string>()
     const walk = (id: string) => {
@@ -342,7 +360,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
       }
     }
     walk(currentId)
-    setExpanded(all)
+    setOpen(all)
   }
   // the layout the pane DRAWS includes the hover preview; the base layout
   // (committed expansions only) tells preview ghosts from solid nodes.
@@ -537,7 +555,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               {expanded.size > 0 && (
                 <button
                   aria-label="children-close-all"
-                  onClick={() => setExpanded(new Set())}
+                  onClick={() => setOpen(new Set())}
                   className="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
                   title="back to direct children only"
                 >
