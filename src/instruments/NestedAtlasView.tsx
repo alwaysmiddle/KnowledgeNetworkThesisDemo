@@ -253,6 +253,14 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [busClearFocus])
 
+  // A selection made ANYWHERE is the map's selection too. The map used to
+  // reflect only a click that landed ON the map (local `sel`) and read bus.focus
+  // for nothing — so a Connections-pane double-click set the focus to the child
+  // but left the previously-selected PARENT outlined here (issue #7). Mirroring
+  // focus is idempotent for the map's own clicks (they set focus to the same id)
+  // and clears on Esc / water-click alike (focus goes null).
+  useEffect(() => setSel(bus.focus), [bus.focus])
+
   const toUser = (clientX: number, clientY: number) => {
     const rect = svgRef.current!.getBoundingClientRect()
     const f = Math.max(VB_W / rect.width, VB_H / rect.height)
