@@ -211,6 +211,33 @@ export function chordAt(poly: XY[], y: number): [number, number] | null {
   return hi >= lo ? [lo, hi] : null
 }
 
+/** chordAt for a REGION outline — non-convex, possibly multi-ring. A convex
+ * min/max would claim the span across a concave bite (or across the gap
+ * between two lobes) as room for text; here the crossings pair even-odd into
+ * the true INSIDE intervals, and the label line gets the interval its anchor
+ * stands in — or the widest one when the anchor's row misses it. */
+export function regionChordAt(rings: XY[][], y: number, cx: number): [number, number] | null {
+  const xs: number[] = []
+  for (const poly of rings) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i]
+      const q = poly[(i + 1) % poly.length]
+      if (p.y <= y === q.y <= y) continue
+      xs.push(p.x + ((y - p.y) / (q.y - p.y)) * (q.x - p.x))
+    }
+  }
+  if (xs.length < 2) return null
+  xs.sort((a, b) => a - b)
+  let widest: [number, number] | null = null
+  let home: [number, number] | null = null
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    const iv: [number, number] = [xs[i], xs[i + 1]]
+    if (!widest || iv[1] - iv[0] > widest[1] - widest[0]) widest = iv
+    if (cx >= iv[0] && cx <= iv[1]) home = iv
+  }
+  return home ?? widest
+}
+
 export interface NestedDot {
   id: string
   tier: number

@@ -7,9 +7,9 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { byId, childrenOf, domainIds, edges, topicIds } from '../corpus/graph'
+import { byId, childrenOf, domainIds, edges, topicIds, topicsUnder } from '../corpus/graph'
 import { leafPos, provinceIds } from './flat'
-import { anchorTopicOf, MIN_GAP, relaxRing, R_STAR, starFor } from './star'
+import { anchorTopicOf, MIN_GAP, regionStarFor, relaxRing, R_STAR, RX_STAR, starFor } from './star'
 
 const TAU = 2 * Math.PI
 
@@ -120,9 +120,9 @@ describe('starFor', () => {
     }
   })
 
-  test('every node sits on the ring, at R_STAR', () => {
+  test('every node sits on the ring — the RX_STAR × R_STAR ellipse', () => {
     for (const t of topicIds) {
-      for (const n of starFor(t).nodes) expect(Math.hypot(n.x, n.y)).toBeCloseTo(R_STAR, 9)
+      for (const n of starFor(t).nodes) expect((n.x / RX_STAR) ** 2 + (n.y / R_STAR) ** 2).toBeCloseTo(1, 9)
     }
   })
 
@@ -158,5 +158,81 @@ describe('starFor', () => {
     const fromTopic = starFor(topic)
     expect(fromDeep.anchor).toBe(topic)
     expect(fromDeep.nodes).toEqual(fromTopic.nodes)
+  })
+})
+
+describe('regionStarFor — the star a whole region gets, the one starFor refuses', () => {
+  const regions = [...domainIds, ...provinceIds]
+
+  test('only regions have one — topics use starFor, the root is all-internal', () => {
+    for (const t of topicIds) expect(regionStarFor(t, 'summary'), t).toBeNull()
+    expect(regionStarFor('root', 'summary')).toBeNull()
+    expect(regionStarFor('root', 'detailed')).toBeNull()
+  })
+
+  test('centred on the region, tier tagged by grain', () => {
+    for (const r of regions) {
+      for (const mode of ['summary', 'detailed'] as const) {
+        const s = regionStarFor(r, mode)!
+        expect(s, `${r}/${mode}`).not.toBeNull()
+        expect(s.center).toBe(r)
+        expect(s.mode).toBe(mode)
+        expect(s.tier).toBe(domainIds.includes(r) ? 0 : 1)
+      }
+    }
+  })
+
+  test('edges are exactly the region-crossing ones — nothing internal, nothing missed', () => {
+    for (const r of regions) {
+      const under = new Set(topicsUnder(r))
+      const s = regionStarFor(r, 'detailed')!
+      // every returned edge crosses the border
+      for (const e of s.edges) expect(under.has(e.source) !== under.has(e.target), `${r}: ${e.id}`).toBe(true)
+      // and no crossing edge is dropped: recompute independently
+      const crossing = new Set<string>()
+      for (const t of under) for (const e of edges) if (e.source === t || e.target === t) if (under.has(e.source) !== under.has(e.target)) crossing.add(e.id)
+      expect(new Set(s.edges.map((e) => e.id)), r).toEqual(crossing)
+    }
+  })
+
+  test('every counterpart sits on the ring — the same ellipse as the topic star', () => {
+    for (const r of regions) {
+      for (const mode of ['summary', 'detailed'] as const) {
+        for (const n of regionStarFor(r, mode)!.nodes)
+          expect((n.x / RX_STAR) ** 2 + (n.y / R_STAR) ** 2, `${r}/${n.id}`).toBeCloseTo(1, 9)
+      }
+    }
+  })
+
+  test('summary counterparts are OTHER regions; detailed counterparts are OUTSIDE topics', () => {
+    for (const r of regions) {
+      const regionSet = new Set(domainIds.includes(r) ? domainIds : provinceIds)
+      const under = new Set(topicsUnder(r))
+      for (const n of regionStarFor(r, 'summary')!.nodes) {
+        expect(regionSet.has(n.id), `${r} summary ${n.id}`).toBe(true)
+        expect(n.id, `${r} points at itself`).not.toBe(r)
+      }
+      for (const n of regionStarFor(r, 'detailed')!.nodes) {
+        expect(topicIds.includes(n.id), `${r} detailed ${n.id} not a topic`).toBe(true)
+        expect(under.has(n.id), `${r} detailed ${n.id} is inside`).toBe(false)
+      }
+    }
+  })
+
+  test('both modes conserve every edge — detailed one strand per edge, summary bundles by type with counts', () => {
+    for (const r of regions) {
+      const det = regionStarFor(r, 'detailed')!
+      expect(det.nodes.reduce((n, node) => n + node.strands.length, 0), `${r} detailed`).toBe(det.edges.length)
+      for (const node of det.nodes) for (const s of node.strands) expect(s.n).toBe(1)
+
+      const sum = regionStarFor(r, 'summary')!
+      const sumN = sum.nodes.reduce((n, node) => n + node.strands.reduce((m, s) => m + s.n, 0), 0)
+      expect(sumN, `${r} summary`).toBe(sum.edges.length)
+      for (const node of sum.nodes) expect(node.strands.reduce((m, s) => m + s.n, 0), `${r}/${node.id} n`).toBe(node.n)
+    }
+  })
+
+  test('the happy path is real — some domain actually reaches out', () => {
+    expect(domainIds.some((d) => regionStarFor(d, 'summary')!.nodes.length > 0)).toBe(true)
   })
 })

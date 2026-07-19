@@ -12,7 +12,7 @@
 import { byId, domainIds, domainOf, topicIds, topicsUnder } from '../corpus/graph'
 import type { EdgeType, GEdge } from '../corpus/graph'
 import type { XY } from './derive'
-import { edgesTouching, leafPos, provinceIds, provinceOf, spreadLabels, topicAnchorOf } from './flat'
+import { edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
 import { countryPath, countryRings, provincePath, provinceRings, territories, topicPoly } from './nested'
 
 // ── Geography: the label anchors and region centres, derived once ────────────
@@ -21,10 +21,14 @@ const centroidOf = (members: string[]) => ({
   y: members.reduce((s, id) => s + leafPos[id].y, 0) / members.length,
 })
 
-/** domain name anchors, spread so overlapping ones separate */
-export const countryLabels = spreadLabels(
-  domainIds.map((d) => ({ ...centroidOf(topicIds.filter((t) => domainOf(t) === d)), label: byId.get(d)!.title, key: d })),
-)
+/** domain name anchors — RAW centroids. The overlap-spread nudge went with the
+ * single-line rendering it served: names wrap INSIDE their regions now
+ * (fitRegionLabel), and a wrap anchored off-centre defeats the fit. */
+export const countryLabels = domainIds.map((d) => ({
+  ...centroidOf(topicIds.filter((t) => domainOf(t) === d)),
+  label: byId.get(d)!.title,
+  key: d,
+}))
 
 export const provinceLabels = provinceIds.map((m) => ({
   ...centroidOf(topicIds.filter((t) => provinceOf(t) === m)),
@@ -47,6 +51,23 @@ export const outlineOf = (id: string): string | undefined => countryPath[id] ?? 
 
 /** which grain a selection sits on: 0 = domain, 1 = module, 2+ = topic-or-deeper */
 export const tierOf = (id: string): number => (countryPath[id] ? 0 : provincePath[id] ? 1 : 2)
+
+// ── The peek flight target (SelfNotes: hover a connection, the map flies) ────
+const terrCenter = new Map(territories.map((t) => [t.id, { c: { x: t.cx, y: t.cy }, tier: t.tier }]))
+
+/** Where the camera goes to LOOK AT a node: its own region's centre, and the
+ * tier whose canonical scale frames it — a domain at L0, a module at L1, every
+ * territory at its own stratum. A node too deep to own a territory falls back
+ * to its owning topic's cell; null only for an id the map has never heard of. */
+export const flightTargetOf = (id: string): { c: XY; tier: number } | null => {
+  const d = domainCenter.get(id)
+  if (d) return { c: d, tier: 0 }
+  const p = provinceCenter.get(id)
+  if (p) return { c: p, tier: 1 }
+  const t = terrCenter.get(id)
+  if (t) return t
+  return byId.has(id) ? terrCenter.get(topicAnchorOf(id)) ?? null : null
+}
 
 /** Which src/tgt in a selection's Bundle a node would touch — the grain-lift a
  * hovered counterpart needs to find its road. A road is drawn at the selection's
@@ -149,17 +170,20 @@ export interface Roads {
 const NO_ROADS: Roads = { tier: -1, arrows: [], bundles: [] }
 
 /** Relations live at the topic grain, so any selection resolves to topics first
- * — itself, everything under it, or its owning topic for a deep node — and the
- * overlay draws THEIR typed edges. A selection ABOVE the topic grain (a domain,
- * a module) then ROLLS THOSE EDGES UP: each underlying topic edge maps to its
- * counterpart's region at the same tier, and edges internal to the selection
- * drop out entirely. A child's relationships are never drawn raw across a
- * coarser map. */
+ * — itself, or everything under it — and the overlay draws THEIR typed edges. A
+ * selection ABOVE the topic grain (a domain, a module) then ROLLS THOSE EDGES
+ * UP: each underlying topic edge maps to its counterpart's region at the same
+ * tier, and edges internal to the selection drop out entirely. A child's
+ * relationships are never drawn raw across a coarser map. And a selection BELOW
+ * the topic grain draws NOTHING (2026-07-17): it has no edges of its own, and
+ * the old fallback — borrowing the owning topic's roads, the map-side twin of
+ * the pane's retired "via" lift — kept the parent's arrows on screen for every
+ * relation-less child, so every deep selection looked connected. */
 export function roadsFor(sel: string | null): Roads {
   if (!sel || !byId.has(sel)) return NO_ROADS
 
-  const under = topicsUnder(sel)
-  const selTopics = under.length ? under : [topicAnchorOf(sel)]
+  const selTopics = topicsUnder(sel)
+  if (selTopics.length === 0) return { tier: tierOf(sel), arrows: [], bundles: [] }
 
   const seen = new Map<string, GEdge>()
   for (const t of selTopics) for (const e of edgesTouching(t)) seen.set(e.id, e)

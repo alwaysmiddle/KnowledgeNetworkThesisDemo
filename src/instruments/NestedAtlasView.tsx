@@ -26,7 +26,10 @@
 // domain or module) ROLLS ITS EDGES UP — every underlying topic edge maps to
 // the counterpart's region at the same tier, and edges internal to the
 // selection drop. Children's relationships are never drawn raw across a
-// coarser map. The overlay is pinned until a re-click of the same cell, a
+// coarser map, and a selection BELOW the topic grain draws no roads at all
+// (2026-07-17): a deep cell has no edges of its own, and borrowing the owning
+// topic's made every relation-less child look connected — the selection tint
+// is all it gets. The overlay is pinned until a re-click of the same cell, a
 // water-click or Esc. All text and hairlines are sized in SCREEN pixels
 // (pane-fit compensated) — at canonical scales the same style table renders
 // identically at every level.
@@ -54,9 +57,9 @@ import type { EdgeType } from '../corpus/graph'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, fillOf, inkOf } from '../model/color'
-import { countryPath, maxTier, nestedDots, provincePath, territories } from '../model/nested'
-import { countryLabels, endpointAtTier, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
-import { fitLabel } from '../model/labelfit'
+import { countryPath, countryRings, maxTier, nestedDots, provincePath, provinceRings, territories } from '../model/nested'
+import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
+import { fitLabel, fitRegionLabel } from '../model/labelfit'
 import type { FitLine } from '../model/labelfit'
 import { parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
@@ -76,6 +79,10 @@ const BASE_S = [0.8, 1.6, 3.0, 5.5, 9.5, 14]
 const LEVEL_NAME = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_NAME[i] ?? `level ${i}`)
 const LEVEL_S = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_S[i] ?? BASE_S[BASE_S.length - 1] * Math.pow(1.5, i - (BASE_S.length - 1)))
 const FLY_MS = 260
+// a LOOK's flight (a Connections click) can cross the whole map AND change
+// level in one move — at the wheel-step 260ms it read as a cut, not a flight.
+// Slow enough for the eye to keep the territory; wheel steps stay snappy.
+const LOOK_FLY_MS = 750
 const FADE = 'fill-opacity 350ms, stroke-opacity 350ms, stroke-width 350ms'
 
 // ── THE CONTEXT WINDOW ───────────────────────────────────────────────────────
@@ -128,7 +135,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   // The writers are pulled out by name because they are the STABLE part of the
   // bus (useCallback'd for exactly this) — `bus` itself is a fresh object every
   // render, so an effect depending on it would fire every render.
-  const { setHover: busSetHover, endHover: busEndHover } = bus
+  const { setHover: busSetHover, endHover: busEndHover, clearFocus: busClearFocus } = bus
   const [hover, setHover] = useState<string | null>(null)
   const hoverId = bus.hover
 
@@ -140,23 +147,29 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     setHover((h) => (h === id ? null : h))
     busEndHover(id)
   }
-  // a level change swaps which paths are hit targets mid-hover, so no
-  // pointerleave ever fires on the old one — clear it explicitly, on the bus
-  // too, or a spotlight stays lit on a cell the cursor already left.
-  // (This used to need a whole ref-mirror, because onHover was an unmemoized
-  // parent callback. A stable writer deletes the ref.)
-  useEffect(() => {
-    setHover(null)
-    busSetHover(null)
-  }, [level, busSetHover])
-
-  // refs mirror state for the raw wheel listener (deps [])
+  // refs mirror state for the raw wheel listener (deps []) — hoverRef feeds the
+  // level-change clear below, which must read the CURRENT local hover without
+  // re-running on every hover move
   const viewRef = useRef(view)
   const levelRef = useRef(level)
+  const hoverRef = useRef(hover)
   useEffect(() => {
     viewRef.current = view
     levelRef.current = level
+    hoverRef.current = hover
   })
+
+  // a level change swaps which paths are hit targets mid-hover, so no
+  // pointerleave ever fires on the old one — clear it explicitly, on the bus
+  // too, or a spotlight stays lit on a cell the cursor already left. But end
+  // only OUR OWN published id (endHover is guarded on it): a look flight also
+  // changes level, and blanking the whole channel would kill the foreign hover
+  // standing on the very row that asked for the flight.
+  useEffect(() => {
+    const h = hoverRef.current
+    if (h) busEndHover(h)
+    setHover(null)
+  }, [level, busEndHover])
 
   useEffect(() => {
     const svg = svgRef.current
@@ -177,14 +190,14 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   }
   useEffect(() => cancelFlight, [])
 
-  const flyTween = (target: View) => {
+  const flyTween = (target: View, ms = FLY_MS) => {
     cancelFlight()
     const from = viewRef.current
     const c0 = { x: (U_CX - from.tx) / from.s, y: (U_CY - from.ty) / from.s }
     const c1 = { x: (U_CX - target.tx) / target.s, y: (U_CY - target.ty) / target.s }
     const t0 = performance.now()
     const tick = (now: number) => {
-      const t = Math.min(1, (now - t0) / FLY_MS)
+      const t = Math.min(1, (now - t0) / ms)
       const e = 1 - Math.pow(1 - t, 3)
       const sNow = from.s * Math.pow(target.s / from.s, e)
       const cx = c0.x + (c1.x - c0.x) * e
@@ -196,7 +209,8 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   }
 
   /** step to a level: set the stratum, fly to its canonical scale, keeping
-   * `about` (user coords) fixed under the cursor */
+   * `about` (user coords) fixed under the cursor. Always a USER gesture (wheel
+   * step, double-click, level button). */
   const flyToLevel = (l: number, about?: XY) => {
     setLevel(l)
     levelRef.current = l
@@ -206,14 +220,38 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     flyTween({ s, tx: a.x - ((a.x - v.tx) / v.s) * s, ty: a.y - ((a.y - v.ty) / v.s) * s })
   }
 
-  // Esc clears the selection overlay without touching the camera
+  // ── LOOK (SelfNotes audit): a CLICK in the Connections pane flies the camera
+  // — a hover never does, it only highlights. The pane stamps bus.peek with a
+  // fresh seq per click, so re-looking at the same node after panning away is a
+  // fresh command. The map answers by flying to the node's territory at its
+  // tier's canonical scale and KEEPING it lit (the spotlight below). No
+  // fly-home: a look is navigation, not a glance — the camera is simply the
+  // user's again the moment they grab it (drag, wheel, level buttons).
+  const peek = bus.peek
+  useEffect(() => {
+    if (!peek) return
+    const t = flightTargetOf(peek.id)
+    if (!t) return
+    setLevel(t.tier)
+    levelRef.current = t.tier
+    const s = LEVEL_S[t.tier]
+    flyTween({ s, tx: U_CX - t.c.x * s, ty: U_CY - t.c.y * s }, LOOK_FLY_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peek])
+
+  // Esc clears the selection overlay without touching the camera. It also
+  // clears the FOCUS — "nothing selected" has to be a real, reachable state
+  // for the Connections pane's hover preview to have anywhere to live.
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') setSel(null)
+      if (ev.key === 'Escape') {
+        setSel(null)
+        busClearFocus()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [busClearFocus])
 
   const toUser = (clientX: number, clientY: number) => {
     const rect = svgRef.current!.getBoundingClientRect()
@@ -261,9 +299,11 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
 
   const regionClick = (id: string) => {
     if (dragDist.current > 4) return
-    // clicking the selected cell again DESELECTS it (2026-07-13)
+    // clicking the selected cell again DESELECTS it (2026-07-13) — and clears
+    // the focus with it, so the Studio agrees nothing is selected
     if (sel === id) {
       setSel(null)
+      busClearFocus()
       return
     }
     setSel(id)
@@ -280,6 +320,9 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   // which of their edges survive the roll-up to this grain, and how those
   // collapse into one road per pair. All of it is model/atlas.ts's job now.
   const { tier: selTier, arrows, bundles } = useMemo(() => roadsFor(sel), [sel])
+  // a selection below the topic grain gets empty roads from roadsFor — the
+  // chip needs to say "of its own", not just "none", or the map looks broken
+  const selBelowTopic = sel != null && selTier === 2 && !byId.get(sel)!.topic
 
   // viewport in world coords, for culling the deep tiers
   const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
@@ -301,8 +344,27 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   const labelFit = useMemo(() => {
     const active = new Map<string, FitLine[]>()
     const ghost = new Map<string, FitLine[]>()
-    if (level < 2) return { active, ghost }
+    // REGION names (SelfNotes: "labels overlap / region text not wrapped"):
+    // the L0/L1 names go through the same wrap-into-the-cell mechanic as the
+    // deep tiers now, against the honest region chord — with fitRegionLabel's
+    // shrink instead of a drop, because they are the only names their level
+    // has. Computed one level past their visibility window so the 350ms
+    // opacity fades keep an element to fade.
+    const region = new Map<string, { lines: FitLine[]; fs: number }>()
     const world = (v: number) => (v * f) / LEVEL_S[level]
+    if (level <= 2)
+      for (const c of countryLabels) {
+        const size = level === 0 ? 24 : PARENT_LABEL_PX
+        const fit = fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size))
+        region.set(c.key, { lines: fit.lines, fs: size * fit.shrink })
+      }
+    if (level <= 3)
+      for (const m of provinceLabels) {
+        const size = level <= 1 ? 15 : PARENT_LABEL_PX
+        const fit = fitRegionLabel(m.label, provinceRings[m.key], m.x, m.y, world(size))
+        region.set(m.key, { lines: fit.lines, fs: size * fit.shrink })
+      }
+    if (level < 2) return { active, ghost, region }
     for (const t of territories) {
       if (t.tier === level || (t.leaf && t.tier < level)) {
         const fit = fitLabel(byId.get(t.id)!.title, t, world(t.tier === level ? 12.5 : 11.5), false)
@@ -311,7 +373,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
         ghost.set(t.id, fitLabel(byId.get(t.id)!.title, t, world(PARENT_LABEL_PX), true)!)
       }
     }
-    return { active, ghost }
+    return { active, ghost, region }
   }, [level, f])
 
   // territories in play: everything up to one tier below the stratum (so the
@@ -331,7 +393,13 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   // spotlit, at any level: a deep concept lights its own small cell inside its
   // topic, which is exactly the "where does this sit?" answer. Display only —
   // the camera never moves, so a hover can never steal the view.
-  const spotId = hoverId && hoverId !== hover ? hoverId : null
+  //
+  // The spotlight also carries the LOOK: the last clicked Connections node
+  // stays lit — lifted to its owning topic when it has no cell of its own —
+  // until the look is superseded (next look, any focus change). "Highlight" is
+  // half of what the click asked for; the flight above is the other half.
+  const lookId = peek ? (outlineOf(peek.id) ? peek.id : endpointAtTier(peek.id, 2)) : null
+  const spotId = hoverId && hoverId !== hover ? hoverId : lookId && lookId !== sel ? lookId : null
   const spotOutline = spotId ? outlineOf(spotId) : undefined
 
   // item 2: the styled, IMMEDIATE title readout — whichever cell is highlighted
@@ -371,6 +439,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
         data-zoom={view.s.toFixed(2)}
         data-level={level}
         data-sel={sel ?? undefined}
+        data-peek={peek?.id}
         style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
         onPointerDown={(ev) => {
           cancelFlight()
@@ -394,9 +463,13 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           setDragging(false)
         }}
         onClick={(ev) => {
-          // click on water (the svg itself, no active cell under the cursor) clears
+          // click on water (the svg itself, no active cell under the cursor)
+          // clears — selection AND focus, the map's "stand nowhere" gesture
           if (dragDist.current > 4) return
-          if (ev.target === svgRef.current) setSel(null)
+          if (ev.target === svgRef.current) {
+            setSel(null)
+            busClearFocus()
+          }
         }}
         onDoubleClick={(ev) => {
           const u = toUser(ev.clientX, ev.clientY)
@@ -531,36 +604,50 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
               labels the reader was zooming in to read. Ghosts are background;
               they go in the background. */}
           <g pointerEvents="none">
-            {countryLabels.map((c) => (
-              <text
-                key={c.key}
-                x={c.x}
-                y={c.y}
-                textAnchor="middle"
-                fontSize={px(level === 0 ? 24 : PARENT_LABEL_PX)}
-                fontWeight={800}
-                fill={colorOf(c.key)}
-                opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
-                style={{ userSelect: 'none', transition: 'opacity 350ms' }}
-              >
-                {c.label}
-              </text>
-            ))}
-            {provinceLabels.map((m) => (
-              <text
-                key={m.key}
-                x={m.x}
-                y={m.y}
-                textAnchor="middle"
-                fontSize={px(level === 1 ? 15 : PARENT_LABEL_PX)}
-                fontWeight={level === 1 ? 700 : 800}
-                fill={level === 1 ? inkOf(m.key) : colorOf(m.key)}
-                opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
-                style={{ userSelect: 'none', transition: 'opacity 350ms' }}
-              >
-                {m.label}
-              </text>
-            ))}
+            {countryLabels.map((c) => {
+              const fit = labelFit.region.get(c.key)
+              if (!fit) return null
+              return (
+                <text
+                  key={c.key}
+                  data-regionlabel={c.key}
+                  textAnchor="middle"
+                  fontSize={px(fit.fs)}
+                  fontWeight={800}
+                  fill={colorOf(c.key)}
+                  opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
+                  style={{ userSelect: 'none', transition: 'opacity 350ms' }}
+                >
+                  {fit.lines.map((ln, i) => (
+                    <tspan key={i} x={ln.x} y={ln.y}>
+                      {ln.text}
+                    </tspan>
+                  ))}
+                </text>
+              )
+            })}
+            {provinceLabels.map((m) => {
+              const fit = labelFit.region.get(m.key)
+              if (!fit) return null
+              return (
+                <text
+                  key={m.key}
+                  data-regionlabel={m.key}
+                  textAnchor="middle"
+                  fontSize={px(fit.fs)}
+                  fontWeight={level === 1 ? 700 : 800}
+                  fill={level === 1 ? inkOf(m.key) : colorOf(m.key)}
+                  opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
+                  style={{ userSelect: 'none', transition: 'opacity 350ms' }}
+                >
+                  {fit.lines.map((ln, i) => (
+                    <tspan key={i} x={ln.x} y={ln.y}>
+                      {ln.text}
+                    </tspan>
+                  ))}
+                </text>
+              )
+            })}
             {level >= 3 &&
               mounted
                 // the window admits ONE territory-grain ghost: the parent
@@ -637,6 +724,27 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
               readability, arrowhead at the target. ─────────────────────── */}
           {sel && (
             <g data-seloverlay pointerEvents="none">
+              {/* the selection's NEIGHBOURHOOD (2026-07-17): every cell a road
+                  reaches gets a wash of its own color too — "what is this
+                  connected to" reads from the fills, not just the arrows.
+                  Deliberately quieter than the selected cell on every axis
+                  (0.1 vs 0.2 fill, hairline vs 3px border), and painted FIRST
+                  so the primary stays the loudest thing in the overlay. It
+                  follows the roads' hover dim, so pointing at one counterpart
+                  recedes the rest of the neighbourhood with its roads. */}
+              {[...new Set(bundles.flatMap((bd) => [bd.src, bd.tgt]))]
+                .filter((id) => id !== sel && id !== endpointAtTier(sel, selTier))
+                .map((cp) => {
+                  const o = outlineOf(cp)
+                  if (!o) return null
+                  const dim = anyRoadLit && litRoad !== cp
+                  return (
+                    <g key={cp} data-selconn={cp} opacity={dim ? 0.25 : 1} style={{ transition: 'opacity 120ms' }}>
+                      <path d={o} fill={colorOf(cp)} fillOpacity={0.1} stroke="#ffffff" strokeWidth={px(2.5)} strokeOpacity={0.9} />
+                      <path d={o} fill="none" stroke={colorOf(cp)} strokeWidth={px(1.3)} strokeOpacity={0.6} />
+                    </g>
+                  )
+                })}
               {/* item 9: the selected cell used to be a hairline outline and
                   nothing else — far too quiet once the capital dots went. It now
                   also TINTS, in its own tree color: a saturated cell among pale
@@ -778,7 +886,9 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 ) : null
               })
             ) : (
-              <span className="text-slate-400">{selTier < 2 ? 'no outward links at this level' : 'no typed links'}</span>
+              <span className="text-slate-400">
+                {selTier < 2 ? 'no outward links at this level' : selBelowTopic ? 'no typed links of its own — relations live at the topic grain' : 'no typed links'}
+              </span>
             )}
             <span className="text-slate-400">· click again, water or Esc to clear</span>
           </span>

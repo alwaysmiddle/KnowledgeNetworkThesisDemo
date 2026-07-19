@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest'
 
 import { byId, domainIds, domainOf, edges, nodes, topicIds, topicsUnder } from '../corpus/graph'
 import { provinceIds, provinceOf, topicAnchorOf } from './flat'
-import { endpointAtTier, outlineOf, roadsFor, tierOf } from './atlas'
+import { endpointAtTier, flightTargetOf, outlineOf, roadsFor, tierOf } from './atlas'
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
@@ -113,15 +113,20 @@ describe('rolling up to a coarser grain', () => {
     }
   })
 
-  test('a DEEP node borrows its owning topic\'s edges — that is the "via" in the pane', () => {
-    // A concept four levels below a topic has no edges of its own (the corpus
-    // forbids them), but selecting it must still show you something true: the
-    // relations of the topic you are standing inside.
+  test('a DEEP node draws NO roads — the map refuses the lift, like the pane', () => {
+    // A concept below a topic has no edges of its own (the corpus forbids
+    // them). Until 2026-07-17 the overlay borrowed the owning topic's roads
+    // here — the map-side twin of the pane's retired "via" lift — which kept
+    // the parent's arrows on screen for every relation-less child. Now the
+    // selection tint is all a deep cell gets; the topic's roads belong to the
+    // topic's selection.
     const deep = nodes.filter((n) => !n.topic && topicsUnder(n.id).length === 0 && n.parentId).slice(0, 40)
+    expect(deep.length).toBeGreaterThan(0)
     for (const d of deep) {
-      const own = roadsFor(d.id)
-      const anchorArrows = own.arrows
-      expect(anchorArrows.length, `${d.id} shows nothing`).toBeGreaterThan(0)
+      const r = roadsFor(d.id)
+      expect(r.arrows, `${d.id} borrowed arrows`).toEqual([])
+      expect(r.bundles, `${d.id} borrowed bundles`).toEqual([])
+      expect(r.tier, d.id).toBe(2) // still a real tier — the chip reads it
     }
   })
 })
@@ -186,5 +191,26 @@ describe('endpointAtTier — the road a hovered counterpart lights (item 3)', ()
       expect(endpointAtTier(d.id, 2), d.id).toBe(owner)
       expect(endpointAtTier(d.id, 0), d.id).toBe(domainOf(owner))
     }
+  })
+})
+
+describe('flightTargetOf — where the peek flies the camera', () => {
+  test('every selectable node has a target, at its own grain', () => {
+    for (const id of SELECTABLE) {
+      const t = flightTargetOf(id)!
+      expect(t, id).not.toBeNull()
+      expect(t.tier, id).toBe(domainIds.includes(id) ? 0 : provinceIds.includes(id) ? 1 : 2)
+      expect(Number.isFinite(t.c.x) && Number.isFinite(t.c.y), id).toBe(true)
+    }
+  })
+
+  test('a deep node flies to a real territory; an unknown id flies nowhere', () => {
+    const deep = nodes.filter((n) => !n.topic && n.parentId && topicsUnder(n.id).length === 0).slice(0, 30)
+    for (const d of deep) {
+      const t = flightTargetOf(d.id)
+      expect(t, d.id).not.toBeNull()
+      expect(t!.tier, d.id).toBeGreaterThanOrEqual(2)
+    }
+    expect(flightTargetOf('no-such-node')).toBeNull()
   })
 })

@@ -8,13 +8,14 @@
 // force=true (the parent watermark ghost) returns its best split regardless:
 // orientation text may bleed, it must not vanish.
 //
-// Lifted out of NestedAtlasView 2026-07-14. It is pure, it is the thing the
-// deferred "labels still overlap / region text not wrapped" note is about, and
-// it was sitting in the middle of a 948-line component where no test could see
-// it.
+// Lifted out of NestedAtlasView 2026-07-14. It is pure, and it was sitting in
+// the middle of a 948-line component where no test could see it. 2026-07-16
+// the region variant below closed the "labels overlap / region text not
+// wrapped" note: L0/L1 names wrap through the same mechanic now.
 
-import { chordAt } from './nested'
+import { chordAt, regionChordAt } from './nested'
 import type { Territory } from './nested'
+import type { XY } from './derive'
 
 const CHAR_W = 0.58 // ≈ average glyph width / font-size of the UI sans
 const FIT = 0.88 // fraction of the chord a line may fill
@@ -50,4 +51,55 @@ export function fitLabel(title: string, t: Territory, fs: number, force: boolean
   }
   if (best && best.over <= 0) return [best.l1, best.l2]
   return force ? (best ? [best.l1, best.l2] : [one]) : null
+}
+
+// ── Region names (SelfNotes: "labels overlap / region text not wrapped") ─────
+// The L0 domain and L1 module names used to be single unwrapped lines at their
+// centroids — long names ran two cells over and piled onto each other. They now
+// go through the same wrap-into-the-cell mechanic as the deep tiers, against
+// the honest region chord (regionChordAt — non-convex, multi-ring), with one
+// extra lever the territory labels don't need: these are the ONLY names on
+// their level, so instead of dropping an overflowing one, the FONT SHRINKS
+// step by step until the best split fits (floored — below ~½ size a name is
+// noise, and an honest small bleed beats an absent name).
+
+export interface RegionFit {
+  lines: FitLine[]
+  /** multiply the intended font size by this — 1 when the name fit as asked */
+  shrink: number
+}
+
+export function fitRegionLabel(title: string, rings: XY[][], cx: number, cy: number, fs: number, minShrink = 0.55): RegionFit {
+  const attempt = (k: number): { lines: FitLine[]; over: number } => {
+    const f = fs * k
+    const lh = f * 1.12
+    const wOf = (s: string) => s.length * f * CHAR_W
+    const at = (y: number, text: string) => {
+      const c = regionChordAt(rings, y, cx)
+      return {
+        x: c ? (c[0] + c[1]) / 2 : cx,
+        y: y + f * 0.35,
+        text,
+        over: wOf(text) - (c ? (c[1] - c[0]) * FIT : 0),
+      }
+    }
+    const one = at(cy, title)
+    if (one.over <= 0) return { lines: [one], over: one.over }
+    const words = title.split(' ')
+    let best: { l1: FitLine; l2: FitLine; over: number } | null = null
+    for (let i = 1; i < words.length; i++) {
+      const l1 = at(cy - lh / 2, words.slice(0, i).join(' '))
+      const l2 = at(cy + lh / 2, words.slice(i).join(' '))
+      const over = Math.max(l1.over, l2.over)
+      if (!best || over < best.over) best = { l1, l2, over }
+    }
+    return best ? { lines: [best.l1, best.l2], over: best.over } : { lines: [one], over: one.over }
+  }
+  let k = 1
+  let a = attempt(k)
+  while (a.over > 0 && k > minShrink) {
+    k = Math.max(minShrink, k * 0.9)
+    a = attempt(k)
+  }
+  return { lines: a.lines, shrink: k }
 }
