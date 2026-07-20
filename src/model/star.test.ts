@@ -133,7 +133,7 @@ describe('starFor', () => {
     expect(ORDER.length).toBeGreaterThan(1)
     for (const t of topicIds) {
       for (const n of starFor(t).nodes) {
-        const idx = n.edges.map((e) => ['depends_on', 'data_flow', 'references', 'implements'].indexOf(e.type))
+        const idx = n.edges.map((e) => ['depends_on', 'uses', 'see_also', 'implemented_with'].indexOf(e.type))
         expect([...idx].sort((a, b) => a - b), `${t}→${n.id}`).toEqual(idx)
       }
     }

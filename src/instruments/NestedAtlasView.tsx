@@ -106,7 +106,7 @@ const PARENT_LABEL_PX = 26
 const ancBorderO = (d: number) => (d === 1 ? 0.6 : 0)
 const ancLabelO = (d: number) => (d === 1 ? 0.15 : 0)
 
-const EDGE_ORDER: EdgeType[] = ['depends_on', 'data_flow', 'implements', 'references']
+const EDGE_ORDER: EdgeType[] = ['depends_on', 'uses', 'implemented_with', 'see_also']
 
 interface View {
   tx: number

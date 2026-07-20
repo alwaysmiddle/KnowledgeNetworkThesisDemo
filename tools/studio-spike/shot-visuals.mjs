@@ -298,13 +298,13 @@ if ((await panel.getAttribute('data-focus')) !== picked) errors.push('nav: secon
 // StudioView, and nobody made them. The registry now generates one per edge
 // type, so this pane exists for free. Toggle it on over the focused topic, check
 // it renders, toggle it back off so the cockpit is intact for the frames below.
-await page.getByLabel('studio-inst-lens-implements').click()
+await page.getByLabel('studio-inst-lens-implemented_with').click()
 await page.waitForTimeout(600)
 await page.screenshot({ path: OUT + '/4c-generated-lens.png' })
-const lensPane = page.locator('[aria-label="studio-pane-lens-implements"][data-slot="on"]')
-if ((await lensPane.count()) !== 1) errors.push('generated lens: the lens-implements pane did not mount')
+const lensPane = page.locator('[aria-label="studio-pane-lens-implemented_with"][data-slot="on"]')
+if ((await lensPane.count()) !== 1) errors.push('generated lens: the lens-implemented_with pane did not mount')
 else if (!(await lensPane.innerText()).trim()) errors.push('generated lens: the pane mounted but rendered nothing')
-await page.getByLabel('studio-inst-lens-implements').click()
+await page.getByLabel('studio-inst-lens-implemented_with').click()
 await page.waitForTimeout(300)
 
 // 5 — atlas at L4 (concepts): deep-tier wrap + honest label drops

@@ -3,13 +3,13 @@
 // through `type` on one side, everything that points AT it on the other.
 // lens.ts does the graph work (BFS cones, title-sorted, frontier counts);
 // this file only lays the two cones out as chips + arrows and turns a chip
-// click back into a focus write. Three copies of this component (one per
-// relation type) are what the Coding preset composes side by side — the
-// same focused leaf read three different ways at once.
+// click back into a focus write. One copy of this component exists per
+// relation type, so several can be picked at once to read the same focused
+// leaf through several relations side by side.
 //
 // Layout differs by type because the RELATION shape differs: depends_on
-// reads as build layers (prerequisites above, dependents below); data_flow
-// reads as a pipeline (used-by left, uses right); references reads as a fan
+// reads as build layers (prerequisites above, dependents below); uses
+// reads as a pipeline (used-by left, uses right); see_also reads as a fan
 // (no natural up/down or left/right, so it's a ring). A node that appears on
 // BOTH sides (a cycle) gets two independent chips, one per side's own
 // position map — drawing its two roles separately is the point: it visibly
@@ -43,16 +43,16 @@ interface LensConfig {
 }
 
 // depends_on: build layers (what it builds on above, what builds on it below)
-// data_flow: pipeline (what uses it left, what it uses right)
-// references / implements: no natural axis — a fan
+// uses: pipeline (what uses it left, what it uses right)
+// see_also / implemented_with: no natural axis — a fan
 const LENS_CONFIG: Record<EdgeType, LensConfig> = {
   depends_on: { orientation: 'vertical', outLabel: 'builds on', inLabel: 'built on by' },
-  data_flow: { orientation: 'horizontal', outLabel: 'uses', inLabel: 'used by' },
-  references: { orientation: 'fan', outLabel: 'see also', inLabel: 'noted by' },
-  implements: { orientation: 'fan', outLabel: 'implemented with', inLabel: 'underpins' },
+  uses: { orientation: 'horizontal', outLabel: 'uses', inLabel: 'used by' },
+  see_also: { orientation: 'fan', outLabel: 'see also', inLabel: 'noted by' },
+  implemented_with: { orientation: 'fan', outLabel: 'implemented with', inLabel: 'underpins' },
 }
 
-const DEFAULT_DEPTH: Record<EdgeType, 1 | 2> = { depends_on: 2, data_flow: 2, references: 1, implements: 1 }
+const DEFAULT_DEPTH: Record<EdgeType, 1 | 2> = { depends_on: 2, uses: 2, see_also: 1, implemented_with: 1 }
 
 const CHIP_W = 150
 const CHIP_H = 30
@@ -188,7 +188,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
   const scene = useMemo(() => (model ? buildScene(model, config.orientation) : null), [model, config])
 
   // Center the FOCUS chip in the viewport: the pane opens at scroll (0,0),
-  // which for wide models (e.g. data_flow's horizontal pipeline) leaves the
+  // which for wide models (e.g. uses' horizontal pipeline) leaves the
   // focus chip off-screen. Stateless lens, no scroll continuity to preserve,
   // so an instant jump on every recenter (new focus/type/depth) is correct.
   //

@@ -52,7 +52,7 @@ const fail = (msg) => {
   console.log('FAIL:', msg)
 }
 
-const LENS_TYPES = ['depends_on', 'references', 'data_flow']
+const LENS_TYPES = ['depends_on', 'see_also', 'uses']
 const focusReadout = page.locator('[data-focus]')
 
 await page.goto('http://localhost:3000')
@@ -179,8 +179,8 @@ const unfoldgOn = await slotOf('unfoldg')
 const docOn = await slotOf('doc')
 const walkOn = await slotOf('walk')
 const depsOn = await slotOf('lens-depends_on')
-const refsOn = await slotOf('lens-references')
-const dataflowOn = await slotOf('lens-data_flow')
+const refsOn = await slotOf('lens-see_also')
+const dataflowOn = await slotOf('lens-uses')
 console.log(
   'teaching preset: map=', mapOn, 'unfoldg=', unfoldgOn, 'doc=', docOn, 'walk=', walkOn,
   '(all expect true) · lenses on=', depsOn, refsOn, dataflowOn, '(all expect false/benched)',

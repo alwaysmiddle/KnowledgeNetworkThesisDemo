@@ -10,7 +10,7 @@
 import { DEEP } from './deep'
 import type { DeepSpec } from './deep'
 
-export type EdgeType = 'depends_on' | 'data_flow' | 'references' | 'implements'
+export type EdgeType = 'depends_on' | 'uses' | 'see_also' | 'implemented_with'
 
 export interface GNode {
   id: string
@@ -47,17 +47,17 @@ export const DOMAIN_COLOR: Record<string, string> = {
 
 export const EDGE_COLOR: Record<EdgeType, string> = {
   depends_on: '#94a3b8', // neutral slate — the backbone, deliberately quiet
-  data_flow: '#eb6834', // orange
-  references: '#e87ba4', // magenta
-  implements: '#e34948', // red
+  uses: '#eb6834', // orange
+  see_also: '#e87ba4', // magenta
+  implemented_with: '#e34948', // red
 }
 export const MIXED_EDGE_COLOR = '#64748b' // aggregate of several types
 
 export const EDGE_LABEL: Record<EdgeType, string> = {
   depends_on: 'builds on',
-  data_flow: 'uses',
-  references: 'see also',
-  implements: 'implemented with',
+  uses: 'uses',
+  see_also: 'see also',
+  implemented_with: 'implemented with',
 }
 
 // ── Tree ────────────────────────────────────────────────────────────────────
@@ -251,9 +251,9 @@ function addEdge(source: string, target: string, type: EdgeType) {
   E.push({ id: `e${E.length}`, source, target, type })
 }
 const on = (x: string, y: string) => addEdge(x, y, 'depends_on')
-const uses = (x: string, y: string) => addEdge(x, y, 'data_flow')
-const impl = (x: string, y: string) => addEdge(x, y, 'implements')
-const also = (a: string, b: string) => addEdge(a, b, 'references')
+const uses = (x: string, y: string) => addEdge(x, y, 'uses')
+const impl = (x: string, y: string) => addEdge(x, y, 'implemented_with')
+const also = (a: string, b: string) => addEdge(a, b, 'see_also')
 
 // — The systems ladder: from physics to a running program —
 on('dig-transistors-logic-gates', 'dm-propositional-logic') // a gate IS a proposition in silicon
@@ -486,7 +486,7 @@ export const edges: GEdge[] = E
       const [s, t] = k.split('>')
       if (s < t && keys.has(`${t}>${s}`)) pairs++
     }
-    if (type === 'references') seeAlsoPairs = pairs
+    if (type === 'see_also') seeAlsoPairs = pairs
     else if (pairs > 0) throw new Error(`reciprocal pair in directed relation "${type}"`)
   }
   if (seeAlsoPairs < 3) throw new Error(`expected >= 3 deliberate see-also pairs, found ${seeAlsoPairs}`)

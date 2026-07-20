@@ -25,10 +25,13 @@ export default function StudioView() {
   // `mounted` is a superset of `active`: a benched pane stays mounted at
   // display:none so its internal state (an unfold canvas, a zoom level) survives
   // being toggled off and back on.
+  // The opening composition is PRESETS[0] — every field of it, id and geometry
+  // included. It used to be spelled out three times over, which let the flex
+  // weights silently sit out the first render until you clicked a preset.
   const [active, setActive] = useState<InstrumentId[]>(PRESETS[0].active)
   const [mounted, setMounted] = useState<Set<InstrumentId>>(() => new Set(PRESETS[0].active))
-  const [presetId, setPresetId] = useState<Preset['id'] | null>('coding')
-  const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>({})
+  const [presetId, setPresetId] = useState<Preset['id'] | null>(PRESETS[0].id)
+  const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>(PRESETS[0].flex ?? {})
 
   const toggle = (inst: InstrumentId) => {
     setActive((prev) => (prev.includes(inst) ? prev.filter((i) => i !== inst) : [...prev, inst]))

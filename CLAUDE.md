@@ -1,9 +1,15 @@
 # KnowledgeNetworkThesisDemo Orientation
 
-This repository holds the **code** for the implementation-first thesis demo (the
+This repository holds the **code** for the implementation-first thesis demo: the
 React app under `src/` — the Graph Disclosure Lab, one Studio of composable
-navigation instruments — and the deterministic `npm run map` architecture
-generator).
+navigation instruments.
+
+Its scope is the **teaching domain** of the knowledge network, iterated
+independently of the coding and infrastructure projects. The coder-shaped
+framing has been removed: there is no Coding preset and no `npm run map`
+architecture generator. The corpus's four relations are pedagogical
+(`depends_on`, `uses`, `see_also`, `implemented_with`), with `depends_on` — the
+prerequisite backbone — as the spine of a generated curriculum.
 
 **The knowledge base is NOT in this repo — it lives in the DocHub project.**
 DocHub (`D:\ShiZhong\MyCode\DocHub`, a Docusaurus site) is the single source of
@@ -30,10 +36,8 @@ skill is the authoring guide. Author knowledge docs there, not here.
 
 ## This repo's role
 
-- The app code (`src/`) and the deterministic architecture generator
-  (`npm run map`).
-- Agents open PRs here; the orchestration's `reconcile` step runs `npm run map`
-  and writes the generated diagram back into DocHub.
+- The app code (`src/`) and the spike tooling under `tools/`.
+- Agents open PRs here.
 - Do **not** author knowledge/design docs in this repo.
 
 ## Deprecated

@@ -11,7 +11,7 @@ import { edges, topicIds } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { curriculum, lensModel } from './lens'
 
-const TYPES: EdgeType[] = ['depends_on', 'data_flow', 'references', 'implements']
+const TYPES: EdgeType[] = ['depends_on', 'uses', 'see_also', 'implemented_with']
 // the corpus's richest builds-on cone, plus a spread of shapes: a source with
 // no prerequisites, a mid-ladder node, a hub
 const GOALS = ['cry-tls-certificates', 'dm-propositional-logic', 'alg-graph-traversal', 'auto-deployment-monitoring', 'os-virtual-memory']
@@ -108,7 +108,7 @@ describe('lensModel — "what is true from here", one relation, both directions'
 
   test('induced edges connect only nodes the cone actually shows', () => {
     for (const focus of ['cry-tls-certificates', 'web-http-rest']) {
-      const m = lensModel(focus, 'data_flow', 2)
+      const m = lensModel(focus, 'uses', 2)
       for (const side of [m.out, m.in]) {
         const shown = new Set([focus, ...side.levels.flat()])
         for (const e of side.edges) {

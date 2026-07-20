@@ -157,11 +157,16 @@ export const lensTypeOf = (id: string): EdgeType | undefined =>
   id.startsWith('lens-') ? (id.slice(5) as EdgeType) : undefined
 
 // ── Presets ─────────────────────────────────────────────────────────────────
-// A preset is (instrument list + geometry), not an instrument list alone: Coding
-// wants several small glanceable panes, Teaching wants one or two canvases with
-// room to breathe.
+// A preset is (instrument list + geometry), not an instrument list alone:
+// Teaching wants one or two canvases with room to breathe, Cockpit wants
+// territory and prose side by side on one focus.
+//
+// A third preset, Coding (tree + three relation lenses in small glanceable
+// panes), was removed when this repo narrowed to the teaching domain. Its
+// panes all survive as individually pickable instruments — only the curated
+// coder-shaped composition is gone.
 export interface Preset {
-  id: 'coding' | 'teaching' | 'cockpit'
+  id: 'teaching' | 'cockpit'
   label: string
   hint: string
   /** column order; strips always sit at the bottom */
@@ -170,12 +175,6 @@ export interface Preset {
 }
 
 export const PRESETS: Preset[] = [
-  {
-    id: 'coding',
-    label: 'Coding',
-    hint: 'tree + relation lenses — every pane recenters on focus',
-    active: ['tree', 'lens-depends_on', 'lens-references', 'lens-data_flow'],
-  },
   {
     id: 'teaching',
     label: 'Teaching',
