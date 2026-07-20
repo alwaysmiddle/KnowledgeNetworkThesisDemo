@@ -1,19 +1,26 @@
-// Verification for the Studio tab (src/experiments/StudioView.tsx,
-// LensPane.tsx, lens.ts), the instrument-palette mock: every current view is
-// a pickable INSTRUMENT sharing one sync bus (focus / route / visited), and a
-// PRESET is a curated instrument list + layout. Same pattern as the other
-// spikes: createRequire -> playwright-core, msedge, headless, viewport
-// 1750x950, collect pageerror/console errors, exit nonzero on any. The
-// behaviors worth provoking:
-//   1. SIDEBAR PALETTE — all 11 instruments + 2 presets listed, Coding is the
-//      default composition (tree + three lenses, 4 panes on).
+// Verification for the Studio (src/studio/StudioView.tsx, LensPane.tsx,
+// lens.ts): every view is a pickable INSTRUMENT sharing one sync bus (focus /
+// route / visited), and a PRESET is a curated instrument list + layout. Same
+// pattern as the other spikes: createRequire -> playwright-core, msedge,
+// headless, viewport 1750x950, collect pageerror/console errors, exit nonzero
+// on any — but this one spawns its own vite (see below).
+//
+// The lens WORKSPACE (tree + three lenses) used to be the Coding preset and
+// the default composition. That preset was removed when the repo narrowed to
+// the teaching domain, so scenarios 1, 9 and 11 now compose it by hand from
+// the palette. Every pane involved still exists; only the curated shortcut is
+// gone, and hand-composing it exercises the toggle path more than clicking a
+// preset did. The behaviors worth provoking:
+//   1. SIDEBAR PALETTE — 15 instruments (11 views + one generated lens per
+//      relation type) and 2 presets listed; Teaching is the default
+//      composition (4 panes on); hand-toggling drops it to "custom
+//      composition" and yields the lens workspace.
 //   2/3. FOCUS BUS — picking a tree leaf writes focus; every lens pane reads
 //      it and recenters; clicking a chip INSIDE a lens writes focus back,
 //      recentering all three lenses at once (not just the one clicked in).
 //   4. DEPTH is local per-pane state, not bus state — toggling it changes
 //      only that lens's cone and exposes frontier counts at the cap.
-//   5. MANUAL TOGGLING after a preset de-highlights it ("custom
-//      composition") and composes side-by-side panes for comparison.
+//   5. SIDE-BY-SIDE comparison — adding map and contours to the composition.
 //   6/7/8. TEACHING PRESET — map + unfold-graph + document + walk strip,
 //      lenses benched (not unmounted). Growing the unfold graph paints
 //      visited rings on the map and drives the document pane; "teach me
@@ -21,8 +28,9 @@
 //      cone and drops it onto the shared route, ending AT the goal.
 //   9. ROUNDTRIP — switching preset only changes which panes are ON; a
 //      benched instrument (kept mounted, display:none) keeps its own state,
-//      so switching Teaching -> Coding -> Teaching must not lose the grown
-//      unfold graph or the route.
+//      so Teaching -> Cockpit -> Teaching must not lose the grown unfold
+//      graph or the route, and a lens re-shown after being benched reads
+//      CURRENT bus focus rather than the focus it was benched with.
 //   10. MAP CAMERA SYNC (asserted in 7, 8 and 10 via the svg's data-tx /
 //      data-ty / data-zoom): an unfold-graph open FLIES the map to the node
 //      plus its graph neighbors and pins it (neighbors held visible);
@@ -34,10 +42,40 @@
 //      show their topic-level empty state, teach disabled), and focusing a
 //      topic again restores the full lens picture.
 import { createRequire } from 'node:module'
-const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
+import { spawn } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
+
+const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const OUT = REPO + '/tools/studio-spike/out'
+const PORT = 5198
+mkdirSync(OUT, { recursive: true })
+
+const require = createRequire(REPO + '/package.json')
 const { chromium } = require('playwright-core')
 
-const OUT = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/tools/studio-spike/out'
+// Spawns vite ITSELF, same as shot-visuals.mjs beside this file: backgrounded
+// dev servers die on this machine, so the script owns the server lifecycle
+// (spawn, wait for readiness, drive, kill) instead of assuming one is up.
+const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
+  cwd: REPO,
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
+let viteOut = ''
+await new Promise((res, rej) => {
+  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
+  const watch = (d) => {
+    viteOut += String(d)
+    // the banner is ANSI-styled — 'Local:' is split by escape codes
+    if (viteOut.includes('localhost:')) {
+      clearTimeout(t)
+      res()
+    }
+  }
+  vite.stdout.on('data', watch)
+  vite.stderr.on('data', watch)
+  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
+})
+
 const errors = []
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
@@ -53,32 +91,64 @@ const fail = (msg) => {
 }
 
 const LENS_TYPES = ['depends_on', 'see_also', 'uses']
-const focusReadout = page.locator('[data-focus]')
+// The Studio header's focus readout. Scoped to the header because the
+// Connections pane now publishes data-focus too, which made a bare
+// [data-focus] locator a strict-mode violation.
+const focusReadout = page.locator('[aria-label="studio-header"] [data-focus]')
 
-await page.goto('http://localhost:3000')
+await page.goto(`http://localhost:${PORT}/`)
 await page.waitForTimeout(600)
 
-// ── 1. enter Studio — sidebar palette, default Coding composition ─────────
-await page.getByRole('button', { name: /instrument palette/ }).click()
-await page.waitForTimeout(300)
-
+// ── 1. sidebar palette, default Teaching composition ───────────────────────
+// No entry click any more: the app IS the Studio (App.tsx), so the sidebar is
+// always mounted. This used to click a tab button in the old shell.
 const sidebar = page.locator('[aria-label="studio-sidebar"]')
 if (!(await sidebar.isVisible())) fail('sidebar not visible')
 
+// 11 views + one generated lens per relation type (4) = 15 rows.
 const instCount = await page.locator('[aria-label^="studio-inst-"]').count()
-console.log('sidebar instruments =', instCount, '(expect 11)')
-if (instCount !== 11) fail(`expected 11 instrument entries, got ${instCount}`)
+console.log('sidebar instruments =', instCount, '(expect 15)')
+if (instCount !== 15) fail(`expected 15 instrument entries, got ${instCount}`)
 
 const presetCount = await page.locator('[aria-label^="studio-preset-"]').count()
-console.log('sidebar presets =', presetCount, '(expect 2)')
+console.log('sidebar presets =', presetCount, '(expect 2 — teaching, cockpit)')
 if (presetCount !== 2) fail(`expected 2 preset buttons, got ${presetCount}`)
 
 let onPanes = await page.locator('[data-slot="on"]').count()
-console.log('coding preset default: panes on =', onPanes, '(expect 4 — tree + 3 lenses)')
+console.log('teaching preset default: panes on =', onPanes, '(expect 4 — map + unfold-graph + doc + walk)')
 if (onPanes !== 4) fail(`expected 4 panes on by default, got ${onPanes}`)
 
-await page.screenshot({ path: `${OUT}/01-coding-empty.png` })
-console.log('01-coding-empty.png taken')
+const defaultCaption = await sidebar.innerText()
+if (!defaultCaption.includes('accumulating, authored order')) {
+  fail(`sidebar does not show the teaching preset hint on load: "${defaultCaption.replace(/\s+/g, ' ')}"`)
+}
+
+await page.screenshot({ path: `${OUT}/01-teaching-default.png` })
+console.log('01-teaching-default.png taken')
+
+// The lens workspace used to be a preset of its own (Coding), removed when the
+// repo narrowed to the teaching domain. Its panes all still exist, so compose
+// it by hand — which doubles as the proof that manual toggling de-highlights
+// the active preset and drops the sidebar to "custom composition".
+for (const off of ['nested', 'unfoldg', 'doc', 'walk']) {
+  await page.locator(`[aria-label="studio-inst-${off}"]`).click()
+}
+for (const on of ['tree', 'lens-depends_on', 'lens-see_also', 'lens-uses']) {
+  await page.locator(`[aria-label="studio-inst-${on}"]`).click()
+}
+await page.waitForTimeout(400)
+
+onPanes = await page.locator('[data-slot="on"]').count()
+console.log('hand-composed lens workspace: panes on =', onPanes, '(expect 4 — tree + 3 lenses)')
+if (onPanes !== 4) fail(`expected 4 panes on after hand-composing, got ${onPanes}`)
+
+const customCaption = await sidebar.innerText()
+if (!customCaption.includes('custom composition')) {
+  fail('sidebar does not show "custom composition" after manual toggling')
+}
+
+await page.screenshot({ path: `${OUT}/01b-lens-workspace-empty.png` })
+console.log('01b-lens-workspace-empty.png taken')
 
 // ── 2. tree: expand Cryptography, click the TLS & Certificates leaf ───────
 const treePane = page.locator('[aria-label="studio-pane-tree"]')
@@ -152,7 +222,7 @@ console.log('deps chip count back at depth 2 =', depthCount2, '· frontier badge
 if (frontierBadges === 0) fail('expected at least one frontier badge (⤳ n) at depth 2, found none')
 
 // ── 5. sidebar compare: toggle Map on, then Contours on ────────────────────
-await page.locator('[aria-label="studio-inst-map"]').click()
+await page.locator('[aria-label="studio-inst-nested"]').click()
 await page.waitForTimeout(300)
 onPanes = await page.locator('[data-slot="on"]').count()
 console.log('after enabling map: panes on =', onPanes, '(expect 5)')
@@ -174,7 +244,7 @@ await page.locator('[aria-label="studio-preset-teaching"]').click()
 await page.waitForTimeout(400)
 
 const slotOf = async (inst) => (await page.locator(`[aria-label="studio-pane-${inst}"]`).getAttribute('data-slot')) === 'on'
-const mapOn = await slotOf('map')
+const mapOn = await slotOf('nested')
 const unfoldgOn = await slotOf('unfoldg')
 const docOn = await slotOf('doc')
 const walkOn = await slotOf('walk')
@@ -200,16 +270,8 @@ console.log('06-teaching-empty.png taken')
 // cone is EMPTY (the corpus has roots now), which would starve scenario 8's
 // curriculum — a named path guarantees a real prerequisite cone.
 const unfoldPane = page.locator('[aria-label="studio-pane-unfoldg"]')
-const mapPane = page.locator('[aria-label="studio-pane-map"]')
+const mapPane = page.locator('[aria-label="studio-pane-nested"]')
 const docPane = page.locator('[aria-label="studio-pane-doc"]')
-
-const mapSvg = mapPane.locator('svg').first()
-const mapCam = async () => ({
-  tx: parseFloat(await mapSvg.getAttribute('data-tx')),
-  ty: parseFloat(await mapSvg.getAttribute('data-ty')),
-  zoom: parseFloat(await mapSvg.getAttribute('data-zoom')),
-})
-const camBefore = await mapCam()
 
 await unfoldPane.getByRole('button', { name: /HTTP & REST/ }).first().click()
 await page.waitForTimeout(400)
@@ -224,16 +286,15 @@ for (const title of ['TCP & UDP', 'IP & Routing']) {
   await page.waitForTimeout(500)
 }
 
-// map sync: the last unfold open (IP & Routing) must have FLOWN the camera,
-// pinned the node, and held its graph neighbors visible on the map
-await page.waitForTimeout(700) // let the camera tween land
-const camAfterGrow = await mapCam()
-console.log('map camera: before =', JSON.stringify(camBefore), '· after unfold growth =', JSON.stringify(camAfterGrow), '(expect moved)')
-if (camAfterGrow.tx === camBefore.tx && camAfterGrow.ty === camBefore.ty && camAfterGrow.zoom === camBefore.zoom)
-  fail('map camera did not move after unfold-graph opens')
-if (!(await mapPane.getByRole('button', { name: /start walk here/ }).isVisible())) fail('map did not pin the unfold-opened node')
-if (!(await mapPane.getByText('Link Layer & Ethernet', { exact: true }).isVisible()))
-  fail('IP & Routing neighbor "Link Layer & Ethernet" not on the map after the fly (flyHold broken?)')
+// Three map assertions were dropped here, all testing behaviour the nested-
+// atlas rewrite removed rather than renamed: the unfold open FLYING the map
+// camera, a "start walk here" PIN button on the flown-to node, and flyHold
+// keeping graph neighbours visible. None of those strings appear anywhere in
+// src/ any more, and the bus now grants camera movement to the LOOK channel
+// alone (see the note where scenario 10 used to be). What survives here — the
+// unfold open driving FOCUS, the doc pane, and the visited count — is the part
+// of the sync that is still real.
+await page.waitForTimeout(700)
 
 const lastOpenedTitle = (await focusReadout.innerText()).trim()
 console.log('after growing 2 nodes: focus title =', JSON.stringify(lastOpenedTitle))
@@ -246,9 +307,10 @@ const visitedAfterGrow = parseInt(await page.locator('[aria-label="studio-visite
 console.log('studio-visited =', visitedAfterGrow, '(expect >= 3)')
 if (!(visitedAfterGrow >= 3)) fail(`expected studio-visited >= 3, got ${visitedAfterGrow}`)
 
-const visitedRings = await mapPane.locator('circle[data-visited]').count()
-console.log('map circle[data-visited] count =', visitedRings, '(expect >= 3)')
-if (!(visitedRings >= 3)) fail(`expected >= 3 circle[data-visited] on map, got ${visitedRings}`)
+// (The map used to paint circle[data-visited] rings for every visited node.
+// NestedAtlasView no longer mentions `visited` at all — the bus still tracks
+// it, but TrailStrip and the header counter above are its only consumers now,
+// so the ring assertion that stood here tested a removed representation.)
 
 const unfoldNodeCountAtScenario7 = await unfoldPane.locator('circle[data-node]').count()
 console.log('unfold pane circle[data-node] count =', unfoldNodeCountAtScenario7, '(captured for roundtrip check in 9)')
@@ -278,26 +340,32 @@ const lastCardText = (await stepCards.nth(stepCount - 1).innerText()).trim()
 console.log('last step card text =', JSON.stringify(lastCardText.replace(/\s+/g, ' ')), '· focused node title =', JSON.stringify(focusTitleAtTeach), '(expect last card to contain it — the goal comes last)')
 if (!lastCardText.includes(focusTitleAtTeach)) fail(`last step card "${lastCardText}" does not contain focused node title "${focusTitleAtTeach}"`)
 
-// teach also refits the map to the WHOLE curriculum path
-await page.waitForTimeout(700)
-const camAfterTeach = await mapCam()
-console.log('map camera after teach (whole-path fit) =', JSON.stringify(camAfterTeach), '(expect ≠ after-grow)')
-if (camAfterTeach.tx === camAfterGrow.tx && camAfterTeach.zoom === camAfterGrow.zoom)
-  fail('map camera did not change for the teach whole-path fit')
-
+// (Teach used to also refit the map to the WHOLE curriculum path. Same removed
+// camera contract as above — the curriculum still lands on the route and the
+// walk strip, which is what the assertions above verify.)
 await page.screenshot({ path: `${OUT}/08-teaching-curriculum.png` })
 console.log('08-teaching-curriculum.png taken')
 
-// ── 9. roundtrip: coding recenters on bus focus, teaching keeps state ──────
-await page.locator('[aria-label="studio-preset-coding"]').click()
+// ── 9. roundtrip: a re-shown lens recenters on bus focus, teaching keeps state
+// Was Teaching -> Coding -> Teaching; Coding is gone, so the switch goes via
+// Cockpit and the lenses are brought back by hand. The point is unchanged and
+// arguably sharper: these lens panes have been BENCHED (mounted, display:none)
+// since scenario 6, so re-showing them proves a benched instrument re-reads
+// current bus focus rather than replaying the focus it was benched with.
+await page.locator('[aria-label="studio-preset-cockpit"]').click()
 await page.waitForTimeout(400)
 
-const focusTitleCoding = (await focusReadout.innerText()).trim()
-console.log('coding preset (roundtrip): focus =', JSON.stringify(focusTitleCoding))
+for (const t of LENS_TYPES) {
+  await page.locator(`[aria-label="studio-inst-lens-${t}"]`).click()
+}
+await page.waitForTimeout(400)
+
+const focusTitleRoundtrip = (await focusReadout.innerText()).trim()
+console.log('roundtrip: focus =', JSON.stringify(focusTitleRoundtrip))
 for (const t of LENS_TYPES) {
   const header = page.locator(`[data-lens="${t}"] header`)
   const text = await header.innerText()
-  if (!text.includes(focusTitleCoding)) fail(`lens ${t} header does not show current bus focus "${focusTitleCoding}": "${text.replace(/\s+/g, ' ')}"`)
+  if (!text.includes(focusTitleRoundtrip)) fail(`lens ${t} header does not show current bus focus "${focusTitleRoundtrip}": "${text.replace(/\s+/g, ' ')}"`)
 }
 
 await page.locator('[aria-label="studio-preset-teaching"]').click()
@@ -314,38 +382,28 @@ if (routeBadgeAfterRoundtrip !== routeBadgeAtScenario8) fail(`expected route bad
 await page.screenshot({ path: `${OUT}/09-roundtrip.png` })
 console.log('09-roundtrip.png taken')
 
-// ── 10. map camera sync from the walk strip ────────────────────────────────
-// Drag the camera away by hand, refit the whole path with the walk header's
-// ⤢ button, then click an earlier step card: 'center' mode must PAN the map
-// (tx/ty move) without changing altitude (zoom identical).
-const mapBox = await mapSvg.boundingBox()
-await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2)
-await page.mouse.down()
-await page.mouse.move(mapBox.x + mapBox.width / 2 + 140, mapBox.y + mapBox.height / 2 + 60, { steps: 5 })
-await page.mouse.up()
-const camDragged = await mapCam()
-
-const fitBtn = page.locator('[aria-label="studio-walk-fit"]')
-if (!(await fitBtn.isVisible())) fail('walk header ⤢ path-on-map button missing')
-await fitBtn.click()
-await page.waitForTimeout(800)
-const camFit = await mapCam()
-console.log('cam dragged away =', JSON.stringify(camDragged), '→ after ⤢ path on map =', JSON.stringify(camFit), '(expect moved back)')
-if (camFit.tx === camDragged.tx && camFit.ty === camDragged.ty) fail('⤢ path on map did not move the camera')
-
-// no \b here: the card's textContent runs "step 2" straight into the title
-const step2Card = walkPane.locator('button', { hasText: /step 2(?!\d)/ }).first()
-await step2Card.click() // backtrack to step 2 — a walk interaction, so the map pans to it
-await page.waitForTimeout(800)
-const camStep = await mapCam()
-console.log('cam after step-2 card click =', JSON.stringify(camStep), '(expect same zoom, new center)')
-if (camStep.zoom !== camFit.zoom) fail(`walk step centering changed zoom: ${camFit.zoom} → ${camStep.zoom}`)
-if (Math.abs(camStep.tx - camFit.tx) < 1 && Math.abs(camStep.ty - camFit.ty) < 1) fail('walk step centering did not pan the map')
-await page.screenshot({ path: `${OUT}/10-walk-map-sync.png` })
-console.log('10-walk-map-sync.png taken')
+// ── 10. REMOVED — the camera contract it tested no longer exists ───────────
+// This scenario drove the map camera from the walk strip: a ⤢ "path on map"
+// button in the walk header, and a step-card click panning at constant zoom.
+// The bus has since narrowed which events may move a camera to exactly one
+// (bus.ts: "A LOOK — the one channel that MAY move a camera", published by
+// clicks in the Connections pane, explicitly never by hover). The ⤢ button
+// no longer exists anywhere in src/, and neither an unfold open nor "teach me
+// this" nor a walk step moves the camera any more — which is why the camera
+// assertions in scenarios 7 and 8 came out with this one.
+//
+// The surviving camera contract IS covered: shot-visuals.mjs drives the
+// Connections pane and asserts the look-flight and its hover non-interference.
 
 // ── 11. deep layers: walk the cs flagship spine to level 8 in the tree ─────
-await page.locator('[aria-label="studio-preset-coding"]').click()
+// Needs the tree and the lenses back; hand-composed, as in scenario 1, since
+// the Coding preset that used to supply this pairing is gone.
+for (const off of ['nested', 'unfoldg', 'doc', 'walk']) {
+  await page.locator(`[aria-label="studio-inst-${off}"]`).click()
+}
+for (const on of ['tree', 'lens-depends_on', 'lens-see_also', 'lens-uses']) {
+  await page.locator(`[aria-label="studio-inst-${on}"]`).click()
+}
 await page.waitForTimeout(400)
 
 // domains start expanded (depth-2 default); everything below needs its ▸.
@@ -402,6 +460,7 @@ await page.screenshot({ path: `${OUT}/11-deep-spine.png` })
 console.log('11-deep-spine.png taken')
 
 await browser.close()
+vite.kill()
 if (errors.length) {
   console.log('ERRORS:\n' + errors.join('\n'))
   process.exit(1)

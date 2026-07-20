@@ -111,7 +111,10 @@ export default function StudioView() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-slate-200 bg-white text-[11.5px]">
+      <div
+        aria-label="studio-header"
+        className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-slate-200 bg-white text-[11.5px]"
+      >
         <span className="font-bold text-slate-800 text-[12px]">Studio</span>
         <span className="text-slate-400">instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus</span>
         <span className="flex-1" />
