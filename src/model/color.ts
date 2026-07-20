@@ -18,9 +18,12 @@
 //    siblings still alternate light/dark.
 //
 // Three derived swatches per node, all from the same (hue, gen, nudge):
-//  colorOf — the saturated identity anchor (borders, capitals, chips)
-//  fillOf  — the pale country fill (active-level territory paint)
-//  inkOf   — dark readable text tinted toward the hue (labels)
+//  colorOf    — the saturated identity anchor (borders, capitals, chips)
+//  fillOf     — the pale country fill (active-level territory paint)
+//  inkOf      — dark readable text tinted toward the hue (labels)
+//  inkStrongOf— a crisper, near-black emphasis ink (selected/focused labels),
+//               darker AND far less chromatic than inkOf so it reads as clean
+//               type, not a muddy colored gray, on a hue-tinted/glowing cell
 
 import { childrenOf, domainIds, DOMAIN_COLOR } from '../corpus/graph'
 
@@ -106,6 +109,7 @@ for (const d of domainIds) assign(d, hexToOklch(DOMAIN_COLOR[d]).h, DOMAIN_SPAN,
 const anchorMap = new Map<string, string>()
 const fillMap = new Map<string, string>()
 const inkMap = new Map<string, string>()
+const inkStrongMap = new Map<string, string>()
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
@@ -118,12 +122,17 @@ for (const d of domainIds) {
     anchorMap.set(id, s.gen === 0 ? DOMAIN_COLOR[d] : oklchToHex(lerp(base.l, 0.6, t) + push * 0.03, lerp(base.c, 0.125, t), s.hue))
     fillMap.set(id, oklchToHex(0.905 + push * 0.02, 0.058, s.hue))
     inkMap.set(id, oklchToHex(0.42, 0.1, s.hue))
+    // near-black, hue barely present: on the selected cell (tinted by the glow)
+    // the standard ink's L 0.42 / C 0.1 reads as a muddy colored gray, so the
+    // emphasis ink drops to L 0.30 and C 0.04 — clean type that still carries a
+    // whisper of lineage rather than a flat neutral black.
+    inkStrongMap.set(id, oklchToHex(0.3, 0.04, s.hue))
     for (const k of childrenOf.get(id) ?? []) walk(k.id)
   }
   walk(d)
 }
 
-const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155' }
+const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong: '#1e2530' }
 
 /** saturated identity anchor — borders, capitals, chips */
 export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anchor
@@ -131,5 +140,7 @@ export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anc
 export const fillOf = (id: string): string => fillMap.get(id) ?? FALLBACK.fill
 /** dark hue-tinted text color — labels on the node's own fill */
 export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
+/** crisp near-black emphasis ink — selected/focused labels (see header) */
+export const inkStrongOf = (id: string): string => inkStrongMap.get(id) ?? FALLBACK.inkStrong
 /** the assigned hue in degrees, for anything that derives its own swatch */
 export const hueOf = (id: string): number | null => slot.get(id)?.hue ?? null

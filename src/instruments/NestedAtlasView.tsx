@@ -56,7 +56,7 @@ import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, fillOf, inkOf } from '../model/color'
+import { colorOf, fillOf, inkOf, inkStrongOf } from '../model/color'
 import { countryPath, countryRings, maxTier, nestedDots, provincePath, provinceRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { fitLabel, fitRegionLabel } from '../model/labelfit'
@@ -484,6 +484,16 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           if (levelRef.current < L_MAX) flyToLevel(levelRef.current + 1, u)
         }}
       >
+        <defs>
+          {/* soft selection glow (#8): a real gaussian bloom, keyed to the
+              selected cell's tree color and zoom-stable via px(). Lives in the
+              luminance channel the flat tree-color fills never use, so the
+              selection reads as "lit" even beside a same-hue sibling. The wide
+              region keeps the blur from clipping at the filter's default box. */}
+          <filter id="sel-glow" x="-80%" y="-80%" width="260%" height="260%" colorInterpolationFilters="sRGB">
+            <feGaussianBlur stdDeviation={px(7.5)} />
+          </filter>
+        </defs>
         <g transform={`translate(${view.tx} ${view.ty}) scale(${view.s})`}>
           {/* ── FILLS, painted shallow → deep. Only the active level carries
               paint (pale tree colors) and pointer events; everything else is
@@ -684,27 +694,36 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
             {level >= 2 &&
               mounted
                 .filter((t) => isActive(t) && onScreen({ x: t.cx, y: t.cy }, 60) && labelFit.active.has(t.id))
-                .map((t) => (
-                  <text
-                    key={t.id}
-                    textAnchor="middle"
-                    fontSize={px(t.tier === level ? 12.5 : 11.5)}
-                    fontWeight={600}
-                    fill={inkOf(t.id)}
-                    stroke="#ffffff"
-                    strokeWidth={px(2.4)}
-                    strokeOpacity={0.85}
-                    paintOrder="stroke"
-                    opacity={isMuted(t) ? 0.7 : 0.92}
-                    style={{ userSelect: 'none' }}
-                  >
-                    {labelFit.active.get(t.id)!.map((ln, i) => (
-                      <tspan key={i} x={ln.x} y={ln.y}>
-                        {ln.text}
-                      </tspan>
-                    ))}
-                  </text>
-                ))}
+                .map((t) => {
+                  // The selected cell's name is CALMED, not shouted (the glow
+                  // and heavy border already mark the cell): a crisp near-black
+                  // emphasis ink instead of the muddy dark tint, weight 700, and
+                  // a THIN soft white case rather than a fat opaque one — clean
+                  // type over an outlined-sticker look. Full opacity keeps it the
+                  // clearest label even as the glow tints the body beneath it.
+                  const isSel = t.id === sel
+                  return (
+                    <text
+                      key={t.id}
+                      textAnchor="middle"
+                      fontSize={px(t.tier === level ? 12.5 : 11.5)}
+                      fontWeight={isSel ? 700 : 600}
+                      fill={isSel ? inkStrongOf(t.id) : inkOf(t.id)}
+                      stroke="#ffffff"
+                      strokeWidth={px(isSel ? 2.2 : 2.4)}
+                      strokeOpacity={isSel ? 0.7 : 0.85}
+                      paintOrder="stroke"
+                      opacity={isSel ? 1 : isMuted(t) ? 0.7 : 0.92}
+                      style={{ userSelect: 'none' }}
+                    >
+                      {labelFit.active.get(t.id)!.map((ln, i) => (
+                        <tspan key={i} x={ln.x} y={ln.y}>
+                          {ln.text}
+                        </tspan>
+                      ))}
+                    </text>
+                  )
+                })}
           </g>
 
           {/* ── HOVER PRESELECTION: outline + light tint on the cell a click
@@ -756,14 +775,16 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
               {/* The selected cell is the LOUDEST thing on the map (issue #8: a
                   hairline + faint tint was still easy to lose, especially once
                   the neighbourhood wash tinted its connections at 0.1). Three
-                  layers, back to front: a soft outer GLOW in its tree color, a
+                  layers, back to front: a real GAUSSIAN GLOW (feGaussianBlur)
+                  in the cell's tree color that leaks light past the border, a
                   white separator that also tints the cell body, and a crisp
-                  heavy border. A saturated, haloed cell among pale ones reads as
-                  selected at a glance, from across the pane. */}
+                  heavy border. The glow lives in the luminance channel the flat
+                  fills never touch, so it reads as "lit" even next to a same-hue
+                  sibling — a haloed cell among pale ones is selected at a glance. */}
               {selOutline && (
                 <>
-                  <path d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(11)} strokeOpacity={0.22} strokeLinejoin="round" />
-                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.3} stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
+                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.16} stroke={colorOf(sel)} strokeWidth={px(7)} strokeOpacity={0.5} strokeLinejoin="round" filter="url(#sel-glow)" />
+                  <path d={selOutline} fill={colorOf(sel)} fillOpacity={0.22} stroke="#ffffff" strokeWidth={px(6)} strokeOpacity={0.98} strokeLinejoin="round" />
                   <path data-seloutline d={selOutline} fill="none" stroke={colorOf(sel)} strokeWidth={px(4)} strokeLinejoin="round" />
                 </>
               )}
