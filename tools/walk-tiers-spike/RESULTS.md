@@ -1,4 +1,55 @@
-# Walk-Tiers Spike Results — 2026-07-20
+# Walk-Tiers Spike Results
+
+## Round 2 — 2026-07-20 (verdicts applied)
+
+User verdicts on round 1: **A out** (current form), **D deleted** (not worth
+further effort), **B rethought** as multi-line, **C most useful** but needed a
+real multi-tier answer, **E the money shot**, to be combined with refined B
+or C. A/D/the round-1 B/C/E components are deleted; git history keeps them.
+
+**The convergence.** Refined B ("each tier is one line; picking a node swaps
+out every line below") turned out to be E's layer stack *flattened*: one
+plane per line, one line per plane. So round 2's E is not a candidate beside
+B — it IS B, with the stack mounted beside it on one shared state.
+
+**The model change.** Round 1 was expansion-driven (a `Set` of open stages —
+any number open per tier). Round 2's B/E are SELECTION-driven: a `path` of
+stage keys, one per tier (`tierpath.ts`, `linesForPath`). Picking a stage on
+line N truncates the path at N and descends; picking a leaf visit just
+truncates (a visit has no inside). C keeps the expansion set — outlines want
+many things open; drill-paths want one. That split is a real finding: the
+two state shapes serve different instruments and both project to a route.
+
+**Driver-verified** (`node tools/walk-tiers-spike/shots.mjs`, exit 0):
+planes appear/disappear one-per-line as the path deepens and swaps
+(2 → 4 → 2 across `e2-*`); the swap changes the projected route; picking a
+visit truncates the lines below it (`b2-visit-truncate`); hover still lights
+the doc pane, no tooltips anywhere; exactly ONE ↺ revisit mark at full
+expansion in C — a StrictMode double-render had briefly marked every visit
+(impure seen-set mutation during render, now precomputed purely and pinned
+by assertion).
+
+**Frames.** `e2-default/e2-deep/e2-swap`: the stack+lines combo reads
+exactly as hoped — four planes mirroring four lines, picked stages glowing
+on their planes, aside sitting on its line behind a dashed divider, route
+strip following. `b2-*`: the lines alone are already a usable walk cockpit.
+`c2-open/c2-hover`: the recursive timeline shows the ENTIRE plan as one
+top-down story — branches indent right and rejoin, the aside lane hangs off
+its branch — and is the strongest whole-plan reading we have; its outline
+twin now looks redundant next to it (the timeline IS an outline with order
+made visible). Candidate question for round 3: does C's left rail survive,
+or does the timeline replace it as the authoring skeleton?
+
+**Where this leaves the synthesis.** E (stack + lines) is the session
+cockpit — navigate and drill. C's timeline is the document — read and
+author. Both consume the same tiered walk; the route projection works from
+either state shape. Round 3 should probably mock the AUTHORING gestures on
+the timeline (add stop, group into stage, fork an aside) rather than more
+viewing candidates.
+
+---
+
+# Round 1 — 2026-07-20
 
 Issue: alwaysmiddle/KnowledgeNetworkDemo#11 (multi-tiered walk view).
 

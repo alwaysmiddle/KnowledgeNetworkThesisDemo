@@ -1,7 +1,8 @@
-// Walk-tiers spike driver — screenshots the five candidate mocks and asserts
-// the load-bearing behaviours: expansion changes the projected route, a
-// 4th-tier expand dives with a breadcrumb, and hover lights the doc pane
-// (the KnowledgePanel stand-in) plus BOTH occurrences of a revisited node.
+// Walk-tiers spike driver, round 2 — screenshots the three surviving
+// candidates and asserts the load-bearing behaviours: the tier-lines cascade
+// swaps every line below a pick, the stack grows/shrinks one plane per line
+// on the SAME state, hover lights the doc pane (no candidate owns a
+// tooltip), and the projected route follows the drill-path.
 // Spawns vite ITSELF (backgrounded dev servers die on this machine): spawn,
 // wait ready, drive, kill — same pattern as tools/studio-spike/shot-visuals.mjs.
 //
@@ -53,68 +54,56 @@ const click = async (sel) => {
   await page.waitForTimeout(250)
 }
 const tab = (id) => click(`[data-galtab="${id}"]`)
+const count = (sel) => page.locator(sel).count()
 
 await page.goto(`http://localhost:${PORT}/?spike=walk-tiers`)
 await page.waitForTimeout(700)
 
-// ── B · tiered ribbon (default tab, 'serve' pre-expanded) ───────────────────
-await shot('b-default')
-const fringeBefore = await page.locator('[data-fringe-count]').getAttribute('data-fringe-count')
-await click('[data-expand="secure"]')
-const fringeAfter = await page.locator('[data-fringe-count]').getAttribute('data-fringe-count')
-if (fringeBefore === fringeAfter) errors.push(`B: expanding 'secure' did not change the projected route (${fringeBefore})`)
-await shot('b-open')
-// 'primitives' sits at depth 2 — opening it must DIVE, not expand inline
-await click('[data-expand="primitives"]')
-if ((await page.locator('[data-crumb]').count()) !== 1) errors.push('B: expanding a 4th-tier stage did not show the dive breadcrumb')
-await shot('b-dive')
-await click('[data-up]')
+// ── E · stack + lines (default tab, 'serve' pre-picked → 2 lines/planes) ────
+if ((await count('[data-plane]')) !== 2) errors.push(`E: expected 2 planes at start, got ${await count('[data-plane]')}`)
+await shot('e2-default')
+// drill: serve ▸ secure ▸ primitives — a plane must appear per picked line
+await click('[data-pick="secure"]')
+await click('[data-pick="primitives"]')
+if ((await count('[data-plane]')) !== 4) errors.push(`E: drill to primitives should show 4 planes, got ${await count('[data-plane]')}`)
+if ((await count('[data-line]')) !== 4) errors.push(`E: drill to primitives should show 4 lines, got ${await count('[data-line]')}`)
+await shot('e2-deep')
+// the SWAP: picking a different tier-0 stage must replace every line below
+const fringeDeep = await page.locator('[data-fringe-count]').getAttribute('data-fringe-count')
+await click('[data-pick="machine"]')
+if ((await count('[data-plane]')) !== 2) errors.push(`E: picking 'machine' at tier 0 should swap to 2 planes, got ${await count('[data-plane]')}`)
+const fringeSwap = await page.locator('[data-fringe-count]').getAttribute('data-fringe-count')
+if (fringeDeep === fringeSwap) errors.push(`E: the swap did not change the projected route (${fringeDeep})`)
+await shot('e2-swap')
 
-// ── A · expanding columns ───────────────────────────────────────────────────
-await tab('A')
-await shot('a-default')
-await click('[data-expand="serve"]')
-await click('[data-expand="secure"]')
-await shot('a-open')
-await click('[data-expand="primitives"]')
-if ((await page.locator('[data-crumb]').count()) !== 1) errors.push('A: expanding a 4th-tier stage did not show the dive breadcrumb')
-await shot('a-dive')
+// ── B · tier lines alone ────────────────────────────────────────────────────
+await tab('B')
+if ((await count('[data-line]')) !== 1) errors.push(`B: expected 1 line before any pick, got ${await count('[data-line]')}`)
+await shot('b2-default')
+await click('[data-pick="serve"]')
+await click('[data-pick="secure"]')
+if ((await count('[data-line]')) !== 3) errors.push(`B: serve▸secure should show 3 lines, got ${await count('[data-line]')}`)
+await shot('b2-drill')
+// picking a leaf visit on line 1 truncates below it — a visit has no inside
+await click('[data-cand="B"] [data-line="1"] [data-node="stk-dns-naming"]')
+if ((await count('[data-line]')) !== 2) errors.push(`B: picking a visit on line 1 should truncate to 2 lines, got ${await count('[data-line]')}`)
+await shot('b2-visit-truncate')
 
-// ── C · outline + fringe ────────────────────────────────────────────────────
+// ── C · outline + recursive timeline ────────────────────────────────────────
 await tab('C')
 await click('[data-expand-all]')
-await shot('c-open')
+// exactly ONE occurrence is a revisit at full expansion (stk-tcp-udp's
+// second stop) — mutating a seen-set during render double-marked everything
+// under StrictMode once; this pins the pure computation
+const revisits = await count('[data-revisit]')
+if (revisits !== 1) errors.push(`C: expected exactly 1 revisit mark at full expansion, got ${revisits}`)
+await shot('c2-open')
 // hover syncs the doc pane — the whole reason the mocks carry no tooltips
 await page.locator('[data-cand="C"] [data-node="stk-tcp-udp"]').first().hover()
 await page.waitForTimeout(250)
 const doc = await page.locator('[data-doc]').getAttribute('data-doc')
 if (doc !== 'stk-tcp-udp') errors.push(`C: hovering stk-tcp-udp shows doc pane "${doc}"`)
-await shot('c-hover')
-
-// ── D · metro line ──────────────────────────────────────────────────────────
-await tab('D')
-await shot('d-default')
-// stations are SVG — a <g> has no clickable area of its own, so aim at the
-// diamond rect inside it
-await click('[data-expand="secure"] rect')
-await click('[data-expand="primitives"] rect')
-await click('[data-expand="speak"] rect')
-await shot('d-dips')
-// the revisit: stk-tcp-udp is a station twice (serve + speak) — hovering one
-// occurrence must light both, the id-keyed hover contract doing its job
-await page.locator('[data-cand="D"] [data-node="stk-tcp-udp"]').first().hover()
-await page.waitForTimeout(250)
-const lit = await page.locator('[data-cand="D"] [data-node="stk-tcp-udp"][data-lit="1"]').count()
-if (lit < 2) errors.push(`D: hovering the revisited station lit ${lit} of 2 occurrences`)
-await shot('d-revisit-hover')
-
-// ── E · layer stack ─────────────────────────────────────────────────────────
-await tab('E')
-await shot('e-tier0')
-await click('[data-plane-label="1"]')
-const desk = await page.locator('[data-desk-tier]').getAttribute('data-desk-tier')
-if (desk !== '1') errors.push(`E: selecting plane 1 put the desk on tier "${desk}"`)
-await shot('e-tier1')
+await shot('c2-hover')
 
 await browser.close()
 vite.kill()

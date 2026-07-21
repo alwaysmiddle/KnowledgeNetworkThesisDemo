@@ -152,6 +152,32 @@ export function stagePath(stops: Stop[], key: string): StageStop[] {
   return []
 }
 
+// ── Tier lines (round 2) ────────────────────────────────────────────────────
+// The selection-driven reading: a PATH of stage keys, one per tier, derives
+// one line per tier. Picking a different stage on line N swaps out every line
+// below it — at most one decomposition is open per tier, unlike the round-1
+// expansion set where any number of stages could be open at once.
+
+export interface TierLine {
+  tier: number
+  /** what this line is the inside of — the plan itself, or a stage title */
+  source: string
+  stops: Stop[]
+  asides?: Aside[]
+}
+
+export function linesForPath(path: string[]): TierLine[] {
+  const lines: TierLine[] = [{ tier: 0, source: PLAN.title, stops: PLAN.stops }]
+  let stops = PLAN.stops
+  for (const key of path) {
+    const s = stops.find((x): x is StageStop => x.kind === 'stage' && x.key === key)
+    if (!s) break
+    lines.push({ tier: lines.length, source: s.title, stops: s.steps, asides: s.asides })
+    stops = s.steps
+  }
+  return lines
+}
+
 /** every stage key in the plan — "expand all" in one call */
 export function allExpandedKeys(): ReadonlySet<string> {
   const keys = new Set<string>()

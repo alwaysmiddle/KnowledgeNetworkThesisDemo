@@ -1,17 +1,16 @@
-// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — five candidate
-// renderings of ONE tiered mock walk, side by side with a stand-in for the
-// node viewer. Reached only via `?spike=walk-tiers`; the Studio never loads
-// this route and nothing here touches the bus. The gallery owns the shared
-// hover state so every candidate proves the same claim: no private preview
-// tooltips — the document pane follows the hover channel.
+// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 2. A
+// (expanding columns) and D (metro) were judged dead on arrival and deleted;
+// git history keeps them. Three survivors, rebuilt to the round-2 verdicts:
+// B as selection-driven tier lines, C keeping its outline but answering
+// multi-tier with a recursive top-down timeline, and E — the money shot —
+// the layer stack synced with B's lines on one drill-path state. Reached
+// only via `?spike=walk-tiers`; nothing here touches the bus.
 
 import { useState } from 'react'
 
-import ColumnsMock from './ColumnsMock'
-import IsoStackMock from './IsoStackMock'
-import MetroMock from './MetroMock'
-import OutlineFringeMock from './OutlineFringeMock'
-import RibbonMock from './RibbonMock'
+import OutlineTimelineMock from './OutlineTimelineMock'
+import StackLinesMock from './StackLinesMock'
+import TierLinesMock from './TierLinesMock'
 import { PLAN } from './mockwalk'
 import { DocPaneStandIn } from './shared'
 import { useSync } from './sync'
@@ -19,46 +18,34 @@ import type { Sync } from './sync'
 
 const CANDIDATES: { id: string; label: string; hint: string; render(sync: Sync): React.ReactNode }[] = [
   {
-    id: 'A',
-    label: 'A · Expanding columns',
-    hint: 'the current walk grammar; a stage opens inline, a 4th tier dives with a breadcrumb',
-    render: (sync) => <ColumnsMock sync={sync} />,
-  },
-  {
     id: 'B',
-    label: 'B · Tiered ribbon',
-    hint: 'icicle on the walk’s axes — horizontal order, vertical tier; a collapsed bar covers its children’s extent',
-    render: (sync) => <RibbonMock sync={sync} />,
+    label: 'B · Tier lines',
+    hint: 'one line per tier; picking a stage opens the next line, picking anything else swaps out every line below',
+    render: (sync) => <TierLinesMock sync={sync} />,
   },
   {
     id: 'C',
-    label: 'C · Outline + fringe',
-    hint: 'structure on the left, the projected route on the right; no altitude window needed — depth is indent',
-    render: (sync) => <OutlineFringeMock sync={sync} />,
-  },
-  {
-    id: 'D',
-    label: 'D · Metro line',
-    hint: 'named stations on one line that dips a tier stratum wherever a stage is expanded',
-    render: (sync) => <MetroMock sync={sync} />,
+    label: 'C · Outline + timeline',
+    hint: 'the outline kept from round 1, beside a recursive top-down timeline — an open stage branches right and rejoins',
+    render: (sync) => <OutlineTimelineMock sync={sync} />,
   },
   {
     id: 'E',
-    label: 'E · Layer stack',
-    hint: 'tiers as isometric planes (the navigator) beside a flat desk (the working surface)',
-    render: (sync) => <IsoStackMock sync={sync} />,
+    label: 'E · Stack + lines',
+    hint: 'one plane per line, one line per plane — the iso stack navigates, the flat lines are the desk, one shared state',
+    render: (sync) => <StackLinesMock sync={sync} />,
   },
 ]
 
 export default function WalkTiersGallery() {
-  const [active, setActive] = useState('B')
+  const [active, setActive] = useState('E')
   const sync = useSync()
   const cand = CANDIDATES.find((c) => c.id === active)!
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="shrink-0 px-4 py-2 bg-white border-b border-slate-200 flex items-baseline gap-3">
-        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike</h1>
+        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 2</h1>
         <span className="text-[11px] text-slate-400">
           one mock plan — “{PLAN.title}” — 4 tiers, a sub-walk by reference, a revisit, an aside · corpus untouched, tiers
           are pure overlay
