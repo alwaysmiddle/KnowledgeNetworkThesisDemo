@@ -1,46 +1,53 @@
-// Candidate C, round 3 — the AUTHORING page. Verdict from round 2: C is not
-// a viewer, it is where a plan gets MADE — "pick from a list of nodes, then
-// draw the node map". The answer to drag-and-drop vs block editor is BOTH on
-// ONE surface: the timeline is the block editor (rows are blocks — select,
-// group, aside, delete, Tab-indent), and drag-and-drop is its placement
-// gesture (drag a corpus node from the palette onto any gap; the amber caret
-// shows where it will land; drop mid-stage-header to drop INSIDE the stage).
-// Clicking a palette chip is the keyboard-flavoured twin: it inserts at the
-// selection. Everything renders open — authoring has no collapsed state —
-// and the strip below proves the draft projects to a route like any walk.
+// Candidate C, round 4 — the AUTHORING page as THREE parallel views of ONE
+// draft, side by side for comparison: (1) the timeline block editor from
+// round 3 (select, group, aside, delete, Tab-indent; drag with the amber
+// caret), (2) the tier lines turned VERTICAL — columns of boxes joined by
+// one-way down arrows, where clicking a stage opens the next column and an
+// edge is drawn from the stage box to the column it begat, and (3) the same
+// boxed flow but stages EXPAND IN PLACE — nested boxes you drag nodes into.
+// All three render the same AuthorState; an edit in any drop surface shows
+// up in all of them, and the strip below is the one projected route.
+// The draft starts SEEDED (three tiers) so the comparison is visible at
+// first paint; every id is a real corpus node — the tiers stay pure overlay.
 
 import { useState } from 'react'
-import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, DragEvent as ReactDragEvent } from 'react'
 
 import { byId, domainIds, domainOf, DOMAIN_COLOR, topicsUnder } from '../../corpus/graph'
-import { allKeysOf, parsePath, pathKey, useAuthorDraft } from './authordraft'
+import AuthorColumns from './AuthorColumns'
+import AuthorNest from './AuthorNest'
+import { allKeysOf, pathKey, useAuthorDraft } from './authordraft'
 import type { AuthorState, Path } from './authordraft'
+import { DT, gapFor, handleDrop } from './authordnd'
 import { fringe } from './mockwalk'
 import type { Aside, Stop } from './mockwalk'
 import { FringeStrip } from './shared'
 import type { Sync } from './sync'
 
-const DT = 'text/plain'
-
-/** where a drag over this row should insert: before, after, or (stages,
- * middle band) inside at the end — shared by dragover (caret) and drop */
-function gapFor(e: ReactDragEvent, path: Path, stop: Stop): Path {
-  const r = e.currentTarget.getBoundingClientRect()
-  const y = (e.clientY - r.top) / r.height
-  const i = path[path.length - 1]
-  const parent = path.slice(0, -1)
-  if (stop.kind === 'stage' && y > 0.3 && y < 0.7) return [...path, stop.steps.length]
-  return y < 0.5 ? [...parent, i] : [...parent, i + 1]
-}
-
-function handleDrop(e: ReactDragEvent, target: Path, state: AuthorState) {
-  e.preventDefault()
-  e.stopPropagation()
-  const data = e.dataTransfer.getData(DT)
-  if (data.startsWith('pal:')) state.insertNode(data.slice(4), target)
-  else if (data.startsWith('blk:')) state.moveBlock(parsePath(data.slice(4)), target)
-  state.setCaret(null)
-}
+/** the draft starts with a small three-tier plan so all three views have
+ * something to show — authoring then continues from here */
+const SEED: Stop[] = [
+  { kind: 'visit', node: 'stk-dns-naming' },
+  {
+    kind: 'stage',
+    key: 'seed-net',
+    title: 'Reach the machine',
+    steps: [
+      { kind: 'visit', node: 'stk-ip-routing' },
+      { kind: 'visit', node: 'stk-tcp-udp' },
+      {
+        kind: 'stage',
+        key: 'seed-sec',
+        title: 'Secure the channel',
+        steps: [
+          { kind: 'visit', node: 'cry-public-key-cryptography' },
+          { kind: 'visit', node: 'cry-tls-certificates' },
+        ],
+      },
+    ],
+  },
+  { kind: 'visit', node: 'web-http-rest' },
+]
 
 function Caret() {
   return <div data-caret className="h-0.5 rounded bg-amber-500 my-0.5 ml-1 mr-6" />
@@ -129,9 +136,9 @@ function AuthorLevel({ stops, parent, state, sync }: { stops: Stop[]; parent: Pa
                 value={s.title}
                 onChange={(e) => state.retitle(s.key, e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className="text-[11px] font-bold text-amber-800 bg-transparent border-b border-dashed border-amber-300 focus:border-amber-500 outline-none w-44"
+                className="text-[11px] font-bold text-amber-800 bg-transparent border-b border-dashed border-amber-300 focus:border-amber-500 outline-none w-40"
               />
-              <span className="text-[10px] text-amber-500">{s.steps.length} steps — drop mid-row to drop inside</span>
+              <span className="text-[10px] text-amber-500">{s.steps.length} steps</span>
               <span className="ml-auto text-[10px] text-slate-300 select-none">⋮⋮</span>
             </div>
             <div className="ml-5 border-l-2 border-dotted border-amber-300/60 rounded-bl-lg pb-1">
@@ -152,9 +159,9 @@ function Palette({ state, sync }: { state: AuthorState; sync: Sync }) {
   const [q, setQ] = useState('')
   const match = (id: string) => byId.get(id)!.title.toLowerCase().includes(q.toLowerCase())
   return (
-    <div className="w-[280px] shrink-0 border-r border-slate-200 flex flex-col bg-white">
+    <div className="w-[230px] shrink-0 border-r border-slate-200 flex flex-col bg-white">
       <div className="shrink-0 px-2 py-1.5 border-b border-slate-100">
-        <div className="text-[10px] font-bold text-slate-500 mb-1">palette — every corpus topic; drag onto the timeline, or click to insert at the selection</div>
+        <div className="text-[10px] font-bold text-slate-500 mb-1">palette — drag onto any view, or click to insert at the selection</div>
         <input
           data-pal-search
           value={q}
@@ -201,7 +208,7 @@ function Palette({ state, sync }: { state: AuthorState; sync: Sync }) {
 }
 
 export default function AuthorMock({ sync }: { sync: Sync }) {
-  const state = useAuthorDraft()
+  const state = useAuthorDraft(SEED)
 
   const onKeyDown = (e: ReactKeyboardEvent) => {
     if ((e.target as HTMLElement).tagName === 'INPUT') return
@@ -220,7 +227,7 @@ export default function AuthorMock({ sync }: { sync: Sync }) {
 
       <div className="flex-1 min-w-0 flex flex-col bg-slate-50/50">
         <div className="shrink-0 px-3 py-1.5 flex items-center gap-1.5 border-b border-slate-100">
-          <span className="text-[10px] font-bold text-slate-500">draft — “Untitled plan”, authored here; blocks: click selects · drag ⋮⋮ moves · Tab indents into the stage above</span>
+          <span className="text-[10px] font-bold text-slate-500">one draft, three views — edit anywhere, all follow</span>
           <span className="flex-1" />
           <button
             data-group
@@ -247,25 +254,42 @@ export default function AuthorMock({ sync }: { sync: Sync }) {
             ✕ remove
           </button>
         </div>
-        <div
-          data-author-root
-          tabIndex={0}
-          onKeyDown={onKeyDown}
-          onDragOver={(e) => {
-            e.preventDefault()
-            state.setCaret([state.stops.length])
-          }}
-          onDrop={(e) => handleDrop(e, [state.stops.length], state)}
-          className="flex-1 min-h-0 overflow-auto p-3 outline-none"
-        >
-          {state.stops.length === 0 && !state.caret ? (
-            <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center text-[11px] text-slate-400">
-              an empty plan — drag a node here from the palette, or click one to add it
+
+        <div className="flex-1 min-h-0 flex">
+          <div className="flex-1 min-w-0 flex flex-col border-r border-slate-200">
+            <div className="shrink-0 px-2 py-1 text-[9.5px] font-bold text-slate-400 border-b border-slate-100">
+              1 · timeline blocks — click selects, drag ⋮⋮ moves, Tab indents; drop lands at the amber caret
             </div>
-          ) : (
-            <AuthorLevel stops={state.stops} parent={[]} state={state} sync={sync} />
-          )}
+            <div
+              data-author-root
+              tabIndex={0}
+              onKeyDown={onKeyDown}
+              onDragOver={(e) => {
+                e.preventDefault()
+                state.setCaret([state.stops.length])
+              }}
+              onDrop={(e) => handleDrop(e, [state.stops.length], state)}
+              className="flex-1 min-h-0 overflow-auto p-3 outline-none"
+            >
+              <AuthorLevel stops={state.stops} parent={[]} state={state} sync={sync} />
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0 flex flex-col border-r border-slate-200">
+            <div className="shrink-0 px-2 py-1 text-[9.5px] font-bold text-slate-400 border-b border-slate-100">
+              2 · vertical columns — arrows run one way down; click a ⊞ box and the edge shows the column it opened
+            </div>
+            <AuthorColumns stops={state.stops} sync={sync} />
+          </div>
+
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="shrink-0 px-2 py-1 text-[9.5px] font-bold text-slate-400 border-b border-slate-100">
+              3 · nested boxes — stages expand in place; drop a node INTO an open box to add it there
+            </div>
+            <AuthorNest state={state} sync={sync} />
+          </div>
         </div>
+
         <FringeStrip entries={fringe(state.stops, allKeysOf(state.stops))} sync={sync} />
       </div>
     </div>

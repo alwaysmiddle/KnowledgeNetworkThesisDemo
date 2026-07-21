@@ -1,9 +1,9 @@
-// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 3. The
-// standalone B tab is gone (its TierLines component lives on inside E); C is
-// rebuilt as the AUTHORING page (palette + editable timeline — drag-and-drop
-// AND block-editor gestures on one surface); E keeps the stack + lines and
-// gains the Obsidian-style tier canvas. Reached only via `?spike=walk-tiers`;
-// nothing here touches the bus.
+// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 4. E is
+// back to stack + lines (the round-3 canvas is dropped — free arrangement
+// isn't needed for walks); C is now THREE parallel authoring views of one
+// draft: timeline blocks, vertical columns with begat-edges, and nested
+// boxes that expand in place and take drops. Reached only via
+// `?spike=walk-tiers`; nothing here touches the bus.
 
 import { useState } from 'react'
 
@@ -17,14 +17,14 @@ import type { Sync } from './sync'
 const CANDIDATES: { id: string; label: string; hint: string; render(sync: Sync): React.ReactNode }[] = [
   {
     id: 'C',
-    label: 'C · Author',
-    hint: 'pick nodes from the palette, drop them on the timeline (amber caret = landing spot); select blocks to group into a stage, fork an aside, Tab-indent',
+    label: 'C · Author ×3',
+    hint: 'one draft, three views side by side — timeline blocks · vertical columns with begat-edges · nested boxes that expand in place and take drops',
     render: (sync) => <AuthorMock sync={sync} />,
   },
   {
     id: 'E',
-    label: 'E · Stack + lines + canvas',
-    hint: 'one plane per line, one line per plane; the canvas is the OPEN tier as cards you arrange — arrows stay the walk’s order, stage cards drill',
+    label: 'E · Stack + lines',
+    hint: 'one plane per line, one line per plane — the iso stack navigates, the flat lines are the desk, one shared state',
     render: (sync) => <StackLinesMock sync={sync} />,
   },
 ]
@@ -37,7 +37,7 @@ export default function WalkTiersGallery() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="shrink-0 px-4 py-2 bg-white border-b border-slate-200 flex items-baseline gap-3">
-        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 3</h1>
+        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 4</h1>
         <span className="text-[11px] text-slate-400">
           E is the reading cockpit over “{PLAN.title}”; C authors a NEW plan from the same corpus · corpus untouched,
           tiers are pure overlay

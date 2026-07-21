@@ -1,12 +1,12 @@
-// Walk-tiers spike driver, round 3 — screenshots the two surviving surfaces
-// and asserts the load-bearing behaviours. E: the canvas shows the OPEN tier,
-// dragging a card rearranges without touching the route, clicking a stage
-// card drills and stack/lines/canvas/fringe all follow. C (the authoring
-// page): palette click and palette drag both insert, blocks group into a
-// stage, drop-on-a-stage-header lands INSIDE it, Tab indents, an aside
-// leaves the projected route. HTML5 dnd is driven by dispatching
-// dragstart/dragover/drop with a shared DataTransfer handle — deterministic,
-// no native drag emulation.
+// Walk-tiers spike driver, round 4. E is back to stack + lines (canvas
+// dropped) — asserts the round-2 drill/swap behaviours still hold. C is now
+// THREE parallel authoring views over ONE seeded draft; the load-bearing
+// assertions are cross-view: the vertical columns open one column per picked
+// stage and draw a begat-edge per column; dropping a node INTO an expanded
+// nested box adds it to that stage and the columns view shows the new count
+// without being touched; the timeline still groups; an aside still leaves
+// the projected route. HTML5 dnd is driven by dispatching
+// dragstart/dragover/drop with a shared DataTransfer handle.
 // Spawns vite ITSELF (backgrounded dev servers die on this machine): spawn,
 // wait ready, drive, kill — same pattern as tools/studio-spike/shot-visuals.mjs.
 //
@@ -61,9 +61,8 @@ const tab = (id) => click(`[data-galtab="${id}"]`)
 const count = (sel) => page.locator(sel).count()
 const fringeCount = () => page.locator('[data-fringe-count]').getAttribute('data-fringe-count')
 
-/** HTML5 dnd via dispatched events sharing one DataTransfer. yFrac picks the
- * drop band on the target row: <0.3 before, 0.3–0.7 inside (stages), >0.7 after */
-const dnd = async (srcSel, tgtSel, yFrac) => {
+/** HTML5 dnd via dispatched events sharing one DataTransfer */
+const dnd = async (srcSel, tgtSel, yFrac = 0.5) => {
   const dt = await page.evaluateHandle(() => new DataTransfer())
   await page.dispatchEvent(srcSel, 'dragstart', { dataTransfer: dt })
   const box = await page.locator(tgtSel).first().boundingBox()
@@ -77,87 +76,65 @@ const dnd = async (srcSel, tgtSel, yFrac) => {
 await page.goto(`http://localhost:${PORT}/?spike=walk-tiers`)
 await page.waitForTimeout(700)
 
-// ── E · stack + lines + canvas (default tab, 'serve' pre-picked) ────────────
+// ── E · stack + lines (default tab, 'serve' pre-picked → 2 lines/planes) ────
 if ((await count('[data-plane]')) !== 2) errors.push(`E: expected 2 planes at start, got ${await count('[data-plane]')}`)
-if ((await count('[data-card]')) !== 4) errors.push(`E: canvas should show serve's 4 stops, got ${await count('[data-card]')}`)
-await shot('e3-default')
-
-// drag a canvas card — the arrangement moves, the route does not
-const card = page.locator('[data-card]').first()
-const before = await card.evaluate((el) => el.style.left)
-const fringeBeforeDrag = await fringeCount()
-const box = await card.boundingBox()
-await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-await page.mouse.down()
-await page.mouse.move(box.x + 160, box.y + 90, { steps: 6 })
-await page.mouse.up()
-await page.waitForTimeout(200)
-const after = await page.locator('[data-card]').first().evaluate((el) => el.style.left)
-if (before === after) errors.push(`E: dragging a canvas card did not move it (left stays ${before})`)
-if ((await fringeCount()) !== fringeBeforeDrag) errors.push('E: dragging a card changed the projected route — it must not')
-await shot('e3-canvas-drag')
-
-// a clean CLICK on the canvas's stage card drills — stack and canvas follow
-await click('[data-canvas-pick="secure"]')
-if ((await count('[data-plane]')) !== 3) errors.push(`E: drilling from the canvas should show 3 planes, got ${await count('[data-plane]')}`)
-if ((await count('[data-card]')) !== 3) errors.push(`E: canvas should now show secure's 3 stops, got ${await count('[data-card]')}`)
-await shot('e3-drill')
-
-// picking on the flat lines drives the same state one tier further
+await shot('e4-default')
+await click('[data-pick="secure"]')
 await click('[data-pick="primitives"]')
-if ((await count('[data-plane]')) !== 4) errors.push(`E: drilling to primitives should show 4 planes, got ${await count('[data-plane]')}`)
-if ((await count('[data-card]')) !== 2) errors.push(`E: canvas should show primitives' 2 stops, got ${await count('[data-card]')}`)
-await shot('e3-deep')
+if ((await count('[data-plane]')) !== 4) errors.push(`E: drill to primitives should show 4 planes, got ${await count('[data-plane]')}`)
+if ((await count('[data-line]')) !== 4) errors.push(`E: drill to primitives should show 4 lines, got ${await count('[data-line]')}`)
+await shot('e4-deep')
+const fringeDeep = await fringeCount()
+await click('[data-pick="machine"]')
+if ((await count('[data-plane]')) !== 2) errors.push(`E: picking 'machine' at tier 0 should swap to 2 planes, got ${await count('[data-plane]')}`)
+if ((await fringeCount()) === fringeDeep) errors.push('E: the tier-0 swap did not change the projected route')
+await shot('e4-swap')
 
-// ── C · the authoring page ──────────────────────────────────────────────────
+// ── C · one draft, three authoring views ────────────────────────────────────
 await tab('C')
-if ((await count('[data-blk]')) !== 0) errors.push(`C: draft should start empty, got ${await count('[data-blk]')} blocks`)
+if ((await count('[data-blk]')) !== 8) errors.push(`C: seeded draft should have 8 blocks, got ${await count('[data-blk]')}`)
+if ((await count('[data-retitle]')) !== 2) errors.push(`C: seed has 2 stages, got ${await count('[data-retitle]')}`)
+if ((await fringeCount()) !== '6') errors.push(`C: seeded fringe should be 6 visits, got ${await fringeCount()}`)
+await shot('c4-default')
 
-// palette CLICK inserts (the block-editor half of the gesture pair)
-await click('[data-pal="stk-dns-naming"]')
-if ((await count('[data-blk]')) !== 1) errors.push(`C: palette click should insert 1 block, got ${await count('[data-blk]')}`)
+// view 2 — vertical columns: pick opens a column and draws its begat-edge
+if ((await count('[data-vcol]')) !== 1) errors.push(`C: columns should start at 1, got ${await count('[data-vcol]')}`)
+if ((await count('[data-varrow]')) !== 2) errors.push(`C: 3 root boxes need 2 down arrows, got ${await count('[data-varrow]')}`)
+await click('[data-vpick="seed-net"]')
+if ((await count('[data-vcol]')) !== 2) errors.push(`C: picking seed-net should open column 2, got ${await count('[data-vcol]')}`)
+if ((await count('[data-vedge]')) !== 1) errors.push(`C: one open column = one begat-edge, got ${await count('[data-vedge]')}`)
+await click('[data-vpick="seed-sec"]')
+if ((await count('[data-vcol]')) !== 3) errors.push(`C: picking seed-sec should open column 3, got ${await count('[data-vcol]')}`)
+if ((await count('[data-vedge]')) !== 2) errors.push(`C: two open columns = two begat-edges, got ${await count('[data-vedge]')}`)
+await shot('c4-columns')
 
-// palette DRAG inserts at the caret (drop on the lower half = after)
-await dnd('[data-pal="stk-ip-routing"]', '[data-blk="b.0"]', 0.8)
-if ((await count('[data-blk]')) !== 2) errors.push(`C: palette drop should make 2 blocks, got ${await count('[data-blk]')}`)
-const second = await page.locator('[data-blk="b.1"]').getAttribute('data-node')
-if (second !== 'stk-ip-routing') errors.push(`C: dropped node should land AFTER the first block, b.1 is ${second}`)
+// view 3 — nested boxes: expand in place, drop INTO the open box; the
+// columns view must show the new count without being touched
+await click('[data-nest-toggle="seed-sec"]')
+await dnd('[data-pal="web-sockets-apis"]', '[data-ndrop="seed-sec"]')
+if ((await count('[data-blk]')) !== 9) errors.push(`C: drop into the sec box should make 9 blocks, got ${await count('[data-blk]')}`)
+if ((await fringeCount()) !== '7') errors.push(`C: fringe should be 7 after the nest drop, got ${await fringeCount()}`)
+if ((await count('[data-vcol="2"] [data-vbox]')) !== 3)
+  errors.push(`C: columns view should show sec's 3 boxes after the nest drop, got ${await count('[data-vcol="2"] [data-vbox]')}`)
+await shot('c4-nest-drop')
 
-// select both blocks, group into a stage
-await click('[data-blk="b.0"]')
-await click('[data-blk="b.1"]')
+// view 1 — the timeline still authors: append at root, group two blocks
+await click('[data-pal="app-authentication-authorization"]')
+if ((await count('[data-blk]')) !== 10) errors.push(`C: palette click should append (10 blocks), got ${await count('[data-blk]')}`)
+if ((await fringeCount()) !== '8') errors.push(`C: fringe should be 8 after append, got ${await fringeCount()}`)
+await click('[data-blk="b.2"]')
+await click('[data-blk="b.3"]')
 await click('[data-group]')
-if ((await count('[data-retitle]')) !== 1) errors.push(`C: grouping should create 1 stage, got ${await count('[data-retitle]')}`)
-if ((await count('[data-blk]')) !== 3) errors.push(`C: after grouping expect stage + 2 children = 3 blocks, got ${await count('[data-blk]')}`)
-if ((await fringeCount()) !== '2') errors.push(`C: a stage adds no visits — fringe should stay 2, got ${await fringeCount()}`)
+if ((await count('[data-retitle]')) !== 3) errors.push(`C: grouping should make a 3rd stage, got ${await count('[data-retitle]')}`)
+if ((await count('[data-blk]')) !== 11) errors.push(`C: after grouping expect 11 blocks, got ${await count('[data-blk]')}`)
+if ((await fringeCount()) !== '8') errors.push(`C: grouping adds no visits — fringe stays 8, got ${await fringeCount()}`)
+await shot('c4-group')
 
-// drop on the stage header's MIDDLE band lands inside the stage
-await dnd('[data-pal="stk-tcp-udp"]', '[data-blk="b.0"]', 0.5)
-if ((await count('[data-blk^="b.0."]')) !== 3) errors.push(`C: mid-header drop should land inside the stage (3 children), got ${await count('[data-blk^="b.0."]')}`)
-if ((await fringeCount()) !== '3') errors.push(`C: fringe should be 3 after the in-stage drop, got ${await fringeCount()}`)
-await shot('c3-built')
-
-// append at root, then Tab-indent it into the stage above
-await click('[data-pal="web-http-rest"]')
-if ((await count('[data-blk]')) !== 5) errors.push(`C: append should make 5 blocks total, got ${await count('[data-blk]')}`)
-await click('[data-blk="b.1"]')
-await page.keyboard.press('Tab')
-await page.waitForTimeout(200)
-if ((await count('[data-blk^="b.0."]')) !== 4) errors.push(`C: Tab should indent the block into the stage (4 children), got ${await count('[data-blk^="b.0."]')}`)
-
-// fork an aside — it leaves the projected route
-await click('[data-blk="b.0.3"]')
-await click('[data-aside]')
-if ((await count('[data-aside-lane]')) !== 1) errors.push(`C: expected 1 aside lane, got ${await count('[data-aside-lane]')}`)
-if ((await fringeCount()) !== '3') errors.push(`C: an aside is not in the route — fringe should drop to 3, got ${await fringeCount()}`)
-await shot('c3-aside')
-
-// hover syncs the doc pane — authoring keeps the same hover contract
+// hover syncs the doc pane from any view — same contract everywhere
 await page.locator('[data-cand="C"] [data-node="stk-dns-naming"]').first().hover()
 await page.waitForTimeout(250)
 const doc = await page.locator('[data-doc]').getAttribute('data-doc')
 if (doc !== 'stk-dns-naming') errors.push(`C: hovering stk-dns-naming shows doc pane "${doc}"`)
-await shot('c3-hover')
 
 // the palette search narrows the pick list
 const palAll = await count('[data-pal]')

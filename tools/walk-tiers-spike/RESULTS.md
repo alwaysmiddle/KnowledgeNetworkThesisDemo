@@ -1,5 +1,55 @@
 # Walk-Tiers Spike Results
 
+## Round 4 — 2026-07-21 (canvas dropped; three authoring views)
+
+User verdicts on round 3: the canvas is OUT — free spatial arrangement isn't
+needed for walks — so E reverts to stack + lines (round-2 shape, git history
+keeps the canvas). C becomes a three-way comparison: the SAME seeded draft
+rendered by three parallel views, edits anywhere landing everywhere.
+
+**1 · timeline blocks** — unchanged from round 3 (select, group, aside,
+delete, Tab-indent, caret drops). Still the only view with the full gesture
+set; the shared toolbar acts on its selection.
+
+**2 · vertical columns** (`AuthorColumns.tsx`) — the tier lines rotated
+vertical: one column per tier, boxes joined by one-way DOWN arrows (the
+walk's order), and clicking a ⊞ stage box opens the next column with a
+dashed BEGAT-EDGE drawn from that box to the column it spawned — the
+containment relation the horizontal lines only implied with "↳ inside"
+labels. Drill-path semantics identical to TierLines (its own local path over
+the shared draft). Laid out arithmetically, so the SVG needs no measurement.
+Read-and-navigate only in this round.
+
+**3 · nested boxes** (`AuthorNest.tsx`) — the same boxed flow but a stage
+expands IN PLACE: steps render inside the grown box, tiers as containment.
+This is the drag-INTO surface: an open stage box is one big drop target
+(glows on hover, appends to that stage), which is a far coarser — and
+easier — target than the timeline's before/after/inside bands.
+
+**Driver-verified** (exit 0). Seed = 8 blocks / 2 stages / fringe 6.
+Columns: 1 → 2 → 3 columns with 1 → 2 begat-edges as stages are picked;
+3 root boxes carry exactly 2 down-arrows. The cross-view assertion:
+expanding the sec box in view 3 and dropping `web-sockets-apis` INTO it
+makes 9 blocks, fringe 7, and the COLUMNS view's tier-2 column shows 3
+boxes without being touched — one draft, three projections. Timeline still
+appends and groups (fringe unchanged by grouping), hover still lights the
+doc pane, palette search still narrows.
+
+**Frames.** `e4-default/e4-deep/e4-swap`, `c4-default/c4-columns/
+c4-nest-drop/c4-group`.
+
+**Observations for the verdict.** The three-pane comparison makes the
+trade visible: columns give the clearest begat/order reading but eat
+horizontal space fast (three open tiers already scroll inside a third of
+the page — a real instrument would give them the full pane); nested boxes
+are the friendliest drop target but deep nesting shrinks the innermost
+boxes; the timeline stays the densest and the only one with block gestures.
+Asides currently render only in the timeline. Likely synthesis question for
+round 5: which ONE of 2/3 joins the timeline as the authoring pair, and
+does the columns view replace TierLines as E's desk?
+
+---
+
 ## Round 3 — 2026-07-20 (authoring + canvas)
 
 User verdicts on round 2: the tier lines COMBINED with the stack are the

@@ -114,8 +114,8 @@ export interface AuthorState {
   canDelete: boolean
 }
 
-export function useAuthorDraft(): AuthorState {
-  const [stops, setStops] = useState<Stop[]>([])
+export function useAuthorDraft(initial: Stop[] = []): AuthorState {
+  const [stops, setStops] = useState<Stop[]>(initial)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [caret, setCaret] = useState<Path | null>(null)
   const stageSeq = useRef(0)
