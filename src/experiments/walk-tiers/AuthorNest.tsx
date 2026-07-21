@@ -18,21 +18,13 @@ import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, 
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
-import { DT, gapFor, handleDrop } from './authordnd'
+import { bandFor, DT, gapFor, handleDrop } from './authordnd'
+import type { Band } from './authordnd'
 import { visitCount } from './mockwalk'
 import type { Aside, Stop } from './mockwalk'
 import type { Sync } from './sync'
 
-type Band = 'before' | 'after' | 'inside'
 type Mark = { key: string; band: Band } | null
-
-/** same banding as gapFor, for the visual mark */
-function bandFor(e: ReactDragEvent, stop: Stop): Band {
-  const r = e.currentTarget.getBoundingClientRect()
-  const y = (e.clientY - r.top) / r.height
-  if (stop.kind === 'stage' && y > 0.3 && y < 0.7) return 'inside'
-  return y < 0.5 ? 'before' : 'after'
-}
 
 function MarkBar() {
   return <div data-drop-mark className="h-0.5 rounded bg-amber-500 my-0.5" />

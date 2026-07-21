@@ -12,6 +12,16 @@ import type { Stop } from './mockwalk'
 
 export const DT = 'text/plain'
 
+export type Band = 'before' | 'after' | 'inside'
+
+/** the visual twin of gapFor — which band the pointer is in, for drop marks */
+export function bandFor(e: ReactDragEvent, stop: Stop): Band {
+  const r = e.currentTarget.getBoundingClientRect()
+  const y = (e.clientY - r.top) / r.height
+  if (stop.kind === 'stage' && y > 0.3 && y < 0.7) return 'inside'
+  return y < 0.5 ? 'before' : 'after'
+}
+
 /** where a drag over a block row should insert: before, after, or (stages,
  * middle band) inside at the end — shared by dragover (caret) and drop */
 export function gapFor(e: ReactDragEvent, path: Path, stop: Stop): Path {

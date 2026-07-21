@@ -1,10 +1,12 @@
-// Candidate C, round 5 — the AUTHORING page settles: after the round-4
-// side-by-side verdict the nested-box editor WON (containment makes
-// structure and editing the same gesture), the timeline is retired (once the
-// nest owns the block gestures, density was all it had left), and the
-// vertical columns moved to E as the presentation desk. What remains is the
-// pair that graduates to the Studio: a palette of corpus nodes on the left,
-// the nested-box editor on the right, the projected route below.
+// Candidate C, round 6 — the metaphor question reopens (#11): nested BOXES
+// won round 4, but the round-5 feedback asks whether tiers shouldn't be
+// nested NODES on a flow chart instead. So C is a side-by-side again — the
+// round-5 nested-box editor on the left, the new nested-node flow on the
+// right — and both render ONE shared AuthorState: edit in either, the other
+// follows instantly. The flow side also trials the contextual controls
+// (group/aside/remove floating beside the clicked node) that the feedback
+// asked for; the box side keeps the header toolbar so the two control
+// placements can be compared directly.
 //
 // The palette is a STAND-IN for the map instrument: the whole feed contract
 // is `pal:<nodeId>` on text/plain (or a click calling insertNode) — any
@@ -16,6 +18,7 @@
 import { useState } from 'react'
 
 import { byId, domainIds, domainOf, DOMAIN_COLOR, topicsUnder } from '../../corpus/graph'
+import AuthorFlow from './AuthorFlow'
 import AuthorNest from './AuthorNest'
 import { allKeysOf, useAuthorDraft } from './authordraft'
 import type { AuthorState } from './authordraft'
@@ -111,38 +114,48 @@ export default function AuthorMock({ sync }: { sync: Sync }) {
       <Palette state={state} sync={sync} />
 
       <div className="flex-1 min-w-0 flex flex-col bg-slate-50/50">
-        <div className="shrink-0 px-3 py-1.5 flex items-center gap-1.5 border-b border-slate-100">
-          <span className="text-[10px] font-bold text-slate-500">
-            nested-box editor — boxes select on click, drag ⋮⋮ moves them, drop INTO an open box to add there
-          </span>
-          <span className="flex-1" />
-          <button
-            data-group
-            disabled={!state.canGroup}
-            onClick={state.groupSelection}
-            className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
-          >
-            ⊞ group into stage
-          </button>
-          <button
-            data-aside
-            disabled={!state.canAside}
-            onClick={state.asideSelection}
-            className="text-[10px] px-1.5 py-0.5 rounded border border-violet-300 text-violet-600 bg-violet-50 disabled:opacity-30 hover:bg-violet-100"
-          >
-            ≀ make aside
-          </button>
-          <button
-            data-del
-            disabled={!state.canDelete}
-            onClick={state.deleteSelection}
-            className="text-[10px] px-1.5 py-0.5 rounded border border-slate-200 text-slate-500 disabled:opacity-30 hover:bg-slate-100"
-          >
-            ✕ remove
-          </button>
-        </div>
+        <div className="flex-1 min-h-0 flex">
+          <div className="w-1/2 min-w-0 flex flex-col border-r border-slate-200">
+            <div className="shrink-0 px-3 py-1.5 flex items-center gap-1.5 border-b border-slate-100">
+              <span className="text-[10px] font-bold text-slate-500">nested boxes — toolbar controls</span>
+              <span className="flex-1" />
+              <button
+                data-group
+                disabled={!state.canGroup}
+                onClick={state.groupSelection}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
+              >
+                ⊞ group into stage
+              </button>
+              <button
+                data-aside
+                disabled={!state.canAside}
+                onClick={state.asideSelection}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-violet-300 text-violet-600 bg-violet-50 disabled:opacity-30 hover:bg-violet-100"
+              >
+                ≀ make aside
+              </button>
+              <button
+                data-del
+                disabled={!state.canDelete}
+                onClick={state.deleteSelection}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-slate-200 text-slate-500 disabled:opacity-30 hover:bg-slate-100"
+              >
+                ✕ remove
+              </button>
+            </div>
+            <AuthorNest state={state} sync={sync} />
+          </div>
 
-        <AuthorNest state={state} sync={sync} />
+          <div className="w-1/2 min-w-0 flex flex-col">
+            <div className="shrink-0 px-3 py-1.5 border-b border-slate-100">
+              <span className="text-[10px] font-bold text-slate-500">
+                nested nodes — SAME draft as a flow chart; click a node and the controls appear beside it
+              </span>
+            </div>
+            <AuthorFlow state={state} sync={sync} />
+          </div>
+        </div>
 
         <FringeStrip entries={fringe(state.stops, allKeysOf(state.stops))} sync={sync} />
       </div>

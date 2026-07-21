@@ -1,5 +1,52 @@
 # Walk-Tiers Spike Results
 
+## Round 6 — 2026-07-21 (reopened: boxes vs NODES)
+
+Round-5 feedback reopened #11 on the authoring metaphor: nested boxes are
+good, but why not nested NODES, like a flow chart? Round 6 answers with a
+live comparison — C splits into two panes rendering **one shared
+AuthorState** (`useAuthorDraft` lifted to `AuthorMock`): the round-5
+nested-box editor on the left (toolbar controls kept, as the control), the
+new **`AuthorFlow`** nested-node flow chart on the right. Edit either side;
+the other follows on the same render.
+
+The flow side trials three ideas from the feedback:
+
+- **Nested nodes**: a visit is a pill node on a vertical spine; a stage is a
+  COMPOUND node that expands in place into a container holding its own
+  arrowed mini-flow (view-local `collapsed` set, all open by default — a
+  fold changes neither the nest nor the projected route). Layout is
+  arithmetic (measure → place, the WalkColumns pattern): no DOM
+  measurement, one SVG underlay for arrows.
+- **Strong direction emphasis**: bold amber arrows (2.5px + arrowhead)
+  between every pair of consecutive stops, and every visit wears its
+  walk-order badge — its position in the projected route — so the flat
+  order stays readable through the nesting.
+- **Contextual controls**: group / aside / remove live in a floating
+  toolbar that appears BESIDE the node the user just clicks, not in a
+  header toolbar. It retires itself when the selection clears (every
+  structural op clears selection, so the tools vanish after acting).
+
+Shared-contract cleanup: `bandFor` (the visual twin of `gapFor`) moved from
+`AuthorNest` into `authordnd.ts`; both editors now band drops identically,
+and the flow reuses `gapFor`/`handleDrop`/`pal:`/`blk:` wholesale — a drop
+means the same thing in both metaphors.
+
+Driver proof (`shots.mjs`): a palette drop into the NEST appears in the
+FLOW and vice versa (one draft); contextual group via the floating tools
+wraps dns + the whole seed-net subtree (containment asserted, not just
+counts); a flow fold hides nodes but moves neither the nest nor the fringe;
+contextual aside pulls two visits out of the route in BOTH editors at once;
+order badges renumber. One UX finding, caught by eyeballing the frames
+(counts alone were blind to it): a stage header's middle is the retitle
+input, which rightly eats clicks — the GRIP (`⋮⋮`, `data-fgrab`) is the
+honest select-the-stage affordance. E is unchanged from round 5.
+
+Open question for the verdict: which metaphor authors better — boxes
+(denser, reads like an outline, coarse "drop into the box" target) or
+nodes (order is louder, compound expand-in-place, controls at the hand)?
+And should contextual controls replace the toolbar in whichever wins?
+
 ## Round 5 — 2026-07-21 (FINAL: two modes, spike concluded)
 
 User verdicts on round 4: **nested boxes win authoring** (containment makes

@@ -1,10 +1,10 @@
-// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 5, the
-// FINAL round: the spike's two survivors, one per mode. C is the authoring
-// page (palette + the nested-box editor — the round-4 winner, now owning
-// every block gesture); E is presentation mode (layer stack + the vertical
-// columns that replaced the horizontal tier lines). Both graduate to the
-// Studio from here. Reached only via `?spike=walk-tiers`; nothing touches
-// the bus.
+// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 6: the
+// issue reopened on authoring-metaphor feedback. C is a side-by-side again:
+// the round-5 nested-box editor vs the new nested-NODE flow chart (compound
+// nodes expanding in place, bold direction arrows, contextual controls at
+// the click site) — both rendering ONE shared draft. E is unchanged
+// presentation mode (layer stack + vertical columns). Reached only via
+// `?spike=walk-tiers`; nothing touches the bus.
 
 import { useState } from 'react'
 
@@ -18,8 +18,8 @@ import type { Sync } from './sync'
 const CANDIDATES: { id: string; label: string; hint: string; render(sync: Sync): React.ReactNode }[] = [
   {
     id: 'C',
-    label: 'C · Author (nested boxes)',
-    hint: 'the authoring mode — palette (map stand-in) + the nested-box editor; boxes select, drag, group, retitle; drop INTO an open box to add there',
+    label: 'C · Author (boxes vs nodes)',
+    hint: 'one draft, two metaphors — nested boxes (toolbar controls) beside a nested-node flow chart (contextual controls, order badges, bold arrows); edit either side',
     render: (sync) => <AuthorMock sync={sync} />,
   },
   {
@@ -38,10 +38,10 @@ export default function WalkTiersGallery() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="shrink-0 px-4 py-2 bg-white border-b border-slate-200 flex items-baseline gap-3">
-        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 5 (final)</h1>
+        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 6</h1>
         <span className="text-[11px] text-slate-400">
-          C authors a NEW plan from the corpus; E presents “{PLAN.title}” · corpus untouched, tiers are pure overlay ·
-          both graduate to the Studio
+          C compares two authoring metaphors on ONE shared draft; E presents “{PLAN.title}” · corpus untouched, tiers
+          are pure overlay
         </span>
       </header>
 
