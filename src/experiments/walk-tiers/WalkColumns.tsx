@@ -1,20 +1,19 @@
-// Authoring view 2 (round 4) — the tier lines turned VERTICAL. Each column
-// is one tier, boxes connected by one-way down arrows (the walk's order).
-// Clicking a ⊞ stage box opens the next column to its right, and an EDGE is
-// drawn from that stage box to its column — the begat-relationship made
-// visible, which the horizontal lines only implied with "↳ inside …" labels.
-// Same drill-path semantics as TierLines: one open decomposition per tier,
-// picking anything else truncates the columns below. A read-and-navigate
-// view over the shared draft; the other two views do the editing.
+// The vertical tier columns (round 5) — E's desk, replacing the horizontal
+// TierLines. One column per tier, boxes joined by one-way DOWN arrows (the
+// walk's order); picking a ⊞ stage box opens the next column to its right
+// with a dashed BEGAT-EDGE drawn from that box to the column it spawned.
+// CONTROLLED: the drill path and pick handler come from outside, so the
+// layer stack and these columns render one TierPathState and cannot
+// disagree — the same inversion that made TierLines E's desk in round 2.
+// A stage's asides hang below its column as a dashed violet lane: related,
+// visibly not on the arrowed order.
 //
 // Everything is laid out arithmetically (fixed box/column sizes), so the
 // SVG arrows and edges need no DOM measurement.
 
-import { useState } from 'react'
-
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { visitCount } from './mockwalk'
-import type { Stop, StageStop } from './mockwalk'
+import type { Aside, Stop, StageStop } from './mockwalk'
 import type { Sync } from './sync'
 
 const COLW = 148
@@ -29,17 +28,18 @@ interface Column {
   stops: Stop[]
   /** position of the stage box (column index, row index) this column came from */
   from?: { col: number; row: number }
+  asides?: Aside[]
 }
 
 function columnsFor(stops: Stop[], path: string[]): Column[] {
-  const cols: Column[] = [{ source: 'the draft', stops }]
+  const cols: Column[] = [{ source: 'the plan', stops }]
   let cur = stops
   let colIdx = 0
   for (const key of path) {
     const row = cur.findIndex((x) => x.kind === 'stage' && x.key === key)
     if (row < 0) break
     const s = cur[row] as StageStop
-    cols.push({ source: s.title, stops: s.steps, from: { col: colIdx, row } })
+    cols.push({ source: s.title, stops: s.steps, from: { col: colIdx, row }, asides: s.asides })
     cur = s.steps
     colIdx++
   }
@@ -49,14 +49,22 @@ function columnsFor(stops: Stop[], path: string[]): Column[] {
 const boxX = (col: number) => PAD + col * (COLW + GAP)
 const boxY = (row: number) => TOP + row * (BOXH + VGAP)
 
-export default function AuthorColumns({ stops, sync }: { stops: Stop[]; sync: Sync }) {
-  const [path, setPath] = useState<string[]>([])
+export default function WalkColumns({
+  stops,
+  path,
+  pick,
+  sync,
+}: {
+  stops: Stop[]
+  path: string[]
+  pick(col: number, s: Stop): void
+  sync: Sync
+}) {
   const cols = columnsFor(stops, path)
 
-  const pick = (col: number, s: Stop) => setPath(s.kind === 'stage' ? [...path.slice(0, col), s.key] : path.slice(0, col))
-
+  const rowsOf = (c: Column) => c.stops.length + (c.asides?.length ?? 0)
   const width = PAD + cols.length * (COLW + GAP)
-  const height = TOP + Math.max(...cols.map((c) => c.stops.length), 1) * (BOXH + VGAP) + 20
+  const height = TOP + Math.max(...cols.map(rowsOf), 1) * (BOXH + VGAP) + 20
 
   return (
     <div className="flex-1 min-h-0 overflow-auto">
@@ -153,6 +161,28 @@ export default function AuthorColumns({ stops, sync }: { stops: Stop[]; sync: Sy
                 </button>
               )
             })}
+            {(c.asides ?? []).map((a, ai) => (
+              <div
+                key={a.title}
+                data-vaside
+                className="absolute rounded-lg border-2 border-dashed border-violet-300 bg-violet-50/60 px-2 py-1"
+                style={{ left: boxX(k), top: boxY(c.stops.length + ai), width: COLW, height: BOXH }}
+              >
+                <span className="block truncate text-[9px] font-semibold text-violet-500">≀ {a.title}</span>
+                <span className="flex items-center gap-1 pt-0.5">
+                  {a.steps.map((st) => (
+                    <span
+                      key={st.node}
+                      {...sync.bind(st.node)}
+                      data-node={st.node}
+                      title={byId.get(st.node)!.title}
+                      className={['w-2 h-2 rounded-full inline-block', sync.lit(st.node) ? 'ring-2 ring-sky-300' : ''].join(' ')}
+                      style={{ background: DOMAIN_COLOR[domainOf(st.node)] }}
+                    />
+                  ))}
+                </span>
+              </div>
+            ))}
           </div>
         ))}
       </div>

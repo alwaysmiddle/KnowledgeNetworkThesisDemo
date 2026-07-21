@@ -1,5 +1,68 @@
 # Walk-Tiers Spike Results
 
+## Round 5 — 2026-07-21 (FINAL: two modes, spike concluded)
+
+User verdicts on round 4: **nested boxes win authoring** (containment makes
+structure and editing the same gesture); **vertical columns are confusing
+for authoring but great for reading**; **the timeline is out** (surprising —
+but once the nest owns the block gestures, density was all it had left);
+**stack + lines are presentation aids** — park them for a presentation mode;
+and the palette should be **swappable with the map instrument**. Applied,
+the spike settles into exactly two modes:
+
+**C · authoring** = palette + the nested-box editor ALONE. The nest was
+promoted from drop-target to full editor: every box (visit, collapsed
+stage, or an open stage's HEADER row — the stage-as-block) click-selects,
+drags with the `blk:` payload, and takes banded drops (top = before,
+bottom = after, a closed stage's middle = inside, marked by an amber bar);
+an open box stays one COARSE drop target that appends. Collapse state is
+INVERTED (`collapsed` set, default all open) so a stage born from "group"
+arrives open and ready to fill — with an `expanded` set every new stage
+would be born shut. Retitle is inline in the open header; asides render as
+a violet lane inside their stage's box; Delete/Tab still work. The palette
+notes what it is: a stand-in for the map instrument — the whole feed
+contract is `pal:<nodeId>` on text/plain, so the atlas map becomes the
+palette with a dragstart handler, not a redesign.
+
+**E · presentation** = layer stack + the vertical columns, which REPLACE
+the horizontal TierLines as the desk. `WalkColumns` is the round-4
+`AuthorColumns` inverted into a CONTROLLED component: path and pick come
+from outside, so stack and columns render one `TierPathState` and cannot
+disagree (the same inversion that made TierLines the desk in round 2).
+Begat-edges now do what the lines' "↳ inside" labels only said; a stage's
+asides hang below its column as a dashed violet lane. `TierLines.tsx` and
+`AuthorColumns.tsx` are deleted — git history keeps them.
+
+**Driver-verified** (exit 0). C's chain proves the nest owns every gesture
+the retired timeline had: collapse hides blocks but NEVER changes the
+projection (authoring projects all-open); drop INTO the sec box appends
+(fringe 6→7); a top-half banded drop lands BEFORE block b.0; moving an
+existing block into an open box changes no counts; grouping two selected
+blocks makes a third OPEN stage (3 retitle inputs, fringe unchanged);
+asiding the grouped visits removes them from the route (fringe 8→6) while
+an aside lane appears. E's chain proves one shared state by driving the
+stack FROM the columns (vpick secure/primitives: 2→3→4 planes) and the
+columns FROM the stack (pick-stack machine: back to 2 columns, route
+changed). Hover still lights the doc pane; palette search still narrows.
+
+**Frames.** `c5-default/c5-group/c5-aside`, `e5-default/e5-deep/e5-swap`.
+
+**Spike conclusion — what graduates to the Studio.** (1) The tiered-walk
+data model (`Stop`/`StageStop`/`Aside`) with `fringe()` as the bus
+contract: the flat `route` is a PROJECTION of a tier tree at an expansion
+state — proven across all three state shapes (drill-path, expansion set,
+draft tree). (2) The authoring instrument: nested-box editor fed by the
+map instrument via the `pal:`/`blk:` drop contract, toolbar gestures
+(group / aside / remove), inverted collapse. (3) The presentation
+instrument: layer stack + begat-edge columns on one drill path. (4) The
+old linear WalkView is a retirement candidate — a linear walk is just a
+tiered walk with no stages, so the presentation instrument subsumes it.
+Not built here, deliberately: draft↔walks.ts persistence ("save as walk" /
+"load walk as stage"), bus wiring, and all polish — that work happens in
+the Studio, not the spike.
+
+---
+
 ## Round 4 — 2026-07-21 (canvas dropped; three authoring views)
 
 User verdicts on round 3: the canvas is OUT — free spatial arrangement isn't

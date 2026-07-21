@@ -1,9 +1,10 @@
-// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 4. E is
-// back to stack + lines (the round-3 canvas is dropped — free arrangement
-// isn't needed for walks); C is now THREE parallel authoring views of one
-// draft: timeline blocks, vertical columns with begat-edges, and nested
-// boxes that expand in place and take drops. Reached only via
-// `?spike=walk-tiers`; nothing here touches the bus.
+// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 5, the
+// FINAL round: the spike's two survivors, one per mode. C is the authoring
+// page (palette + the nested-box editor — the round-4 winner, now owning
+// every block gesture); E is presentation mode (layer stack + the vertical
+// columns that replaced the horizontal tier lines). Both graduate to the
+// Studio from here. Reached only via `?spike=walk-tiers`; nothing touches
+// the bus.
 
 import { useState } from 'react'
 
@@ -17,30 +18,30 @@ import type { Sync } from './sync'
 const CANDIDATES: { id: string; label: string; hint: string; render(sync: Sync): React.ReactNode }[] = [
   {
     id: 'C',
-    label: 'C · Author ×3',
-    hint: 'one draft, three views side by side — timeline blocks · vertical columns with begat-edges · nested boxes that expand in place and take drops',
+    label: 'C · Author (nested boxes)',
+    hint: 'the authoring mode — palette (map stand-in) + the nested-box editor; boxes select, drag, group, retitle; drop INTO an open box to add there',
     render: (sync) => <AuthorMock sync={sync} />,
   },
   {
     id: 'E',
-    label: 'E · Stack + lines',
-    hint: 'one plane per line, one line per plane — the iso stack navigates, the flat lines are the desk, one shared state',
+    label: 'E · Present (stack + columns)',
+    hint: 'the presentation mode — one plane per column; the iso stack navigates, the vertical columns with begat-edges are the desk, one shared state',
     render: (sync) => <StackLinesMock sync={sync} />,
   },
 ]
 
 export default function WalkTiersGallery() {
-  const [active, setActive] = useState('E')
+  const [active, setActive] = useState('C')
   const sync = useSync()
   const cand = CANDIDATES.find((c) => c.id === active)!
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="shrink-0 px-4 py-2 bg-white border-b border-slate-200 flex items-baseline gap-3">
-        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 4</h1>
+        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 5 (final)</h1>
         <span className="text-[11px] text-slate-400">
-          E is the reading cockpit over “{PLAN.title}”; C authors a NEW plan from the same corpus · corpus untouched,
-          tiers are pure overlay
+          C authors a NEW plan from the corpus; E presents “{PLAN.title}” · corpus untouched, tiers are pure overlay ·
+          both graduate to the Studio
         </span>
       </header>
 

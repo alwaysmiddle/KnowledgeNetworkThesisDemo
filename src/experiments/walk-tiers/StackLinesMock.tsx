@@ -1,31 +1,29 @@
-// Candidate E — LAYER STACK + TIER LINES on ONE selection state. The round-1
-// finding ("great navigator, unusable desk") plus the user's refined B
-// ("each tier is one line; picking a node swaps out everything below")
-// turned out to be the same design at two altitudes: one plane per line, one
-// line per plane. The iso stack navigates and orients — planes appear and
-// vanish as the drill-path deepens, the picked stage glows on its plane —
-// while the flat lines beside it are where reading and picking actually
-// happen. Both render from the same TierPathState, so they cannot disagree.
-// (Round 3 grew an Obsidian-style tier canvas here; round 4 removed it —
-// free arrangement isn't needed for walks. Git history keeps it.)
+// Candidate E, round 5 — PRESENTATION MODE: layer stack + vertical columns
+// on ONE selection state. The round-4 verdict moved the vertical columns out
+// of the authoring page ("confusing for authoring, great for reading") and
+// retired the horizontal TierLines they descend from: the columns ARE the
+// lines, rotated, with the begat-relationship drawn as a real edge instead
+// of a "↳ inside" label. The iso stack still navigates and orients — one
+// plane per column — while the columns are the desk where reading and
+// picking happen. Both render from the same TierPathState, so they cannot
+// disagree. This pair graduates to the Studio as the presentation view.
 
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { fringe, PLAN } from './mockwalk'
 import { FringeStrip } from './shared'
 import type { Sync } from './sync'
-import { TierLines } from './TierLines'
 import { useTierPath } from './tierpath'
+import WalkColumns from './WalkColumns'
 
 export default function StackLinesMock({ sync }: { sync: Sync }) {
-  const state = useTierPath(['serve'])
-  const { lines, path, pick } = state
+  const { lines, path, pick } = useTierPath(['serve'])
 
   return (
     <div className="h-full flex" data-cand="E">
-      {/* the stack — one plane PER LINE, so the drill-path is visible as depth */}
+      {/* the stack — one plane PER COLUMN, so the drill-path is visible as depth */}
       <div className="w-[430px] shrink-0 border-r border-slate-200 relative overflow-hidden bg-slate-50/60">
         <div className="absolute left-3 top-2 text-[10px] font-bold text-slate-500">
-          layer stack — one plane per open line; pick on either side, both follow
+          layer stack — one plane per open column; pick on either side, both follow
         </div>
         {lines.map((line, t) => {
           const spacing = line.stops.length > 1 ? 250 / (line.stops.length - 1) : 0
@@ -76,9 +74,9 @@ export default function StackLinesMock({ sync }: { sync: Sync }) {
         })}
       </div>
 
-      {/* the desk — the same lines, flat and legible */}
+      {/* the desk — the same drill-path as vertical columns with begat-edges */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <TierLines state={state} sync={sync} />
+        <WalkColumns stops={PLAN.stops} path={path} pick={pick} sync={sync} />
         <FringeStrip entries={fringe(PLAN.stops, new Set(path))} sync={sync} />
       </div>
     </div>
