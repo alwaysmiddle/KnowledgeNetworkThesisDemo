@@ -1,5 +1,58 @@
 # Walk-Tiers Spike Results
 
+## Round 3 — 2026-07-20 (authoring + canvas)
+
+User verdicts on round 2: the tier lines COMBINED with the stack are the
+keeper, so the standalone B tab is gone (the `TierLines` component survives
+inside E); C is "more of an authoring page — pick from a list of nodes, then
+draw the node map"; and E gains an Obsidian-style node canvas. On the
+drag-and-drop-vs-block-editor question the answer built here is BOTH ON ONE
+SURFACE: they are two gestures over the same tree, not two designs.
+
+**C · the authoring page** (`AuthorMock.tsx` + `authordraft.ts`). Left: a
+palette of every corpus topic, grouped by domain, searchable. Right: the
+round-2 timeline turned editable — rows ARE blocks. Drag a palette chip onto
+the timeline and an amber caret shows the landing gap (top half = before,
+bottom half = after; a stage header's middle band = INSIDE the stage). Click
+a chip instead and it inserts at the selection — the keyboard-flavoured twin.
+Blocks click-select, drag-move, group into a stage (which gets an editable
+title), fork into an aside, delete, and Tab-indent into the stage above.
+The draft is a third state shape: viewing wanted a drill-path (E) or an
+expansion set (old C); authoring holds the TREE ITSELF plus a selection and
+a caret. All three project to a route through the same `fringe()` — the
+strongest evidence yet for route-as-projection as the bus contract.
+
+**E · stack + lines + canvas** (`StackLinesMock.tsx`). Below the lines, the
+OPEN tier (the deepest line) renders as cards on a dotted canvas — drag them
+anywhere, the arrangement is yours; the amber arrows keep drawing the walk's
+order, so rearranging never touches the route (projection made tactile).
+A clean click on a ⊞ stage card drills into it; stack, lines, canvas and
+fringe all follow because there is still exactly one `TierPathState`.
+
+**Driver-verified** (`node tools/walk-tiers-spike/shots.mjs`, exit 0).
+HTML5 dnd is driven by dispatching dragstart/dragover/drop with one shared
+DataTransfer handle — deterministic, no native drag emulation. Asserted:
+canvas card count follows the open tier (4 → 3 → 2 across the drill);
+dragging a card moves it without changing `data-fringe-count`; canvas-click
+drills (2 → 3 planes); the authoring flow builds a real plan from an empty
+draft — palette click inserts, palette drop lands after the target block,
+group makes stage + children, a mid-header drop lands inside the stage,
+Tab indents a root block into the stage, an aside REMOVES its visits from
+the projected route (fringe 4 → 3), hover still lights the doc pane, and
+the palette search narrows the chip list.
+
+**Frames.** `e3-default/e3-canvas-drag/e3-drill/e3-deep`,
+`c3-built/c3-aside/c3-hover`.
+
+**Open for the next round.** The authoring draft and the corpus walks don't
+meet yet — "save as walk"/"load walk as stage" is the missing bridge (walks
+as sub-walks by reference already exist in the data model). The canvas only
+shows the open tier; whether stage cards should preview their children's
+cards (a mini next-plane) is untested. And nothing yet persists: draft and
+card positions are session-local by design.
+
+---
+
 ## Round 2 — 2026-07-20 (verdicts applied)
 
 User verdicts on round 1: **A out** (current form), **D deleted** (not worth

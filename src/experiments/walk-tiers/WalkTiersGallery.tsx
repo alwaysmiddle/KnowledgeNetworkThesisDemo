@@ -1,16 +1,14 @@
-// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 2. A
-// (expanding columns) and D (metro) were judged dead on arrival and deleted;
-// git history keeps them. Three survivors, rebuilt to the round-2 verdicts:
-// B as selection-driven tier lines, C keeping its outline but answering
-// multi-tier with a recursive top-down timeline, and E — the money shot —
-// the layer stack synced with B's lines on one drill-path state. Reached
-// only via `?spike=walk-tiers`; nothing here touches the bus.
+// The walk-tiers spike gallery (KnowledgeNetworkDemo#11) — round 3. The
+// standalone B tab is gone (its TierLines component lives on inside E); C is
+// rebuilt as the AUTHORING page (palette + editable timeline — drag-and-drop
+// AND block-editor gestures on one surface); E keeps the stack + lines and
+// gains the Obsidian-style tier canvas. Reached only via `?spike=walk-tiers`;
+// nothing here touches the bus.
 
 import { useState } from 'react'
 
-import OutlineTimelineMock from './OutlineTimelineMock'
+import AuthorMock from './AuthorMock'
 import StackLinesMock from './StackLinesMock'
-import TierLinesMock from './TierLinesMock'
 import { PLAN } from './mockwalk'
 import { DocPaneStandIn } from './shared'
 import { useSync } from './sync'
@@ -18,21 +16,15 @@ import type { Sync } from './sync'
 
 const CANDIDATES: { id: string; label: string; hint: string; render(sync: Sync): React.ReactNode }[] = [
   {
-    id: 'B',
-    label: 'B · Tier lines',
-    hint: 'one line per tier; picking a stage opens the next line, picking anything else swaps out every line below',
-    render: (sync) => <TierLinesMock sync={sync} />,
-  },
-  {
     id: 'C',
-    label: 'C · Outline + timeline',
-    hint: 'the outline kept from round 1, beside a recursive top-down timeline — an open stage branches right and rejoins',
-    render: (sync) => <OutlineTimelineMock sync={sync} />,
+    label: 'C · Author',
+    hint: 'pick nodes from the palette, drop them on the timeline (amber caret = landing spot); select blocks to group into a stage, fork an aside, Tab-indent',
+    render: (sync) => <AuthorMock sync={sync} />,
   },
   {
     id: 'E',
-    label: 'E · Stack + lines',
-    hint: 'one plane per line, one line per plane — the iso stack navigates, the flat lines are the desk, one shared state',
+    label: 'E · Stack + lines + canvas',
+    hint: 'one plane per line, one line per plane; the canvas is the OPEN tier as cards you arrange — arrows stay the walk’s order, stage cards drill',
     render: (sync) => <StackLinesMock sync={sync} />,
   },
 ]
@@ -45,10 +37,10 @@ export default function WalkTiersGallery() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="shrink-0 px-4 py-2 bg-white border-b border-slate-200 flex items-baseline gap-3">
-        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 2</h1>
+        <h1 className="text-[14px] font-bold text-slate-800">Walk-tiers spike · round 3</h1>
         <span className="text-[11px] text-slate-400">
-          one mock plan — “{PLAN.title}” — 4 tiers, a sub-walk by reference, a revisit, an aside · corpus untouched, tiers
-          are pure overlay
+          E is the reading cockpit over “{PLAN.title}”; C authors a NEW plan from the same corpus · corpus untouched,
+          tiers are pure overlay
         </span>
       </header>
 
