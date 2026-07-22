@@ -1,11 +1,10 @@
-// Walk-tiers spike driver, round 6. C is now a side-by-side comparison —
-// the nested-box editor (left, toolbar controls) and the nested-node flow
-// chart (right, contextual controls) rendering ONE shared AuthorState. The
-// chain must prove: an edit on either side appears on both; the flow's
-// group/aside happen through the floating toolbar at the click site; flow
-// expand/collapse is view-local (the nest and the projection never move);
-// visits wear walk-order badges. E is unchanged: stack + vertical columns
-// on one TierPathState, driven from both ends.
+// Walk-tiers spike driver, round 7 — ONE combined desk: palette | railroad |
+// columns on a single shared draft. The chain must prove the round's core
+// claim: the railroad may fork and rejoin, but everything right of it —
+// columns, fringe strip — always reads ONE resolved linear walk. Steps:
+// picking a branch re-projects the route; bypassing optionals shrinks it;
+// forking a selection through the contextual tools splits the road in place;
+// a palette drop lands INSIDE an empty branch lane; the columns still drill.
 // HTML5 dnd is driven by dispatching dragstart/dragover/drop with a shared
 // DataTransfer; dispatchEvent targets the element directly, so a drop on a
 // container works even when its center is covered by a child node.
@@ -59,7 +58,6 @@ const click = async (sel) => {
   await page.locator(sel).first().click()
   await page.waitForTimeout(250)
 }
-const tab = (id) => click(`[data-galtab="${id}"]`)
 const count = (sel) => page.locator(sel).count()
 const fringeCount = () => page.locator('[data-fringe-count]').getAttribute('data-fringe-count')
 
@@ -78,108 +76,83 @@ const dnd = async (srcSel, tgtSel, yFrac = 0.5) => {
 await page.goto(`http://localhost:${PORT}/?spike=walk-tiers`)
 await page.waitForTimeout(700)
 
-// ── C · boxes vs nodes, ONE shared draft (default tab) ──────────────────────
-// seed: [dns, seed-net[ip, tcp, seed-sec[pkc, tls]], http]
-if ((await count('[data-blk]')) !== 8) errors.push(`C: nest should show 8 blocks (6 visits + 2 headers), got ${await count('[data-blk]')}`)
-if ((await count('[data-fnode]')) !== 6) errors.push(`C: flow should show 6 visit nodes, got ${await count('[data-fnode]')}`)
-if ((await count('[data-fstage]')) !== 2) errors.push(`C: flow should show 2 open compound nodes, got ${await count('[data-fstage]')}`)
-if ((await count('[data-farrow]')) !== 5) errors.push(`C: 3+3+2 siblings need 2+2+1 arrows, got ${await count('[data-farrow]')}`)
-if ((await count('[data-ford]')) !== 6) errors.push(`C: every visit wears an order badge (6), got ${await count('[data-ford]')}`)
-const firstOrd = await page.locator('[data-fnode] [data-ford]').first().getAttribute('data-ford')
-if (firstOrd !== '1') errors.push(`C: the first visit in document order should wear badge 1, got ${firstOrd}`)
-if ((await fringeCount()) !== '6') errors.push(`C: seeded fringe should be 6 visits, got ${await fringeCount()}`)
-await shot('c6-default')
+// ── the desk at first paint ─────────────────────────────────────────────────
+// seed: [dns, seed-net[ip, tcp], seed-sec⑂{[tls] | [pkc, sym, hash, tls]},
+//        http, ws◇, auth] — branch 0 chosen, optionals on the road
+if ((await count('[data-cand="S"]')) !== 1) errors.push(`S: the combined desk should render, got ${await count('[data-cand="S"]')}`)
+if ((await count('[data-rnode]')) !== 11) errors.push(`S: 11 visit nodes across road+lanes, got ${await count('[data-rnode]')}`)
+if ((await count('[data-fork]')) !== 1) errors.push(`S: one fork diamond, got ${await count('[data-fork]')}`)
+if ((await count('[data-brpick]')) !== 2) errors.push(`S: two branch chips, got ${await count('[data-brpick]')}`)
+if ((await count('[data-rail]')) !== 6) errors.push(`S: 2 branches × (fan-out+connector+fan-in) = 6 rails, got ${await count('[data-rail]')}`)
+if ((await count('[data-rbypass]')) !== 1) errors.push(`S: ws is optional — one bypass rail, got ${await count('[data-rbypass]')}`)
+if ((await count('[data-rarrow]')) !== 9) errors.push(`S: 5+1+0+3 sibling arrows = 9, got ${await count('[data-rarrow]')}`)
+if ((await count('[data-rord]')) !== 7) errors.push(`S: 7 stops wear badges on the default road, got ${await count('[data-rord]')}`)
+const firstOrd = await page.locator('[data-rnode] [data-rord]').first().getAttribute('data-rord')
+if (firstOrd !== '1') errors.push(`S: the first road visit should wear badge 1, got ${firstOrd}`)
+if ((await fringeCount()) !== '7') errors.push(`S: default resolved route is 7 visits, got ${await fringeCount()}`)
+if ((await count('[data-vbox]')) !== 6) errors.push(`S: columns tier 0 shows 6 resolved boxes, got ${await count('[data-vbox]')}`)
+await shot('s7-default')
 
-// ONE draft: a drop into the NEST appears in the FLOW
-await dnd('[data-pal="web-sockets-apis"]', '[data-ndrop="seed-sec"]')
-if ((await count('[data-blk]')) !== 9) errors.push(`C: nest drop should make 9 blocks, got ${await count('[data-blk]')}`)
-if ((await count('[data-fnode]')) !== 7) errors.push(`C: the nest drop must appear in the flow (7 nodes), got ${await count('[data-fnode]')}`)
-if ((await count('[data-farrow]')) !== 6) errors.push(`C: seed-sec grew to 3 kids — 6 arrows total, got ${await count('[data-farrow]')}`)
-if ((await fringeCount()) !== '7') errors.push(`C: fringe should be 7 after the nest drop, got ${await fringeCount()}`)
+// ── picking the other branch re-projects EVERYTHING right of the railroad ───
+await click('[data-brpick="seed-sec.1"]')
+if ((await fringeCount()) !== '10') errors.push(`S: the crypto tour makes the route 10, got ${await fringeCount()}`)
+if ((await count('[data-rord]')) !== 10) errors.push(`S: 10 badges on the crypto road, got ${await count('[data-rord]')}`)
+if ((await count('[data-vbox]')) !== 9) errors.push(`S: columns re-resolve to 9 tier-0 boxes, got ${await count('[data-vbox]')}`)
+if ((await count('[data-rnode]')) !== 11) errors.push(`S: picking a branch must not edit the draft (11 nodes), got ${await count('[data-rnode]')}`)
+await shot('s7-branchB')
 
-// ...and a drop into a FLOW compound node appears in the NEST
-await dnd('[data-pal="auto-continuous-integration"]', '[data-fdrop="seed-net"]')
-if ((await count('[data-fnode]')) !== 8) errors.push(`C: flow drop should make 8 nodes, got ${await count('[data-fnode]')}`)
-if ((await count('[data-blk]')) !== 10) errors.push(`C: the flow drop must appear in the nest (10 blocks), got ${await count('[data-blk]')}`)
-if ((await count('[data-farrow]')) !== 7) errors.push(`C: seed-net grew to 4 kids — 7 arrows total, got ${await count('[data-farrow]')}`)
-if ((await fringeCount()) !== '8') errors.push(`C: fringe should be 8 after the flow drop, got ${await fringeCount()}`)
+// ── bypassing optionals: the road goes AROUND the dashed node ───────────────
+await click('[data-opt-toggle]')
+if ((await fringeCount()) !== '9') errors.push(`S: bypassing ws drops the route to 9, got ${await fringeCount()}`)
+if ((await count('[data-rord]')) !== 9) errors.push(`S: the bypassed stop loses its badge (9 left), got ${await count('[data-rord]')}`)
+if ((await count('[data-vbox]')) !== 8) errors.push(`S: columns drop the bypassed stop (8 boxes), got ${await count('[data-vbox]')}`)
+await shot('s7-bypass')
+await click('[data-opt-toggle]')
+if ((await fringeCount()) !== '10') errors.push(`S: optionals back on the road — 10 again, got ${await fringeCount()}`)
 
-// CONTEXTUAL group: click a node — the floating tools appear AT the click
-await click('[data-flow-root] [data-fnode][data-node="stk-dns-naming"]')
-if ((await count('[data-fly]')) !== 1) errors.push(`C: clicking a flow node should float the tools beside it, got ${await count('[data-fly]')}`)
-// select the stage by its GRIP — the header's middle is the retitle input,
-// which rightly eats clicks
-await click('[data-fgrab="seed-net"]')
+// ── forking a selection through the contextual tools ────────────────────────
+await click('[data-rnode][data-node="web-http-rest"]')
+if ((await count('[data-fly]')) !== 1) errors.push(`S: clicking a road node should float the tools beside it, got ${await count('[data-fly]')}`)
+await click('[data-rnode][data-node="web-sockets-apis"]')
+await click('[data-fly-fork]')
+if ((await count('[data-fork]')) !== 2) errors.push(`S: forking the selection makes a 2nd diamond, got ${await count('[data-fork]')}`)
+if ((await count('[data-brdrop]')) !== 1) errors.push(`S: the new fork opens one EMPTY lane, got ${await count('[data-brdrop]')}`)
+if ((await count('[data-fly]')) !== 0) errors.push(`S: the floating tools retire once the selection clears, got ${await count('[data-fly]')}`)
+if ((await fringeCount()) !== '10') errors.push(`S: the selection became the main branch — route unchanged (10), got ${await fringeCount()}`)
+
+// ── a palette drop lands INSIDE the empty branch lane ───────────────────────
+await dnd('[data-pal="auto-continuous-integration"]', '[data-brdrop="fork-0.1"]')
+if ((await count('[data-rnode]')) !== 12) errors.push(`S: the drop should land in the lane (12 nodes), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '10') errors.push(`S: the alternative isn't chosen yet — route still 10, got ${await fringeCount()}`)
+await click('[data-brpick="fork-0.1"]')
+if ((await fringeCount()) !== '9') errors.push(`S: taking the alternative swaps http+ws for ci (9), got ${await fringeCount()}`)
+if ((await count('[data-vbox]')) !== 8) errors.push(`S: columns follow the swap (8 boxes), got ${await count('[data-vbox]')}`)
+await shot('s7-forked')
+
+// ── contextual group still works on the road ────────────────────────────────
+await click('[data-rnode][data-node="stk-dns-naming"]')
 await click('[data-fly-group]')
-if ((await count('[data-fstage]')) !== 3) errors.push(`C: contextual group should make a 3rd open compound node, got ${await count('[data-fstage]')}`)
-if ((await count('[data-retitle]')) !== 3) errors.push(`C: the grouped stage must appear in the nest too (3 retitles), got ${await count('[data-retitle]')}`)
-if ((await count('[data-ndrop="draft-0"] [data-blk]')) !== 10)
-  errors.push(`C: the new stage must contain dns AND the whole seed-net subtree (10 blocks incl own header), got ${await count('[data-ndrop="draft-0"] [data-blk]')}`)
-if ((await count('[data-blk]')) !== 11) errors.push(`C: after grouping expect 11 nest blocks, got ${await count('[data-blk]')}`)
-if ((await count('[data-fly]')) !== 0) errors.push(`C: the floating tools should retire once the selection clears, got ${await count('[data-fly]')}`)
-if ((await fringeCount()) !== '8') errors.push(`C: grouping adds no visits — fringe stays 8, got ${await fringeCount()}`)
-await shot('c6-group')
+if ((await count('[data-rstage]')) !== 2) errors.push(`S: grouping should open a 2nd stage container, got ${await count('[data-rstage]')}`)
+if ((await fringeCount()) !== '9') errors.push(`S: grouping adds no visits — route stays 9, got ${await fringeCount()}`)
 
-// flow collapse is VIEW-LOCAL: the compound folds to a pill; the nest and
-// the projection never move
-await click('[data-flow-toggle="seed-sec"]')
-if ((await count('[data-fstage-closed]')) !== 1) errors.push(`C: seed-sec should fold to a closed pill, got ${await count('[data-fstage-closed]')}`)
-if ((await count('[data-fnode]')) !== 5) errors.push(`C: folding seed-sec hides its 3 visits (5 nodes), got ${await count('[data-fnode]')}`)
-if ((await count('[data-blk]')) !== 11) errors.push(`C: a flow fold must NOT touch the nest (11 blocks), got ${await count('[data-blk]')}`)
-if ((await fringeCount()) !== '8') errors.push(`C: a flow fold must not change the projected route, got ${await fringeCount()}`)
-await click('[data-flow-toggle="seed-sec"]')
-if ((await count('[data-fnode]')) !== 8) errors.push(`C: re-opening seed-sec should restore 8 nodes, got ${await count('[data-fnode]')}`)
+// ── the columns still drill the resolved road ───────────────────────────────
+await click('[data-vpick="seed-net"]')
+if ((await count('[data-vcol]')) !== 2) errors.push(`S: drilling seed-net opens a 2nd column, got ${await count('[data-vcol]')}`)
+if ((await count('[data-vedge]')) !== 1) errors.push(`S: one open column = one begat-edge, got ${await count('[data-vedge]')}`)
+await shot('s7-desk-final')
 
-// CONTEXTUAL aside: pick two visits in the flow, ≀ from the floating tools
-await click('[data-flow-root] [data-fnode][data-node="stk-ip-routing"]')
-await click('[data-flow-root] [data-fnode][data-node="stk-tcp-udp"]')
-await click('[data-fly-aside]')
-if ((await count('[data-faside]')) !== 1) errors.push(`C: expected 1 flow aside box, got ${await count('[data-faside]')}`)
-if ((await count('[data-aside-lane]')) !== 1) errors.push(`C: the aside must appear in the nest too, got ${await count('[data-aside-lane]')}`)
-if ((await count('[data-fnode]')) !== 6) errors.push(`C: aside removes its 2 visits from the flow (6 nodes), got ${await count('[data-fnode]')}`)
-if ((await count('[data-blk]')) !== 9) errors.push(`C: aside removes its 2 visits from the nest (9 blocks), got ${await count('[data-blk]')}`)
-if ((await fringeCount()) !== '6') errors.push(`C: aside visits leave the route — fringe 6, got ${await fringeCount()}`)
-await shot('c6-aside')
-
-// hover lights the doc pane from either editor — no private tooltips
-await page.locator('[data-cand="C"] [data-node="stk-ip-routing"]').first().hover()
+// ── hover lights the doc pane from the road — no private tooltips ───────────
+await page.locator('[data-road-root] [data-node="stk-ip-routing"]').first().hover()
 await page.waitForTimeout(250)
 const doc = await page.locator('[data-doc]').getAttribute('data-doc')
-if (doc !== 'stk-ip-routing') errors.push(`C: hovering stk-ip-routing shows doc pane "${doc}"`)
+if (doc !== 'stk-ip-routing') errors.push(`S: hovering stk-ip-routing shows doc pane "${doc}"`)
 
-// the palette search narrows the pick list
+// ── the palette search narrows the pick list ────────────────────────────────
 const palAll = await count('[data-pal]')
 await page.locator('[data-pal-search]').fill('tls')
 await page.waitForTimeout(200)
 const palTls = await count('[data-pal]')
-if (!(palTls > 0 && palTls < palAll)) errors.push(`C: search 'tls' should narrow the palette (${palAll} -> ${palTls})`)
-await page.locator('[data-pal-search]').fill('')
-
-// ── E · stack + vertical columns, 'serve' pre-picked (unchanged round 5) ────
-await tab('E')
-if ((await count('[data-plane]')) !== 2) errors.push(`E: expected 2 planes at start, got ${await count('[data-plane]')}`)
-if ((await count('[data-vcol]')) !== 2) errors.push(`E: expected 2 columns at start, got ${await count('[data-vcol]')}`)
-if ((await count('[data-vedge]')) !== 1) errors.push(`E: one open column = one begat-edge, got ${await count('[data-vedge]')}`)
-if ((await count('[data-varrow]')) !== 6) errors.push(`E: 4+4 boxes need 3+3 down arrows, got ${await count('[data-varrow]')}`)
-if ((await count('[data-vaside]')) !== 1) errors.push(`E: serve's aside should hang below its column, got ${await count('[data-vaside]')}`)
-await shot('e6-default')
-
-// picking in the COLUMNS drives the STACK — one TierPathState
-await click('[data-vpick="secure"]')
-if ((await count('[data-plane]')) !== 3) errors.push(`E: column pick should grow the stack to 3 planes, got ${await count('[data-plane]')}`)
-await click('[data-vpick="primitives"]')
-if ((await count('[data-plane]')) !== 4) errors.push(`E: drill to primitives should show 4 planes, got ${await count('[data-plane]')}`)
-if ((await count('[data-vcol]')) !== 4) errors.push(`E: drill to primitives should show 4 columns, got ${await count('[data-vcol]')}`)
-if ((await count('[data-vedge]')) !== 3) errors.push(`E: three open columns = three begat-edges, got ${await count('[data-vedge]')}`)
-await shot('e6-deep')
-const fringeDeep = await fringeCount()
-
-// picking in the STACK drives the COLUMNS — the tier-0 swap truncates all
-await click('[data-pick-stack="machine"]')
-if ((await count('[data-plane]')) !== 2) errors.push(`E: picking 'machine' at tier 0 should swap to 2 planes, got ${await count('[data-plane]')}`)
-if ((await count('[data-vcol]')) !== 2) errors.push(`E: the swap should leave 2 columns, got ${await count('[data-vcol]')}`)
-if ((await fringeCount()) === fringeDeep) errors.push('E: the tier-0 swap did not change the projected route')
-await shot('e6-swap')
+if (!(palTls > 0 && palTls < palAll)) errors.push(`S: search 'tls' should narrow the palette (${palAll} -> ${palTls})`)
 
 await browser.close()
 vite.kill()

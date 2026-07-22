@@ -124,6 +124,8 @@ export default function WalkColumns({
               tier {k} · {c.source}
             </div>
             {c.stops.map((s, i) => {
+              // presentation receives RESOLVED trees — forks never reach here
+              if (s.kind === 'fork') return null
               if (s.kind === 'stage') {
                 const picked = path[k] === s.key
                 return (
@@ -134,6 +136,7 @@ export default function WalkColumns({
                     onClick={() => pick(k, s)}
                     className={[
                       'absolute rounded-lg border-2 px-2 text-left text-[10.5px] font-bold leading-tight',
+                      s.optional ? 'border-dashed' : '',
                       picked ? 'border-amber-500 bg-amber-400/90 text-white shadow-sm' : 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100',
                     ].join(' ')}
                     style={{ left: boxX(k), top: boxY(i), width: COLW, height: BOXH }}
@@ -153,11 +156,12 @@ export default function WalkColumns({
                   onClick={() => pick(k, s)}
                   className={[
                     'absolute rounded-lg border-2 bg-white px-2 text-left text-[10.5px] font-semibold leading-tight',
+                    s.optional ? 'border-dashed' : '',
                     sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
                   ].join(' ')}
                   style={{ left: boxX(k), top: boxY(i), width: COLW, height: BOXH, borderColor: color, color }}
                 >
-                  <span className="block truncate">{byId.get(s.node)!.title}</span>
+                  <span className="block truncate">{s.optional ? '◇ ' : ''}{byId.get(s.node)!.title}</span>
                 </button>
               )
             })}

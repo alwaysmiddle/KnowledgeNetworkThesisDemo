@@ -23,6 +23,8 @@ export interface VisitStop {
   kind: 'visit'
   node: string
   note?: string
+  /** an optional stop: on the road by default, but the road can bypass it */
+  optional?: boolean
 }
 
 /** a related sequence at a stage's tier — beside the steps, not one of them */
@@ -39,9 +41,27 @@ export interface StageStop {
   title: string
   steps: Stop[]
   asides?: Aside[]
+  optional?: boolean
 }
 
-export type Stop = VisitStop | StageStop
+/** one road out of a fork — the branch label is the condition that picks it */
+export interface Branch {
+  label: string
+  steps: Stop[]
+}
+
+/** a branching decision (round 7): the road splits into labelled branches and
+ * every branch REJOINS below — well-nested fork/rejoin, never a free DAG.
+ * Presentation never sees a fork: resolveRoad() splices the chosen branch
+ * inline, so downstream (columns, fringe, bus) stays a linear walk. */
+export interface ForkStop {
+  kind: 'fork'
+  key: string
+  question: string
+  branches: Branch[]
+}
+
+export type Stop = VisitStop | StageStop | ForkStop
 
 const v = (node: string, note?: string): VisitStop => ({ kind: 'visit', node, note })
 const stage = (key: string, title: string, steps: Stop[], asides?: Aside[]): StageStop => ({
@@ -123,28 +143,65 @@ export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry
   const out: RouteEntry[] = []
   for (const s of stops) {
     if (s.kind === 'visit') out.push({ kind: 'node', id: s.node, note: s.note })
+    // defensive: presentation reads RESOLVED trees (no forks); an unresolved
+    // fork projects as its first branch, the default road
+    else if (s.kind === 'fork') out.push(...fringe(s.branches[0]?.steps ?? [], expanded))
     else if (expanded.has(s.key)) out.push(...fringe(s.steps, expanded))
     else out.push({ kind: 'stage', key: s.key, title: s.title, visits: visitCount(s) })
   }
   return out
 }
 
-// ── Shape helpers ───────────────────────────────────────────────────────────
+// ── Road resolution (round 7) ───────────────────────────────────────────────
+// A branching draft still projects to ONE linear walk: pick a branch per fork
+// (branch 0 is the default road), splice it inline where the fork stood, and
+// drop skipped optionals. Everything downstream of this call — columns,
+// fringe, the bus — never learns that forks exist.
 
-/** leaf visits under a stop, all tiers */
-export function visitCount(s: Stop): number {
-  return s.kind === 'visit' ? 1 : s.steps.reduce((a, c) => a + visitCount(c), 0)
+export function resolveRoad(stops: Stop[], choices: Record<string, number>, withOptionals: boolean): Stop[] {
+  const out: Stop[] = []
+  for (const s of stops) {
+    if (s.kind === 'fork') {
+      const branch = s.branches[choices[s.key] ?? 0] ?? s.branches[0]
+      out.push(...resolveRoad(branch?.steps ?? [], choices, withOptionals))
+    } else if (s.optional && !withOptionals) {
+      continue
+    } else if (s.kind === 'stage') {
+      out.push({ ...s, steps: resolveRoad(s.steps, choices, withOptionals) })
+    } else {
+      out.push(s)
+    }
+  }
+  return out
 }
 
-/** tiers under a stop, counting itself */
+// ── Shape helpers ───────────────────────────────────────────────────────────
+
+/** leaf visits under a stop, all tiers — a fork counts its longest road */
+export function visitCount(s: Stop): number {
+  if (s.kind === 'visit') return 1
+  if (s.kind === 'fork') return Math.max(0, ...s.branches.map((b) => b.steps.reduce((a, c) => a + visitCount(c), 0)))
+  return s.steps.reduce((a, c) => a + visitCount(c), 0)
+}
+
+/** tiers under a stop, counting itself — a fork adds no tier of its own */
 export function tierCount(s: Stop): number {
-  return s.kind === 'visit' ? 1 : 1 + Math.max(...s.steps.map(tierCount))
+  if (s.kind === 'visit') return 1
+  if (s.kind === 'fork') return Math.max(1, ...s.branches.flatMap((b) => b.steps.map(tierCount)))
+  return 1 + Math.max(...s.steps.map(tierCount))
 }
 
 /** the chain of stages from the plan root down to `key` (inclusive) */
 export function stagePath(stops: Stop[], key: string): StageStop[] {
   for (const s of stops) {
-    if (s.kind !== 'stage') continue
+    if (s.kind === 'visit') continue
+    if (s.kind === 'fork') {
+      for (const b of s.branches) {
+        const below = stagePath(b.steps, key)
+        if (below.length) return below
+      }
+      continue
+    }
     if (s.key === key) return [s]
     const below = stagePath(s.steps, key)
     if (below.length) return [s, ...below]
@@ -196,7 +253,11 @@ export function allExpandedKeys(): ReadonlySet<string> {
  * the structural reading (layer stack), independent of expansion state */
 export function entriesAtTier(stops: Stop[], tier: number): Stop[] {
   if (tier === 0) return stops
-  return stops.flatMap((s) => (s.kind === 'stage' ? entriesAtTier(s.steps, tier - 1) : []))
+  return stops.flatMap((s) => {
+    if (s.kind === 'stage') return entriesAtTier(s.steps, tier - 1)
+    if (s.kind === 'fork') return s.branches.flatMap((b) => entriesAtTier(b.steps, tier))
+    return []
+  })
 }
 
 // ── Module-load guard — the walks.ts idiom: throw at load, not at render ────
@@ -207,6 +268,8 @@ export function entriesAtTier(stops: Stop[], tier: number): Stop[] {
         const n = byId.get(s.node)
         if (!n) throw new Error(`walk-tiers mock references unknown node id: ${s.node}`)
         if (!n.topic) throw new Error(`walk-tiers mock stop ${s.node} is not a topic`)
+      } else if (s.kind === 'fork') {
+        for (const b of s.branches) check(b.steps)
       } else {
         check(s.steps)
         for (const a of s.asides ?? []) check(a.steps)
@@ -216,11 +279,12 @@ export function entriesAtTier(stops: Stop[], tier: number): Stop[] {
   check(PLAN.stops)
   const keys: string[] = []
   const collect = (stops: Stop[]) => {
-    for (const s of stops)
-      if (s.kind === 'stage') {
-        keys.push(s.key)
-        collect(s.steps)
-      }
+    for (const s of stops) {
+      if (s.kind === 'visit') continue
+      keys.push(s.key)
+      if (s.kind === 'fork') for (const b of s.branches) collect(b.steps)
+      else collect(s.steps)
+    }
   }
   collect(PLAN.stops)
   if (new Set(keys).size !== keys.length) throw new Error('walk-tiers mock: duplicate stage key')

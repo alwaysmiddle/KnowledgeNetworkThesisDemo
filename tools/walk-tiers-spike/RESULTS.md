@@ -1,5 +1,67 @@
 # Walk-Tiers Spike Results
 
+## Round 7 — 2026-07-21 (branching: the railroad, on ONE combined desk)
+
+The round-6 verdict discussion stepped back to a bigger question: what if
+the author needs a **branching decision**? Design the branching-capable
+visual first — trimming to a single lane is then the degenerate case. The
+chosen notation is the **railroad diagram** (top-down road, forks that fan
+out into labelled branch lanes, every branch REJOINS below — well-nested
+fork/rejoin, never a free canvas: every position stays computed). And per
+the follow-up verdict, the candidate tabs are gone: **one combined desk** —
+palette | railroad | columns — replaces C and E.
+
+Model (the load-bearing part):
+
+- `ForkStop { key, question, branches: [{label, steps}] }` joins the Stop
+  union; `optional?: boolean` joins visit and stage. Both live ONLY in the
+  authoring tree.
+- **`resolveRoad(stops, choices, withOptionals)`** is the seam: pick a
+  branch per fork (branch 0 = the default road), splice it inline, drop
+  skipped optionals — out comes a plain linear walk. The columns, the
+  fringe strip, and eventually the bus never learn that forks exist; the
+  round-5 presentation stack is byte-for-byte unchanged. A draft with zero
+  forks resolves to itself, which IS the trim-down argument.
+- The path grammar grows exactly one rule: a fork consumes TWO segments
+  (`[forkIdx, branchIdx, stepIdx…]`), all funneled through
+  `rebuildListAt` — so insert/remove/move/group work inside a branch with
+  no new op types. New ops: `forkSelection` (selection becomes the
+  main-path branch, an empty alternative opens beside it), `addBranch`,
+  `relabelBranch`, `setForkQuestion`, `toggleOptionalSelection`.
+
+The railroad (`AuthorRoad`, from `AuthorFlow`'s arithmetic layout):
+
+- fork = amber diamond + italic question + labelled branch chips (●/○ picks
+  the road); the CHOSEN lane is the road — bold amber rails, walk-order
+  badges — other lanes ride along ghosted (dashed grey, dimmed, unbadged).
+- optional = dashed border + ◇ + a bypass rail arcing beside the node;
+  toggle "optionals: bypassed" and the bypass BECOMES the road while the
+  node dims and loses its badge.
+- an empty branch is a visible drop lane ("drop steps here"); contextual
+  fly tools gain ⑂ fork and ◇ optional next to ⊞ ≀ ✕.
+
+Driver proof (`shots.mjs`, rewritten): branch pick re-projects fringe
+(7→10), badges, and columns without editing the draft (node count
+constant); optional bypass shrinks all three (10→9) and restores; ⑂ on a
+2-visit selection splits the road in place, route unchanged (the selection
+IS the main branch); a palette drop lands inside the empty alternative
+lane and picking that lane swaps http+ws for ci (10→9); contextual group
+and column drilling still work; hover still feeds the doc pane. Frames:
+`s7-default`, `s7-branchB`, `s7-bypass`, `s7-forked`, `s7-desk-final` —
+all eyeballed, the bypass-becomes-the-road frame is the money shot.
+
+Retired (git keeps them): `AuthorMock`, `AuthorNest` (nested boxes),
+`AuthorFlow` (round-6 flow), `StackLinesMock` (iso stack), `tierpath`.
+That records the metaphor verdict implicitly: the railroad — a structured
+node chart — is the authoring view; the columns are the presentation view;
+one desk holds both. Palette extracted to `Palette.tsx` unchanged.
+
+Open questions for the next verdict: does the desk feel right as ONE
+surface (vs. authoring and presenting as separate modes)? Should branch
+choice live with the presenter at present-time (a chooser when the walk
+reaches the diamond) rather than as an authoring-side radio? Do forks need
+to be groupable/collapsible once plans grow?
+
 ## Round 6 — 2026-07-21 (reopened: boxes vs NODES)
 
 Round-5 feedback reopened #11 on the authoring metaphor: nested boxes are
