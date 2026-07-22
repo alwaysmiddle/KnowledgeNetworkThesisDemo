@@ -22,7 +22,7 @@ import { bandFor, DT, gapFor, handleDrop } from './authordnd'
 import type { Band } from './authordnd'
 import { visitCount } from './mockwalk'
 import type { Aside, ForkStop, StageStop, Stop } from './mockwalk'
-import type { Sync } from './sync'
+import type { HoverBinding } from '../../studio/bus'
 
 const NODEW = 150
 const NODEH = 34
@@ -233,7 +233,7 @@ export default function AuthorRoad({
   withOptionals,
 }: {
   state: AuthorState
-  sync: Sync
+  sync: HoverBinding
   choices: Record<string, number>
   pickBranch(forkKey: string, idx: number): void
   withOptionals: boolean

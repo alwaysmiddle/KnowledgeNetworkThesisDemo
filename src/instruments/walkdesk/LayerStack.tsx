@@ -9,7 +9,7 @@
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { columnsFor } from './columns'
 import type { Stop } from './mockwalk'
-import type { Sync } from './sync'
+import type { HoverBinding } from '../../studio/bus'
 
 const PLANE_STEP = 92
 const PLANE_TOP = 44
@@ -23,7 +23,7 @@ export default function LayerStack({
   stops: Stop[]
   path: string[]
   pick(col: number, s: Stop): void
-  sync: Sync
+  sync: HoverBinding
 }) {
   const cols = columnsFor(stops, path)
   const height = PLANE_TOP + cols.length * PLANE_STEP + 96

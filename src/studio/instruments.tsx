@@ -29,6 +29,7 @@ import TrailStrip from '../instruments/TrailStrip'
 import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
+import WalkDeskView from '../instruments/walkdesk/WalkDeskView'
 import WalkView from '../instruments/WalkView'
 
 export interface Instrument {
@@ -65,6 +66,14 @@ const VIEWS = [
     slot: 'strip',
     height: 240,
     render: (bus) => <WalkView bus={bus} />,
+  },
+  {
+    // the walk-tiers spike's winning desk (#11), graduated whole; the
+    // break-apart pass (#12) will split its zones into instruments proper
+    id: 'walkdesk',
+    label: 'Walk·Desk',
+    slot: 'column',
+    render: (bus) => <WalkDeskView bus={bus} />,
   },
   {
     id: 'unfold',
@@ -166,7 +175,7 @@ export const lensTypeOf = (id: string): EdgeType | undefined =>
 // panes all survive as individually pickable instruments — only the curated
 // coder-shaped composition is gone.
 export interface Preset {
-  id: 'teaching' | 'cockpit'
+  id: 'teaching' | 'cockpit' | 'authoring'
   label: string
   hint: string
   /** column order; strips always sit at the bottom */
@@ -188,6 +197,12 @@ export const PRESETS: Preset[] = [
     hint: 'nested map + connections + document — territory, subtree wheel, and prose on one focus',
     active: ['nested', 'children', 'doc'],
     flex: { nested: 1.8, children: 1, doc: 1 },
+  },
+  {
+    id: 'authoring',
+    label: 'Authoring',
+    hint: 'the walk desk — palette feeds, the railroad forks and rejoins, stack + columns read the resolved road',
+    active: ['walkdesk'],
   },
 ]
 

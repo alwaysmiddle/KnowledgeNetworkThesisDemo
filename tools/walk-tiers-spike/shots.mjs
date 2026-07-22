@@ -1,7 +1,8 @@
-// Walk-tiers spike driver, round 7 — ONE combined desk: palette | railroad |
-// columns on a single shared draft. The chain must prove the round's core
-// claim: the railroad may fork and rejoin, but everything right of it —
-// columns, fringe strip — always reads ONE resolved linear walk. Steps:
+// Walk-desk driver — GRADUATED: the round-7 desk now ships as the Studio's
+// Walk·Desk instrument behind the Authoring preset (the ?spike=walk-tiers
+// gate is gone), so this drives the real app. The chain still proves the
+// core claim: the railroad may fork and rejoin, but everything right of it —
+// stack, columns, fringe strip — always reads ONE resolved linear walk. Steps:
 // picking a branch re-projects the route; bypassing optionals shrinks it;
 // forking a selection through the contextual tools splits the road in place;
 // a palette drop lands INSIDE an empty branch lane; the columns still drill.
@@ -73,13 +74,14 @@ const dnd = async (srcSel, tgtSel, yFrac = 0.5) => {
   await page.waitForTimeout(200)
 }
 
-await page.goto(`http://localhost:${PORT}/?spike=walk-tiers`)
+await page.goto(`http://localhost:${PORT}/`)
 await page.waitForTimeout(700)
+await click('[aria-label="studio-preset-authoring"]')
 
 // ── the desk at first paint ─────────────────────────────────────────────────
 // seed: [dns, seed-net[ip, tcp], seed-sec⑂{[tls] | [pkc, sym, hash, tls]},
 //        http, ws◇, auth] — branch 0 chosen, optionals on the road
-if ((await count('[data-cand="S"]')) !== 1) errors.push(`S: the combined desk should render, got ${await count('[data-cand="S"]')}`)
+if ((await count('[data-desk]')) !== 1) errors.push(`S: the walk desk should render under the Authoring preset, got ${await count('[data-desk]')}`)
 if ((await count('[data-rnode]')) !== 11) errors.push(`S: 11 visit nodes across road+lanes, got ${await count('[data-rnode]')}`)
 if ((await count('[data-fork]')) !== 1) errors.push(`S: one fork diamond, got ${await count('[data-fork]')}`)
 if ((await count('[data-brpick]')) !== 2) errors.push(`S: two branch chips, got ${await count('[data-brpick]')}`)
@@ -151,11 +153,12 @@ if ((await count('[data-plane]')) !== 2) errors.push(`S: the stack diamond re-op
 if ((await count('[data-vcol]')) !== 2) errors.push(`S: the columns follow the stack's pick, got ${await count('[data-vcol]')}`)
 await shot('s7-desk-final')
 
-// ── hover lights the doc pane from the road — no private tooltips ───────────
+// ── hover publishes on the BUS hover channel — every bound element with the
+// same id lights (railroad node, fringe chip, column box, stack dot) ────────
 await page.locator('[data-road-root] [data-node="stk-ip-routing"]').first().hover()
 await page.waitForTimeout(250)
-const doc = await page.locator('[data-doc]').getAttribute('data-doc')
-if (doc !== 'stk-ip-routing') errors.push(`S: hovering stk-ip-routing shows doc pane "${doc}"`)
+const lit = await count('[data-lit="1"]')
+if (lit < 2) errors.push(`S: hovering stk-ip-routing should light every bound element sharing the id, got ${lit}`)
 
 // ── the palette search narrows the pick list ────────────────────────────────
 const palAll = await count('[data-pal]')

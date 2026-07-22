@@ -1,13 +1,18 @@
-// The ONE combined surface (round 7) — palette, railroad, columns on a
-// single desk. The verdict that shaped it: the two round-6 authoring
-// metaphors were provably the same editor, so instead of comparing
-// renderings, the desk gives each JOB its own instrument on one shared
-// draft: the palette FEEDS (stand-in for the map), the railroad AUTHORS
-// (forks, optionals, stages — the only view that ever sees a branch), and
-// the columns + fringe strip PRESENT the resolved road. resolveRoad() is the
-// seam: pick a branch per fork, drop skipped optionals, and everything right
-// of the railroad receives a plain linear walk — the round-5 presentation
-// stack, byte-for-byte unchanged.
+// The walk desk — the walk-tiers spike's winning candidate (#11 round 7b),
+// graduated into the Studio as one instrument. Each JOB gets its own zone on
+// one shared draft: the palette FEEDS (stand-in for the map instrument), the
+// railroad AUTHORS (forks, optionals, stages — the only view that ever sees
+// a branch), and the layer stack + columns + fringe strip PRESENT the
+// resolved road. resolveRoad() is the seam: pick a branch per fork, drop
+// skipped optionals, and everything right of the railroad receives a plain
+// linear walk. Known spike-era rough edges (ghost-lane deletion visibility,
+// container delete vs promote-children, dnd targeting) are tracked for the
+// break-apart pass on KnowledgeNetworkDemo#12.
+//
+// Bus surface, deliberately minimal for now: the desk JOINS the hover
+// channel (useHover) so its stops light up in any composed instrument, and
+// nothing else — the draft, branch choices, and drill path stay desk-local
+// until the break-apart pass syncs them (route publishing, map-as-palette).
 //
 // The draft starts SEEDED with a fork and an optional stop so branching is
 // visible at first paint; every id is a real corpus node — tiers and
@@ -22,7 +27,8 @@ import { fringe, resolveRoad } from './mockwalk'
 import type { Stop } from './mockwalk'
 import Palette from './Palette'
 import { FringeStrip } from './shared'
-import type { Sync } from './sync'
+import { useHover } from '../../studio/bus'
+import type { Bus } from '../../studio/bus'
 import WalkColumns from './WalkColumns'
 
 const SEED: Stop[] = [
@@ -58,7 +64,8 @@ const SEED: Stop[] = [
   { kind: 'visit', node: 'app-authentication-authorization' },
 ]
 
-export default function DeskMock({ sync }: { sync: Sync }) {
+export default function WalkDeskView({ bus }: { bus: Bus }) {
+  const sync = useHover(bus)
   const state = useAuthorDraft(SEED)
   const [choices, setChoices] = useState<Record<string, number>>({})
   const [withOptionals, setWithOptionals] = useState(true)
@@ -67,7 +74,7 @@ export default function DeskMock({ sync }: { sync: Sync }) {
   const resolved = resolveRoad(state.stops, choices, withOptionals)
 
   return (
-    <div className="h-full flex" data-cand="S">
+    <div className="h-full flex" data-desk>
       <Palette state={state} sync={sync} />
 
       <div className="flex-1 min-w-0 flex flex-col bg-slate-50/50">

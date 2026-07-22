@@ -105,14 +105,14 @@ await page.waitForTimeout(600)
 const sidebar = page.locator('[aria-label="studio-sidebar"]')
 if (!(await sidebar.isVisible())) fail('sidebar not visible')
 
-// 11 views + one generated lens per relation type (4) = 15 rows.
+// 12 views + one generated lens per relation type (4) = 16 rows.
 const instCount = await page.locator('[aria-label^="studio-inst-"]').count()
-console.log('sidebar instruments =', instCount, '(expect 15)')
-if (instCount !== 15) fail(`expected 15 instrument entries, got ${instCount}`)
+console.log('sidebar instruments =', instCount, '(expect 16)')
+if (instCount !== 16) fail(`expected 16 instrument entries, got ${instCount}`)
 
 const presetCount = await page.locator('[aria-label^="studio-preset-"]').count()
-console.log('sidebar presets =', presetCount, '(expect 2 — teaching, cockpit)')
-if (presetCount !== 2) fail(`expected 2 preset buttons, got ${presetCount}`)
+console.log('sidebar presets =', presetCount, '(expect 3 — teaching, cockpit, authoring)')
+if (presetCount !== 3) fail(`expected 3 preset buttons, got ${presetCount}`)
 
 let onPanes = await page.locator('[data-slot="on"]').count()
 console.log('teaching preset default: panes on =', onPanes, '(expect 4 — map + unfold-graph + doc + walk)')

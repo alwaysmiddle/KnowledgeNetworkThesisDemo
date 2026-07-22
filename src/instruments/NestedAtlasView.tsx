@@ -176,7 +176,10 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     if (!svg) return
     const ro = new ResizeObserver(() => {
       const r = svg.getBoundingClientRect()
-      setClientBox({ w: r.width, h: r.height })
+      // a BENCHED pane (display:none) measures 0×0 — that box carries no
+      // layout information and would drive the zoom factor to Infinity, so
+      // keep the last real one until the pane is shown again
+      if (r.width > 0 && r.height > 0) setClientBox({ w: r.width, h: r.height })
     })
     ro.observe(svg)
     return () => ro.disconnect()

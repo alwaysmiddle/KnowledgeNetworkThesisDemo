@@ -16,7 +16,7 @@ import { columnsFor } from './columns'
 import type { Column } from './columns'
 import { visitCount } from './mockwalk'
 import type { Stop } from './mockwalk'
-import type { Sync } from './sync'
+import type { HoverBinding } from '../../studio/bus'
 
 const COLW = 148
 const GAP = 56
@@ -37,7 +37,7 @@ export default function WalkColumns({
   stops: Stop[]
   path: string[]
   pick(col: number, s: Stop): void
-  sync: Sync
+  sync: HoverBinding
 }) {
   const cols = columnsFor(stops, path)
 

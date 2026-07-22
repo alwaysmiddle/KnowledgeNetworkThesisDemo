@@ -1,5 +1,30 @@
 # Walk-Tiers Spike Results
 
+## GRADUATED — 2026-07-21 (the desk is the candidate; now a Studio instrument)
+
+The verdict: **the desk is the view** — needs polish, but the shape is right.
+Migrated whole into the app:
+
+- `src/experiments/walk-tiers/` → `src/instruments/walkdesk/` (git mv, history
+  kept); `DeskMock` → `WalkDeskView`, taking the bus. The spike's `sync.ts`
+  died as designed: same `bind()`/`lit()`/`data-lit` shape as the bus's
+  `useHover`, so every component swapped `Sync` → `HoverBinding` without a
+  markup change. The desk now PUBLISHES on the real hover channel — its stops
+  light up in any composed instrument.
+- Registered as instrument `walkdesk` (label **Walk·Desk**) plus a third
+  preset **Authoring** — the perspective. `?spike=walk-tiers`, the gallery,
+  and the doc-pane stand-in are gone (the Studio has the real KnowledgePanel).
+- Everything else stays desk-local for the break-apart pass (#12): the draft,
+  branch choices, drill path, route publishing, map-as-palette, doc-follows
+  wiring, and the known editor gaps listed under round 7b.
+- Found & fixed on the way: benching the Map (`display:none`) fired its
+  ResizeObserver with a 0×0 box → zoom factor Infinity → SVG NaN spam. No
+  earlier preset ever benched the map, so it was latent. Guard: ignore
+  zero-size boxes, keep the last real one.
+- This driver now enters through the shipped app: load `/`, click the
+  Authoring preset, same assertion chain; the doc-pane step became a bus
+  assertion (hover → every `data-lit="1"` element sharing the id).
+
 ## Round 7b — 2026-07-21 (verdict: bring back the isometric stack; defer the editor polish)
 
 The round-7 verdict: the **isometric layer stack was the magical component**

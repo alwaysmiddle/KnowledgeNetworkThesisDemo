@@ -9,9 +9,9 @@ import { useState } from 'react'
 import { byId, domainIds, domainOf, DOMAIN_COLOR, topicsUnder } from '../../corpus/graph'
 import type { AuthorState } from './authordraft'
 import { DT } from './authordnd'
-import type { Sync } from './sync'
+import type { HoverBinding } from '../../studio/bus'
 
-export default function Palette({ state, sync }: { state: AuthorState; sync: Sync }) {
+export default function Palette({ state, sync }: { state: AuthorState; sync: HoverBinding }) {
   const [q, setQ] = useState('')
   const match = (id: string) => byId.get(id)!.title.toLowerCase().includes(q.toLowerCase())
   return (
