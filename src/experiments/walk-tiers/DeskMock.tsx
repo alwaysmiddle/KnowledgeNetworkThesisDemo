@@ -17,6 +17,7 @@ import { useState } from 'react'
 
 import AuthorRoad from './AuthorRoad'
 import { allKeysOf, useAuthorDraft } from './authordraft'
+import LayerStack from './LayerStack'
 import { fringe, resolveRoad } from './mockwalk'
 import type { Stop } from './mockwalk'
 import Palette from './Palette'
@@ -102,9 +103,15 @@ export default function DeskMock({ sync }: { sync: Sync }) {
           <div className="w-[440px] shrink-0 min-w-0 flex flex-col">
             <div className="shrink-0 px-3 py-1.5 border-b border-slate-100">
               <span className="text-[10px] font-bold text-slate-500">
-                columns — the RESOLVED road: forks already decided, one linear walk to present
+                stack + columns — the RESOLVED road: forks already decided, one linear walk to present
               </span>
             </div>
+            <LayerStack
+              stops={resolved}
+              path={colPath}
+              pick={(col, s) => setColPath(s.kind === 'stage' ? [...colPath.slice(0, col), s.key] : colPath.slice(0, col))}
+              sync={sync}
+            />
             <WalkColumns
               stops={resolved}
               path={colPath}

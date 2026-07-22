@@ -1,5 +1,29 @@
 # Walk-Tiers Spike Results
 
+## Round 7b — 2026-07-21 (verdict: bring back the isometric stack; defer the editor polish)
+
+The round-7 verdict: the **isometric layer stack was the magical component**
+and must stay — restored to the right of the desk. `LayerStack` (recovered
+from the round-5 `StackLinesMock`, git `6af3a63`) now sits above the columns
+in the right pane, adapted to the controlled `stops/path/pick` contract;
+`columnsFor` moved to `columns.ts` so stack and columns compute the drill
+path from one function and cannot disagree. Like every presentation view it
+reads the RESOLVED road — picking a branch or bypassing optionals re-renders
+the planes too. Driver-proven both ways: drilling in the columns grows a
+plane; a dot click on plane 0 folds the columns back; the stack diamond
+re-opens them.
+
+**Known editor gaps, deliberately NOT fixed in the spike** (this desk gets
+rebuilt properly in the real lab — tracked for graduation #12):
+
+- deleting stops inside an unchosen (ghost) branch lane doesn't visibly
+  register on the alternative routes;
+- deleting a stage container cascades to its children — the lab version
+  should ask: promote the children onto the road, or delete along with the
+  parent;
+- drag-and-drop targeting is finicky — hitting the intended gap/lane takes
+  precision the arithmetic layout doesn't forgive.
+
 ## Round 7 — 2026-07-21 (branching: the railroad, on ONE combined desk)
 
 The round-6 verdict discussion stepped back to a bigger question: what if

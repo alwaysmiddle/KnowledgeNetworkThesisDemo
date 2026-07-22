@@ -12,8 +12,10 @@
 // SVG arrows and edges need no DOM measurement.
 
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
+import { columnsFor } from './columns'
+import type { Column } from './columns'
 import { visitCount } from './mockwalk'
-import type { Aside, Stop, StageStop } from './mockwalk'
+import type { Stop } from './mockwalk'
 import type { Sync } from './sync'
 
 const COLW = 148
@@ -22,29 +24,6 @@ const BOXH = 44
 const VGAP = 22
 const TOP = 40
 const PAD = 14
-
-interface Column {
-  source: string
-  stops: Stop[]
-  /** position of the stage box (column index, row index) this column came from */
-  from?: { col: number; row: number }
-  asides?: Aside[]
-}
-
-function columnsFor(stops: Stop[], path: string[]): Column[] {
-  const cols: Column[] = [{ source: 'the plan', stops }]
-  let cur = stops
-  let colIdx = 0
-  for (const key of path) {
-    const row = cur.findIndex((x) => x.kind === 'stage' && x.key === key)
-    if (row < 0) break
-    const s = cur[row] as StageStop
-    cols.push({ source: s.title, stops: s.steps, from: { col: colIdx, row }, asides: s.asides })
-    cur = s.steps
-    colIdx++
-  }
-  return cols
-}
 
 const boxX = (col: number) => PAD + col * (COLW + GAP)
 const boxY = (row: number) => TOP + row * (BOXH + VGAP)

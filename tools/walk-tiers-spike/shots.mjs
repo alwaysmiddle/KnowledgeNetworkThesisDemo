@@ -91,6 +91,7 @@ const firstOrd = await page.locator('[data-rnode] [data-rord]').first().getAttri
 if (firstOrd !== '1') errors.push(`S: the first road visit should wear badge 1, got ${firstOrd}`)
 if ((await fringeCount()) !== '7') errors.push(`S: default resolved route is 7 visits, got ${await fringeCount()}`)
 if ((await count('[data-vbox]')) !== 6) errors.push(`S: columns tier 0 shows 6 resolved boxes, got ${await count('[data-vbox]')}`)
+if ((await count('[data-plane]')) !== 1) errors.push(`S: the iso stack starts with one plane, got ${await count('[data-plane]')}`)
 await shot('s7-default')
 
 // ── picking the other branch re-projects EVERYTHING right of the railroad ───
@@ -135,10 +136,19 @@ await click('[data-fly-group]')
 if ((await count('[data-rstage]')) !== 2) errors.push(`S: grouping should open a 2nd stage container, got ${await count('[data-rstage]')}`)
 if ((await fringeCount()) !== '9') errors.push(`S: grouping adds no visits — route stays 9, got ${await fringeCount()}`)
 
-// ── the columns still drill the resolved road ───────────────────────────────
+// ── the columns still drill the resolved road, and the iso stack follows ────
 await click('[data-vpick="seed-net"]')
 if ((await count('[data-vcol]')) !== 2) errors.push(`S: drilling seed-net opens a 2nd column, got ${await count('[data-vcol]')}`)
 if ((await count('[data-vedge]')) !== 1) errors.push(`S: one open column = one begat-edge, got ${await count('[data-vedge]')}`)
+if ((await count('[data-plane]')) !== 2) errors.push(`S: the iso stack grows a 2nd plane with the column, got ${await count('[data-plane]')}`)
+
+// ── ...and drives too: a dot click collapses, the diamond re-opens ──────────
+await click('[data-plane="0"] button:not([data-pick-stack])')
+if ((await count('[data-plane]')) !== 1) errors.push(`S: picking a visit dot on plane 0 folds the drill back, got ${await count('[data-plane]')}`)
+if ((await count('[data-vcol]')) !== 1) errors.push(`S: the columns follow the stack's fold, got ${await count('[data-vcol]')}`)
+await click('[data-pick-stack="seed-net"]')
+if ((await count('[data-plane]')) !== 2) errors.push(`S: the stack diamond re-opens the drill, got ${await count('[data-plane]')}`)
+if ((await count('[data-vcol]')) !== 2) errors.push(`S: the columns follow the stack's pick, got ${await count('[data-vcol]')}`)
 await shot('s7-desk-final')
 
 // ── hover lights the doc pane from the road — no private tooltips ───────────
