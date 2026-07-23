@@ -13,6 +13,22 @@ import type { HoverBinding } from '../../studio/bus'
 
 const PLANE_STEP = 92
 const PLANE_TOP = 44
+const PLANE_W = 250
+const PLANE_H = 122
+const TWIST = 42 // deg of rotateZ — how far the plane's corners swing sideways
+const LABEL_GUTTER = 84 // the "tier n · k" chips live to the left of the planes
+
+// A ROTATED box is wider than its CSS width: spin a PLANE_W × PLANE_H rect by
+// TWIST and its horizontal reach becomes (w/2)·cos + (h/2)·sin about the centre
+// — ~134px here, not 125. Placing the plane by its CSS left is what sheared the
+// right corner off in review 4; every horizontal number below is derived from
+// the real footprint instead, so the stack fits its window by construction.
+const rad = (d: number) => (d * Math.PI) / 180
+const HALF_SPAN = (PLANE_W / 2) * Math.cos(rad(TWIST)) + (PLANE_H / 2) * Math.sin(rad(TWIST))
+const PLANE_LEFT = LABEL_GUTTER + HALF_SPAN - PLANE_W / 2
+const STACK_W = PLANE_LEFT + PLANE_W / 2 + HALF_SPAN + 6
+/** the stops' spread across a plane, leaving room for the last dot */
+const DOT_SPAN = PLANE_W - 60
 
 export default function LayerStack({
   stops,
@@ -29,12 +45,16 @@ export default function LayerStack({
   const height = PLANE_TOP + cols.length * PLANE_STEP + 96
 
   return (
-    <div className="shrink-0 relative overflow-hidden bg-slate-50/60 border-b border-slate-200" style={{ height }}>
+    // no background or bottom rule of its own — since review 4 the stack owns a
+    // whole vertical window, and the planes just grow down into it as you drill.
+    // It states its own WIDTH and does not clip: if the window is ever narrower
+    // than STACK_W the pane scrolls, rather than shearing a plane's corner off.
+    <div className="shrink-0 relative" style={{ height, width: STACK_W }}>
       <div className="absolute left-3 top-2 text-[10px] font-bold text-slate-500">
         layer stack — one plane per open column; pick on either side, both follow
       </div>
       {cols.map((line, t) => {
-        const spacing = line.stops.length > 1 ? 250 / (line.stops.length - 1) : 0
+        const spacing = line.stops.length > 1 ? DOT_SPAN / (line.stops.length - 1) : 0
         return (
           <div key={`${t}-${line.source}`}>
             <div
@@ -47,7 +67,13 @@ export default function LayerStack({
             <div
               data-plane={t}
               className="absolute rounded-lg border-2 border-slate-300 bg-white/70"
-              style={{ left: 92, top: PLANE_TOP + t * PLANE_STEP, width: 300, height: 122, transform: 'rotateX(56deg) rotateZ(-42deg)' }}
+              style={{
+                left: PLANE_LEFT,
+                top: PLANE_TOP + t * PLANE_STEP,
+                width: PLANE_W,
+                height: PLANE_H,
+                transform: `rotateX(56deg) rotateZ(-${TWIST}deg)`,
+              }}
             >
               <div className="absolute left-[20px] right-[22px] top-[57px] h-0.5 bg-amber-300/70 rounded" />
               {line.stops.map((s, i) => {

@@ -11,9 +11,12 @@
 //     actually exercised
 //   - a sub-walk BY REFERENCE — a stage built from an authored walks.ts walk
 //   - a REVISIT — stk-tcp-udp is stopped on by two different stages
-//   - an ASIDE — a sequence at the same tier that is related to a stage but
-//     not part of its steps (the "meanwhile" lane)
 //   - mixed grain — a plain leaf visit sitting between stages at tier 0
+//
+// The ASIDE ("meanwhile" lane) was CUT in review 5: a stage's steps are its
+// steps, and a second kind of child that every view had to render specially
+// bought less than it cost. Anything genuinely beside the road is an optional
+// stop or its own branch.
 
 import { byId } from '../../corpus/graph'
 import { WALKS } from '../../corpus/walks'
@@ -25,12 +28,12 @@ export interface VisitStop {
   note?: string
   /** an optional stop: on the road by default, but the road can bypass it */
   optional?: boolean
-}
-
-/** a related sequence at a stage's tier — beside the steps, not one of them */
-export interface Aside {
-  title: string
-  steps: VisitStop[]
+  /** a placeholder slot with no node bound yet — a new lane opens with one of
+   * these instead of an empty label (KnowledgeNetworkDemo#13). It shows a
+   * "pick a node" chip in the editor and is DROPPED from the projection
+   * (fringe/resolveRoad), so downstream — which does byId.get(node)! — never
+   * sees a hole. `node` is '' until bound. */
+  unset?: boolean
 }
 
 /** a stage: a stop that decomposes into its own walk, one tier down */
@@ -40,7 +43,6 @@ export interface StageStop {
   key: string
   title: string
   steps: Stop[]
-  asides?: Aside[]
   optional?: boolean
 }
 
@@ -64,13 +66,7 @@ export interface ForkStop {
 export type Stop = VisitStop | StageStop | ForkStop
 
 const v = (node: string, note?: string): VisitStop => ({ kind: 'visit', node, note })
-const stage = (key: string, title: string, steps: Stop[], asides?: Aside[]): StageStop => ({
-  kind: 'stage',
-  key,
-  title,
-  steps,
-  asides,
-})
+const stage = (key: string, title: string, steps: Stop[]): StageStop => ({ kind: 'stage', key, title, steps })
 
 /** a stage built FROM an authored walk — sub-walk by reference. The stop
  * "is" the whole walk; expanding it plays the walk's stops as its steps. */
@@ -93,32 +89,19 @@ export const PLAN: Plan = {
   title: 'Ship a page the world can load — a plan',
   stops: [
     stageFromWalk('machine', 'transistor-to-program'),
-    stage(
-      'serve',
-      'Serve it on the network',
-      [
-        v('stk-dns-naming', 'a typed name must become an address before anything moves'),
-        v('stk-ip-routing', 'packets hop toward that address with no promises'),
-        v('stk-tcp-udp', 'a reliable stream is built out of the unreliable hops'),
-        stage('secure', 'Secure the channel', [
-          v('cry-public-key-cryptography', 'the trapdoor that lets strangers agree on a secret'),
-          v('cry-tls-certificates', 'the handshake that proves a name and seals the stream'),
-          stage('primitives', 'The primitives underneath', [
-            v('cry-symmetric-encryption', 'once the key is agreed, the bulk cipher does the work'),
-            v('cry-cryptographic-hashing', 'integrity: the fingerprint every record carries'),
-          ]),
+    stage('serve', 'Serve it on the network', [
+      v('stk-dns-naming', 'a typed name must become an address before anything moves'),
+      v('stk-ip-routing', 'packets hop toward that address with no promises'),
+      v('stk-tcp-udp', 'a reliable stream is built out of the unreliable hops'),
+      stage('secure', 'Secure the channel', [
+        v('cry-public-key-cryptography', 'the trapdoor that lets strangers agree on a secret'),
+        v('cry-tls-certificates', 'the handshake that proves a name and seals the stream'),
+        stage('primitives', 'The primitives underneath', [
+          v('cry-symmetric-encryption', 'once the key is agreed, the bulk cipher does the work'),
+          v('cry-cryptographic-hashing', 'integrity: the fingerprint every record carries'),
         ]),
-      ],
-      [
-        {
-          title: 'Meanwhile — the pipeline that ships it',
-          steps: [
-            v('auto-continuous-integration', 'every push is built and tested before it may ship'),
-            v('auto-deployment-monitoring', 'the deploy that put the page here, and the telemetry watching it'),
-          ],
-        },
-      ],
-    ),
+      ]),
+    ]),
     stage('speak', 'Speak the application protocol', [
       v('web-http-rest', 'over the secured stream, the browser finally talks'),
       v('web-sockets-apis', 'on both ends the conversation is just sockets'),
@@ -142,7 +125,10 @@ export type RouteEntry =
 export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry[] {
   const out: RouteEntry[] = []
   for (const s of stops) {
-    if (s.kind === 'visit') out.push({ kind: 'node', id: s.node, note: s.note })
+    if (s.kind === 'visit') {
+      if (s.unset) continue // an unbound placeholder is not a real stop yet
+      out.push({ kind: 'node', id: s.node, note: s.note })
+    }
     // defensive: presentation reads RESOLVED trees (no forks); an unresolved
     // fork projects as its first branch, the default road
     else if (s.kind === 'fork') out.push(...fringe(s.branches[0]?.steps ?? [], expanded))
@@ -161,7 +147,9 @@ export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry
 export function resolveRoad(stops: Stop[], choices: Record<string, number>, withOptionals: boolean): Stop[] {
   const out: Stop[] = []
   for (const s of stops) {
-    if (s.kind === 'fork') {
+    if (s.kind === 'visit' && s.unset) {
+      continue // placeholder slot — never reaches the presented road
+    } else if (s.kind === 'fork') {
       const branch = s.branches[choices[s.key] ?? 0] ?? s.branches[0]
       out.push(...resolveRoad(branch?.steps ?? [], choices, withOptionals))
     } else if (s.optional && !withOptionals) {
@@ -179,7 +167,7 @@ export function resolveRoad(stops: Stop[], choices: Record<string, number>, with
 
 /** leaf visits under a stop, all tiers — a fork counts its longest road */
 export function visitCount(s: Stop): number {
-  if (s.kind === 'visit') return 1
+  if (s.kind === 'visit') return s.unset ? 0 : 1
   if (s.kind === 'fork') return Math.max(0, ...s.branches.map((b) => b.steps.reduce((a, c) => a + visitCount(c), 0)))
   return s.steps.reduce((a, c) => a + visitCount(c), 0)
 }
@@ -220,7 +208,6 @@ export interface TierLine {
   /** what this line is the inside of — the plan itself, or a stage title */
   source: string
   stops: Stop[]
-  asides?: Aside[]
 }
 
 export function linesForPath(path: string[]): TierLine[] {
@@ -229,7 +216,7 @@ export function linesForPath(path: string[]): TierLine[] {
   for (const key of path) {
     const s = stops.find((x): x is StageStop => x.kind === 'stage' && x.key === key)
     if (!s) break
-    lines.push({ tier: lines.length, source: s.title, stops: s.steps, asides: s.asides })
+    lines.push({ tier: lines.length, source: s.title, stops: s.steps })
     stops = s.steps
   }
   return lines
@@ -272,7 +259,6 @@ export function entriesAtTier(stops: Stop[], tier: number): Stop[] {
         for (const b of s.branches) check(b.steps)
       } else {
         check(s.steps)
-        for (const a of s.asides ?? []) check(a.steps)
       }
     }
   }

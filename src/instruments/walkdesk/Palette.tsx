@@ -15,7 +15,7 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
   const [q, setQ] = useState('')
   const match = (id: string) => byId.get(id)!.title.toLowerCase().includes(q.toLowerCase())
   return (
-    <div className="w-[230px] shrink-0 border-r border-slate-200 flex flex-col bg-white">
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col bg-white">
       <div className="shrink-0 px-2 py-1.5 border-b border-slate-100">
         <div className="text-[10px] font-bold text-slate-500 mb-1">
           palette — drag into the road, or click to insert · stand-in for the map instrument
