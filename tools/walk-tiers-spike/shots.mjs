@@ -167,6 +167,63 @@ await page.waitForTimeout(200)
 const palTls = await count('[data-pal]')
 if (!(palTls > 0 && palTls < palAll)) errors.push(`S: search 'tls' should narrow the palette (${palAll} -> ${palTls})`)
 
+// ══ #13 editor fixes — each verified on a FRESH seed (reload resets the desk) ══
+const freshSeed = async () => {
+  await page.reload()
+  await page.waitForTimeout(500)
+  await click('[aria-label="studio-preset-authoring"]')
+}
+const roadNode = (id) => `[data-road-root] [data-rnode][data-node="${id}"]`
+const fringeIds = () =>
+  page.locator('[data-fringe-count] [data-node]').evaluateAll((els) => els.map((e) => e.getAttribute('data-node')))
+
+// ── A · forgiving slots: a drop in the dead gap between nodes lands IN PLACE,
+//        not falling through to append-at-end ─────────────────────────────────
+await freshSeed()
+if ((await count('[data-rslot]')) === 0) errors.push('E13-A: expected between-node drop slots, got 0')
+if ((await fringeCount()) !== '7') errors.push(`E13-A: fresh seed route is 7, got ${await fringeCount()}`)
+await dnd('[data-pal="auto-continuous-integration"]', '[data-rslot="b.1"]')
+if ((await count('[data-rnode]')) !== 12) errors.push(`E13-A: the slot drop should add a node (12), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '8') errors.push(`E13-A: the route grows to 8, got ${await fringeCount()}`)
+const idsA = await fringeIds()
+if (idsA[1] !== 'auto-continuous-integration') errors.push(`E13-A: the drop must land at slot b.1 (2nd in route), got ${idsA[1]}`)
+if (idsA[idsA.length - 1] !== 'app-authentication-authorization')
+  errors.push(`E13-A: it must NOT append to end — last should stay auth, got ${idsA[idsA.length - 1]}`)
+await shot('e13-slot-drop')
+
+// ── B · ghost-lane edits are visible: selecting an off-road node un-dims it,
+//        and deleting it there visibly removes it ─────────────────────────────
+await freshSeed()
+const ghost = roadNode('cry-public-key-cryptography') // only in the unchosen crypto-tour branch
+const opBefore = await page.locator(ghost).first().evaluate((el) => getComputedStyle(el).opacity)
+if (!(Number(opBefore) < 0.75)) errors.push(`E13-B: an unchosen ghost-lane node should read dimmed, opacity ${opBefore}`)
+await click(ghost)
+const opAfter = await page.locator(ghost).first().evaluate((el) => getComputedStyle(el).opacity)
+if (Number(opAfter) < 0.95) errors.push(`E13-B: selecting a ghost node should un-dim it, opacity ${opAfter}`)
+await shot('e13-ghost-selected')
+await click('[data-fly-del]')
+if ((await count(ghost)) !== 0) errors.push('E13-B: deleting inside the ghost lane should remove the node')
+if ((await count('[data-rnode]')) !== 10) errors.push(`E13-B: the ghost-lane delete drops one node (10), got ${await count('[data-rnode]')}`)
+
+// ── C · container delete offers PROMOTE (keep children on the road) ──────────
+await freshSeed()
+if ((await count('[data-rstage]')) !== 1) errors.push(`E13-C: fresh seed has one open stage, got ${await count('[data-rstage]')}`)
+await click('[data-rgrab="seed-net"]')
+if (await page.locator('[data-fly-promote]').isDisabled()) errors.push('E13-C: promote should be enabled for a single selected stage')
+await click('[data-fly-promote]')
+if ((await count('[data-rstage]')) !== 0) errors.push(`E13-C: promote dissolves the stage container, got ${await count('[data-rstage]')}`)
+if ((await count('[data-rnode]')) !== 11) errors.push(`E13-C: promote KEEPS the children (11 nodes), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '7') errors.push(`E13-C: promote changes no visits — route stays 7, got ${await fringeCount()}`)
+if ((await count(roadNode('stk-ip-routing'))) !== 1) errors.push('E13-C: the promoted child should sit on the road')
+await shot('e13-promote')
+
+// ── C2 · delete-with-parent still cascades — the other half of the choice ────
+await freshSeed()
+await click('[data-rgrab="seed-net"]')
+await click('[data-fly-del]')
+if ((await count('[data-rnode]')) !== 9) errors.push(`E13-C2: deleting the stage takes its 2 children (9 nodes), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '5') errors.push(`E13-C2: the route loses the stage's 2 visits (5), got ${await fringeCount()}`)
+
 await browser.close()
 vite.kill()
 

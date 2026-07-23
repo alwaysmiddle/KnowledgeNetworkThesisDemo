@@ -147,6 +147,10 @@ export interface AuthorState {
   forkSelection(): void
   asideSelection(): void
   deleteSelection(): void
+  /** replace the single selected stage with its steps, spliced into the
+   * parent list in place — remove the container but KEEP its children on the
+   * road (the "promote children" answer to a container delete) */
+  promoteSelection(): void
   /** flip the optional flag on every selected visit/stage */
   toggleOptionalSelection(): void
   /** Tab — move the single selected block into the stage right above it */
@@ -161,6 +165,8 @@ export interface AuthorState {
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
+  /** exactly one stage is selected — a container whose children can be promoted */
+  canPromote: boolean
 }
 
 export function useAuthorDraft(initial: Stop[] = []): AuthorState {
@@ -268,6 +274,15 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
       for (const p of paths) next = removeAt(next, p).rest
       commit(next)
     },
+    promoteSelection: () => {
+      if (!single) return
+      const s = stopAt(stops, single)
+      if (!s || s.kind !== 'stage') return
+      const i = single[single.length - 1]
+      commit(
+        rebuildListAt(stops, single.slice(0, -1), (list) => [...list.slice(0, i), ...s.steps, ...list.slice(i + 1)]),
+      )
+    },
     toggleOptionalSelection: () => {
       if (selected.size === 0) return
       let next = stops
@@ -307,6 +322,7 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
     canOptional: selected.size > 0 && selectedStops.every((s) => s && s.kind !== 'fork'),
     canIndent: prevSibling?.kind === 'stage',
     canDelete: selected.size > 0,
+    canPromote: !!single && stopAt(stops, single)?.kind === 'stage',
   }
 }
 
