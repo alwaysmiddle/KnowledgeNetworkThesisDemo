@@ -12,7 +12,7 @@
 
 import { useRef, useState } from 'react'
 
-import type { Aside, Branch, ForkStop, StageStop, Stop, VisitStop } from './mockwalk'
+import type { Branch, ForkStop, StageStop, Stop, VisitStop } from './mockwalk'
 
 export type Path = number[]
 
@@ -136,6 +136,9 @@ export interface AuthorState {
   caret: Path | null
   setCaret(p: Path | null): void
   toggleSelect(p: Path): void
+  /** replace the selection with exactly these blocks (a plain click selects one;
+   * a marquee selects the boxed run), or ADD to it when additive (shift). */
+  selectPaths(paths: Path[], additive?: boolean): void
   /** palette insert: at the caret if the drop set one, else after a single
    * selected block, else at the end of the plan */
   insertNode(node: string, at?: Path): void
@@ -145,12 +148,21 @@ export interface AuthorState {
   /** wrap the selected run into a fork: it becomes the main-path branch, an
    * empty alternative branch opens beside it */
   forkSelection(): void
-  asideSelection(): void
   deleteSelection(): void
   /** replace the single selected stage with its steps, spliced into the
    * parent list in place — remove the container but KEEP its children on the
    * road (the "promote children" answer to a container delete) */
   promoteSelection(): void
+  /** the fork analogue of promote: replace the fork at `forkPath` with the
+   * `keep` branch's steps spliced inline — dissolve the decision, keep the
+   * chosen road. The caller (AuthorRoad) passes the chosen index from choices. */
+  resolveForkTo(forkPath: Path, keep: number): void
+  /** drop ONE lane from the fork at `forkPath`. If that leaves a single
+   * branch, the fork dissolves into that branch's steps (a one-way fork is
+   * just a linear run). The "delete this layer" answer to a container delete. */
+  dropLane(forkPath: Path, idx: number): void
+  /** bind a corpus node to an unset placeholder visit at `path` */
+  bindNode(path: Path, node: string): void
   /** flip the optional flag on every selected visit/stage */
   toggleOptionalSelection(): void
   /** Tab — move the single selected block into the stage right above it */
@@ -161,7 +173,6 @@ export interface AuthorState {
   setForkQuestion(forkKey: string, question: string): void
   canGroup: boolean
   canFork: boolean
-  canAside: boolean
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
@@ -183,9 +194,6 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
   }
 
   const run = contiguousRun(selected)
-  const runList = run ? stopAtList(stops, run.parent) : null
-  const runStops = run && runList ? runList.slice(run.from, run.to + 1) : null
-  const runParentStop = run && run.parent.length > 0 ? stopAt(stops, run.parent) : undefined
 
   const selectedStops = [...selected].map((k) => stopAt(stops, parsePath(k)))
 
@@ -206,6 +214,12 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
       if (next.has(key)) next.delete(key)
       else next.add(key)
       setSelected(next)
+    },
+    selectPaths: (paths, additive) => {
+      const next = additive ? new Set(selected) : new Set<string>()
+      for (const p of paths) next.add(pathKey(p))
+      setSelected(next)
+      setCaret(null)
     },
     insertNode: (node, at) => {
       const stop: VisitStop = { kind: 'visit', node }
@@ -242,28 +256,12 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
             question: 'which way here?',
             branches: [
               { label: 'main path', steps: list.slice(run.from, run.to + 1) },
-              { label: 'alternative', steps: [] },
+              // a new lane opens with a node slot to bind, not an empty label
+              { label: 'alternative', steps: [{ kind: 'visit', node: '', unset: true }] },
             ],
           } as ForkStop,
           ...list.slice(run.to + 1),
         ]),
-      )
-    },
-    asideSelection: () => {
-      if (!run || runParentStop?.kind !== 'stage') return
-      const slice = runStops ?? []
-      if (!slice.every((s): s is VisitStop => s.kind === 'visit')) return
-      const aside: Aside = { title: 'related — beside the steps', steps: slice }
-      commit(
-        mapStopAt(stops, run.parent, (st) =>
-          st.kind !== 'stage'
-            ? st
-            : {
-                ...st,
-                steps: st.steps.filter((_, j) => j < run.from || j > run.to),
-                asides: [...(st.asides ?? []), aside],
-              },
-        ),
       )
     },
     deleteSelection: () => {
@@ -282,6 +280,44 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
       commit(
         rebuildListAt(stops, single.slice(0, -1), (list) => [...list.slice(0, i), ...s.steps, ...list.slice(i + 1)]),
       )
+    },
+    resolveForkTo: (forkPath, keep) => {
+      const s = stopAt(stops, forkPath)
+      if (!s || s.kind !== 'fork') return
+      const branch = s.branches[keep] ?? s.branches[0]
+      const i = forkPath[forkPath.length - 1]
+      commit(
+        rebuildListAt(stops, forkPath.slice(0, -1), (list) => [
+          ...list.slice(0, i),
+          ...(branch?.steps ?? []),
+          ...list.slice(i + 1),
+        ]),
+      )
+    },
+    dropLane: (forkPath, idx) => {
+      const s = stopAt(stops, forkPath)
+      if (!s || s.kind !== 'fork') return
+      const remaining = s.branches.filter((_, k) => k !== idx)
+      if (remaining.length === 0) {
+        commit(removeAt(stops, forkPath).rest) // last lane gone — drop the fork
+        return
+      }
+      const i = forkPath[forkPath.length - 1]
+      if (remaining.length === 1) {
+        // a one-way fork is just a linear run — dissolve it to that branch
+        commit(
+          rebuildListAt(stops, forkPath.slice(0, -1), (list) => [
+            ...list.slice(0, i),
+            ...remaining[0].steps,
+            ...list.slice(i + 1),
+          ]),
+        )
+        return
+      }
+      commit(mapStopAt(stops, forkPath, (st) => (st.kind !== 'fork' ? st : { ...st, branches: remaining })))
+    },
+    bindNode: (path, node) => {
+      setStops(mapStopAt(stops, path, (s) => (s.kind === 'visit' ? { ...s, node, unset: undefined } : s)))
     },
     toggleOptionalSelection: () => {
       if (selected.size === 0) return
@@ -307,7 +343,7 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
       setStops(walk(stops))
     },
     addBranch: (forkKey) => {
-      const branch: Branch = { label: 'another way', steps: [] }
+      const branch: Branch = { label: 'another way', steps: [{ kind: 'visit', node: '', unset: true }] }
       setStops(mapFork(stops, forkKey, (f) => ({ ...f, branches: [...f.branches, branch] })))
     },
     relabelBranch: (forkKey, branch, label) => {
@@ -318,7 +354,6 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
     },
     canGroup: !!run,
     canFork: !!run,
-    canAside: runParentStop?.kind === 'stage' && !!runStops && runStops.every((s) => s.kind === 'visit'),
     canOptional: selected.size > 0 && selectedStops.every((s) => s && s.kind !== 'fork'),
     canIndent: prevSibling?.kind === 'stage',
     canDelete: selected.size > 0,

@@ -5,15 +5,13 @@
 // CONTROLLED: the drill path and pick handler come from outside, so the
 // layer stack and these columns render one TierPathState and cannot
 // disagree — the same inversion that made TierLines E's desk in round 2.
-// A stage's asides hang below its column as a dashed violet lane: related,
-// visibly not on the arrowed order.
+// (The aside lane that used to hang below a column was cut in review 5.)
 //
 // Everything is laid out arithmetically (fixed box/column sizes), so the
 // SVG arrows and edges need no DOM measurement.
 
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { columnsFor } from './columns'
-import type { Column } from './columns'
 import { visitCount } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
@@ -41,9 +39,8 @@ export default function WalkColumns({
 }) {
   const cols = columnsFor(stops, path)
 
-  const rowsOf = (c: Column) => c.stops.length + (c.asides?.length ?? 0)
   const width = PAD + cols.length * (COLW + GAP)
-  const height = TOP + Math.max(...cols.map(rowsOf), 1) * (BOXH + VGAP) + 20
+  const height = TOP + Math.max(...cols.map((c) => c.stops.length), 1) * (BOXH + VGAP) + 20
 
   return (
     <div className="flex-1 min-h-0 overflow-auto">
@@ -144,28 +141,6 @@ export default function WalkColumns({
                 </button>
               )
             })}
-            {(c.asides ?? []).map((a, ai) => (
-              <div
-                key={a.title}
-                data-vaside
-                className="absolute rounded-lg border-2 border-dashed border-violet-300 bg-violet-50/60 px-2 py-1"
-                style={{ left: boxX(k), top: boxY(c.stops.length + ai), width: COLW, height: BOXH }}
-              >
-                <span className="block truncate text-[9px] font-semibold text-violet-500">≀ {a.title}</span>
-                <span className="flex items-center gap-1 pt-0.5">
-                  {a.steps.map((st) => (
-                    <span
-                      key={st.node}
-                      {...sync.bind(st.node)}
-                      data-node={st.node}
-                      title={byId.get(st.node)!.title}
-                      className={['w-2 h-2 rounded-full inline-block', sync.lit(st.node) ? 'ring-2 ring-sky-300' : ''].join(' ')}
-                      style={{ background: DOMAIN_COLOR[domainOf(st.node)] }}
-                    />
-                  ))}
-                </span>
-              </div>
-            ))}
           </div>
         ))}
       </div>
