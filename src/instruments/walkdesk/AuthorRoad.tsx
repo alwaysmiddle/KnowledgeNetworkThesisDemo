@@ -35,6 +35,7 @@ const BR_HEAD = 20 // branch label chip height
 const BR_GAP = 18 // horizontal gap between branch lanes
 const RAIL = 26 // fan-out / fan-in space above and below the lanes
 const EMPTY_H = 30 // drop zone height of a branch with no steps yet
+const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
 
 type Mark = { key: string; band: Band } | null
 
@@ -82,6 +83,16 @@ interface EmptyLane {
   forkPath: Path
   x: number
   y: number
+}
+/** a forgiving drop target filling the gap between two siblings (or before the
+ * first / after the last) — inserts at `path`, so dropping in the dead space
+ * between nodes no longer falls through to append-at-end */
+interface Slot {
+  path: Path
+  x: number
+  /** the caret line — the catcher band is centered on it, height SLOTH */
+  y: number
+  w: number
 }
 interface QuestionTag {
   forkKey: string
@@ -147,6 +158,7 @@ function layoutRoad(
   const questions: QuestionTag[] = []
   const addButtons: AddButton[] = []
   const asideBoxes: AsideBox[] = []
+  const slots: Slot[] = []
   const ctr = { n: 0 }
 
   const placeFork = (s: ForkStop, p: Path, centerX: number, y: number, w: number, h: number, onRoad: boolean) => {
@@ -182,10 +194,15 @@ function layoutRoad(
     let y = y0
     let prevBottom: number | null = null
     let prevSkipped = false
+    let lastW = NODEW
     list.forEach((s, i) => {
       const p = [...parent, i]
       const { w, h } = measure(s)
       const x = centerX - w / 2
+      // a forgiving slot in the gap ABOVE this item (before the first, or
+      // between it and the previous) — the caret line sits at the gap midpoint
+      slots.push({ path: p, x, y: prevBottom === null ? y - 8 : (prevBottom + y) / 2, w })
+      lastW = w
       const skipped = s.kind !== 'fork' && !!s.optional && !withOptionals
       if (prevBottom !== null)
         arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped })
@@ -216,13 +233,16 @@ function layoutRoad(
       prevSkipped = skipped
       y += h + AGAP
     })
+    // trailing slot after the last item — "append to this list" made hittable
+    if (list.length && prevBottom !== null)
+      slots.push({ path: [...parent, list.length], x: centerX - lastW / 2, y: prevBottom + 8, w: lastW })
   }
 
   const W = Math.max(NODEW, ...stops.map((s) => measure(s).w)) + 2 * MARGIN
   placeList(stops, [], W / 2, MARGIN, true)
   const bottoms = [...items.map((it) => it.y + it.h), ...emptyLanes.map((l) => l.y + EMPTY_H)]
   const H = (bottoms.length ? Math.max(...bottoms) : 0) + RAIL + MARGIN
-  return { items, arrows, rails, bypasses, dots, chips, emptyLanes, questions, addButtons, asideBoxes, W, H }
+  return { items, arrows, rails, bypasses, dots, chips, emptyLanes, questions, addButtons, asideBoxes, slots, W, H }
 }
 
 export default function AuthorRoad({
@@ -241,6 +261,7 @@ export default function AuthorRoad({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [fly, setFly] = useState<{ x: number; y: number } | null>(null)
   const [mark, setMark] = useState<Mark>(null)
+  const [hotSlot, setHotSlot] = useState<number | null>(null)
 
   const toggle = (key: string) => {
     const next = new Set(collapsed)
@@ -249,7 +270,7 @@ export default function AuthorRoad({
     setCollapsed(next)
   }
 
-  const { items, arrows, rails, bypasses, dots, chips, emptyLanes, questions, addButtons, asideBoxes, W, H } =
+  const { items, arrows, rails, bypasses, dots, chips, emptyLanes, questions, addButtons, asideBoxes, slots, W, H } =
     layoutRoad(state.stops, collapsed, choices, withOptionals)
 
   /** the block gestures every node shares — visit, pill, header, fork handle */
@@ -261,14 +282,19 @@ export default function AuthorRoad({
         e.stopPropagation()
         e.dataTransfer.setData(DT, 'blk:' + key)
       },
-      onDragEnd: () => setMark(null),
+      onDragEnd: () => {
+        setMark(null)
+        setHotSlot(null)
+      },
       onDragOver: (e: ReactDragEvent) => {
         e.preventDefault()
         e.stopPropagation()
+        setHotSlot(null)
         setMark({ key, band: bandFor(e, pl.stop) })
       },
       onDrop: (e: ReactDragEvent) => {
         setMark(null)
+        setHotSlot(null)
         handleDrop(e, gapFor(e, pl.path, pl.stop), state)
       },
       onClick: (e: ReactMouseEvent) => {
@@ -347,7 +373,9 @@ export default function AuthorRoad({
             const key = pathKey(pl.path)
             const isSelected = state.selected.has(key)
             const s = pl.stop
-            const dim = !pl.onRoad || pl.skipped ? 'opacity-50' : ''
+            // ghost (off-road) and bypassed stops dim — UNLESS selected, so an
+            // edit inside an unchosen branch lane visibly lands on the node
+            const dim = (!pl.onRoad || pl.skipped) && !isSelected ? 'opacity-50' : ''
 
             if (s.kind === 'visit') {
               const color = DOMAIN_COLOR[domainOf(s.node)]
@@ -571,6 +599,37 @@ export default function AuthorRoad({
             </div>
           ))}
 
+          {/* forgiving between-node drop slots — z-0 so nodes (z-20+) still win
+              when the pointer is over one, but the dead gaps now catch drops
+              and show a caret instead of falling through to append-at-end */}
+          {slots.map((sl, i) => (
+            <div
+              key={`slot${i}`}
+              data-rslot={pathKey(sl.path)}
+              onDragOver={(e: ReactDragEvent) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setMark(null)
+                setHotSlot(i)
+              }}
+              onDragLeave={() => setHotSlot((h) => (h === i ? null : h))}
+              onDrop={(e: ReactDragEvent) => {
+                setMark(null)
+                setHotSlot(null)
+                handleDrop(e, sl.path, state)
+              }}
+              className="absolute z-0"
+              style={{ left: sl.x, top: sl.y - SLOTH / 2, width: sl.w, height: SLOTH }}
+            >
+              {hotSlot === i && (
+                <div
+                  data-rmark
+                  className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded bg-amber-500 pointer-events-none"
+                />
+              )}
+            </div>
+          ))}
+
           {mark &&
             mark.band !== 'inside' &&
             items
@@ -627,10 +686,19 @@ export default function AuthorRoad({
                 ≀
               </button>
               <button
+                data-fly-promote
+                disabled={!state.canPromote}
+                onClick={state.promoteSelection}
+                title="dissolve stage, keep its steps on the road"
+                className="text-[11px] px-1 rounded border border-amber-300 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
+              >
+                ↥
+              </button>
+              <button
                 data-fly-del
                 disabled={!state.canDelete}
                 onClick={state.deleteSelection}
-                title="remove"
+                title="remove (a stage takes its steps with it)"
                 className="text-[11px] px-1 rounded border border-slate-200 text-slate-500 disabled:opacity-30 hover:bg-slate-100"
               >
                 ✕
