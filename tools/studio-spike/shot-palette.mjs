@@ -69,16 +69,24 @@ if ((await page.locator('[data-pal="os"]').count()) !== 1) errors.push('widened 
 if ((await page.locator('[data-pal]').count()) === 0) errors.push('search: "operating" matched nothing')
 await page.screenshot({ path: OUT + '/p1-hits-operating.png' })
 
-// 2 — CLICK DOES NOT INSERT: clicking the row BODY is inspection, not authoring.
-// The road must not gain the stop, and the box must not clear.
+// 2 — CLICK SELECTS ON THE MAP (and closes): a plain row click is no longer a
+// no-op. It flies the map to the node's territory and lights it as the
+// selection (bus focus + look), then collapses the list (box clears). It still
+// must NOT drop a stop on the road — an inspect is never an insert.
+const map = page.locator('[data-nested]')
 if ((await road.getByText('Operating Systems').count()) !== 0) errors.push('precondition: "Operating Systems" already on the road before any insert')
 await page.locator('[data-pal="os"]').click()
-await page.waitForTimeout(150)
+await page.waitForTimeout(400)
 if ((await road.getByText('Operating Systems').count()) !== 0) errors.push('click-inserts: a plain row click added a stop (it must not)')
-if ((await search.inputValue()) !== 'operating') errors.push('click-inserts: a plain row click cleared the search box (it must not)')
+if ((await search.inputValue()) !== '') errors.push('click-select: a row click did not close the search (the box should clear)')
+if ((await map.getAttribute('data-sel')) !== 'os') errors.push('click-select: the map did not select the clicked hit')
+if ((await map.getAttribute('data-peek')) !== 'os') errors.push('click-select: the map did not fly (look) to the clicked hit')
+await page.screenshot({ path: OUT + '/p1b-click-selects-map.png' })
 
-// 3 — + APPENDS AND CLEARS: the explicit add lands the stop on the road, then
-// collapses the list (box cleared, zero rows).
+// 3 — + APPENDS AND CLEARS: re-search first (the click above closed the list),
+// then the explicit add lands the stop on the road and collapses the list again.
+await search.fill('operating')
+await page.waitForTimeout(200)
 await page.locator('[data-pal-add="os"]').click()
 await page.waitForTimeout(200)
 if ((await road.getByText('Operating Systems').count()) === 0) errors.push('+ append: the stop did not land on the road')
@@ -127,7 +135,7 @@ if (topTitle && (await page.locator(`[data-pal-recent="${topTitle}"]`).count()) 
 if (errors.length) {
   console.log('ERRORS:\n' + errors.join('\n'))
 } else {
-  console.log('palette OK — empty/short, widened reach, click-no-insert, +-append-and-clear, title recents, forget-recent all verified')
+  console.log('palette OK — empty/short, widened reach, click-selects-on-map, +-append-and-clear, title recents, forget-recent all verified')
 }
 await browser.close()
 vite.kill()

@@ -5,10 +5,11 @@
 //
 // Putting a stop on the road is ALWAYS an explicit gesture: drag a hit onto the
 // railroad (the `pal:<nodeId>` feed the road and the map already speak), or hit
-// the row's + to append it to the end. A plain click does NOT insert — the pane
-// is a finder, not a one-click adder, so the author is never surprised by a stop
-// they only meant to inspect. Acting on a hit clears the box, collapsing the
-// list back to recents.
+// the row's + to append it to the end. A plain click never drops a stop — it
+// SELECTS the hit on the map instead: the camera flies to its territory and
+// lights it as the selection, so search and map stay in sync (#28). Acting on a
+// hit — select, +, or a landed drag — clears the box, collapsing the list back
+// to recents.
 //
 // Recents hold the TITLE of the node a search resolved to, not the raw keystrokes
 // — you searched "encrpytion", you meant "Symmetric Encryption", so that clean
@@ -80,7 +81,7 @@ function score(id: string, ql: string): number {
 
 const MAX_HITS = 40
 
-export default function Palette({ state, sync }: { state: AuthorState; sync: HoverBinding }) {
+export default function Palette({ state, sync, onSelect }: { state: AuthorState; sync: HoverBinding; onSelect: (id: string) => void }) {
   const [q, setQ] = useState('')
   const recent = useRecents()
   const ql = q.trim().toLowerCase()
@@ -106,6 +107,15 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
   // selection-relative default would.
   const appendToRoad = (id: string) => {
     state.insertNode(id, [state.stops.length])
+    noteResolved(id)
+  }
+  // A plain row click SELECTS the hit on the map — PaletteView wires onSelect to
+  // focus + look, so the map flies to the node's territory and lights it as the
+  // selection. Selecting resolves the search like the other commit paths (record
+  // the clean title, collapse to recents). It never drops a stop on the road:
+  // that stays the + button's and a drag's job, so an inspect is never an insert.
+  const selectOnMap = (id: string) => {
+    onSelect(id)
     noteResolved(id)
   }
 
@@ -138,14 +148,16 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
               const n = byId.get(id)!
               const crumb = breadcrumb(id)
               return (
-                // The row is a DRAG HANDLE, not a button — a plain click does not
-                // insert. Dragging feeds `pal:<id>` to the road/map; a drop that
-                // landed (dropEffect set) resolves the search like the + does.
+                // The row is a DRAG HANDLE that also selects on click — a plain
+                // click flies the map to this hit and lights it (selectOnMap),
+                // but never inserts a stop. Dragging feeds `pal:<id>` to the
+                // road/map; a drop that landed (dropEffect set) resolves like +.
                 <div
                   key={id}
                   {...sync.bind(id)}
                   data-pal={id}
                   draggable
+                  onClick={() => selectOnMap(id)}
                   onDragStart={(e) => e.dataTransfer.setData(DT, 'pal:' + id)}
                   onDragEnd={(e) => {
                     if (e.dataTransfer.dropEffect !== 'none') noteResolved(id)
@@ -165,7 +177,12 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
                   </span>
                   <button
                     data-pal-add={id}
-                    onClick={() => appendToRoad(id)}
+                    onClick={(e) => {
+                      // + is a ROAD gesture, not a map one — keep it from
+                      // bubbling into the row's select-on-map click.
+                      e.stopPropagation()
+                      appendToRoad(id)
+                    }}
                     title="append to the end of the road"
                     className="shrink-0 mt-0.5 w-4 h-4 flex items-center justify-center rounded text-[13px] leading-none text-slate-300 hover:bg-sky-100 hover:text-sky-600"
                   >
