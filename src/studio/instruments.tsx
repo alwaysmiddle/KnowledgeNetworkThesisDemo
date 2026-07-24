@@ -46,6 +46,11 @@ export interface Instrument {
   /** a strip that needs working room says how much; one that sizes itself to its
    * content (the trail) leaves this out */
   height?: number
+  /** in a STACKED column, whether this pane takes an even share of the height.
+   * The default (true) splits the column evenly; false makes the pane size to
+   * its own content and hands the slack to its stack-mates — a search pane that
+   * is empty most of the time should not reserve half a column of white space. */
+  stackGrow?: boolean
   /** the pane's BODY. The title bar and the ✕ are the shell's job, not the
    * instrument's — which is why an instrument that reads nothing from the bus
    * (Unfold, Contours, EVoC) simply does not take it. */
@@ -78,6 +83,10 @@ const VIEWS = [
     id: 'palette',
     label: 'Walk·Palette',
     slot: 'column',
+    // a search pane hugs its content: empty, it is just the box; searching, it
+    // grows to a capped, scrollable list. Either way the document below it takes
+    // the room the old even split wasted (#28 feedback).
+    stackGrow: false,
     render: (bus) => <PaletteView bus={bus} />,
   },
   {

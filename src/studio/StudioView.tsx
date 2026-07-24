@@ -241,7 +241,16 @@ export default function StudioView() {
                   className="flex flex-col min-w-0 min-h-0 border-r border-slate-200"
                   style={{ order, ...widthOf(members[0]) }}
                 >
-                  {members.map((m) => pane(m, true, { flex: '1 1 0%' }, 'border-b border-slate-200 last:border-b-0'))}
+                  {members.map((m) =>
+                    pane(
+                      m,
+                      true,
+                      // stackGrow:false sizes the pane to its content and hands the
+                      // slack to its stack-mates; the default takes an even share.
+                      { flex: m.stackGrow === false ? '0 0 auto' : '1 1 0%' },
+                      'border-b border-slate-200 last:border-b-0',
+                    ),
+                  )}
                 </div>
               ),
             )}
