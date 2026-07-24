@@ -98,7 +98,7 @@ await click('[aria-label="studio-preset-authoring"]')
 // ── the desk at first paint ─────────────────────────────────────────────────
 // seed: [dns, seed-net[ip, tcp], seed-sec⑂{[tls] | [pkc, sym, hash, tls]},
 //        http, ws◇, auth] — branch 0 chosen, optionals on the road
-if ((await count('[data-desk]')) !== 1) errors.push(`S: the walk desk should render under the Authoring preset, got ${await count('[data-desk]')}`)
+if ((await count('[data-palette]')) !== 1) errors.push(`S: the palette should render under the Authoring preset, got ${await count('[data-palette]')}`)
 // the fork ALWAYS fans its lanes out now (#13 review 2): both the 1-node
 // handshake lane and the 4-node crypto tour render at once — so 11 nodes
 if ((await count('[data-rnode]')) !== 11) errors.push(`S: 11 visit nodes with both fork lanes shown, got ${await count('[data-rnode]')}`)
@@ -110,31 +110,58 @@ const firstOrd = await page.locator('[data-rnode] [data-rord]').first().getAttri
 if (firstOrd !== '1') errors.push(`S: the first road visit should wear badge 1, got ${firstOrd}`)
 if ((await fringeCount()) !== '7') errors.push(`S: default resolved route is 7 visits, got ${await fringeCount()}`)
 // ── #21 · the authoring COMPOSITION ─────────────────────────────────────────
-// map + railroad + document as columns, the palette/route desk as a bottom
-// strip. Each pane is one job; the reading views (#20) are a sidebar click
-// away rather than crowding the default.
+// [palette over document] · map · railroad+route. Every job the old combined
+// desk did is now a pane; the desk itself is gone. The reading views (#20) are
+// a sidebar click away rather than crowding the default.
 for (const [pane, why] of [
+  ['palette', 'where stops come from'],
+  ['doc', 'what the focused stop teaches'],
   ['nested', 'the territory'],
   ['railroad', 'the writing surface'],
-  ['doc', 'what the focused stop teaches'],
-  ['walkdesk', 'supply and receipt'],
 ]) {
   if ((await count(`[aria-label="studio-pane-${pane}"][data-slot="on"]`)) !== 1)
     errors.push(`S21: the Authoring preset should place ${pane} — ${why}`)
 }
-if ((await count('[data-desk] [data-road-root]')) !== 0) errors.push('S21: the railroad must not live inside the desk anymore')
+// a STACK: two panes sharing one column, which the flat active list could not say
+const stack = '[aria-label="studio-stack-palette-doc"]'
+if ((await count(stack)) !== 1) errors.push('S21: palette and document should share one stacked column')
+if ((await count(`${stack} > [aria-label="studio-pane-palette"]`)) !== 1) errors.push('S21: the palette is the TOP half of that column')
+if ((await count(`${stack} > [aria-label="studio-pane-doc"]`)) !== 1) errors.push('S21: the document is the BOTTOM half of that column')
+// halves, not a sliver: each pane gets flex 1 of the column
+const halves = await page.locator(`${stack} > section`).evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
+if (halves.length !== 2 || Math.abs(halves[0] - halves[1]) > 2)
+  errors.push(`S21: the stacked column should split evenly, got heights ${JSON.stringify(halves)}`)
+// and the stack sits LEFT of the map
+const xOf = async (sel) => (await page.locator(sel).first().boundingBox()).x
+if ((await xOf(stack)) >= (await xOf('[aria-label="studio-pane-nested"]')))
+  errors.push('S21: the palette/document column belongs left of the map')
+
 if ((await count('[data-railroad] [data-road-root]')) !== 1) errors.push('S21: the railroad should be its own pane')
+if ((await count('[data-railroad] [data-fringe-count]')) !== 1)
+  errors.push('S21: the projected route runs PARALLEL to the road, in the same pane')
 if ((await count('[data-vcol]')) !== 0) errors.push('S21: Walk·Columns is not in the default composition')
 if ((await count('[data-plane]')) !== 0) errors.push('S21: Walk·Stack is not in the default composition')
 await shot('s7-default')
 
+// ── #21 · the route rail can change sides without remounting ────────────────
+const railX = async () => (await page.locator('[data-fringe-rail]').boundingBox()).x
+const roadX = async () => (await page.locator('[data-road-root]').boundingBox()).x
+if ((await railX()) <= (await roadX())) errors.push('S21: the route rail starts on the RIGHT of the road')
+await click('[data-rail-side]')
+if ((await page.locator('[data-rail-side]').getAttribute('data-rail-side')) !== 'left')
+  errors.push('S21: the side toggle should report its new side')
+if ((await railX()) >= (await roadX())) errors.push('S21: ...and the rail should now be drawn left of the road')
+if ((await fringeCount()) !== '7') errors.push(`S21: flipping the side must not disturb the route, got ${await fringeCount()}`)
+await shot('s7-rail-left')
+await click('[data-rail-side]')
+
 // ── #21 · the palette and the railroad share ONE draft across panes ──────────
 // the whole reason the draft left component state: a palette that inserts into
 // a draft the railroad cannot see is useless.
-await click('[data-pal="alg-graph-traversal"]')
+await click('[data-palette] [data-pal="alg-graph-traversal"]')
 if ((await count(roadNode('alg-graph-traversal'))) !== 1)
-  errors.push('S21: a palette click in the desk STRIP must land on the road in the railroad PANE')
-if ((await fringeCount()) !== '8') errors.push(`S21: ...and the desk's own receipt sees it too (8), got ${await fringeCount()}`)
+  errors.push('S21: a click in the palette PANE must land on the road in the railroad PANE')
+if ((await fringeCount()) !== '8') errors.push(`S21: ...and the route rail beside it sees it too (8), got ${await fringeCount()}`)
 await click(`[data-rnode][data-node="alg-graph-traversal"]`)
 await click('[data-fly-del]')
 if ((await fringeCount()) !== '7') errors.push(`S21: removing it puts the route back to 7, got ${await fringeCount()}`)
