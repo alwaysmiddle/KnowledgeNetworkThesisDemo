@@ -1,8 +1,12 @@
-// The palette (extracted from the round-6 AuthorMock) — a STAND-IN for the
-// map instrument: the whole feed contract is `pal:<nodeId>` on text/plain
-// (or a click calling insertNode), so any surface that can start such a drag
-// can be the palette. Swapping in the atlas map at graduation is a dragstart
-// handler, not a redesign.
+// The palette (extracted from the round-6 AuthorMock) — the corpus, filtered,
+// as a source of stops. The whole feed contract is `pal:<nodeId>` on text/plain
+// (or a click calling insertNode), so ANY surface that can start such a drag can
+// be a palette. That was written when this stood in for the map; since #21 the
+// real map is a pane away in the same preset, and giving it a dragstart handler
+// is the remaining step — still a handler, not a redesign.
+//
+// PaletteView wraps this for the Studio; the component itself stays presentation
+// plus two callbacks, so a second palette over a different corpus is free.
 
 import { useState } from 'react'
 
@@ -17,9 +21,7 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col bg-white">
       <div className="shrink-0 px-2 py-1.5 border-b border-slate-100">
-        <div className="text-[10px] font-bold text-slate-500 mb-1">
-          palette — drag into the road, or click to insert · stand-in for the map instrument
-        </div>
+        <div className="text-[10px] font-bold text-slate-500 mb-1">drag into the road, or click to insert</div>
         <input
           data-pal-search
           value={q}

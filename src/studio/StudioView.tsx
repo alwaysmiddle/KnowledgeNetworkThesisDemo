@@ -14,11 +14,12 @@
 // ONE prop — the bus. A pane that ignores a channel does not know it exists.
 
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR } from '../corpus/graph'
 import { useStudioBus } from './bus'
-import { INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
-import type { Instrument, InstrumentId, Preset } from './instruments'
+import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
+import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
 
 export default function StudioView() {
   // ── composition: which panes are on screen, and how big ───────────────────
@@ -28,13 +29,25 @@ export default function StudioView() {
   // The opening composition is PRESETS[0] — every field of it, id and geometry
   // included. It used to be spelled out three times over, which let the flex
   // weights silently sit out the first render until you clicked a preset.
-  const [active, setActive] = useState<InstrumentId[]>(PRESETS[0].active)
-  const [mounted, setMounted] = useState<Set<InstrumentId>>(() => new Set(PRESETS[0].active))
+  // `active` is a list of SLOTS, not of instruments: an entry may be an array,
+  // meaning those panes share one column and split it top to bottom. Everything
+  // that only cares "is this pane on screen" reads `onScreen` instead.
+  const [active, setActive] = useState<Slot[]>(PRESETS[0].active)
+  const [mounted, setMounted] = useState<Set<InstrumentId>>(() => new Set(flattenSlots(PRESETS[0].active)))
   const [presetId, setPresetId] = useState<Preset['id'] | null>(PRESETS[0].id)
   const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>(PRESETS[0].flex ?? {})
 
+  const onScreen = flattenSlots(active)
+
+  /** drop an instrument from wherever it sits, collapsing a stack it empties */
+  const without = (slots: Slot[], inst: InstrumentId): Slot[] =>
+    slots
+      .map((s) => (Array.isArray(s) ? s.filter((i) => i !== inst) : s))
+      .filter((s) => (Array.isArray(s) ? s.length > 0 : s !== inst))
+      .map((s) => (Array.isArray(s) && s.length === 1 ? s[0] : s))
+
   const toggle = (inst: InstrumentId) => {
-    setActive((prev) => (prev.includes(inst) ? prev.filter((i) => i !== inst) : [...prev, inst]))
+    setActive((prev) => (flattenSlots(prev).includes(inst) ? without(prev, inst) : [...prev, inst]))
     setMounted((prev) => new Set(prev).add(inst))
     setPresetId(null) // hand-toggling makes the composition "custom" from now on
   }
@@ -42,9 +55,9 @@ export default function StudioView() {
   /** an instrument handing off to another one: reveal it WITHOUT disturbing the
    * rest of the composition. This is the bus's `reveal`. */
   const ensureActive = (inst: InstrumentId) => {
-    setActive((prev) => (prev.includes(inst) ? prev : [...prev, inst]))
+    setActive((prev) => (flattenSlots(prev).includes(inst) ? prev : [...prev, inst]))
     setMounted((prev) => (prev.has(inst) ? prev : new Set(prev).add(inst)))
-    setPresetId((p) => (active.includes(inst) ? p : null))
+    setPresetId((p) => (onScreen.includes(inst) ? p : null))
   }
 
   const applyPreset = (p: Preset) => {
@@ -53,7 +66,7 @@ export default function StudioView() {
     setPresetId(p.id)
     setMounted((prev) => {
       const next = new Set(prev)
-      for (const inst of p.active) next.add(inst)
+      for (const inst of flattenSlots(p.active)) next.add(inst)
       return next
     })
   }
@@ -63,50 +76,58 @@ export default function StudioView() {
   const canTeach = !!bus.focus && byId.get(bus.focus)?.topic === true
 
   // ── layout ────────────────────────────────────────────────────────────────
-  const paneShell = (inst: Instrument) => {
-    const idx = active.indexOf(inst.id as InstrumentId)
-    const on = idx >= 0
-    const strip = inst.slot === 'strip'
-    const fixed = typeof inst.flex === 'object' ? inst.flex.fixed : null
+  // A pane does not decide its own size: where it sits does. A lone column, one
+  // half of a stacked column and a bottom strip need three different styles, so
+  // the caller supplies them and this only owns the chrome.
+  const pane = (inst: Instrument, on: boolean, style: CSSProperties, extra: string) => (
+    <section
+      key={inst.id}
+      aria-label={`studio-pane-${inst.id}`}
+      data-slot={on ? 'on' : 'benched'}
+      className={`flex-col min-w-0 min-h-0 bg-white ${extra}`}
+      style={{ display: on ? 'flex' : 'none', ...style }}
+    >
+      <header className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
+        <span className="font-bold text-slate-700 truncate">{inst.label}</span>
+        <span className="flex-1" />
+        <button
+          onClick={() => toggle(inst.id as InstrumentId)}
+          title="remove from composition"
+          className="px-1.5 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        >
+          ✕
+        </button>
+      </header>
+      {/* a strip with no declared height sizes itself to its content */}
+      <div className={inst.slot === 'strip' && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}>{inst.render(bus)}</div>
+    </section>
+  )
 
-    return (
-      <section
-        key={inst.id}
-        aria-label={`studio-pane-${inst.id}`}
-        data-slot={on ? 'on' : 'benched'}
-        className={
-          strip
-            ? 'flex-col min-w-0 min-h-0 bg-white w-full border-t border-slate-200'
-            : 'flex-col min-w-0 min-h-0 bg-white border-r border-slate-200'
-        }
-        style={{
-          display: on ? 'flex' : 'none',
-          // `order` is what makes the PRESET's array order the visual order,
-          // independent of the registry's (DOM) order
-          order: idx,
-          ...(strip
-            ? { height: inst.height ? `${inst.height}px` : undefined }
-            : { flex: fixed !== null ? `0 0 ${fixed}px` : `${flexMap[inst.id as InstrumentId] ?? inst.flex ?? 1} 1 0%` }),
-        }}
-      >
-        <header className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
-          <span className="font-bold text-slate-700 truncate">{inst.label}</span>
-          <span className="flex-1" />
-          <button
-            onClick={() => toggle(inst.id as InstrumentId)}
-            title="remove from composition"
-            className="px-1.5 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            ✕
-          </button>
-        </header>
-        {/* a strip with no declared height sizes itself to its content */}
-        <div className={strip && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}>{inst.render(bus)}</div>
-      </section>
-    )
+  /** how wide a column is: a pinned pixel width, or a flex weight the preset may
+   * override. A stack takes its LEAD member's weight. */
+  const widthOf = (inst: Instrument): CSSProperties => {
+    const fixed = typeof inst.flex === 'object' ? inst.flex.fixed : null
+    return fixed !== null
+      ? { flex: `0 0 ${fixed}px` }
+      : { flex: `${flexMap[inst.id as InstrumentId] ?? (typeof inst.flex === 'number' ? inst.flex : 1)} 1 0%` }
   }
 
-  const columns = INSTRUMENTS.filter((i) => i.slot === 'column' && mounted.has(i.id as InstrumentId))
+  // `order` is what makes the PRESET's array order the visual order, independent
+  // of the registry's (DOM) order — so toggling a pane never remounts another.
+  const columnSlots = active
+    .map((slot, order) => ({
+      order,
+      members: (Array.isArray(slot) ? slot : [slot])
+        .map((id) => byInstrument.get(id)!)
+        .filter((i) => i.slot === 'column'),
+    }))
+    .filter((s) => s.members.length > 0)
+
+  // mounted but not in the composition: kept in the tree at display:none so an
+  // unfold canvas or a zoom level survives being toggled off and back on
+  const benchedColumns = INSTRUMENTS.filter(
+    (i) => i.slot === 'column' && mounted.has(i.id as InstrumentId) && !onScreen.includes(i.id as InstrumentId),
+  )
   const strips = INSTRUMENTS.filter((i) => i.slot === 'strip' && mounted.has(i.id as InstrumentId))
 
   return (
@@ -184,7 +205,7 @@ export default function StudioView() {
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Instruments</div>
             <div className="flex flex-col gap-0.5">
               {INSTRUMENTS.map((inst) => {
-                const idx = active.indexOf(inst.id as InstrumentId)
+                const idx = onScreen.indexOf(inst.id as InstrumentId)
                 const on = idx >= 0
                 const lensType = lensTypeOf(inst.id)
                 return (
@@ -209,8 +230,31 @@ export default function StudioView() {
         </aside>
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 min-h-0 flex">{columns.map(paneShell)}</div>
-          {strips.map((i) => paneShell(i))}
+          <div className="flex-1 min-h-0 flex">
+            {columnSlots.map(({ order, members }) =>
+              members.length === 1 ? (
+                pane(members[0], true, { order, ...widthOf(members[0]) }, 'border-r border-slate-200')
+              ) : (
+                <div
+                  key={members.map((m) => m.id).join('+')}
+                  aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
+                  className="flex flex-col min-w-0 min-h-0 border-r border-slate-200"
+                  style={{ order, ...widthOf(members[0]) }}
+                >
+                  {members.map((m) => pane(m, true, { flex: '1 1 0%' }, 'border-b border-slate-200 last:border-b-0'))}
+                </div>
+              ),
+            )}
+            {benchedColumns.map((i) => pane(i, false, {}, ''))}
+          </div>
+          {strips.map((i) =>
+            pane(
+              i,
+              onScreen.includes(i.id as InstrumentId),
+              { order: onScreen.indexOf(i.id as InstrumentId), height: i.height ? `${i.height}px` : undefined },
+              'w-full border-t border-slate-200',
+            ),
+          )}
         </div>
       </div>
     </div>

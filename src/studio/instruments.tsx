@@ -29,9 +29,9 @@ import TrailStrip from '../instruments/TrailStrip'
 import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
+import PaletteView from '../instruments/walkdesk/PaletteView'
 import RailroadView from '../instruments/walkdesk/RailroadView'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
-import WalkDeskView from '../instruments/walkdesk/WalkDeskView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
 
@@ -71,19 +71,19 @@ const VIEWS = [
     render: (bus) => <WalkView bus={bus} />,
   },
   {
-    // the walk-tiers spike's desk (#11), narrowed to authoring by #20 and to
-    // its two WIDE halves by #21 — the palette that feeds the draft and the
-    // projection that reports it. Both are wide-and-short, hence a strip.
-    id: 'walkdesk',
-    label: 'Walk·Desk',
-    slot: 'strip',
-    height: 230,
-    render: (bus) => <WalkDeskView bus={bus} />,
+    // #21: where stops come FROM — the corpus, filtered. The last of the
+    // walk-tiers desk (#11) to become an instrument; the desk itself is gone,
+    // having given away its reading views (#20), its writing surface and now
+    // its supply. Nothing was lost in the split — every job it did is a pane.
+    id: 'palette',
+    label: 'Walk·Palette',
+    slot: 'column',
+    render: (bus) => <PaletteView bus={bus} />,
   },
   {
-    // #21: the writing surface on its own, as a tall narrow slice. The only
-    // view in the Studio that ever sees a branch. Shares one draft with the
-    // palette through authordraft.ts's stores.
+    // #21: the writing surface, with the route it projects running down beside
+    // it. The only view in the Studio that ever sees a branch. Shares one draft
+    // with the palette through authordraft.ts's stores.
     id: 'railroad',
     label: 'Railroad',
     slot: 'column',
@@ -207,12 +207,23 @@ export const lensTypeOf = (id: string): EdgeType | undefined =>
 // panes), was removed when this repo narrowed to the teaching domain. Its
 // panes all survive as individually pickable instruments — only the curated
 // coder-shaped composition is gone.
+/** one column of the composition. An ARRAY is a stack: those instruments share
+ * one column, split evenly top to bottom. It exists because "the palette above
+ * the document" is a real arrangement and the flat list could not say it — the
+ * only vertical slot used to be a full-width strip along the bottom, which is a
+ * different thing entirely. The column's width weight comes from its FIRST
+ * member, so a stack is weighted like the pane that leads it. */
+export type Slot = InstrumentId | InstrumentId[]
+
+export const flattenSlots = (slots: readonly Slot[]): InstrumentId[] =>
+  slots.flatMap((s) => (Array.isArray(s) ? s : [s]))
+
 export interface Preset {
   id: 'teaching' | 'cockpit' | 'authoring'
   label: string
   hint: string
   /** column order; strips always sit at the bottom */
-  active: InstrumentId[]
+  active: Slot[]
   flex?: Partial<Record<InstrumentId, number>>
 }
 
@@ -232,16 +243,19 @@ export const PRESETS: Preset[] = [
     flex: { nested: 1.8, children: 1, doc: 1 },
   },
   {
-    // #20/#21 — the google-maps composition: the TERRITORY gets the room, the
-    // route editor is a slice beside it, the prose says what the focused stop
-    // actually teaches, and the supply/receipt pair runs along the bottom.
-    // Walk·Columns and Walk·Stack stay one sidebar click away rather than
-    // crowding four columns; nothing is lost, they are just not the default.
+    // #20/#21 — the google-maps composition, read left to right as the work
+    // flows: SEARCH (palette) over the prose that says what a stop teaches,
+    // then the TERRITORY with the room to be a territory, then the road you are
+    // writing with its resolved route running down beside it.
+    //
+    // The search column is stacked because both halves are the same gesture at
+    // different zoom: "what is there" and "what is this one about". Walk·Columns
+    // and Walk·Stack stay one sidebar click away rather than crowding the row.
     id: 'authoring',
     label: 'Authoring',
-    hint: 'map + railroad + document, palette and route along the bottom',
-    active: ['nested', 'railroad', 'doc', 'walkdesk'],
-    flex: { nested: 2, railroad: 1.1, doc: 1.2 },
+    hint: 'palette over document, then the map, then the railroad and its route',
+    active: [['palette', 'doc'], 'nested', 'railroad'],
+    flex: { palette: 1, nested: 2, railroad: 1.6 },
   },
 ]
 
@@ -253,7 +267,9 @@ export const PRESETS: Preset[] = [
   const ids = new Set(INSTRUMENTS.map((i) => i.id))
   if (ids.size !== INSTRUMENTS.length) throw new Error('duplicate instrument id in the registry')
   for (const p of PRESETS) {
-    for (const i of p.active) if (!ids.has(i)) throw new Error(`preset "${p.id}" names an unknown instrument: ${i}`)
+    const flat = flattenSlots(p.active)
+    if (new Set(flat).size !== flat.length) throw new Error(`preset "${p.id}" names an instrument twice`)
+    for (const i of flat) if (!ids.has(i)) throw new Error(`preset "${p.id}" names an unknown instrument: ${i}`)
     for (const i of Object.keys(p.flex ?? {})) if (!ids.has(i)) throw new Error(`preset "${p.id}" weights an unknown instrument: ${i}`)
   }
 }
