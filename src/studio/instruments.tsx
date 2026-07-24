@@ -29,7 +29,9 @@ import TrailStrip from '../instruments/TrailStrip'
 import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
+import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkDeskView from '../instruments/walkdesk/WalkDeskView'
+import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
 
 export interface Instrument {
@@ -68,12 +70,31 @@ const VIEWS = [
     render: (bus) => <WalkView bus={bus} />,
   },
   {
-    // the walk-tiers spike's winning desk (#11), graduated whole; the
-    // break-apart pass (#12) will split its zones into instruments proper
+    // the walk-tiers spike's winning desk (#11), graduated whole and then
+    // narrowed to AUTHORING by #20 — palette + railroad + the projection strip
     id: 'walkdesk',
     label: 'Walk·Desk',
     slot: 'column',
     render: (bus) => <WalkDeskView bus={bus} />,
+  },
+  {
+    // #20: the desk's two reading zones, now instruments in their own right.
+    // They present a resolved road and cannot edit it. Not fed by the desk yet
+    // — see walkdesk/presented.ts, and #14 for the wire.
+    id: 'walkcolumns',
+    label: 'Walk·Columns',
+    slot: 'column',
+    render: (bus) => <WalkColumnsView bus={bus} />,
+  },
+  {
+    // fixed width: the stack's planes are ROTATED, so their footprint is a
+    // constant ~357px no matter how much room the pane is given. Growing it
+    // would only add empty board (LayerStack.STACK_W).
+    id: 'walkstack',
+    label: 'Walk·Stack',
+    slot: 'column',
+    flex: { fixed: 372 },
+    render: (bus) => <WalkStackView bus={bus} />,
   },
   {
     id: 'unfold',
@@ -199,10 +220,17 @@ export const PRESETS: Preset[] = [
     flex: { nested: 1.8, children: 1, doc: 1 },
   },
   {
+    // #20 — the Google-Maps composition: the map and the route editor side by
+    // side, the way you actually plan a trip, with the reading views beside
+    // them rather than inside them.
     id: 'authoring',
     label: 'Authoring',
-    hint: 'the walk desk — palette feeds, the railroad forks and rejoins, stack + columns read the resolved road',
-    active: ['walkdesk'],
+    hint: 'map + walk desk + the reading views — plan the route beside the territory',
+    // the desk carries the weight: the railroad is the only pane here you WRITE
+    // in, and a fork needs room to fan its lanes (until #19 folds them onto a
+    // card). The map wants a glance, not a canvas, at this size.
+    active: ['nested', 'walkdesk', 'walkcolumns', 'walkstack'],
+    flex: { nested: 1, walkdesk: 2.6, walkcolumns: 1.3 },
   },
 ]
 
