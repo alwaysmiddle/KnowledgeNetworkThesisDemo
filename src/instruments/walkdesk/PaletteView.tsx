@@ -19,9 +19,21 @@ export default function PaletteView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)
   const state = useAuthorDraft()
 
+  // Clicking a hit SELECTS it on the map. Two channels, because "select" and
+  // "zoom to" are two different things on this bus: setFocus lights the
+  // selection overlay (glow, roads, chip) and re-roots the tree but never moves
+  // the camera; peekAt publishes the LOOK that flies the camera to the node's
+  // territory. Together they are "zoom in on the map as if we selected it there".
+  // 'link' + jump tags the trail as a discontinuous leap — the same gesture
+  // PlexPanel and LensPane already use to jump across the graph.
+  const selectOnMap = (id: string) => {
+    bus.setFocus(id, 'link', true)
+    bus.peekAt(id)
+  }
+
   return (
     <div data-palette className="h-full flex flex-col">
-      <Palette state={state} sync={sync} />
+      <Palette state={state} sync={sync} onSelect={selectOnMap} />
     </div>
   )
 }
