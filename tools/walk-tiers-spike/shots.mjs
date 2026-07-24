@@ -109,7 +109,15 @@ if ((await count('[data-rord]')) !== 7) errors.push(`S: 7 stops wear badges on t
 const firstOrd = await page.locator('[data-rnode] [data-rord]').first().getAttribute('data-rord')
 if (firstOrd !== '1') errors.push(`S: the first road visit should wear badge 1, got ${firstOrd}`)
 if ((await fringeCount()) !== '7') errors.push(`S: default resolved route is 7 visits, got ${await fringeCount()}`)
-if ((await count('[data-vbox]')) !== 6) errors.push(`S: columns tier 0 shows 6 resolved boxes, got ${await count('[data-vbox]')}`)
+// #20 — the desk is AUTHORING only now; the reading views are their own panes
+if ((await count('[data-desk] [data-vcol]')) !== 0) errors.push('S20: the columns must not live inside the desk anymore')
+if ((await count('[data-desk] [data-plane]')) !== 0) errors.push('S20: the layer stack must not live inside the desk anymore')
+if ((await count('[data-walkcolumns]')) !== 1) errors.push('S20: the Authoring preset should place Walk·Columns as its own pane')
+if ((await count('[data-walkstack]')) !== 1) errors.push('S20: the Authoring preset should place Walk·Stack as its own pane')
+if ((await count('[aria-label="studio-pane-nested"][data-slot="on"]')) !== 1)
+  errors.push('S20: the Authoring preset should put the MAP beside the desk (the google-maps framing)')
+// unwired, both read the AUTHORED plan: tier 0 is machine / serve / speak / auth
+if ((await count('[data-vbox]')) !== 4) errors.push(`S20: columns read the authored plan — 4 tier-0 boxes, got ${await count('[data-vbox]')}`)
 if ((await count('[data-plane]')) !== 1) errors.push(`S: the iso stack starts with one plane, got ${await count('[data-plane]')}`)
 await shot('s7-default')
 
@@ -122,7 +130,9 @@ if ((await count('[data-rnode]')) !== 11) errors.push(`E13-lanes: both fork lane
 await click('[data-brpick="seed-sec.1"]')
 if ((await fringeCount()) !== '10') errors.push(`S: the crypto tour makes the route 10, got ${await fringeCount()}`)
 if ((await count('[data-rord]')) !== 10) errors.push(`S: 10 badges on the crypto road, got ${await count('[data-rord]')}`)
-if ((await count('[data-vbox]')) !== 9) errors.push(`S: columns re-resolve to 9 tier-0 boxes, got ${await count('[data-vbox]')}`)
+// (the columns used to re-resolve here too. Since #20 they are a separate pane
+// on a separate road, so the fringe strip is the only downstream witness until
+// #14 wires them. The route count above is that witness.)
 // picking a branch changes the RESOLVED road, not the visible lanes — still 11
 if ((await count('[data-rnode]')) !== 11) errors.push(`S: both lanes stay visible after a pick (11 nodes), got ${await count('[data-rnode]')}`)
 if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('S: the crypto lane is on the chosen road now')
@@ -132,7 +142,6 @@ await shot('s7-branchB')
 await click('[data-opt-toggle]')
 if ((await fringeCount()) !== '9') errors.push(`S: bypassing ws drops the route to 9, got ${await fringeCount()}`)
 if ((await count('[data-rord]')) !== 9) errors.push(`S: the bypassed stop loses its badge (9 left), got ${await count('[data-rord]')}`)
-if ((await count('[data-vbox]')) !== 8) errors.push(`S: columns drop the bypassed stop (8 boxes), got ${await count('[data-vbox]')}`)
 await shot('s7-bypass')
 await click('[data-opt-toggle]')
 if ((await fringeCount()) !== '10') errors.push(`S: optionals back on the road — 10 again, got ${await fringeCount()}`)
@@ -162,7 +171,6 @@ if ((await count(roadNode('auto-continuous-integration'))) !== 1) errors.push('S
 if ((await fringeCount()) !== '10') errors.push(`S: the alternative isn't chosen yet — route still 10, got ${await fringeCount()}`)
 await click('[data-brpick="fork-0.1"]')
 if ((await fringeCount()) !== '9') errors.push(`S: taking the alternative swaps http+ws for ci (9), got ${await fringeCount()}`)
-if ((await count('[data-vbox]')) !== 8) errors.push(`S: columns follow the swap (8 boxes), got ${await count('[data-vbox]')}`)
 await shot('s7-forked')
 
 // ── contextual group still works on the road ────────────────────────────────
@@ -171,19 +179,22 @@ await click('[data-fly-group]')
 if ((await count('[data-rstage]')) !== 2) errors.push(`S: grouping should open a 2nd stage container, got ${await count('[data-rstage]')}`)
 if ((await fringeCount()) !== '9') errors.push(`S: grouping adds no visits — route stays 9, got ${await fringeCount()}`)
 
-// ── the columns still drill the resolved road, and the iso stack follows ────
-await click('[data-vpick="seed-net"]')
-if ((await count('[data-vcol]')) !== 2) errors.push(`S: drilling seed-net opens a 2nd column, got ${await count('[data-vcol]')}`)
-if ((await count('[data-vedge]')) !== 1) errors.push(`S: one open column = one begat-edge, got ${await count('[data-vedge]')}`)
-if ((await count('[data-plane]')) !== 2) errors.push(`S: the iso stack grows a 2nd plane with the column, got ${await count('[data-plane]')}`)
+// ── #20 · each reading instrument drills ON ITS OWN ─────────────────────────
+// Inside the desk these two shared one controlled stops/path/pick triple and
+// could not disagree. Split and unwired, each owns its drill path — so this
+// asserts the DIVERGENCE deliberately. When #14 puts one path on the bus these
+// four lines become "the stack follows the columns" again.
+await click('[data-vpick="serve"]')
+if ((await count('[data-vcol]')) !== 2) errors.push(`S20: drilling serve opens a 2nd column, got ${await count('[data-vcol]')}`)
+if ((await count('[data-vedge]')) !== 1) errors.push(`S20: one open column = one begat-edge, got ${await count('[data-vedge]')}`)
+if ((await count('[data-plane]')) !== 1) errors.push(`S20: the stack is unwired — it must NOT follow the columns yet, got ${await count('[data-plane]')} planes`)
 
-// ── ...and drives too: a dot click collapses, the diamond re-opens ──────────
+await click('[data-pick-stack="serve"]')
+if ((await count('[data-plane]')) !== 2) errors.push(`S20: the stack drills on its own, got ${await count('[data-plane]')}`)
+if ((await count('[data-vcol]')) !== 2) errors.push(`S20: the columns keep their own path, got ${await count('[data-vcol]')}`)
 await click('[data-plane="0"] button:not([data-pick-stack])')
-if ((await count('[data-plane]')) !== 1) errors.push(`S: picking a visit dot on plane 0 folds the drill back, got ${await count('[data-plane]')}`)
-if ((await count('[data-vcol]')) !== 1) errors.push(`S: the columns follow the stack's fold, got ${await count('[data-vcol]')}`)
-await click('[data-pick-stack="seed-net"]')
-if ((await count('[data-plane]')) !== 2) errors.push(`S: the stack diamond re-opens the drill, got ${await count('[data-plane]')}`)
-if ((await count('[data-vcol]')) !== 2) errors.push(`S: the columns follow the stack's pick, got ${await count('[data-vcol]')}`)
+if ((await count('[data-plane]')) !== 1) errors.push(`S20: a visit dot folds the stack back, got ${await count('[data-plane]')}`)
+if ((await count('[data-vcol]')) !== 2) errors.push(`S20: ...and the columns are unaffected, got ${await count('[data-vcol]')}`)
 await shot('s7-desk-final')
 
 // ── hover publishes on the BUS hover channel — every bound element with the
