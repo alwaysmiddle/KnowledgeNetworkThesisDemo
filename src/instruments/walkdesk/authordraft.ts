@@ -10,11 +10,111 @@
 // rebuild; selection is cleared after any structural change so no stale path
 // can dangle.
 
-import { useRef, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 
 import type { Branch, ForkStop, StageStop, Stop, VisitStop } from './mockwalk'
 
 export type Path = number[]
+
+// ── One draft, shared (#21) ─────────────────────────────────────────────────
+// The draft used to be component state inside WalkDeskView, which worked while
+// the palette and the railroad were two zones of one component. #21 split them
+// into separate instruments, and a palette that inserts into a draft the
+// railroad cannot see is useless — so the draft moved into module-level stores
+// both subscribe to.
+//
+// A SINGLETON, deliberately: there is one plan being written. Two Walk·Desk
+// panes should be two views OF that plan, not two plans, which is what
+// component state would have given. This is state that outlived its component,
+// so it stopped living in one. The bus is not the right home either — it
+// carries what every instrument shares (focus, route, trail), and a half-built
+// draft is the authoring pair's private business until #16 bridges it to
+// walks.ts.
+
+interface Store<T> {
+  get(): T
+  set(v: T): void
+  subscribe(fn: () => void): () => void
+}
+
+function store<T>(initial: T): Store<T> {
+  let value = initial
+  const subs = new Set<() => void>()
+  return {
+    get: () => value,
+    set: (v) => {
+      if (Object.is(v, value)) return
+      value = v
+      for (const fn of subs) fn()
+    },
+    subscribe: (fn) => {
+      subs.add(fn)
+      return () => subs.delete(fn)
+    },
+  }
+}
+
+/** the useState of a shared store — same shape, one value across all callers */
+function useStore<T>(s: Store<T>): [T, (v: T) => void] {
+  return [useSyncExternalStore(s.subscribe, s.get), s.set]
+}
+
+/** The draft starts SEEDED with a fork and an optional stop so branching is
+ * visible at first paint; every id is a real corpus node — tiers and branches
+ * alike stay pure overlay on an untouched corpus. */
+const SEED: Stop[] = [
+  { kind: 'visit', node: 'stk-dns-naming' },
+  {
+    kind: 'stage',
+    key: 'seed-net',
+    title: 'Reach the machine',
+    steps: [
+      { kind: 'visit', node: 'stk-ip-routing' },
+      { kind: 'visit', node: 'stk-tcp-udp' },
+    ],
+  },
+  {
+    kind: 'fork',
+    key: 'seed-sec',
+    question: 'how deep on security?',
+    branches: [
+      { label: 'just the handshake', steps: [{ kind: 'visit', node: 'cry-tls-certificates' }] },
+      {
+        label: 'full crypto tour',
+        steps: [
+          { kind: 'visit', node: 'cry-public-key-cryptography' },
+          { kind: 'visit', node: 'cry-symmetric-encryption' },
+          { kind: 'visit', node: 'cry-cryptographic-hashing' },
+          { kind: 'visit', node: 'cry-tls-certificates' },
+        ],
+      },
+    ],
+  },
+  { kind: 'visit', node: 'web-http-rest' },
+  { kind: 'visit', node: 'web-sockets-apis', optional: true },
+  { kind: 'visit', node: 'app-authentication-authorization' },
+]
+
+const stopsStore = store<Stop[]>(SEED)
+const selectedStore = store<ReadonlySet<string>>(new Set())
+const caretStore = store<Path | null>(null)
+/** which branch each fork takes, and whether optionals ride the road — the
+ * road's VIEW of the draft. The railroad edits it; the projection reads it. */
+const choicesStore = store<Record<string, number>>({})
+const optionalsStore = store(true)
+const seq = { stage: 0, fork: 0 }
+
+/** the road's resolution knobs, shared by the railroad and the projection */
+export function useRoad() {
+  const [choices, setChoices] = useStore(choicesStore)
+  const [withOptionals, setWithOptionals] = useStore(optionalsStore)
+  return {
+    choices,
+    withOptionals,
+    setWithOptionals,
+    pickBranch: (forkKey: string, idx: number) => setChoices({ ...choices, [forkKey]: idx }),
+  }
+}
 
 export const pathKey = (p: Path) => 'b.' + p.join('.')
 export const parsePath = (key: string): Path =>
@@ -180,12 +280,10 @@ export interface AuthorState {
   canPromote: boolean
 }
 
-export function useAuthorDraft(initial: Stop[] = []): AuthorState {
-  const [stops, setStops] = useState<Stop[]>(initial)
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
-  const [caret, setCaret] = useState<Path | null>(null)
-  const stageSeq = useRef(0)
-  const forkSeq = useRef(0)
+export function useAuthorDraft(): AuthorState {
+  const [stops, setStops] = useStore(stopsStore)
+  const [selected, setSelected] = useStore(selectedStore)
+  const [caret, setCaret] = useStore(caretStore)
 
   const commit = (next: Stop[]) => {
     setStops(next)
@@ -235,7 +333,7 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
     },
     groupSelection: () => {
       if (!run) return
-      const key = `draft-${stageSeq.current++}`
+      const key = `draft-${seq.stage++}`
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),
@@ -246,7 +344,7 @@ export function useAuthorDraft(initial: Stop[] = []): AuthorState {
     },
     forkSelection: () => {
       if (!run) return
-      const key = `fork-${forkSeq.current++}`
+      const key = `fork-${seq.fork++}`
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),

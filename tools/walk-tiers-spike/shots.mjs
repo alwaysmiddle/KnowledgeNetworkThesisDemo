@@ -109,17 +109,45 @@ if ((await count('[data-rord]')) !== 7) errors.push(`S: 7 stops wear badges on t
 const firstOrd = await page.locator('[data-rnode] [data-rord]').first().getAttribute('data-rord')
 if (firstOrd !== '1') errors.push(`S: the first road visit should wear badge 1, got ${firstOrd}`)
 if ((await fringeCount()) !== '7') errors.push(`S: default resolved route is 7 visits, got ${await fringeCount()}`)
-// #20 — the desk is AUTHORING only now; the reading views are their own panes
-if ((await count('[data-desk] [data-vcol]')) !== 0) errors.push('S20: the columns must not live inside the desk anymore')
-if ((await count('[data-desk] [data-plane]')) !== 0) errors.push('S20: the layer stack must not live inside the desk anymore')
-if ((await count('[data-walkcolumns]')) !== 1) errors.push('S20: the Authoring preset should place Walk·Columns as its own pane')
-if ((await count('[data-walkstack]')) !== 1) errors.push('S20: the Authoring preset should place Walk·Stack as its own pane')
-if ((await count('[aria-label="studio-pane-nested"][data-slot="on"]')) !== 1)
-  errors.push('S20: the Authoring preset should put the MAP beside the desk (the google-maps framing)')
-// unwired, both read the AUTHORED plan: tier 0 is machine / serve / speak / auth
-if ((await count('[data-vbox]')) !== 4) errors.push(`S20: columns read the authored plan — 4 tier-0 boxes, got ${await count('[data-vbox]')}`)
-if ((await count('[data-plane]')) !== 1) errors.push(`S: the iso stack starts with one plane, got ${await count('[data-plane]')}`)
+// ── #21 · the authoring COMPOSITION ─────────────────────────────────────────
+// map + railroad + document as columns, the palette/route desk as a bottom
+// strip. Each pane is one job; the reading views (#20) are a sidebar click
+// away rather than crowding the default.
+for (const [pane, why] of [
+  ['nested', 'the territory'],
+  ['railroad', 'the writing surface'],
+  ['doc', 'what the focused stop teaches'],
+  ['walkdesk', 'supply and receipt'],
+]) {
+  if ((await count(`[aria-label="studio-pane-${pane}"][data-slot="on"]`)) !== 1)
+    errors.push(`S21: the Authoring preset should place ${pane} — ${why}`)
+}
+if ((await count('[data-desk] [data-road-root]')) !== 0) errors.push('S21: the railroad must not live inside the desk anymore')
+if ((await count('[data-railroad] [data-road-root]')) !== 1) errors.push('S21: the railroad should be its own pane')
+if ((await count('[data-vcol]')) !== 0) errors.push('S21: Walk·Columns is not in the default composition')
+if ((await count('[data-plane]')) !== 0) errors.push('S21: Walk·Stack is not in the default composition')
 await shot('s7-default')
+
+// ── #21 · the palette and the railroad share ONE draft across panes ──────────
+// the whole reason the draft left component state: a palette that inserts into
+// a draft the railroad cannot see is useless.
+await click('[data-pal="alg-graph-traversal"]')
+if ((await count(roadNode('alg-graph-traversal'))) !== 1)
+  errors.push('S21: a palette click in the desk STRIP must land on the road in the railroad PANE')
+if ((await fringeCount()) !== '8') errors.push(`S21: ...and the desk's own receipt sees it too (8), got ${await fringeCount()}`)
+await click(`[data-rnode][data-node="alg-graph-traversal"]`)
+await click('[data-fly-del]')
+if ((await fringeCount()) !== '7') errors.push(`S21: removing it puts the route back to 7, got ${await fringeCount()}`)
+
+// ── #21 · the map MOVES the focus, it does not OPEN a pane ──────────────────
+// selecting a container used to reveal Connections. With several instruments
+// able to move the focus, a pane appearing because you clicked somewhere else
+// is a surprise — so the map publishes and stops there.
+await click('[data-region="cs"]')
+const mapFocus = await page.locator('[data-focus]').getAttribute('data-focus')
+if (mapFocus !== 'cs') errors.push(`S21: a map region click should still publish focus, got "${mapFocus}"`)
+if ((await count('[aria-label="studio-pane-children"]')) !== 0)
+  errors.push('S21: the map must NOT open Connections by itself anymore')
 
 // ── #13 review 2: every fork lane is ALWAYS visible — no hide-until-hover ────
 if ((await count(roadNode('cry-public-key-cryptography'))) !== 1)
@@ -180,6 +208,15 @@ if ((await count('[data-rstage]')) !== 2) errors.push(`S: grouping should open a
 if ((await fringeCount()) !== '9') errors.push(`S: grouping adds no visits — route stays 9, got ${await fringeCount()}`)
 
 // ── #20 · each reading instrument drills ON ITS OWN ─────────────────────────
+// they are not in the Authoring preset since #21 — toggle them on first
+await click('[aria-label="studio-inst-walkcolumns"]')
+await click('[aria-label="studio-inst-walkstack"]')
+if ((await count('[data-walkcolumns]')) !== 1) errors.push('S20: Walk·Columns should be pickable from the sidebar')
+if ((await count('[data-walkstack]')) !== 1) errors.push('S20: Walk·Stack should be pickable from the sidebar')
+// unwired, both read the AUTHORED plan: tier 0 is machine / serve / speak / auth
+if ((await count('[data-vbox]')) !== 4) errors.push(`S20: columns read the authored plan — 4 tier-0 boxes, got ${await count('[data-vbox]')}`)
+if ((await count('[data-plane]')) !== 1) errors.push(`S20: the iso stack starts with one plane, got ${await count('[data-plane]')}`)
+
 // Inside the desk these two shared one controlled stops/path/pick triple and
 // could not disagree. Split and unwired, each owns its drill path — so this
 // asserts the DIVERGENCE deliberately. When #14 puts one path on the bus these

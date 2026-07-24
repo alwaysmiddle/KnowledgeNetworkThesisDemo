@@ -29,6 +29,7 @@ import TrailStrip from '../instruments/TrailStrip'
 import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
+import RailroadView from '../instruments/walkdesk/RailroadView'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkDeskView from '../instruments/walkdesk/WalkDeskView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
@@ -70,12 +71,23 @@ const VIEWS = [
     render: (bus) => <WalkView bus={bus} />,
   },
   {
-    // the walk-tiers spike's winning desk (#11), graduated whole and then
-    // narrowed to AUTHORING by #20 — palette + railroad + the projection strip
+    // the walk-tiers spike's desk (#11), narrowed to authoring by #20 and to
+    // its two WIDE halves by #21 — the palette that feeds the draft and the
+    // projection that reports it. Both are wide-and-short, hence a strip.
     id: 'walkdesk',
     label: 'Walk·Desk',
-    slot: 'column',
+    slot: 'strip',
+    height: 230,
     render: (bus) => <WalkDeskView bus={bus} />,
+  },
+  {
+    // #21: the writing surface on its own, as a tall narrow slice. The only
+    // view in the Studio that ever sees a branch. Shares one draft with the
+    // palette through authordraft.ts's stores.
+    id: 'railroad',
+    label: 'Railroad',
+    slot: 'column',
+    render: (bus) => <RailroadView bus={bus} />,
   },
   {
     // #20: the desk's two reading zones, now instruments in their own right.
@@ -220,17 +232,16 @@ export const PRESETS: Preset[] = [
     flex: { nested: 1.8, children: 1, doc: 1 },
   },
   {
-    // #20 — the Google-Maps composition: the map and the route editor side by
-    // side, the way you actually plan a trip, with the reading views beside
-    // them rather than inside them.
+    // #20/#21 — the google-maps composition: the TERRITORY gets the room, the
+    // route editor is a slice beside it, the prose says what the focused stop
+    // actually teaches, and the supply/receipt pair runs along the bottom.
+    // Walk·Columns and Walk·Stack stay one sidebar click away rather than
+    // crowding four columns; nothing is lost, they are just not the default.
     id: 'authoring',
     label: 'Authoring',
-    hint: 'map + walk desk + the reading views — plan the route beside the territory',
-    // the desk carries the weight: the railroad is the only pane here you WRITE
-    // in, and a fork needs room to fan its lanes (until #19 folds them onto a
-    // card). The map wants a glance, not a canvas, at this size.
-    active: ['nested', 'walkdesk', 'walkcolumns', 'walkstack'],
-    flex: { nested: 1, walkdesk: 2.6, walkcolumns: 1.3 },
+    hint: 'map + railroad + document, palette and route along the bottom',
+    active: ['nested', 'railroad', 'doc', 'walkdesk'],
+    flex: { nested: 2, railroad: 1.1, doc: 1.2 },
   },
 ]
 
