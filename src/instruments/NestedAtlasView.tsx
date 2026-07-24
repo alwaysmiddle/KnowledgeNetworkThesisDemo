@@ -300,14 +300,15 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   const dragDist = useRef(0)
   const [dragging, setDragging] = useState(false)
 
-  // A newly-mounting pane reflows the grid mid-gesture, so the children-reveal
-  // is DELAYED: the second click of a zoom double-click has to land on a map
-  // that has not moved. This glue used to live in StudioView's switch, but it is
-  // the map's own behaviour — "selecting a container opens the pane that shows
-  // what is inside it" — and it belongs with the map.
-  const revealTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(revealTimer.current), [])
-
+  // Selecting a container used to OPEN the Connections pane — a 350ms-delayed
+  // bus.reveal('children'), delayed because a newly-mounting pane reflowed the
+  // grid mid-gesture and the second click of a zoom double-click would land on
+  // a map that had moved. Cut (#21): the map now only publishes focus, and what
+  // is on screen stays the composition's business. A pane that appears under
+  // your cursor because you clicked somewhere else is a surprise, and with the
+  // authoring preset the map is one of several things that can move the focus —
+  // so "who opens Connections" needs an answer that isn't "whoever moved last".
+  // Cutting the reveal also retires the timer that only existed to survive it.
   const regionClick = (id: string) => {
     if (dragDist.current > 4) return
     // clicking the selected cell again DESELECTS it (2026-07-13) — and clears
@@ -319,12 +320,6 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     }
     setSel(id)
     onFocus(id)
-    // any container territory — domain, module, topic, subtopic — opens its
-    // contents; the drill-down works at every depth here
-    if (byId.get(id)?.kind === 'container') {
-      window.clearTimeout(revealTimer.current)
-      revealTimer.current = window.setTimeout(() => bus.reveal('children'), 350)
-    }
   }
 
   // ── the selection overlay, whole: which topics the selection resolves to,
