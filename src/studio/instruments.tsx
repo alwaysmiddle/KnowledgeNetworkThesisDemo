@@ -254,17 +254,19 @@ export const PRESETS: Preset[] = [
   {
     // #20/#21 — the google-maps composition, read left to right as the work
     // flows: SEARCH (palette) over the prose that says what a stop teaches,
-    // then the TERRITORY with the room to be a territory, then the road you are
-    // writing with its resolved route running down beside it.
+    // then the ROAD you are writing with its resolved route beside it, then the
+    // TERRITORY on the right with the room to be a territory. The road sits in
+    // the middle — the thing you edit is central, flanked by where stops come
+    // from (search) and where they live (map).
     //
     // The search column is stacked because both halves are the same gesture at
     // different zoom: "what is there" and "what is this one about". Walk·Columns
     // and Walk·Stack stay one sidebar click away rather than crowding the row.
     id: 'authoring',
     label: 'Authoring',
-    hint: 'palette over document, then the map, then the railroad and its route',
-    active: [['palette', 'doc'], 'nested', 'railroad'],
-    flex: { palette: 1, nested: 2, railroad: 1.6 },
+    hint: 'palette over document, then the railroad and its route, then the map',
+    active: [['palette', 'doc'], 'railroad', 'nested'],
+    flex: { palette: 1, railroad: 1.6, nested: 2 },
   },
 ]
 

@@ -34,6 +34,13 @@ function pushRecent(raw: string) {
   recents = [s, ...recents.filter((r) => r.toLowerCase() !== s.toLowerCase())].slice(0, MAX_RECENTS)
   for (const fn of recentSubs) fn()
 }
+// Forget one recent — the chip's ✕. Case-insensitive so it drops the entry no
+// matter how it was cased when saved.
+function removeRecent(term: string) {
+  const t = term.toLowerCase()
+  recents = recents.filter((r) => r.toLowerCase() !== t)
+  for (const fn of recentSubs) fn()
+}
 function useRecents(): string[] {
   return useSyncExternalStore(
     (fn) => (recentSubs.add(fn), () => recentSubs.delete(fn)),
@@ -122,7 +129,7 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
 
       <div className="overflow-auto py-1 max-h-[42vh]">
         {!ql ? (
-          <RecentsEmptyState recent={recent} onPick={setQ} />
+          <RecentsEmptyState recent={recent} onPick={setQ} onForget={removeRecent} />
         ) : hits.length === 0 ? (
           <div className="px-2 py-3 text-[11px] text-slate-400">no node matches “{q.trim()}”.</div>
         ) : (
@@ -175,7 +182,15 @@ export default function Palette({ state, sync }: { state: AuthorState; sync: Hov
 }
 
 // The empty state IS the value: your own path back to a search you just ran.
-function RecentsEmptyState({ recent, onPick }: { recent: string[]; onPick: (q: string) => void }) {
+function RecentsEmptyState({
+  recent,
+  onPick,
+  onForget,
+}: {
+  recent: string[]
+  onPick: (q: string) => void
+  onForget: (term: string) => void
+}) {
   if (recent.length === 0) {
     return (
       <div className="px-2 py-3 text-[11px] text-slate-400 leading-relaxed">
@@ -188,15 +203,31 @@ function RecentsEmptyState({ recent, onPick }: { recent: string[]; onPick: (q: s
       <div className="text-[9.5px] uppercase tracking-wide font-semibold text-slate-400 py-0.5">recent searches</div>
       <div className="flex flex-wrap gap-1 pt-0.5">
         {recent.map((r) => (
-          <button
+          // The chip is a container, not a button — the term re-runs the search,
+          // the ✕ forgets it. Nesting a button in a button is invalid, so both
+          // are siblings inside a bordered span that plays the chip's part.
+          <span
             key={r}
             data-pal-recent={r}
-            onClick={() => onPick(r)}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10.5px] text-slate-600 hover:bg-white"
+            className="group inline-flex items-center rounded border border-slate-200 bg-slate-50 text-[10.5px] text-slate-600 hover:bg-white"
           >
-            <span className="text-slate-300">↻</span>
-            {r}
-          </button>
+            <button
+              data-pal-recent-run={r}
+              onClick={() => onPick(r)}
+              className="inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5"
+            >
+              <span className="text-slate-300">↻</span>
+              {r}
+            </button>
+            <button
+              data-pal-recent-del={r}
+              onClick={() => onForget(r)}
+              title="forget this search"
+              className="shrink-0 pr-1.5 pl-0.5 py-0.5 text-slate-300 hover:text-rose-500"
+            >
+              ✕
+            </button>
+          </span>
         ))}
       </div>
     </div>

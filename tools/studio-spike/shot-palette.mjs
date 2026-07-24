@@ -106,14 +106,28 @@ if (topTitle && (await page.locator(`[data-pal-recent="${topTitle}"]`).count()) 
 if ((await page.locator('[data-pal-recent="encrypt"]').count()) !== 0)
   errors.push('recents: the raw typed fragment "encrypt" was saved as a recent (it must not be)')
 await page.screenshot({ path: OUT + '/p3-recents-refined.png' })
-await page.locator(`[data-pal-recent="${topTitle}"]`).first().click()
+await page.locator(`[data-pal-recent-run="${topTitle}"]`).first().click()
 await page.waitForTimeout(200)
 if (topTitle && (await search.inputValue()) !== topTitle) errors.push('recents: clicking a recent chip did not re-run its query')
+
+// 6 — FORGET A RECENT: the chip's ✕ drops just that entry, leaving the others.
+// Clear the box back to the recents view first, then delete "Operating Systems"
+// and assert it is gone while the refined chip survives.
+await search.fill('')
+await page.waitForTimeout(150)
+if ((await page.locator('[data-pal-recent="Operating Systems"]').count()) === 0)
+  errors.push('forget: precondition — "Operating Systems" chip missing before delete')
+await page.locator('[data-pal-recent-del="Operating Systems"]').click()
+await page.waitForTimeout(150)
+if ((await page.locator('[data-pal-recent="Operating Systems"]').count()) !== 0)
+  errors.push('forget: the ✕ did not remove the "Operating Systems" recent')
+if (topTitle && (await page.locator(`[data-pal-recent="${topTitle}"]`).count()) === 0)
+  errors.push('forget: deleting one recent also dropped an unrelated chip')
 
 if (errors.length) {
   console.log('ERRORS:\n' + errors.join('\n'))
 } else {
-  console.log('palette OK — empty/short, widened reach, click-no-insert, +-append-and-clear, title recents all verified')
+  console.log('palette OK — empty/short, widened reach, click-no-insert, +-append-and-clear, title recents, forget-recent all verified')
 }
 await browser.close()
 vite.kill()
