@@ -11,10 +11,17 @@
 // hit — select, +, or a landed drag — clears the box, collapsing the list back
 // to recents.
 //
+// The keyboard drives it like google-maps' search: ↓/↑ walk the hit list, Enter
+// is a click on the highlighted row (select on the map), Esc cancels back to
+// recents. The list is never off the keyboard's reach — the box keeps focus and
+// the highlighted row is the one Enter acts on.
+//
 // Recents hold the TITLE of the node a search resolved to, not the raw keystrokes
 // — you searched "encrpytion", you meant "Symmetric Encryption", so that clean
 // term is what comes back (and re-runs cleanly, since a title prefix-matches its
-// own node). In-memory for now; persistence rides on #16.
+// own node). A recent is also a DRAG SOURCE: it resolves its title back to that
+// node and feeds the road the same `pal:<id>`, so a search you already ran is one
+// drag from the road. In-memory for now; persistence rides on #16.
 
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
@@ -79,10 +86,38 @@ function score(id: string, ql: string): number {
   return base + (n.topic ? 0.5 : 0)
 }
 
+// Resolve a recent's TITLE back to the node it names, so a history chip can be
+// dragged onto the road just like a live hit. Same ranking the list uses, so the
+// chip drops the very node clicking-then-top would: a title prefix-matches its
+// own node (score 3), and the shallower node wins a tie — the identical rule the
+// hits sort applies. O(nodes), but only on dragstart.
+function nodeForTerm(term: string): string | undefined {
+  const ql = term.trim().toLowerCase()
+  if (!ql) return undefined
+  let best: string | undefined
+  let bestScore = -1
+  let bestDepth = Infinity
+  for (const n of nodes) {
+    const s = score(n.id, ql)
+    if (s < 0) continue
+    const depth = pathTo(n.id).length
+    if (s > bestScore || (s === bestScore && depth < bestDepth)) {
+      best = n.id
+      bestScore = s
+      bestDepth = depth
+    }
+  }
+  return best
+}
+
 const MAX_HITS = 40
 
 export default function Palette({ state, sync, onSelect }: { state: AuthorState; sync: HoverBinding; onSelect: (id: string) => void }) {
   const [q, setQ] = useState('')
+  // The keyboard-highlighted row — the one Enter acts on. Reset to the top hit
+  // on every keystroke (onChange), clamped to the current list below so a
+  // shrinking result set can never leave it pointing past the end.
+  const [active, setActive] = useState(0)
   const recent = useRecents()
   const ql = q.trim().toLowerCase()
 
@@ -95,6 +130,8 @@ export default function Palette({ state, sync, onSelect }: { state: AuthorState;
       .slice(0, MAX_HITS)
       .map((r) => r.id)
   }, [ql])
+
+  const activeIdx = hits.length ? Math.min(active, hits.length - 1) : 0
 
   // A search RESOLVED to a node: record its clean title (not the typo'd query)
   // and collapse the list back to recents. Used by every commit path.
@@ -126,11 +163,27 @@ export default function Palette({ state, sync, onSelect }: { state: AuthorState;
         <input
           data-pal-search
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setActive(0)
+          }}
           onKeyDown={(e) => {
-            // Enter records what you MEANT — the top hit's title — not the raw
-            // keystrokes; a no-match Enter records nothing (no typo saved).
-            if (e.key === 'Enter' && hits.length) pushRecent(byId.get(hits[0])!.title)
+            // google-maps keys: ↓/↑ move the highlight (preventDefault so the
+            // text caret doesn't jump instead), Enter clicks the highlighted row
+            // — the exact selectOnMap a mouse click runs, so it flies the map and
+            // resolves the search — and Esc cancels back to recents.
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setActive((a) => Math.min(a + 1, hits.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setActive((a) => Math.max(a - 1, 0))
+            } else if (e.key === 'Enter') {
+              if (hits.length) selectOnMap(hits[activeIdx])
+            } else if (e.key === 'Escape') {
+              setQ('')
+              e.currentTarget.blur()
+            }
           }}
           placeholder="search 753 nodes…"
           className="w-full text-[11px] px-1.5 py-0.5 rounded border border-slate-200 outline-none focus:border-sky-400"
@@ -144,18 +197,23 @@ export default function Palette({ state, sync, onSelect }: { state: AuthorState;
           <div className="px-2 py-3 text-[11px] text-slate-400">no node matches “{q.trim()}”.</div>
         ) : (
           <div className="px-1.5">
-            {hits.map((id) => {
+            {hits.map((id, i) => {
               const n = byId.get(id)!
               const crumb = breadcrumb(id)
+              const on = i === activeIdx
               return (
                 // The row is a DRAG HANDLE that also selects on click — a plain
                 // click flies the map to this hit and lights it (selectOnMap),
                 // but never inserts a stop. Dragging feeds `pal:<id>` to the
                 // road/map; a drop that landed (dropEffect set) resolves like +.
+                // `on` is the keyboard highlight — the row Enter acts on — and it
+                // scrolls itself into view as ↓/↑ walk past the fold.
                 <div
                   key={id}
+                  ref={on ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined}
                   {...sync.bind(id)}
                   data-pal={id}
+                  data-pal-active={on ? '' : undefined}
                   draggable
                   onClick={() => selectOnMap(id)}
                   onDragStart={(e) => e.dataTransfer.setData(DT, 'pal:' + id)}
@@ -164,7 +222,11 @@ export default function Palette({ state, sync, onSelect }: { state: AuthorState;
                   }}
                   className={[
                     'group w-full flex items-start gap-1.5 px-1.5 py-1 rounded cursor-grab',
-                    sync.lit(id) ? 'ring-2 ring-sky-300 bg-white' : 'hover:bg-slate-50',
+                    on
+                      ? 'bg-sky-100 ring-1 ring-sky-300'
+                      : sync.lit(id)
+                        ? 'ring-2 ring-sky-300 bg-white'
+                        : 'hover:bg-slate-50',
                   ].join(' ')}
                 >
                   <span
@@ -217,16 +279,36 @@ function RecentsEmptyState({
   }
   return (
     <div className="px-2 pt-1">
-      <div className="text-[9.5px] uppercase tracking-wide font-semibold text-slate-400 py-0.5">recent searches</div>
+      <div className="text-[9.5px] uppercase tracking-wide font-semibold text-slate-400 py-0.5">
+        recent searches — drag onto the road
+      </div>
       <div className="flex flex-wrap gap-1 pt-0.5">
         {recent.map((r) => (
           // The chip is a container, not a button — the term re-runs the search,
           // the ✕ forgets it. Nesting a button in a button is invalid, so both
-          // are siblings inside a bordered span that plays the chip's part.
+          // are siblings inside a bordered span that plays the chip's part. The
+          // span is also the DRAG HANDLE: it resolves its title back to a node
+          // (nodeForTerm) and feeds the road the same `pal:<id>` a hit row does,
+          // so a search you already ran drags straight onto the railroad. If the
+          // title no longer resolves, the drag is cancelled rather than empty.
           <span
             key={r}
             data-pal-recent={r}
-            className="group inline-flex items-center rounded border border-slate-200 bg-slate-50 text-[10.5px] text-slate-600 hover:bg-white"
+            draggable
+            onDragStart={(e) => {
+              const id = nodeForTerm(r)
+              if (!id) {
+                e.preventDefault()
+                return
+              }
+              e.dataTransfer.setData(DT, 'pal:' + id)
+            }}
+            onDragEnd={(e) => {
+              // A landed drag freshens the recent — same "acting on it moves it
+              // to the front" the commit paths get.
+              if (e.dataTransfer.dropEffect !== 'none') pushRecent(r)
+            }}
+            className="group inline-flex items-center rounded border border-slate-200 bg-slate-50 text-[10.5px] text-slate-600 hover:bg-white cursor-grab"
           >
             <button
               data-pal-recent-run={r}

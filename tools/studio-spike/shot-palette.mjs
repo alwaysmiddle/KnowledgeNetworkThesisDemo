@@ -83,6 +83,33 @@ if ((await map.getAttribute('data-sel')) !== 'os') errors.push('click-select: th
 if ((await map.getAttribute('data-peek')) !== 'os') errors.push('click-select: the map did not fly (look) to the clicked hit')
 await page.screenshot({ path: OUT + '/p1b-click-selects-map.png' })
 
+// 2b — KEYBOARD (google-maps): the top row starts highlighted, ↓ walks it down,
+// Enter is a click on the highlighted row — it selects that node on the map and
+// closes the list. Capture whichever row the arrows land on and assert THAT id
+// is what the map selected, so the check holds no matter the hit count.
+await search.fill('operating')
+await page.waitForTimeout(200)
+if ((await page.locator('[data-pal-active]').count()) !== 1) errors.push('keyboard: no row is highlighted with a live query')
+await search.press('ArrowDown')
+await search.press('ArrowDown')
+const activeId = await page.locator('[data-pal-active]').getAttribute('data-pal')
+if (!activeId) errors.push('keyboard: ArrowDown left no highlighted row')
+await search.press('Enter')
+await page.waitForTimeout(400)
+if (activeId && (await map.getAttribute('data-sel')) !== activeId) errors.push('keyboard: Enter did not select the highlighted row on the map')
+if ((await search.inputValue()) !== '') errors.push('keyboard: Enter did not close the search')
+await page.screenshot({ path: OUT + '/p1c-keyboard-enter.png' })
+
+// 2c — ESC CANCELS: a live query, Escape, and the box is empty again (the list
+// collapses back to the recents view).
+await search.fill('operating')
+await page.waitForTimeout(150)
+if ((await page.locator('[data-pal]').count()) === 0) errors.push('esc: precondition — no hits to cancel')
+await search.press('Escape')
+await page.waitForTimeout(150)
+if ((await search.inputValue()) !== '') errors.push('esc: Escape did not cancel the query')
+if ((await page.locator('[data-pal]').count()) !== 0) errors.push('esc: Escape did not collapse the hit list')
+
 // 3 — + APPENDS AND CLEARS: re-search first (the click above closed the list),
 // then the explicit add lands the stop on the road and collapses the list again.
 await search.fill('operating')
@@ -97,6 +124,11 @@ if ((await page.locator('[data-pal]').count()) !== 0) errors.push('+ append: the
 // resolved to "Operating Systems", so that clean title is the first recent chip.
 if ((await page.locator('[data-pal-recent="Operating Systems"]').count()) === 0)
   errors.push('recents: the appended node\'s title did not appear as a recent chip')
+// the recent chip is itself a drag source onto the road (resolves its title back
+// to a node, feeds `pal:<id>`). Native HTML5 DnD is not reliably drivable here,
+// so assert the wiring — the chip carries draggable — rather than the drop.
+if ((await page.locator('[data-pal-recent="Operating Systems"]').getAttribute('draggable')) !== 'true')
+  errors.push('recents drag: the recent chip is not a drag source')
 await page.screenshot({ path: OUT + '/p2-recents-title.png' })
 
 // 5 — ENTER RECORDS THE TOP HIT'S TITLE, even from a sloppy query. Type a typo'd
@@ -135,7 +167,7 @@ if (topTitle && (await page.locator(`[data-pal-recent="${topTitle}"]`).count()) 
 if (errors.length) {
   console.log('ERRORS:\n' + errors.join('\n'))
 } else {
-  console.log('palette OK — empty/short, widened reach, click-selects-on-map, +-append-and-clear, title recents, forget-recent all verified')
+  console.log('palette OK — empty/short, widened reach, click-selects-on-map, keyboard ↓/Enter/Esc, recent-drag, +-append-and-clear, title recents, forget-recent all verified')
 }
 await browser.close()
 vite.kill()
