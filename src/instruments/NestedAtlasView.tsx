@@ -51,7 +51,7 @@
 // component should be: a camera, a hover, and a paint order.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent } from 'react'
+import { createPortal } from 'react-dom'
 
 import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR, pathTo } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
@@ -324,18 +324,35 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     onFocus(id)
   }
 
-  // #24 — drag the SELECTED cell onto the road. Only the selected cell is a drag
-  // source (the pointerdown gate above yields the gesture to the native drag on
-  // exactly this cell), so these props are inert everywhere else: draggable is
-  // false and dragstart never fires. The payload is the same `pal:<id>` the
-  // palette speaks, so the road's handleDrop needs no new case — and a CONTAINER
-  // id rides the same path, landing as a plain visit (everything is a node).
-  const dragProps = (id: string) => ({
-    draggable: sel === id,
-    onDragStart: (e: DragEvent) => {
-      if (sel === id) e.dataTransfer.setData(DT, 'pal:' + id)
-    },
-  })
+  // ── #24 — DRAG THE SELECTED CELL ONTO THE ROAD ────────────────────────────
+  // A CUSTOM POINTER DRAG, not native HTML5 DnD, for two reasons the ticket's
+  // "just add draggable" plan couldn't survive: Chromium ignores the draggable
+  // attribute on SVG shapes, and a native drag image is a frozen snapshot — it
+  // can't MORPH. So we drive the whole gesture by hand: a portal ghost follows
+  // the cursor, showing the cell's own outline while over the map and crossfading
+  // into a node pill once it leaves the map (the "shape becomes a node" ask). On
+  // release we hand `pal:<id>` to whatever road target is under the pointer by
+  // dispatching a synthetic HTML5 `drop` there — which reuses the road's existing
+  // precise insertion (gaps, stages, branches) verbatim, no reimplementation. A
+  // container id rides the same path and lands as a plain visit (everything is a
+  // node). Only the SELECTED cell arms this (see the pointerdown gate), so pan is
+  // untouched everywhere else.
+  type Box = { x: number; y: number; width: number; height: number }
+  const nodeDown = useRef<{ id: string; x: number; y: number; bbox: Box } | null>(null)
+  const ndActive = useRef(false)
+  const [ghost, setGhost] = useState<{ id: string; x: number; y: number; outside: boolean; bbox: Box } | null>(null)
+
+  /** hand `pal:<id>` to the road via a synthetic drop on whatever is under the
+   * cursor — the road's own onDrop/handleDrop then does the precise insertion.
+   * A manually dispatched 'drop' fires React's handler directly (no browser DnD
+   * state machine to satisfy), so no dragover handshake is needed. */
+  const dropNodeAt = (x: number, y: number, id: string) => {
+    const el = document.elementFromPoint(x, y)
+    if (!el) return
+    const dt = new DataTransfer()
+    dt.setData(DT, 'pal:' + id)
+    el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }))
+  }
 
   // ── the selection overlay, whole: which topics the selection resolves to,
   // which of their edges survive the roll-up to this grain, and how those
@@ -499,7 +516,14 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           const t = ev.target as Element
           const downId = t.getAttribute('data-terr') ?? t.getAttribute('data-region')
           if (downId && downId === sel) {
+            // ARM a node drag on the selected cell (see the block above). Don't
+            // capture yet — a pure click must still reach onClick to deselect;
+            // capture happens in pointermove once movement confirms a drag. Grab
+            // the cell's geometry NOW, while we hold its path element, so the
+            // ghost can draw the outline (getBBox is in the same user space as
+            // outlineOf's `d`).
             drag.current = null
+            nodeDown.current = { id: sel, x: ev.clientX, y: ev.clientY, bbox: (t as SVGGraphicsElement).getBBox() }
             return
           }
           drag.current = { x: ev.clientX, y: ev.clientY }
@@ -507,6 +531,22 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           t.setPointerCapture(ev.pointerId)
         }}
         onPointerMove={(ev) => {
+          // ── node drag (arming or in flight) takes priority over pan ──────
+          const nd = nodeDown.current
+          if (nd) {
+            const dist = Math.hypot(ev.clientX - nd.x, ev.clientY - nd.y)
+            if (!ndActive.current && dist > 5) {
+              // confirmed a drag: capture so moves over the ROAD still reach us
+              ndActive.current = true
+              ;(ev.currentTarget as Element).setPointerCapture(ev.pointerId)
+            }
+            if (ndActive.current) {
+              const r = svgRef.current!.getBoundingClientRect()
+              const outside = ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom
+              setGhost({ id: nd.id, x: ev.clientX, y: ev.clientY, outside, bbox: nd.bbox })
+            }
+            return
+          }
           if (!drag.current) return
           const rect = svgRef.current!.getBoundingClientRect()
           const ff = Math.max(VB_W / rect.width, VB_H / rect.height)
@@ -516,7 +556,26 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           dragDist.current += Math.hypot(dx, dy)
           setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }))
         }}
-        onPointerUp={() => {
+        onPointerUp={(ev) => {
+          if (nodeDown.current) {
+            if (ndActive.current) {
+              // land the drag: synthetic drop on whatever road target is under
+              // the cursor. Swallow the click this press would otherwise fire so
+              // a completed drag never also deselects the cell.
+              dropNodeAt(ev.clientX, ev.clientY, nodeDown.current.id)
+              dragDist.current = 999
+              try {
+                ;(ev.currentTarget as Element).releasePointerCapture(ev.pointerId)
+              } catch {
+                /* capture may not have been taken (a click, no drag) */
+              }
+            }
+            nodeDown.current = null
+            ndActive.current = false
+            setGhost(null)
+            setDragging(false)
+            return
+          }
           drag.current = null
           setDragging(false)
         }}
@@ -562,7 +621,6 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 strokeWidth={px(1.2)}
                 pointerEvents={level === 0 ? 'auto' : 'none'}
                 style={{ cursor: sel === d ? 'grab' : 'pointer', transition: FADE }}
-                {...dragProps(d)}
                 onClick={() => regionClick(d)}
                 onPointerEnter={() => enterCell(d)}
                 onPointerLeave={() => leaveCell(d)}
@@ -585,7 +643,6 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 strokeWidth={px(1.1)}
                 pointerEvents={level === 1 ? 'auto' : 'none'}
                 style={{ cursor: sel === m ? 'grab' : 'pointer', transition: FADE }}
-                {...dragProps(m)}
                 onClick={() => regionClick(m)}
                 onPointerEnter={() => enterCell(m)}
                 onPointerLeave={() => leaveCell(m)}
@@ -608,7 +665,6 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 strokeWidth={px(1.05)}
                 pointerEvents={isActive(t) ? 'auto' : 'none'}
                 style={{ cursor: sel === t.id ? 'grab' : 'pointer', transition: FADE }}
-                {...dragProps(t.id)}
                 onClick={() => regionClick(t.id)}
                 onPointerEnter={() => enterCell(t.id)}
                 onPointerLeave={() => leaveCell(t.id)}
@@ -945,6 +1001,81 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
           )}
         </g>
       </svg>
+
+      {/* ── #24 THE DRAG GHOST — the cell you are carrying to the road ────────
+          A portal to <body> so it floats above every pane regardless of their
+          overflow. Two layers crossfade on the `outside` flag: the cell's own
+          OUTLINE (drawn from outlineOf in the same user space getBBox reports,
+          so any size works) while the pointer is over the map, and a NODE PILL
+          once it leaves — the "shape becomes a node" morph. pointer-events:none
+          so it never blocks elementFromPoint at the drop. */}
+      {ghost &&
+        createPortal(
+          <div
+            data-dragghost={ghost.id}
+            style={{
+              position: 'fixed',
+              left: ghost.x,
+              top: ghost.y,
+              zIndex: 9999,
+              pointerEvents: 'none',
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: `translate(-50%, -50%) scale(${ghost.outside ? 0.55 : 1})`,
+                opacity: ghost.outside ? 0 : 1,
+                transition: 'opacity 180ms ease, transform 180ms ease',
+              }}
+            >
+              <svg
+                width={78}
+                height={78}
+                viewBox={`${ghost.bbox.x} ${ghost.bbox.y} ${ghost.bbox.width} ${ghost.bbox.height}`}
+                style={{ overflow: 'visible', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
+              >
+                <path
+                  d={outlineOf(ghost.id)}
+                  fill={colorOf(ghost.id)}
+                  fillOpacity={0.85}
+                  stroke="#ffffff"
+                  strokeWidth={Math.max(ghost.bbox.width, ghost.bbox.height) / 32}
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: `translate(-50%, -50%) scale(${ghost.outside ? 1 : 0.55})`,
+                opacity: ghost.outside ? 1 : 0,
+                transition: 'opacity 180ms ease, transform 180ms ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 9999,
+                background: '#ffffff',
+                border: `2px solid ${colorOf(ghost.id)}`,
+                color: colorOf(ghost.id),
+                fontSize: 10.5,
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: 9999, background: colorOf(ghost.id), flexShrink: 0 }} />
+              {byId.get(ghost.id)!.title}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* item 2: immediate title readout for the hovered (or cross-pane spotlit)
           cell — tinted by its tree color, the same hue its territory and any

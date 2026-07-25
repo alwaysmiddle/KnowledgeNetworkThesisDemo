@@ -99,29 +99,46 @@ if ((await map.getAttribute('data-sel')) !== 'os') errors.push('click-select: th
 if ((await map.getAttribute('data-peek')) !== 'os') errors.push('click-select: the map did not fly (look) to the clicked hit')
 await page.screenshot({ path: OUT + '/p1b-click-selects-map.png' })
 
-// 2d — MATCHES CLEAR ON RESOLVE (#25) + THE SELECTED CELL IS A DRAG SOURCE (#24).
-// The click resolved the search (box cleared), so the pins are gone. And the
-// look settled the map on the module's own tier (L1), where its cell is active —
-// and, being the selection, it is now the road's drag handle. ONLY it: a sibling
-// province is not a drag source, because selection is the gate. Native HTML5 DnD
-// isn't drivable headlessly, so assert the WIRING (draggable + the gate leaves
-// the map's own gestures intact), the same honesty as the recent-chip check.
+// 2d — MATCHES CLEAR ON RESOLVE (#25) + DRAG THE SELECTED CELL ONTO THE ROAD (#24).
+// The click resolved the search (box cleared), so the pins are gone. The look
+// settled the map on the module's tier (L1) and CENTERED os in the pane — so the
+// pane centre is over the os cell, which (being the selection) is the road's drag
+// handle. Unlike native HTML5 DnD, this custom pointer drag IS drivable: press,
+// move past the threshold (a ghost appears), drag onto the road, release — and a
+// synthetic drop lands a real stop. os is a module, so it drops as a plain visit.
 if ((await page.locator('[data-nested] [data-match]').count()) !== 0) errors.push('matches clear: resolving the search left pins on the map')
-if ((await map.getAttribute('data-level')) !== '1') errors.push('drag-source: the look did not settle the map on the module tier (L1)')
-if ((await page.locator('[data-nested] [data-region="os"]').getAttribute('draggable')) !== 'true')
-  errors.push('drag-source: the selected cell is not draggable')
-if ((await page.locator('[data-nested] path[data-rtier="1"]:not([data-region="os"])').first().getAttribute('draggable')) === 'true')
-  errors.push('drag-source: a non-selected cell is draggable (selection must be the gate)')
-// gestures survive the drag wiring: a double-click still dives a level — the
-// pointerdown gate yields ONLY on the selected cell, the rest of the map is
-// untouched — so the map is never trapped by making one cell a grab handle.
-const beforeLevel = Number(await map.getAttribute('data-level'))
+if ((await map.getAttribute('data-level')) !== '1') errors.push('map-drag: the look did not settle the map on the module tier (L1)')
+await page.waitForTimeout(600) // let the look flight finish centering os
 const mbox = await map.boundingBox()
+const roadBox = await page.locator('[data-railroad] [data-road-root]').boundingBox()
+const beforeStops = await page.locator('[data-railroad] [data-rnode]').count()
+const cx = mbox.x + mbox.width / 2
+const cy = mbox.y + mbox.height / 2
+await page.mouse.move(cx, cy)
+await page.mouse.down()
+await page.mouse.move(cx + 12, cy + 12) // cross the 5px drag threshold
+await page.waitForTimeout(80)
+if ((await page.locator('[data-dragghost="os"]').count()) === 0) errors.push('map-drag: no ghost appeared when dragging the selected cell')
+await page.screenshot({ path: OUT + '/p1c-drag-ghost-shape.png' }) // still over the map: the cell-SHAPE form
+await page.mouse.move(roadBox.x + roadBox.width / 2, roadBox.y + roadBox.height / 2, { steps: 12 })
+await page.waitForTimeout(60)
+await page.screenshot({ path: OUT + '/p1d-drag-ghost.png' })
+await page.mouse.up()
+await page.waitForTimeout(180)
+if ((await page.locator('[data-dragghost]').count()) !== 0) errors.push('map-drag: the ghost lingered after release')
+if (!((await page.locator('[data-railroad] [data-rnode]').count()) > beforeStops))
+  errors.push('map-drag: dragging the selected cell onto the road added no stop')
+if ((await page.locator('[data-railroad] [data-rnode][data-node="os"]').count()) === 0)
+  errors.push('map-drag: the dropped stop is not the dragged node (os)')
+// the map's own gestures survive: a double-click still dives a level — the
+// pointerdown gate yields ONLY on the selected cell, the rest of the map pans
+// and zooms untouched, so one grab handle never traps the map.
+const beforeLevel = Number(await map.getAttribute('data-level'))
 await page.mouse.dblclick(mbox.x + mbox.width * 0.2, mbox.y + mbox.height * 0.2)
 await page.waitForTimeout(400)
 if (!(Number(await map.getAttribute('data-level')) > beforeLevel))
-  errors.push('gestures: double-click no longer dives a level after the drag wiring')
-await page.screenshot({ path: OUT + '/p1d-map-drag-source.png' })
+  errors.push('gestures: double-click no longer dives a level after the drag rebuild')
+await page.screenshot({ path: OUT + '/p1e-map-drag-landed.png' })
 
 // 2b — KEYBOARD (google-maps): the top row starts highlighted, ↓ walks it down,
 // Enter is a click on the highlighted row — it selects that node on the map and
