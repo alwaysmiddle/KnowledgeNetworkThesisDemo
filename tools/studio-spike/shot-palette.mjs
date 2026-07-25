@@ -110,7 +110,9 @@ if ((await page.locator('[data-nested] [data-match]').count()) !== 0) errors.pus
 if ((await map.getAttribute('data-level')) !== '1') errors.push('map-drag: the look did not settle the map on the module tier (L1)')
 await page.waitForTimeout(600) // let the look flight finish centering os
 const mbox = await map.boundingBox()
-const roadBox = await page.locator('[data-railroad] [data-road-root]').boundingBox()
+// aim the drop at a specific road NODE (its onDragOver gives a before/after
+// caret), not the road centre — that lands on empty board where no caret shows.
+const target = await page.locator('[data-railroad] [data-rnode]').first().boundingBox()
 const beforeStops = await page.locator('[data-railroad] [data-rnode]').count()
 const cx = mbox.x + mbox.width / 2
 const cy = mbox.y + mbox.height / 2
@@ -120,12 +122,19 @@ await page.mouse.move(cx + 12, cy + 12) // cross the 5px drag threshold
 await page.waitForTimeout(80)
 if ((await page.locator('[data-dragghost="os"]').count()) === 0) errors.push('map-drag: no ghost appeared when dragging the selected cell')
 await page.screenshot({ path: OUT + '/p1c-drag-ghost-shape.png' }) // still over the map: the cell-SHAPE form
-await page.mouse.move(roadBox.x + roadBox.width / 2, roadBox.y + roadBox.height / 2, { steps: 12 })
+await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 })
 await page.waitForTimeout(60)
+// the road shows a live PREVIEW CARET under the ghost — driven by the road's own
+// onDragOver via synthetic events, no railroad refactor. data-rmark is the caret
+// (a node's before/after band or a between-node gap slot).
+if ((await page.locator('[data-railroad] [data-rmark]').count()) === 0)
+  errors.push('map-drag: no preview caret on the road while the ghost hovers it')
 await page.screenshot({ path: OUT + '/p1d-drag-ghost.png' })
 await page.mouse.up()
 await page.waitForTimeout(180)
 if ((await page.locator('[data-dragghost]').count()) !== 0) errors.push('map-drag: the ghost lingered after release')
+if ((await page.locator('[data-railroad] [data-rmark]').count()) !== 0)
+  errors.push('map-drag: the preview caret lingered on the road after release')
 if (!((await page.locator('[data-railroad] [data-rnode]').count()) > beforeStops))
   errors.push('map-drag: dragging the selected cell onto the road added no stop')
 if ((await page.locator('[data-railroad] [data-rnode][data-node="os"]').count()) === 0)
@@ -224,7 +233,7 @@ if (topTitle && (await page.locator(`[data-pal-recent="${topTitle}"]`).count()) 
 if (errors.length) {
   console.log('ERRORS:\n' + errors.join('\n'))
 } else {
-  console.log('palette OK — empty/short, widened reach, matches-on-map + deep roll-up (#25), click-selects-on-map, selected-cell drag-source + gestures survive (#24), keyboard ↓/Enter/Esc, recent-drag, +-append-and-clear, title recents, forget-recent all verified')
+  console.log('palette OK — empty/short, widened reach, matches-on-map + deep roll-up (#25), click-selects-on-map, map→road pointer-drag with ghost + live preview caret + real drop (#24), keyboard ↓/Enter/Esc, recent-drag, +-append-and-clear, title recents, forget-recent all verified')
 }
 await browser.close()
 vite.kill()

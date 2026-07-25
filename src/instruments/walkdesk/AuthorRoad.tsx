@@ -341,6 +341,11 @@ export default function AuthorRoad({
         setHotSlot(null)
         setMark({ key, band: bandFor(e, pl.stop) })
       },
+      // clear our own caret when the drag leaves this block — symmetric with the
+      // gap slots' onDragLeave, so a preview bar never lingers on a node the
+      // pointer has moved off (matters for the map's synthetic-event drag, which
+      // has no native dragend to fall back on)
+      onDragLeave: () => setMark((m) => (m?.key === key ? null : m)),
       onDrop: (e: ReactDragEvent) => {
         setMark(null)
         setHotSlot(null)

@@ -331,27 +331,39 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   // can't MORPH. So we drive the whole gesture by hand: a portal ghost follows
   // the cursor, showing the cell's own outline while over the map and crossfading
   // into a node pill once it leaves the map (the "shape becomes a node" ask). On
-  // release we hand `pal:<id>` to whatever road target is under the pointer by
-  // dispatching a synthetic HTML5 `drop` there — which reuses the road's existing
-  // precise insertion (gaps, stages, branches) verbatim, no reimplementation. A
-  // container id rides the same path and lands as a plain visit (everything is a
-  // node). Only the SELECTED cell arms this (see the pointerdown gate), so pan is
-  // untouched everywhere else.
+  // as it moves we feed the road a stream of synthetic HTML5 `dragover`/`dragleave`
+  // events at the cursor, and a `drop` on release — so the road's OWN handlers do
+  // both the live preview caret AND the precise insertion (gaps, stages, branches)
+  // verbatim, no reimplementation and no road refactor. A container id rides the
+  // same path and lands as a plain visit (everything is a node). Only the SELECTED
+  // cell arms this (see the pointerdown gate), so pan is untouched everywhere else.
   type Box = { x: number; y: number; width: number; height: number }
   const nodeDown = useRef<{ id: string; x: number; y: number; bbox: Box } | null>(null)
   const ndActive = useRef(false)
+  // the element the last synthetic dragover went to — so we can dragleave it the
+  // moment the cursor moves to a new target (or off the road), which is what
+  // clears its caret. Mirrors the enter/leave a native drag would produce.
+  const lastOver = useRef<Element | null>(null)
   const [ghost, setGhost] = useState<{ id: string; x: number; y: number; outside: boolean; bbox: Box } | null>(null)
 
-  /** hand `pal:<id>` to the road via a synthetic drop on whatever is under the
-   * cursor — the road's own onDrop/handleDrop then does the precise insertion.
-   * A manually dispatched 'drop' fires React's handler directly (no browser DnD
-   * state machine to satisfy), so no dragover handshake is needed. */
-  const dropNodeAt = (x: number, y: number, id: string) => {
-    const el = document.elementFromPoint(x, y)
-    if (!el) return
+  /** a DnD event carrying the palette payload. Dispatched by hand, these fire the
+   * road's real onDragOver / onDragLeave / onDrop exactly as a browser drag would
+   * — no browser DnD state machine to satisfy, so a `drop` needs no prior
+   * handshake, and dragover/leave drive the road's existing caret. */
+  const dndEvent = (type: 'dragover' | 'dragleave' | 'drop', x: number, y: number, id: string) => {
     const dt = new DataTransfer()
     dt.setData(DT, 'pal:' + id)
-    el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }))
+    return new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt })
+  }
+  /** point the road's preview caret at the cursor: leave the old target, hover
+   * the new one. Called on every move while a node drag is in flight. */
+  const dragOverAt = (x: number, y: number, id: string) => {
+    const el = document.elementFromPoint(x, y)
+    if (el !== lastOver.current) {
+      if (lastOver.current) lastOver.current.dispatchEvent(dndEvent('dragleave', x, y, id))
+      lastOver.current = el
+    }
+    if (el) el.dispatchEvent(dndEvent('dragover', x, y, id))
   }
 
   // ── the selection overlay, whole: which topics the selection resolves to,
@@ -544,6 +556,8 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
               const r = svgRef.current!.getBoundingClientRect()
               const outside = ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom
               setGhost({ id: nd.id, x: ev.clientX, y: ev.clientY, outside, bbox: nd.bbox })
+              // drive the road's live preview caret at the cursor
+              dragOverAt(ev.clientX, ev.clientY, nd.id)
             }
             return
           }
@@ -559,10 +573,16 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
         onPointerUp={(ev) => {
           if (nodeDown.current) {
             if (ndActive.current) {
-              // land the drag: synthetic drop on whatever road target is under
-              // the cursor. Swallow the click this press would otherwise fire so
-              // a completed drag never also deselects the cell.
-              dropNodeAt(ev.clientX, ev.clientY, nodeDown.current.id)
+              const { clientX: x, clientY: y } = ev
+              const id = nodeDown.current.id
+              // clear whatever caret we're leaving, THEN drop on the target under
+              // the cursor (handleDrop reads the pointer position, not the caret,
+              // so the insertion is right either way). Swallow the click this
+              // press would fire so a completed drag never also deselects the cell.
+              if (lastOver.current) lastOver.current.dispatchEvent(dndEvent('dragleave', x, y, id))
+              lastOver.current = null
+              const el = document.elementFromPoint(x, y)
+              if (el) el.dispatchEvent(dndEvent('drop', x, y, id))
               dragDist.current = 999
               try {
                 ;(ev.currentTarget as Element).releasePointerCapture(ev.pointerId)
