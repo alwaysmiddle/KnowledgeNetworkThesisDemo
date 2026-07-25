@@ -33,7 +33,10 @@ export default function PaletteView({ bus }: { bus: Bus }) {
 
   return (
     <div data-palette className="h-full flex flex-col">
-      <Palette state={state} sync={sync} onSelect={selectOnMap} />
+      {/* onMatches publishes the live hit set to the map (#25). bus.setMatches is
+          referentially stable (useCallback'd), so Palette's publish effect binds
+          to it without re-subscribing every render. */}
+      <Palette state={state} sync={sync} onSelect={selectOnMap} onMatches={bus.setMatches} />
     </div>
   )
 }
