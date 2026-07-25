@@ -5,6 +5,11 @@
 // clean resolved TITLE, not the typed keystrokes. Same server-owns-its-lifecycle
 // pattern as shot-visuals.mjs beside it (backgrounded dev servers die here).
 //
+// Also covers the map↔road sync it feeds (#23): typing lights the hit set on the
+// territory, deep hits rolling up to a visible ancestor with a count (#25); and
+// once a hit is selected on the map, that cell — and only it — becomes the road's
+// drag handle without breaking the map's own pan/zoom gestures (#24).
+//
 //   node tools/studio-spike/shot-palette.mjs
 // Frames land in tools/studio-spike/shots/ (gitignored). Nonzero on any failure.
 import { createRequire } from 'node:module'
@@ -69,6 +74,17 @@ if ((await page.locator('[data-pal="os"]').count()) !== 1) errors.push('widened 
 if ((await page.locator('[data-pal]').count()) === 0) errors.push('search: "operating" matched nothing')
 await page.screenshot({ path: OUT + '/p1-hits-operating.png' })
 
+// 1b — MATCHES ON THE MAP (#25): the live hit set lights the territory. At the
+// default level (domains) every deep hit under "Operating Systems" rolls up to
+// its visible ancestor, so one domain pin carries a COUNT of the matches beneath
+// it — the "deep matches surface on their visible ancestor" claim, asserted. The
+// map subscribes to a set of ids, not the query, so this is pane-agnostic.
+const matchCells = page.locator('[data-nested] [data-match]')
+if ((await matchCells.count()) === 0) errors.push('matches-on-map: typing lit no cells on the territory')
+const maxMn = Math.max(0, ...(await matchCells.evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-mn')) || 0))))
+if (maxMn < 2) errors.push('matches roll-up: no ancestor pin aggregated multiple deep hits (expected a count ≥ 2)')
+await page.screenshot({ path: OUT + '/p1m-matches-on-map.png' })
+
 // 2 — CLICK SELECTS ON THE MAP (and closes): a plain row click is no longer a
 // no-op. It flies the map to the node's territory and lights it as the
 // selection (bus focus + look), then collapses the list (box clears). It still
@@ -82,6 +98,30 @@ if ((await search.inputValue()) !== '') errors.push('click-select: a row click d
 if ((await map.getAttribute('data-sel')) !== 'os') errors.push('click-select: the map did not select the clicked hit')
 if ((await map.getAttribute('data-peek')) !== 'os') errors.push('click-select: the map did not fly (look) to the clicked hit')
 await page.screenshot({ path: OUT + '/p1b-click-selects-map.png' })
+
+// 2d — MATCHES CLEAR ON RESOLVE (#25) + THE SELECTED CELL IS A DRAG SOURCE (#24).
+// The click resolved the search (box cleared), so the pins are gone. And the
+// look settled the map on the module's own tier (L1), where its cell is active —
+// and, being the selection, it is now the road's drag handle. ONLY it: a sibling
+// province is not a drag source, because selection is the gate. Native HTML5 DnD
+// isn't drivable headlessly, so assert the WIRING (draggable + the gate leaves
+// the map's own gestures intact), the same honesty as the recent-chip check.
+if ((await page.locator('[data-nested] [data-match]').count()) !== 0) errors.push('matches clear: resolving the search left pins on the map')
+if ((await map.getAttribute('data-level')) !== '1') errors.push('drag-source: the look did not settle the map on the module tier (L1)')
+if ((await page.locator('[data-nested] [data-region="os"]').getAttribute('draggable')) !== 'true')
+  errors.push('drag-source: the selected cell is not draggable')
+if ((await page.locator('[data-nested] path[data-rtier="1"]:not([data-region="os"])').first().getAttribute('draggable')) === 'true')
+  errors.push('drag-source: a non-selected cell is draggable (selection must be the gate)')
+// gestures survive the drag wiring: a double-click still dives a level — the
+// pointerdown gate yields ONLY on the selected cell, the rest of the map is
+// untouched — so the map is never trapped by making one cell a grab handle.
+const beforeLevel = Number(await map.getAttribute('data-level'))
+const mbox = await map.boundingBox()
+await page.mouse.dblclick(mbox.x + mbox.width * 0.2, mbox.y + mbox.height * 0.2)
+await page.waitForTimeout(400)
+if (!(Number(await map.getAttribute('data-level')) > beforeLevel))
+  errors.push('gestures: double-click no longer dives a level after the drag wiring')
+await page.screenshot({ path: OUT + '/p1d-map-drag-source.png' })
 
 // 2b — KEYBOARD (google-maps): the top row starts highlighted, ↓ walks it down,
 // Enter is a click on the highlighted row — it selects that node on the map and
@@ -167,7 +207,7 @@ if (topTitle && (await page.locator(`[data-pal-recent="${topTitle}"]`).count()) 
 if (errors.length) {
   console.log('ERRORS:\n' + errors.join('\n'))
 } else {
-  console.log('palette OK — empty/short, widened reach, click-selects-on-map, keyboard ↓/Enter/Esc, recent-drag, +-append-and-clear, title recents, forget-recent all verified')
+  console.log('palette OK — empty/short, widened reach, matches-on-map + deep roll-up (#25), click-selects-on-map, selected-cell drag-source + gestures survive (#24), keyboard ↓/Enter/Esc, recent-drag, +-append-and-clear, title recents, forget-recent all verified')
 }
 await browser.close()
 vite.kill()
