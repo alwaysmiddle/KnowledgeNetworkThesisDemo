@@ -23,6 +23,10 @@ import type { InstrumentId } from './instruments'
 
 export type { ActiveWalkState, History, TrailEntry, TrailVia }
 
+/** the "no search running" value — one shared instance so a cleared channel is
+ * referentially stable and never churns a memo that depends on it */
+const NO_MATCHES: ReadonlySet<string> = new Set()
+
 // ── What instruments may READ ───────────────────────────────────────────────
 export interface BusState {
   /** the selected node — null only before the first click anywhere */
@@ -44,6 +48,13 @@ export interface BusState {
    * `seq` makes re-looking at the same id a fresh command — after panning away,
    * clicking the same row again must still fly. */
   peek: { id: string; seq: number } | null
+  /** The current SEARCH result set — the ids a supply pane is showing right now
+   * (#25). TRANSIENT and display-only, like hover: the map lights each match on
+   * the territory (deep ones rolled up to their visible ancestor with a count),
+   * and nothing else reads it. Deliberately a SET OF IDS, not a query string —
+   * the map must not know how matching works, so a second search surface (a Tree
+   * filter, say) can publish the very same channel. Empty when no query is live. */
+  matches: ReadonlySet<string>
   /** history steps available behind/ahead of the cursor — see back()/forward() */
   canBack: boolean
   canForward: boolean
@@ -91,6 +102,9 @@ export interface BusActions {
   /** publish a look at `id` — see BusState.peek. A click gesture, not a hover:
    * there is no end/leave counterpart. */
   peekAt(id: string): void
+  /** publish the current search hit set — see BusState.matches. One writer at a
+   * time (whichever supply pane is live); an empty set clears the map. */
+  setMatches(ids: ReadonlySet<string>): void
   setRoute(r: string[]): void
   clearRoute(): void
   setTreeRoot(id: string): void
@@ -114,6 +128,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   const [focus, setFocusState] = useState<string | null>(null)
   const [hover, setHoverState] = useState<string | null>(null)
   const [peek, setPeekState] = useState<{ id: string; seq: number } | null>(null)
+  const [matches, setMatchesState] = useState<ReadonlySet<string>>(NO_MATCHES)
   const [route, setRouteState] = useState<string[]>([])
   // the unified history engine (model/nav.ts): the trail AND the back/forward
   // line are two readings of this one value
@@ -189,6 +204,9 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   const setHover = useCallback((id: string | null) => setHoverState(id), [])
   const endHover = useCallback((id: string) => setHoverState((h) => (h === id ? null : h)), [])
   const peekAt = useCallback((id: string) => setPeekState((p) => ({ id, seq: (p?.seq ?? 0) + 1 })), [])
+  // stable like the hover writers: the palette re-publishes on every keystroke,
+  // and an unstable setter would rebuild that effect's binding each render
+  const setMatches = useCallback((ids: ReadonlySet<string>) => setMatchesState(ids.size ? ids : NO_MATCHES), [])
   const clearFocus = useCallback(() => {
     setFocusState(null)
     setPeekState(null) // "stand nowhere" drops the look-highlight too
@@ -198,6 +216,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     focus,
     hover,
     peek,
+    matches,
     route,
     history: hist,
     trail: hist.log,
@@ -215,6 +234,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     setHover,
     endHover,
     peekAt,
+    setMatches,
     setRoute,
     setTreeRoot,
     reveal,
@@ -241,6 +261,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
       setFocusState(null)
       setHoverState(null)
       setPeekState(null)
+      setMatchesState(NO_MATCHES)
       setRouteState([])
       setHist(HISTORY_EMPTY)
       setActiveWalk(null)

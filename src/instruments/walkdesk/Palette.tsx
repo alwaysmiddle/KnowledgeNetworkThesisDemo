@@ -23,7 +23,7 @@
 // node and feeds the road the same `pal:<id>`, so a search you already ran is one
 // drag from the road. In-memory for now; persistence rides on #16.
 
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, nodes, pathTo } from '../../corpus/graph'
 import type { AuthorState } from './authordraft'
@@ -112,7 +112,18 @@ function nodeForTerm(term: string): string | undefined {
 
 const MAX_HITS = 40
 
-export default function Palette({ state, sync, onSelect }: { state: AuthorState; sync: HoverBinding; onSelect: (id: string) => void }) {
+export default function Palette({
+  state,
+  sync,
+  onSelect,
+  onMatches,
+}: {
+  state: AuthorState
+  sync: HoverBinding
+  onSelect: (id: string) => void
+  /** publish the current hit set to the map (#25). Empty set = no live query. */
+  onMatches: (ids: ReadonlySet<string>) => void
+}) {
   const [q, setQ] = useState('')
   // The keyboard-highlighted row — the one Enter acts on. Reset to the top hit
   // on every keystroke (onChange), clamped to the current list below so a
@@ -132,6 +143,16 @@ export default function Palette({ state, sync, onSelect }: { state: AuthorState;
   }, [ql])
 
   const activeIdx = hits.length ? Math.min(active, hits.length - 1) : 0
+
+  // Publish the hit set to the map (#25) — typing lights the matches on the
+  // territory, an empty query (hits === []) clears them. hits is memoized per
+  // query, so this fires once per query change, not per keystroke-render.
+  useEffect(() => {
+    onMatches(new Set(hits))
+  }, [hits, onMatches])
+  // and clear the map when this pane goes away — switching off the Authoring
+  // preset must not strand pins on a map that no longer has a search beside it.
+  useEffect(() => () => onMatches(new Set()), [onMatches])
 
   // A search RESOLVED to a node: record its clean title (not the typo'd query)
   // and collapse the list back to recents. Used by every commit path.
