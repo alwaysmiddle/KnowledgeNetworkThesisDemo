@@ -14,10 +14,11 @@
 
 import { useState } from 'react'
 
-import { PLAN, resolveRoad } from './mockwalk'
+import { isBox, PLAN, resolveRoad } from './mockwalk'
 import type { Stop } from './mockwalk'
 
-/** the authored plan, resolved: no forks in it, optionals all on the road */
+/** the authored plan, resolved: every container down to one variant, optionals
+ * all on the road */
 export const PRESENTED_ROAD: Stop[] = resolveRoad(PLAN.stops, {}, true)
 
 /** The drill path a presentation view owns while it is unwired.
@@ -30,6 +31,6 @@ export const PRESENTED_ROAD: Stop[] = resolveRoad(PLAN.stops, {}, true)
 export function useDrill() {
   const [path, setPath] = useState<string[]>([])
   const pick = (col: number, s: Stop) =>
-    setPath(s.kind === 'stage' ? [...path.slice(0, col), s.key] : path.slice(0, col))
+    setPath(isBox(s) ? [...path.slice(0, col), s.key] : path.slice(0, col))
   return { path, pick }
 }

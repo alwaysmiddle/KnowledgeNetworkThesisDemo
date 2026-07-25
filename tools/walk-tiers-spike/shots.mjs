@@ -1,11 +1,12 @@
-// Walk-desk driver — GRADUATED: the round-7 desk now ships as the Studio's
-// Walk·Desk instrument behind the Authoring preset (the ?spike=walk-tiers
-// gate is gone), so this drives the real app. The chain still proves the
-// core claim: the railroad may fork and rejoin, but everything right of it —
-// stack, columns, fringe strip — always reads ONE resolved linear walk. Steps:
-// picking a branch re-projects the route; bypassing optionals shrinks it;
-// forking a selection through the contextual tools splits the road in place;
-// a palette drop lands INSIDE an empty branch lane; the columns still drill.
+// Walk-desk driver — GRADUATED: the desk ships as the Studio's Walk·Desk
+// instrument behind the Authoring preset, so this drives the real app. Since
+// #19 there is ONE stop type: a fork is a GROUP CARD with more than one
+// variant, and the choice shows as TABS — only the CHOSEN variant's steps
+// render, never parallel lanes. The chain still proves the core claim:
+// everything right of the railroad — stack, columns, fringe strip — reads ONE
+// resolved linear walk. Steps: picking a variant tab re-projects the route;
+// bypassing optionals shrinks it; forking a selection wraps it in a fresh
+// tabbed card; a palette drop lands in a between-node slot; the columns drill.
 // HTML5 dnd is driven by dispatching dragstart/dragover/drop with a shared
 // DataTransfer; dispatchEvent targets the element directly, so a drop on a
 // container works even when its center is covered by a child node.
@@ -97,13 +98,14 @@ await click('[aria-label="studio-preset-authoring"]')
 
 // ── the desk at first paint ─────────────────────────────────────────────────
 // seed: [dns, seed-net[ip, tcp], seed-sec⑂{[tls] | [pkc, sym, hash, tls]},
-//        http, ws◇, auth] — branch 0 chosen, optionals on the road
+//        http, ws◇, auth] — variant 0 chosen, optionals on the road
 if ((await count('[data-palette]')) !== 1) errors.push(`S: the palette should render under the Authoring preset, got ${await count('[data-palette]')}`)
-// the fork ALWAYS fans its lanes out now (#13 review 2): both the 1-node
-// handshake lane and the 4-node crypto tour render at once — so 11 nodes
-if ((await count('[data-rnode]')) !== 11) errors.push(`S: 11 visit nodes with both fork lanes shown, got ${await count('[data-rnode]')}`)
-if ((await count('[data-fork]')) !== 1) errors.push(`S: one fork diamond, got ${await count('[data-fork]')}`)
-if ((await count('[data-brpick]')) !== 2) errors.push(`S: both branch chips show, got ${await count('[data-brpick]')}`)
+// the fork shows only its CHOSEN variant now (#19): the 1-node handshake, not
+// the 4-node crypto tour — so 7 leaves visible (dns, ip, tcp, tls, http, ws, auth)
+if ((await count('[data-rnode]')) !== 7) errors.push(`S: 7 leaves with only the chosen variant shown, got ${await count('[data-rnode]')}`)
+if ((await count('[data-rstage]')) !== 2) errors.push(`S: two open container cards (seed-net + seed-sec), got ${await count('[data-rstage]')}`)
+if ((await count('[data-tab]')) !== 2) errors.push(`S: the fork card shows two variant tabs, got ${await count('[data-tab]')}`)
+if ((await count('[data-rquestion]')) !== 1) errors.push(`S: the fork card shows its question line, got ${await count('[data-rquestion]')}`)
 if ((await count('[data-rbypass]')) !== 1) errors.push(`S: ws is optional — one bypass rail, got ${await count('[data-rbypass]')}`)
 if ((await count('[data-rord]')) !== 7) errors.push(`S: 7 stops wear badges on the default road, got ${await count('[data-rord]')}`)
 const firstOrd = await page.locator('[data-rnode] [data-rord]').first().getAttribute('data-rord')
@@ -125,12 +127,17 @@ for (const [pane, why] of [
 // a STACK: two panes sharing one column, which the flat active list could not say
 const stack = '[aria-label="studio-stack-palette-doc"]'
 if ((await count(stack)) !== 1) errors.push('S21: palette and document should share one stacked column')
-if ((await count(`${stack} > [aria-label="studio-pane-palette"]`)) !== 1) errors.push('S21: the palette is the TOP half of that column')
-if ((await count(`${stack} > [aria-label="studio-pane-doc"]`)) !== 1) errors.push('S21: the document is the BOTTOM half of that column')
-// halves, not a sliver: each pane gets flex 1 of the column
-const halves = await page.locator(`${stack} > section`).evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
-if (halves.length !== 2 || Math.abs(halves[0] - halves[1]) > 2)
-  errors.push(`S21: the stacked column should split evenly, got heights ${JSON.stringify(halves)}`)
+if ((await count(`${stack} > [aria-label="studio-pane-palette"]`)) !== 1) errors.push('S21: the palette is the TOP pane of that column')
+if ((await count(`${stack} > [aria-label="studio-pane-doc"]`)) !== 1) errors.push('S21: the document is the BOTTOM pane of that column')
+// the column stacks palette OVER doc. Since #28 made the palette a compact
+// SEARCH pane (a box + recents), it is content-sized rather than a forced even
+// half — so assert the ORDER and that both panes have real height, not a 50/50
+// split. (The old even-split check pre-dates #28 and fails identically on main.)
+const stackH = await page.locator(`${stack} > section`).evaluateAll((els) =>
+  els.map((e) => ({ top: Math.round(e.getBoundingClientRect().top), h: Math.round(e.getBoundingClientRect().height) })),
+)
+if (stackH.length !== 2 || !stackH.every((s) => s.h > 40) || stackH[0].top >= stackH[1].top)
+  errors.push(`S21: the column should stack palette over doc, both with real height, got ${JSON.stringify(stackH)}`)
 // and the stack sits LEFT of the map
 const xOf = async (sel) => (await page.locator(sel).first().boundingBox()).x
 if ((await xOf(stack)) >= (await xOf('[aria-label="studio-pane-nested"]')))
@@ -157,10 +164,14 @@ await click('[data-rail-side]')
 
 // ── #21 · the palette and the railroad share ONE draft across panes ──────────
 // the whole reason the draft left component state: a palette that inserts into
-// a draft the railroad cannot see is useless.
-await click('[data-palette] [data-pal="alg-graph-traversal"]')
+// a draft the railroad cannot see is useless. Since #28 the palette is a SEARCH
+// pane — type to surface a hit, then + appends it to the road (a plain click
+// selects on the map, it does not insert).
+await page.locator('[data-pal-search]').fill('graph traversal')
+await page.waitForTimeout(200)
+await click('[data-palette] [data-pal-add="alg-graph-traversal"]')
 if ((await count(roadNode('alg-graph-traversal'))) !== 1)
-  errors.push('S21: a click in the palette PANE must land on the road in the railroad PANE')
+  errors.push('S21: a + in the palette PANE must land on the road in the railroad PANE')
 if ((await fringeCount()) !== '8') errors.push(`S21: ...and the route rail beside it sees it too (8), got ${await fringeCount()}`)
 await click(`[data-rnode][data-node="alg-graph-traversal"]`)
 await click('[data-fly-del]')
@@ -176,21 +187,19 @@ if (mapFocus !== 'cs') errors.push(`S21: a map region click should still publish
 if ((await count('[aria-label="studio-pane-children"]')) !== 0)
   errors.push('S21: the map must NOT open Connections by itself anymore')
 
-// ── #13 review 2: every fork lane is ALWAYS visible — no hide-until-hover ────
-if ((await count(roadNode('cry-public-key-cryptography'))) !== 1)
-  errors.push('E13-lanes: the alternative crypto-tour lane must be visible by default')
-if ((await count('[data-rnode]')) !== 11) errors.push(`E13-lanes: both fork lanes render at once (11 nodes), got ${await count('[data-rnode]')}`)
+// ── #19: only the CHOSEN variant shows — the other is behind its tab ─────────
+if ((await count(roadNode('cry-public-key-cryptography'))) !== 0)
+  errors.push('E19-tab: the unchosen crypto-tour variant must be hidden behind its tab')
+if ((await count('[data-rnode]')) !== 7) errors.push(`E19-tab: only the chosen variant renders (7 leaves), got ${await count('[data-rnode]')}`)
 
-// ── picking the other branch re-projects EVERYTHING right of the railroad ───
-await click('[data-brpick="seed-sec.1"]')
+// ── picking the other variant tab re-projects EVERYTHING right of the road ───
+await click('[data-tab="seed-sec.1"]')
 if ((await fringeCount()) !== '10') errors.push(`S: the crypto tour makes the route 10, got ${await fringeCount()}`)
 if ((await count('[data-rord]')) !== 10) errors.push(`S: 10 badges on the crypto road, got ${await count('[data-rord]')}`)
-// (the columns used to re-resolve here too. Since #20 they are a separate pane
-// on a separate road, so the fringe strip is the only downstream witness until
-// #14 wires them. The route count above is that witness.)
-// picking a branch changes the RESOLVED road, not the visible lanes — still 11
-if ((await count('[data-rnode]')) !== 11) errors.push(`S: both lanes stay visible after a pick (11 nodes), got ${await count('[data-rnode]')}`)
-if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('S: the crypto lane is on the chosen road now')
+// picking a tab SWAPS the visible variant: the 1-node handshake gives way to
+// the 4-node crypto tour, so 10 leaves now (was 7)
+if ((await count('[data-rnode]')) !== 10) errors.push(`S: the chosen variant swaps in (10 leaves), got ${await count('[data-rnode]')}`)
+if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('S: the crypto variant is on the road now')
 await shot('s7-branchB')
 
 // ── bypassing optionals: the road goes AROUND the dashed node ───────────────
@@ -208,30 +217,31 @@ if ((await count('[data-selbox]')) !== 1) errors.push(`S: selecting a node draws
 await shiftClick('[data-rnode][data-node="web-sockets-apis"]') // shift adds to the selection (Windows-style)
 if ((await count('[data-selbox]')) !== 1) errors.push(`S: a multi-select is still ONE box around the run, got ${await count('[data-selbox]')}`)
 await shot('s7-selection')
+const cardsBeforeFork = await count('[data-rstage]')
 await click('[data-fly-fork]')
-if ((await count('[data-fork]')) !== 2) errors.push(`S: forking the selection makes a 2nd diamond, got ${await count('[data-fork]')}`)
+if ((await count('[data-rstage]')) !== cardsBeforeFork + 1) errors.push(`S: forking the selection makes a new tabbed card, got ${await count('[data-rstage]')} (was ${cardsBeforeFork})`)
 if ((await count('[data-fly]')) !== 0) errors.push(`S: the toolbar retires once the selection clears, got ${await count('[data-fly]')}`)
 if ((await count('[data-selbox]')) !== 0) errors.push(`S: the selection box clears with the selection, got ${await count('[data-selbox]')}`)
-if ((await fringeCount()) !== '10') errors.push(`S: the selection became the main branch — route unchanged (10), got ${await fringeCount()}`)
+if ((await fringeCount()) !== '10') errors.push(`S: the selection became variant 0 — route unchanged (10), got ${await fringeCount()}`)
 
-// ── #13/#4 the new lane opens with a NODE SLOT to bind, not an empty label ───
-// (the new fork's alt lane is always visible now — no reveal needed)
-if ((await count('[data-brdrop]')) !== 0) errors.push(`S: the new lane is not an empty drop zone anymore, got ${await count('[data-brdrop]')}`)
-if ((await count('[data-runset]')) !== 1) errors.push(`S: the new lane opens one unset node slot, got ${await count('[data-runset]')}`)
-// bind a corpus node through the slot's picker (fork-0, branch 1, step 0)
-await page.selectOption('[data-rpicknode="b.3.1.0"]', 'auto-continuous-integration')
+// ── #19 the new fork's alt variant is a TAB; its slot shows once chosen ──────
+if ((await count('[data-runset]')) !== 0) errors.push(`S: the alt variant's slot is hidden behind its tab, got ${await count('[data-runset]')}`)
+await click('[data-tab="fork-0.1"]') // choose the alternative variant
+if ((await count('[data-runset]')) !== 1) errors.push(`S: choosing the alt tab reveals one unset slot, got ${await count('[data-runset]')}`)
+if ((await fringeCount()) !== '8') errors.push(`S: the empty alt drops http+ws from the route (8), got ${await fringeCount()}`)
+// bind a corpus node through the revealed slot's picker
+await page.locator('[data-runset] select').first().selectOption('auto-continuous-integration')
 await page.waitForTimeout(200)
 if ((await count('[data-runset]')) !== 0) errors.push(`S: binding a node clears the unset slot, got ${await count('[data-runset]')}`)
-if ((await count(roadNode('auto-continuous-integration'))) !== 1) errors.push('S: the bound node appears in the lane')
-if ((await fringeCount()) !== '10') errors.push(`S: the alternative isn't chosen yet — route still 10, got ${await fringeCount()}`)
-await click('[data-brpick="fork-0.1"]')
-if ((await fringeCount()) !== '9') errors.push(`S: taking the alternative swaps http+ws for ci (9), got ${await fringeCount()}`)
+if ((await count(roadNode('auto-continuous-integration'))) !== 1) errors.push('S: the bound node appears in the chosen variant')
+if ((await fringeCount()) !== '9') errors.push(`S: the alt now carries ci in place of http+ws (9), got ${await fringeCount()}`)
 await shot('s7-forked')
 
 // ── contextual group still works on the road ────────────────────────────────
 await click('[data-rnode][data-node="stk-dns-naming"]')
+const cardsBeforeGroup = await count('[data-rstage]')
 await click('[data-fly-group]')
-if ((await count('[data-rstage]')) !== 2) errors.push(`S: grouping should open a 2nd stage container, got ${await count('[data-rstage]')}`)
+if ((await count('[data-rstage]')) !== cardsBeforeGroup + 1) errors.push(`S: grouping opens a new container card, got ${await count('[data-rstage]')} (was ${cardsBeforeGroup})`)
 if ((await fringeCount()) !== '9') errors.push(`S: grouping adds no visits — route stays 9, got ${await fringeCount()}`)
 
 // ── #20 · each reading instrument drills ON ITS OWN ─────────────────────────
@@ -268,12 +278,20 @@ await page.waitForTimeout(250)
 const lit = await count('[data-lit="1"]')
 if (lit < 2) errors.push(`S: hovering stk-ip-routing should light every bound element sharing the id, got ${lit}`)
 
-// ── the palette search narrows the pick list ────────────────────────────────
-const palAll = await count('[data-pal]')
-await page.locator('[data-pal-search]').fill('tls')
+// ── the palette is a SEARCH pane (#28): empty shows recents (no hits), a query
+//    surfaces hits, a longer query narrows them ────────────────────────────────
+await page.locator('[data-pal-search]').fill('')
 await page.waitForTimeout(200)
-const palTls = await count('[data-pal]')
-if (!(palTls > 0 && palTls < palAll)) errors.push(`S: search 'tls' should narrow the palette (${palAll} -> ${palTls})`)
+if ((await count('[data-pal]')) !== 0) errors.push(`S: an empty query shows recents, not hits, got ${await count('[data-pal]')}`)
+await page.locator('[data-pal-search]').fill('crypto')
+await page.waitForTimeout(200)
+const palCrypto = await count('[data-pal]')
+await page.locator('[data-pal-search]').fill('cryptographic hashing')
+await page.waitForTimeout(200)
+const palNarrow = await count('[data-pal]')
+if (!(palCrypto > 0 && palNarrow > 0 && palNarrow <= palCrypto))
+  errors.push(`S: a longer query should narrow the hits (${palCrypto} -> ${palNarrow})`)
+await page.locator('[data-pal-search]').fill('')
 
 // ── #17 marquee: drag a rubber-band on the empty board to box-select a run ───
 await freshSeed()
@@ -287,16 +305,15 @@ if ((await count('[data-selbox]')) !== 1) errors.push(`E17-marquee: a rubber-ban
 if ((await count('[data-fly]')) !== 1) errors.push(`E17-marquee: the toolbar appears after a marquee select, got ${await count('[data-fly]')}`)
 await shot('e17-marquee')
 
-// ── #13 review 3: hovering a fork's + PREVIEWS the lane it would add ─────────
+// ── #19: ⑂ in a container header adds a variant — a plain group becomes a fork ─
 await freshSeed()
-if ((await count('[data-add-preview]')) !== 0) errors.push(`E13r3-preview: no preview until the + is hovered, got ${await count('[data-add-preview]')}`)
-await page.locator('[data-add-branch="seed-sec"]').first().hover()
-await page.waitForTimeout(150)
-if ((await count('[data-add-preview]')) !== 1) errors.push(`E13r3-preview: hovering the + should preview one new lane, got ${await count('[data-add-preview]')}`)
-await shot('e13r3-add-preview')
-await page.mouse.move(5, 5) // leave the + → preview retires
-await page.waitForTimeout(150)
-if ((await count('[data-add-preview]')) !== 0) errors.push(`E13r3-preview: the preview clears when the + is left, got ${await count('[data-add-preview]')}`)
+// seed-net is a plain group (one variant): no tabs until ⑂ is pressed
+if ((await count('[data-tab^="seed-net"]')) !== 0) errors.push(`E19-add: a plain group shows no tabs, got ${await count('[data-tab^="seed-net"]')}`)
+await click('[data-add-variant="seed-net"]')
+if ((await count('[data-tab="seed-net.0"]')) !== 1 || (await count('[data-tab="seed-net.1"]')) !== 1)
+  errors.push('E19-add: ⑂ turns the plain group into a two-variant fork (two tabs)')
+if ((await count('[data-rquestion="seed-net"]')) !== 1) errors.push('E19-add: the new fork grows a question line')
+await shot('e19-add-variant')
 
 // ══ #13 editor fixes — each verified on a FRESH seed (reload resets the desk) ══
 
@@ -305,8 +322,11 @@ if ((await count('[data-add-preview]')) !== 0) errors.push(`E13r3-preview: the p
 await freshSeed()
 if ((await count('[data-rslot]')) === 0) errors.push('E13-A: expected between-node drop slots, got 0')
 if ((await fringeCount()) !== '7') errors.push(`E13-A: fresh seed route is 7, got ${await fringeCount()}`)
+// #28: surface the palette hit by searching, then drag it onto the slot
+await page.locator('[data-pal-search]').fill('continuous integration')
+await page.waitForTimeout(200)
 await dnd('[data-pal="auto-continuous-integration"]', '[data-rslot="b.1"]')
-if ((await count('[data-rnode]')) !== 12) errors.push(`E13-A: the slot drop should add a node (11 → 12), got ${await count('[data-rnode]')}`)
+if ((await count('[data-rnode]')) !== 8) errors.push(`E13-A: the slot drop should add a leaf (7 → 8), got ${await count('[data-rnode]')}`)
 if ((await fringeCount()) !== '8') errors.push(`E13-A: the route grows to 8, got ${await fringeCount()}`)
 const idsA = await fringeIds()
 if (idsA[1] !== 'auto-continuous-integration') errors.push(`E13-A: the drop must land at slot b.1 (2nd in route), got ${idsA[1]}`)
@@ -314,33 +334,32 @@ if (idsA[idsA.length - 1] !== 'app-authentication-authorization')
   errors.push(`E13-A: it must NOT append to end — last should stay auth, got ${idsA[idsA.length - 1]}`)
 await shot('e13-slot-drop')
 
-// ── B · an edit inside an unchosen (ghost) lane visibly lands. The lane is
-//        always shown; a ghost node reads dimmed, un-dims on select, deletes ──
+// ── B · #19: the unchosen variant is HIDDEN behind its tab; picking the tab
+//        reveals it, and an edit inside the chosen variant lands ──────────────
 await freshSeed()
-const ghost = roadNode('cry-public-key-cryptography') // in the unchosen crypto-tour lane
-if ((await count(ghost)) !== 1) errors.push('E13-B: the ghost lane is visible by default (no reveal)')
-const opBefore = await page.locator(ghost).first().evaluate((el) => getComputedStyle(el).opacity)
-if (!(Number(opBefore) < 0.75)) errors.push(`E13-B: an unchosen-lane node should read dimmed, opacity ${opBefore}`)
-await click(ghost)
-const opAfter = await page.locator(ghost).first().evaluate((el) => getComputedStyle(el).opacity)
-if (Number(opAfter) < 0.95) errors.push(`E13-B: selecting a ghost node should un-dim it, opacity ${opAfter}`)
-await shot('e13-ghost-selected')
-await click('[data-fly-del]') // a leaf → deletes directly, no menu
-if ((await count(ghost)) !== 0) errors.push('E13-B: deleting inside the ghost lane should remove the node')
-if ((await count('[data-rnode]')) !== 10) errors.push(`E13-B: 11 → delete one ghost node → 10, got ${await count('[data-rnode]')}`)
+const crypto = roadNode('cry-public-key-cryptography') // in the unchosen crypto-tour variant
+if ((await count(crypto)) !== 0) errors.push('E19-B: the unchosen variant is hidden until its tab is picked')
+await click('[data-tab="seed-sec.1"]') // choose the crypto tour
+if ((await count(crypto)) !== 1) errors.push('E19-B: picking the tab reveals the variant')
+if ((await fringeCount()) !== '10') errors.push(`E19-B: the crypto variant makes the route 10, got ${await fringeCount()}`)
+await click(crypto) // select the now-visible node…
+await shot('e19-variant-selected')
+await click('[data-fly-del]') // …a leaf → deletes directly, no menu
+if ((await count(crypto)) !== 0) errors.push('E19-B: deleting inside the chosen variant removes the node')
+if ((await fringeCount()) !== '9') errors.push(`E19-B: 10 → delete one node in the variant → 9, got ${await fringeCount()}`)
 
 // ── C · container delete ASKS: promote keeps the children on the road ────────
 await freshSeed()
-if ((await count('[data-rstage]')) !== 1) errors.push(`E13-C: fresh seed has one open stage, got ${await count('[data-rstage]')}`)
+if ((await count('[data-rstage]')) !== 2) errors.push(`E13-C: fresh seed has two open cards (seed-net + seed-sec), got ${await count('[data-rstage]')}`)
 await click('[data-rgrab="seed-net"]')
 await click('[data-fly-del]') // a container → opens the decision menu, does not cascade
 if ((await count('[data-del-menu]')) !== 1) errors.push('E13-C: a container delete should open the choice menu, not cascade')
-if ((await count('[data-del-promote]')) !== 1) errors.push('E13-C: the menu offers promote')
+if ((await count('[data-del-promote]')) !== 1) errors.push('E13-C: the menu offers keep-steps')
 await click('[data-del-promote]')
-if ((await count('[data-rstage]')) !== 0) errors.push(`E13-C: promote dissolves the stage container, got ${await count('[data-rstage]')}`)
-if ((await count('[data-rnode]')) !== 11) errors.push(`E13-C: promote KEEPS the children (still 11 nodes), got ${await count('[data-rnode]')}`)
-if ((await fringeCount()) !== '7') errors.push(`E13-C: promote changes no visits — route stays 7, got ${await fringeCount()}`)
-if ((await count(roadNode('stk-ip-routing'))) !== 1) errors.push('E13-C: the promoted child should sit on the road')
+if ((await count('[data-rstage="seed-net"]')) !== 0) errors.push(`E13-C: keep-steps dissolves the seed-net container, got ${await count('[data-rstage="seed-net"]')}`)
+if ((await count('[data-rnode]')) !== 7) errors.push(`E13-C: keep-steps KEEPS the children (still 7 leaves), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '7') errors.push(`E13-C: keep-steps changes no visits — route stays 7, got ${await fringeCount()}`)
+if ((await count(roadNode('stk-ip-routing'))) !== 1) errors.push('E13-C: the kept child should sit on the road')
 await shot('e13-promote')
 
 // ── C2 · the menu's other arm: delete-all still cascades ─────────────────────
@@ -348,19 +367,20 @@ await freshSeed()
 await click('[data-rgrab="seed-net"]')
 await click('[data-fly-del]')
 await click('[data-del-all]')
-if ((await count('[data-rnode]')) !== 9) errors.push(`E13-C2: delete-all takes the stage's 2 children (11 → 9), got ${await count('[data-rnode]')}`)
-if ((await fringeCount()) !== '5') errors.push(`E13-C2: the route loses the stage's 2 visits (5), got ${await fringeCount()}`)
+if ((await count('[data-rnode]')) !== 5) errors.push(`E13-C2: delete-all takes the container's 2 children (7 → 5), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '5') errors.push(`E13-C2: the route loses the container's 2 visits (5), got ${await fringeCount()}`)
 
-// ── D · a FORK delete offers "drop this lane"; dropping to one lane dissolves
-//        the fork into the survivor ──────────────────────────────────────────
+// ── D · #19: a FORK delete offers "drop this variant"; dropping to one variant
+//        leaves a plain GROUP (the survivor), NOT a dissolved inline run ───────
 await freshSeed()
-await click('[data-fork="seed-sec"]') // select the fork diamond
+await click('[data-rgrab="seed-sec"]') // select the fork card
 await click('[data-fly-del]')
-if ((await count('[data-del-lane]')) !== 1) errors.push('E13-D: a fork delete should offer drop-this-lane')
-await click('[data-del-lane]') // drops the chosen lane (tls); crypto lane is the last survivor
-if ((await count('[data-fork]')) !== 0) errors.push(`E13-D: dropping to one lane dissolves the fork, got ${await count('[data-fork]')} diamonds`)
-if ((await fringeCount()) !== '10') errors.push(`E13-D: the surviving crypto lane becomes the road (10), got ${await fringeCount()}`)
-if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('E13-D: the survivor lane is now inline on the road')
+if ((await count('[data-del-variant]')) !== 1) errors.push('E19-D: a fork delete should offer drop-this-variant')
+await click('[data-del-variant]') // drops the chosen "handshake" variant; crypto is the survivor
+if ((await count('[data-tab]')) !== 0) errors.push(`E19-D: dropping to one variant leaves a plain group (no tabs), got ${await count('[data-tab]')}`)
+if ((await count('[data-rstage="seed-sec"]')) !== 1) errors.push('E19-D: the container STAYS a group — not dissolved into an inline run')
+if ((await fringeCount()) !== '10') errors.push(`E19-D: the surviving crypto variant becomes the road (10), got ${await fringeCount()}`)
+if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('E19-D: the survivor is now on the road')
 await shot('e13-drop-lane')
 
 // ── E · the whole group CARD is live, and Aside is gone (review 5) ──────────
@@ -376,13 +396,13 @@ if ((await count('[data-rretitle="seed-net"]')) !== 0) errors.push('E5: the titl
 // the former dead zone: double-clicking the TITLE now closes the card
 await dbl('[data-rtitle="seed-net"]')
 if ((await count('[data-rstage-closed="seed-net"]')) !== 1) errors.push('E5: double-clicking the title should close the card')
-if ((await count('[data-rstage]')) !== 0) errors.push(`E5: the open container is gone once closed, got ${await count('[data-rstage]')}`)
-if ((await count('[data-rnode]')) !== 9) errors.push(`E5: closing hides the stage's 2 children (11 → 9), got ${await count('[data-rnode]')}`)
+if ((await count('[data-rstage="seed-net"]')) !== 0) errors.push(`E5: the open seed-net container is gone once closed, got ${await count('[data-rstage="seed-net"]')}`)
+if ((await count('[data-rnode]')) !== 5) errors.push(`E5: closing hides seed-net's 2 children (7 → 5), got ${await count('[data-rnode]')}`)
 if ((await fringeCount()) !== '7') errors.push(`E5: collapsing is a VIEW state — the route stays 7, got ${await fringeCount()}`)
 await shot('e5-card-closed')
 await dbl('[data-rstage-closed="seed-net"]')
-if ((await count('[data-rstage]')) !== 1) errors.push('E5: double-clicking the closed pill should re-open the card')
-if ((await count('[data-rnode]')) !== 11) errors.push(`E5: re-opening brings the children back (11), got ${await count('[data-rnode]')}`)
+if ((await count('[data-rstage="seed-net"]')) !== 1) errors.push('E5: double-clicking the closed pill should re-open the card')
+if ((await count('[data-rnode]')) !== 7) errors.push(`E5: re-opening brings the children back (7), got ${await count('[data-rnode]')}`)
 
 // clicking the green backdrop selects the card — no inert region left. Aim at
 // the left gutter: the card's centre is covered by its own child nodes, which
@@ -399,7 +419,7 @@ await click('[data-rtitle-edit="seed-net"]')
 if ((await count('[data-rretitle="seed-net"]')) !== 0) errors.push('E5: ✓ should close the title field')
 const renamed = await page.locator('[data-rtitle="seed-net"]').innerText()
 if (renamed !== 'Reach the box') errors.push(`E5: the rename should stick, got "${renamed}"`)
-if ((await count('[data-rstage]')) !== 1) errors.push('E5: renaming must not fold the card shut')
+if ((await count('[data-rstage="seed-net"]')) !== 1) errors.push('E5: renaming must not fold the card shut')
 await shot('e5-card-open')
 
 await browser.close()

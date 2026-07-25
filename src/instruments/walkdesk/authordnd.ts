@@ -8,6 +8,7 @@ import type { DragEvent as ReactDragEvent } from 'react'
 
 import type { AuthorState, Path } from './authordraft'
 import { parsePath } from './authordraft'
+import { chosenIdx, chosenSteps, isBox } from './mockwalk'
 import type { Stop } from './mockwalk'
 
 export const DT = 'text/plain'
@@ -18,18 +19,19 @@ export type Band = 'before' | 'after' | 'inside'
 export function bandFor(e: ReactDragEvent, stop: Stop): Band {
   const r = e.currentTarget.getBoundingClientRect()
   const y = (e.clientY - r.top) / r.height
-  if (stop.kind === 'stage' && y > 0.3 && y < 0.7) return 'inside'
+  if (isBox(stop) && y > 0.3 && y < 0.7) return 'inside'
   return y < 0.5 ? 'before' : 'after'
 }
 
-/** where a drag over a block row should insert: before, after, or (stages,
- * middle band) inside at the end — shared by dragover (caret) and drop */
-export function gapFor(e: ReactDragEvent, path: Path, stop: Stop): Path {
+/** where a drag over a block row should insert: before, after, or (containers,
+ * middle band) inside the chosen variant at the end — shared by dragover
+ * (caret) and drop. A container's inside-drop lands in the variant on show. */
+export function gapFor(e: ReactDragEvent, path: Path, stop: Stop, choices: Record<string, number>): Path {
   const r = e.currentTarget.getBoundingClientRect()
   const y = (e.clientY - r.top) / r.height
   const i = path[path.length - 1]
   const parent = path.slice(0, -1)
-  if (stop.kind === 'stage' && y > 0.3 && y < 0.7) return [...path, stop.steps.length]
+  if (isBox(stop) && y > 0.3 && y < 0.7) return [...path, chosenIdx(stop, choices), chosenSteps(stop, choices).length]
   return y < 0.5 ? [...parent, i] : [...parent, i + 1]
 }
 

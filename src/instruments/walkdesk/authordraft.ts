@@ -1,18 +1,19 @@
-// The authoring draft state (round 3, branching in round 7) — the walk tree
-// ITSELF as mutable state, plus a block selection and an insertion caret.
-// Round 7 adds forks: the path grammar grows exactly one rule — a FORK
-// CONSUMES TWO SEGMENTS, [forkIdx, branchIdx, stepIdx…] — so every existing
-// tree op (insert/remove/move/group) works inside a branch unchanged. All
-// structural ops funnel through rebuildListAt, which knows that grammar once.
+// The authoring draft state — the walk tree ITSELF as mutable state, plus a
+// block selection and an insertion caret. Since #19 there is ONE stop type, so
+// the path grammar is UNIFORM: every container consumes exactly two segments,
+// [stopIdx, variantIdx, stepIdx…]. A leaf is just a stop nobody descends into.
+// The old "a stage consumes one segment, a fork consumes two" special case is
+// gone — rebuildListAt knows one rule, and every structural op inherits it.
 //
-// Blocks are addressed by INDEX PATHS into the draft's stops — [1, 0, 2] is
-// "third step of the first step of the second stop". Every op is a pure
-// rebuild; selection is cleared after any structural change so no stale path
-// can dangle.
+// Blocks are addressed by INDEX PATHS into the draft's stops. A path alternates
+// stop-index / variant-index and always ends on a stop index, so [1, 0, 2] is
+// "step 2 of variant 0 of stop 1". Every op is a pure rebuild; selection is
+// cleared after any structural change so no stale path can dangle.
 
 import { useSyncExternalStore } from 'react'
 
-import type { Branch, ForkStop, StageStop, Stop, VisitStop } from './mockwalk'
+import { isBox, isFork, isLeaf } from './mockwalk'
+import type { Stop, Variant } from './mockwalk'
 
 export type Path = number[]
 
@@ -24,12 +25,9 @@ export type Path = number[]
 // both subscribe to.
 //
 // A SINGLETON, deliberately: there is one plan being written. Two Walk·Desk
-// panes should be two views OF that plan, not two plans, which is what
-// component state would have given. This is state that outlived its component,
-// so it stopped living in one. The bus is not the right home either — it
-// carries what every instrument shares (focus, route, trail), and a half-built
-// draft is the authoring pair's private business until #16 bridges it to
-// walks.ts.
+// panes should be two views OF that plan, not two plans. The bus is not the
+// right home either — it carries what every instrument shares; a half-built
+// draft is the authoring pair's private business until #16 bridges it.
 
 interface Store<T> {
   get(): T
@@ -60,49 +58,45 @@ function useStore<T>(s: Store<T>): [T, (v: T) => void] {
 }
 
 /** The draft starts SEEDED with a fork and an optional stop so branching is
- * visible at first paint; every id is a real corpus node — tiers and branches
+ * visible at first paint; every id is a real corpus node — tiers and variants
  * alike stay pure overlay on an untouched corpus. */
 const SEED: Stop[] = [
-  { kind: 'visit', node: 'stk-dns-naming' },
+  { node: 'stk-dns-naming', variants: [] },
   {
-    kind: 'stage',
     key: 'seed-net',
     title: 'Reach the machine',
-    steps: [
-      { kind: 'visit', node: 'stk-ip-routing' },
-      { kind: 'visit', node: 'stk-tcp-udp' },
-    ],
+    variants: [{ label: '', steps: [{ node: 'stk-ip-routing', variants: [] }, { node: 'stk-tcp-udp', variants: [] }] }],
   },
   {
-    kind: 'fork',
     key: 'seed-sec',
+    title: 'Secure the channel',
     question: 'how deep on security?',
-    branches: [
-      { label: 'just the handshake', steps: [{ kind: 'visit', node: 'cry-tls-certificates' }] },
+    variants: [
+      { label: 'just the handshake', steps: [{ node: 'cry-tls-certificates', variants: [] }] },
       {
         label: 'full crypto tour',
         steps: [
-          { kind: 'visit', node: 'cry-public-key-cryptography' },
-          { kind: 'visit', node: 'cry-symmetric-encryption' },
-          { kind: 'visit', node: 'cry-cryptographic-hashing' },
-          { kind: 'visit', node: 'cry-tls-certificates' },
+          { node: 'cry-public-key-cryptography', variants: [] },
+          { node: 'cry-symmetric-encryption', variants: [] },
+          { node: 'cry-cryptographic-hashing', variants: [] },
+          { node: 'cry-tls-certificates', variants: [] },
         ],
       },
     ],
   },
-  { kind: 'visit', node: 'web-http-rest' },
-  { kind: 'visit', node: 'web-sockets-apis', optional: true },
-  { kind: 'visit', node: 'app-authentication-authorization' },
+  { node: 'web-http-rest', variants: [] },
+  { node: 'web-sockets-apis', optional: true, variants: [] },
+  { node: 'app-authentication-authorization', variants: [] },
 ]
 
 const stopsStore = store<Stop[]>(SEED)
 const selectedStore = store<ReadonlySet<string>>(new Set())
 const caretStore = store<Path | null>(null)
-/** which branch each fork takes, and whether optionals ride the road — the
- * road's VIEW of the draft. The railroad edits it; the projection reads it. */
+/** which variant each container takes, and whether optionals ride the road —
+ * the road's VIEW of the draft. The railroad edits it; the projection reads it. */
 const choicesStore = store<Record<string, number>>({})
 const optionalsStore = store(true)
-const seq = { stage: 0, fork: 0 }
+const seq = { box: 0 }
 
 /** the road's resolution knobs, shared by the railroad and the projection */
 export function useRoad() {
@@ -112,7 +106,7 @@ export function useRoad() {
     choices,
     withOptionals,
     setWithOptionals,
-    pickBranch: (forkKey: string, idx: number) => setChoices({ ...choices, [forkKey]: idx }),
+    pickBranch: (key: string, idx: number) => setChoices({ ...choices, [key]: idx }),
   }
 }
 
@@ -120,38 +114,25 @@ export const pathKey = (p: Path) => 'b.' + p.join('.')
 export const parsePath = (key: string): Path =>
   key === 'b.' ? [] : key.slice(2).split('.').map(Number)
 
-/** rebuild the sibling list a parent path addresses, through the fork
- * grammar: a stage recurses on one segment, a fork on two (branch, then
- * step). Every structural op goes through here. */
+/** rebuild the sibling list a parent path addresses. A container is descended
+ * through two segments — stop index, then variant index — uniformly, with no
+ * per-kind branch. Every structural op goes through here. */
 function rebuildListAt(stops: Stop[], parent: Path, f: (list: Stop[]) => Stop[]): Stop[] {
   if (parent.length === 0) return f(stops)
-  const [i, ...rest] = parent
+  const [i, vIdx, ...rest] = parent
   return stops.map((s, j) => {
     if (j !== i) return s
-    if (s.kind === 'stage') return { ...s, steps: rebuildListAt(s.steps, rest, f) }
-    if (s.kind === 'fork') {
-      const [b, ...more] = rest
-      return {
-        ...s,
-        branches: s.branches.map((br, k) => (k === b ? { ...br, steps: rebuildListAt(br.steps, more, f) } : br)),
-      }
-    }
-    return s
+    return { ...s, variants: s.variants.map((vr, k) => (k === vIdx ? { ...vr, steps: rebuildListAt(vr.steps, rest, f) } : vr)) }
   })
 }
 
 /** the sibling list a parent path addresses (root list for []) */
 function stopAtList(stops: Stop[], parent: Path): Stop[] | null {
   if (parent.length === 0) return stops
-  const [i, ...rest] = parent
+  const [i, vIdx, ...rest] = parent
   const s = stops[i]
-  if (!s) return null
-  if (s.kind === 'stage') return stopAtList(s.steps, rest)
-  if (s.kind === 'fork') {
-    const br = s.branches[rest[0]]
-    return br ? stopAtList(br.steps, rest.slice(1)) : null
-  }
-  return null
+  const vr = s?.variants[vIdx]
+  return vr ? stopAtList(vr.steps, rest) : null
 }
 
 export function stopAt(stops: Stop[], path: Path): Stop | undefined {
@@ -180,13 +161,12 @@ function mapStopAt(stops: Stop[], path: Path, f: (s: Stop) => Stop): Stop[] {
   return rebuildListAt(stops, path.slice(0, -1), (list) => list.map((s, j) => (j === i ? f(s) : s)))
 }
 
-/** rebuild the fork carrying `key` through `f`, wherever it sits */
-function mapFork(list: Stop[], key: string, f: (s: ForkStop) => ForkStop): Stop[] {
+/** rebuild the container carrying `key` through `f`, wherever it sits */
+function mapBox(list: Stop[], key: string, f: (s: Stop) => Stop): Stop[] {
   return list.map((s) => {
-    if (s.kind === 'visit') return s
-    if (s.kind === 'fork')
-      return s.key === key ? f(s) : { ...s, branches: s.branches.map((b) => ({ ...b, steps: mapFork(b.steps, key, f) })) }
-    return { ...s, steps: mapFork(s.steps, key, f) }
+    if (isLeaf(s)) return s
+    if (s.key === key) return f(s)
+    return { ...s, variants: s.variants.map((vr) => ({ ...vr, steps: mapBox(vr.steps, key, f) })) }
   })
 }
 
@@ -213,18 +193,15 @@ function contiguousRun(selected: ReadonlySet<string>): { parent: Path; from: num
   return { parent, from: idx[0], to: idx[idx.length - 1] }
 }
 
-/** every stage key in a draft — the "all open" expansion for fringe() */
+/** every container key in a draft — the "all open" expansion for fringe() */
 export function allKeysOf(stops: Stop[]): ReadonlySet<string> {
   const keys = new Set<string>()
   const walk = (list: Stop[]) => {
-    for (const s of list) {
-      if (s.kind === 'stage') {
+    for (const s of list)
+      if (isBox(s)) {
         keys.add(s.key)
-        walk(s.steps)
-      } else if (s.kind === 'fork') {
-        for (const b of s.branches) walk(b.steps)
+        for (const vr of s.variants) walk(vr.steps)
       }
-    }
   }
   walk(stops)
   return keys
@@ -244,39 +221,38 @@ export interface AuthorState {
   insertNode(node: string, at?: Path): void
   /** move an existing block to a new position (drag) */
   moveBlock(from: Path, to: Path): void
+  /** wrap the selected run into a plain group — one variant holding the run */
   groupSelection(): void
-  /** wrap the selected run into a fork: it becomes the main-path branch, an
-   * empty alternative branch opens beside it */
+  /** wrap the selected run into a fork: it becomes the first variant, an empty
+   * alternative variant opens beside it */
   forkSelection(): void
   deleteSelection(): void
-  /** replace the single selected stage with its steps, spliced into the
-   * parent list in place — remove the container but KEEP its children on the
-   * road (the "promote children" answer to a container delete) */
-  promoteSelection(): void
-  /** the fork analogue of promote: replace the fork at `forkPath` with the
-   * `keep` branch's steps spliced inline — dissolve the decision, keep the
-   * chosen road. The caller (AuthorRoad) passes the chosen index from choices. */
-  resolveForkTo(forkPath: Path, keep: number): void
-  /** drop ONE lane from the fork at `forkPath`. If that leaves a single
-   * branch, the fork dissolves into that branch's steps (a one-way fork is
-   * just a linear run). The "delete this layer" answer to a container delete. */
-  dropLane(forkPath: Path, idx: number): void
-  /** bind a corpus node to an unset placeholder visit at `path` */
+  /** replace the container at `path` with variant `keep`'s steps, spliced into
+   * the parent list in place — remove the box but KEEP its chosen steps on the
+   * road. Merges the old promote (plain group) and resolve-fork (chosen branch)
+   * into one op: both keep the steps that were showing. */
+  promote(path: Path, keep: number): void
+  /** drop ONE variant from the container at `path`. Emptied → the container is
+   * removed; one variant left → it stays a plain GROUP (a one-variant container
+   * is a legal shape now, no longer dissolved). */
+  dropVariant(path: Path, idx: number): void
+  /** bind a corpus node to an unset placeholder leaf at `path` */
   bindNode(path: Path, node: string): void
-  /** flip the optional flag on every selected visit/stage */
+  /** flip the optional flag on every selected leaf / plain group (not a fork) */
   toggleOptionalSelection(): void
-  /** Tab — move the single selected block into the stage right above it */
+  /** Tab — move the single selected block into the container right above it */
   indentSelection(): void
   retitle(key: string, title: string): void
-  addBranch(forkKey: string): void
-  relabelBranch(forkKey: string, branch: number, label: string): void
-  setForkQuestion(forkKey: string, question: string): void
+  /** append a variant to the container — turns a plain group into a fork */
+  addVariant(key: string): void
+  relabelVariant(key: string, idx: number, label: string): void
+  setQuestion(key: string, question: string): void
   canGroup: boolean
   canFork: boolean
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
-  /** exactly one stage is selected — a container whose children can be promoted */
+  /** exactly one container is selected — its chosen steps can be promoted */
   canPromote: boolean
 }
 
@@ -320,7 +296,7 @@ export function useAuthorDraft(): AuthorState {
       setCaret(null)
     },
     insertNode: (node, at) => {
-      const stop: VisitStop = { kind: 'visit', node }
+      const stop: Stop = { node, variants: [] }
       const target = at ?? (single ? [...single.slice(0, -1), single[single.length - 1] + 1] : [stops.length])
       commit(insertAt(stops, target, stop))
     },
@@ -333,31 +309,31 @@ export function useAuthorDraft(): AuthorState {
     },
     groupSelection: () => {
       if (!run) return
-      const key = `draft-${seq.stage++}`
+      const key = `draft-${seq.box++}`
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),
-          { kind: 'stage', key, title: 'name this stage', steps: list.slice(run.from, run.to + 1) } as StageStop,
+          { key, title: 'name this stage', variants: [{ label: '', steps: list.slice(run.from, run.to + 1) }] },
           ...list.slice(run.to + 1),
         ]),
       )
     },
     forkSelection: () => {
       if (!run) return
-      const key = `fork-${seq.fork++}`
+      const key = `fork-${seq.box++}`
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),
           {
-            kind: 'fork',
             key,
+            title: 'name this fork',
             question: 'which way here?',
-            branches: [
+            variants: [
               { label: 'main path', steps: list.slice(run.from, run.to + 1) },
-              // a new lane opens with a node slot to bind, not an empty label
-              { label: 'alternative', steps: [{ kind: 'visit', node: '', unset: true }] },
+              // a new variant opens with a node slot to bind, not an empty label
+              { label: 'alternative', steps: [{ node: '', unset: true, variants: [] }] },
             ],
-          } as ForkStop,
+          },
           ...list.slice(run.to + 1),
         ]),
       )
@@ -370,92 +346,60 @@ export function useAuthorDraft(): AuthorState {
       for (const p of paths) next = removeAt(next, p).rest
       commit(next)
     },
-    promoteSelection: () => {
-      if (!single) return
-      const s = stopAt(stops, single)
-      if (!s || s.kind !== 'stage') return
-      const i = single[single.length - 1]
-      commit(
-        rebuildListAt(stops, single.slice(0, -1), (list) => [...list.slice(0, i), ...s.steps, ...list.slice(i + 1)]),
-      )
+    promote: (path, keep) => {
+      const s = stopAt(stops, path)
+      if (!s || isLeaf(s)) return
+      const steps = s.variants[keep]?.steps ?? s.variants[0]?.steps ?? []
+      const i = path[path.length - 1]
+      commit(rebuildListAt(stops, path.slice(0, -1), (list) => [...list.slice(0, i), ...steps, ...list.slice(i + 1)]))
     },
-    resolveForkTo: (forkPath, keep) => {
-      const s = stopAt(stops, forkPath)
-      if (!s || s.kind !== 'fork') return
-      const branch = s.branches[keep] ?? s.branches[0]
-      const i = forkPath[forkPath.length - 1]
-      commit(
-        rebuildListAt(stops, forkPath.slice(0, -1), (list) => [
-          ...list.slice(0, i),
-          ...(branch?.steps ?? []),
-          ...list.slice(i + 1),
-        ]),
-      )
-    },
-    dropLane: (forkPath, idx) => {
-      const s = stopAt(stops, forkPath)
-      if (!s || s.kind !== 'fork') return
-      const remaining = s.branches.filter((_, k) => k !== idx)
+    dropVariant: (path, idx) => {
+      const s = stopAt(stops, path)
+      if (!s || isLeaf(s)) return
+      const remaining = s.variants.filter((_, k) => k !== idx)
       if (remaining.length === 0) {
-        commit(removeAt(stops, forkPath).rest) // last lane gone — drop the fork
+        commit(removeAt(stops, path).rest) // last variant gone — drop the container
         return
       }
-      const i = forkPath[forkPath.length - 1]
-      if (remaining.length === 1) {
-        // a one-way fork is just a linear run — dissolve it to that branch
-        commit(
-          rebuildListAt(stops, forkPath.slice(0, -1), (list) => [
-            ...list.slice(0, i),
-            ...remaining[0].steps,
-            ...list.slice(i + 1),
-          ]),
-        )
-        return
-      }
-      commit(mapStopAt(stops, forkPath, (st) => (st.kind !== 'fork' ? st : { ...st, branches: remaining })))
+      commit(mapStopAt(stops, path, (st) => (isLeaf(st) ? st : { ...st, variants: remaining })))
     },
     bindNode: (path, node) => {
-      setStops(mapStopAt(stops, path, (s) => (s.kind === 'visit' ? { ...s, node, unset: undefined } : s)))
+      setStops(mapStopAt(stops, path, (s) => (isLeaf(s) ? { ...s, node, unset: undefined } : s)))
     },
     toggleOptionalSelection: () => {
       if (selected.size === 0) return
       let next = stops
       for (const k of selected)
-        next = mapStopAt(next, parsePath(k), (s) => (s.kind === 'fork' ? s : { ...s, optional: !s.optional }))
+        next = mapStopAt(next, parsePath(k), (s) => (isFork(s) ? s : { ...s, optional: !s.optional }))
       commit(next)
     },
     indentSelection: () => {
-      if (!single || prevSibling?.kind !== 'stage') return
+      if (!single || !prevSibling || !isBox(prevSibling)) return
       const idx = single[single.length - 1]
       const { rest, removed } = removeAt(stops, single)
       if (!removed) return
-      commit(insertAt(rest, [...single.slice(0, -1), idx - 1, prevSibling.steps.length], removed))
+      // land inside the container above, at the end of its first variant
+      commit(insertAt(rest, [...single.slice(0, -1), idx - 1, 0, prevSibling.variants[0].steps.length], removed))
     },
     retitle: (key, title) => {
-      const walk = (list: Stop[]): Stop[] =>
-        list.map((s) => {
-          if (s.kind === 'visit') return s
-          if (s.kind === 'fork') return { ...s, branches: s.branches.map((b) => ({ ...b, steps: walk(b.steps) })) }
-          return s.key === key ? { ...s, title } : { ...s, steps: walk(s.steps) }
-        })
-      setStops(walk(stops))
+      setStops(mapBox(stops, key, (s) => ({ ...s, title })))
     },
-    addBranch: (forkKey) => {
-      const branch: Branch = { label: 'another way', steps: [{ kind: 'visit', node: '', unset: true }] }
-      setStops(mapFork(stops, forkKey, (f) => ({ ...f, branches: [...f.branches, branch] })))
+    addVariant: (key) => {
+      const variant: Variant = { label: 'another way', steps: [{ node: '', unset: true, variants: [] }] }
+      setStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))
     },
-    relabelBranch: (forkKey, branch, label) => {
-      setStops(mapFork(stops, forkKey, (f) => ({ ...f, branches: f.branches.map((b, k) => (k === branch ? { ...b, label } : b)) })))
+    relabelVariant: (key, idx, label) => {
+      setStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })))
     },
-    setForkQuestion: (forkKey, question) => {
-      setStops(mapFork(stops, forkKey, (f) => ({ ...f, question })))
+    setQuestion: (key, question) => {
+      setStops(mapBox(stops, key, (s) => ({ ...s, question })))
     },
     canGroup: !!run,
     canFork: !!run,
-    canOptional: selected.size > 0 && selectedStops.every((s) => s && s.kind !== 'fork'),
-    canIndent: prevSibling?.kind === 'stage',
+    canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
+    canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,
-    canPromote: !!single && stopAt(stops, single)?.kind === 'stage',
+    canPromote: !!single && !!stopAt(stops, single) && isBox(stopAt(stops, single)!),
   }
 }
 

@@ -1,79 +1,75 @@
-// Mock data for the walk-tiers spike (KnowledgeNetworkDemo#11) — a TIERED
-// walk: stops that are either leaf visits to corpus nodes, or stages that
-// decompose into their own walk one tier down. THROWAWAY spike data: nothing
-// here touches corpus/walks.ts or the bus. The corpus is unchanged — the
-// tiers are pure overlay, a more sophisticated visit order over the same
-// nodes.
+// Mock data for the Walk·Desk — a TIERED walk over the teaching corpus, now on
+// ONE stop type (#19). A stop optionally lands on a corpus node (a LEAF) and
+// optionally holds child-lists (VARIANTS). Its meaning is read from its shape,
+// never from a stored tag:
 //
-// The dataset deliberately packs every case a candidate view must answer:
-//   - FOUR tiers of depth (plan → stage → sub-stage → sub-sub-stage), one
-//     more than the 3-tier altitude window, so the window/dive rule is
-//     actually exercised
-//   - a sub-walk BY REFERENCE — a stage built from an authored walks.ts walk
-//   - a REVISIT — stk-tcp-udp is stopped on by two different stages
-//   - mixed grain — a plain leaf visit sitting between stages at tier 0
+//   variants.length === 0   a leaf — the walk stops on a real corpus node
+//                    === 1   a plain group — a named box, one list of steps
+//                    >=  2   a fork — the road can go one of several ways
 //
-// The ASIDE ("meanwhile" lane) was CUT in review 5: a stage's steps are its
-// steps, and a second kind of child that every view had to render specially
-// bought less than it cost. Anything genuinely beside the road is an optional
-// stop or its own branch.
+// "Container" = anything with variants; a fork is just a container with more
+// than one. THROWAWAY spike data: nothing here touches the bus. The corpus is
+// unchanged — tiers and branches are pure overlay over the same nodes.
+//
+// The dataset packs four tiers of depth (one more than the altitude window), a
+// sub-walk BY REFERENCE (a group built from an authored walks.ts walk), a
+// REVISIT (stk-tcp-udp stopped on twice), and mixed grain (a plain leaf between
+// groups at tier 0).
 
 import { byId } from '../../corpus/graph'
 import { WALKS } from '../../corpus/walks'
 
-/** a leaf visit: the walk stops on a real corpus node */
-export interface VisitStop {
-  kind: 'visit'
-  node: string
-  note?: string
-  /** an optional stop: on the road by default, but the road can bypass it */
-  optional?: boolean
-  /** a placeholder slot with no node bound yet — a new lane opens with one of
-   * these instead of an empty label (KnowledgeNetworkDemo#13). It shows a
-   * "pick a node" chip in the editor and is DROPPED from the projection
-   * (fringe/resolveRoad), so downstream — which does byId.get(node)! — never
-   * sees a hole. `node` is '' until bound. */
-  unset?: boolean
-}
-
-/** a stage: a stop that decomposes into its own walk, one tier down */
-export interface StageStop {
-  kind: 'stage'
-  /** stable key for expansion state — unique across the whole plan */
-  key: string
-  title: string
-  steps: Stop[]
-  optional?: boolean
-}
-
-/** one road out of a fork — the branch label is the condition that picks it */
-export interface Branch {
+/** one child-list of a container — its label is what picks it at a fork */
+export interface Variant {
   label: string
   steps: Stop[]
 }
 
-/** a branching decision (round 7): the road splits into labelled branches and
- * every branch REJOINS below — well-nested fork/rejoin, never a free DAG.
- * Presentation never sees a fork: resolveRoad() splices the chosen branch
- * inline, so downstream (columns, fringe, bus) stays a linear walk. */
-export interface ForkStop {
-  kind: 'fork'
-  key: string
-  question: string
-  branches: Branch[]
+/** THE stop. A leaf binds `node` and has no variants; a container has variants
+ * (and a `key`/`title`) and binds no node. The two are kept exclusive by how
+ * the ops build them, not by the type — see #19. */
+export interface Stop {
+  /** the corpus topic a LEAF lands on ('' only while an unset placeholder) */
+  node?: string
+  note?: string
+  /** an optional stop: on the road by default, but the road can bypass it */
+  optional?: boolean
+  /** a placeholder leaf with no node bound yet — shows a "pick a node" chip and
+   * is DROPPED from the projection, so downstream never sees a hole */
+  unset?: boolean
+  /** a CONTAINER's stable id — choice, collapse and rename state hang off it */
+  key?: string
+  title?: string
+  /** the question shown above a fork's tabs (only meaningful when variants>1) */
+  question?: string
+  /** []  = leaf · 1 = plain group · 2+ = fork */
+  variants: Variant[]
 }
 
-export type Stop = VisitStop | StageStop | ForkStop
+/** a leaf: no variants. Narrows `node` to a definite string for consumers. */
+export const isLeaf = (s: Stop): s is Stop & { node: string } => s.variants.length === 0
+/** a container: one or more variants. Narrows `key`/`title` to definite. */
+export const isBox = (s: Stop): s is Stop & { key: string; title: string } => s.variants.length > 0
+/** a fork: a container offering a choice (more than one variant) */
+export const isFork = (s: Stop): boolean => s.variants.length > 1
 
-const v = (node: string, note?: string): VisitStop => ({ kind: 'visit', node, note })
-const stage = (key: string, title: string, steps: Stop[]): StageStop => ({ kind: 'stage', key, title, steps })
+/** which variant a container currently shows/takes, clamped into range */
+export const chosenIdx = (s: Stop, choices: Record<string, number>): number =>
+  Math.min(Math.max(s.variants.length - 1, 0), Math.max(0, choices[s.key ?? ''] ?? 0))
+/** the steps of the chosen variant */
+export const chosenSteps = (s: Stop, choices: Record<string, number>): Stop[] =>
+  s.variants[chosenIdx(s, choices)]?.steps ?? []
 
-/** a stage built FROM an authored walk — sub-walk by reference. The stop
- * "is" the whole walk; expanding it plays the walk's stops as its steps. */
-function stageFromWalk(key: string, walkId: string): StageStop {
+const v = (node: string, note?: string): Stop => ({ node, note, variants: [] })
+/** a plain group: one unlabeled variant holding the steps */
+const group = (key: string, title: string, steps: Stop[]): Stop => ({ key, title, variants: [{ label: '', steps }] })
+
+/** a group built FROM an authored walk — sub-walk by reference. The stop "is"
+ * the whole walk; expanding it plays the walk's stops as its steps. */
+function groupFromWalk(key: string, walkId: string): Stop {
   const w = WALKS.find((x) => x.id === walkId)
-  if (!w) throw new Error(`walk-tiers mock references unknown walk: ${walkId}`)
-  return stage(
+  if (!w) throw new Error(`walk mock references unknown walk: ${walkId}`)
+  return group(
     key,
     w.title,
     w.stops.map((s) => v(s.id, s.note)),
@@ -88,21 +84,21 @@ export interface Plan {
 export const PLAN: Plan = {
   title: 'Ship a page the world can load — a plan',
   stops: [
-    stageFromWalk('machine', 'transistor-to-program'),
-    stage('serve', 'Serve it on the network', [
+    groupFromWalk('machine', 'transistor-to-program'),
+    group('serve', 'Serve it on the network', [
       v('stk-dns-naming', 'a typed name must become an address before anything moves'),
       v('stk-ip-routing', 'packets hop toward that address with no promises'),
       v('stk-tcp-udp', 'a reliable stream is built out of the unreliable hops'),
-      stage('secure', 'Secure the channel', [
+      group('secure', 'Secure the channel', [
         v('cry-public-key-cryptography', 'the trapdoor that lets strangers agree on a secret'),
         v('cry-tls-certificates', 'the handshake that proves a name and seals the stream'),
-        stage('primitives', 'The primitives underneath', [
+        group('primitives', 'The primitives underneath', [
           v('cry-symmetric-encryption', 'once the key is agreed, the bulk cipher does the work'),
           v('cry-cryptographic-hashing', 'integrity: the fingerprint every record carries'),
         ]),
       ]),
     ]),
-    stage('speak', 'Speak the application protocol', [
+    group('speak', 'Speak the application protocol', [
       v('web-http-rest', 'over the secured stream, the browser finally talks'),
       v('web-sockets-apis', 'on both ends the conversation is just sockets'),
       v('stk-tcp-udp', 'the same stream again — a revisit, on purpose'),
@@ -112,52 +108,53 @@ export const PLAN: Plan = {
 }
 
 // ── Projection ──────────────────────────────────────────────────────────────
-// The flat route the bus would read: the leaf fringe of the plan at its
-// current expansion state. A collapsed stage contributes a STAGE entry (a
+// The flat route the bus would read: the leaf fringe of the plan at its current
+// expansion state. A collapsed container contributes a GROUP entry (a
 // placeholder with no corpus node — focus only ever moves to leaves), an
-// expanded one contributes its children's fringe instead. Collapse/expand
-// changes this projection, never the data.
+// expanded one contributes its chosen variant's fringe instead.
 
 export type RouteEntry =
   | { kind: 'node'; id: string; note?: string }
-  | { kind: 'stage'; key: string; title: string; visits: number }
+  | { kind: 'group'; key: string; title: string; visits: number }
 
 export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry[] {
   const out: RouteEntry[] = []
   for (const s of stops) {
-    if (s.kind === 'visit') {
+    if (isLeaf(s)) {
       if (s.unset) continue // an unbound placeholder is not a real stop yet
       out.push({ kind: 'node', id: s.node, note: s.note })
+    } else if (expanded.has(s.key)) {
+      // a container in the fringe walks its default (first) variant — the road
+      out.push(...fringe(s.variants[0].steps, expanded))
+    } else {
+      out.push({ kind: 'group', key: s.key, title: s.title, visits: visitCount(s) })
     }
-    // defensive: presentation reads RESOLVED trees (no forks); an unresolved
-    // fork projects as its first branch, the default road
-    else if (s.kind === 'fork') out.push(...fringe(s.branches[0]?.steps ?? [], expanded))
-    else if (expanded.has(s.key)) out.push(...fringe(s.steps, expanded))
-    else out.push({ kind: 'stage', key: s.key, title: s.title, visits: visitCount(s) })
   }
   return out
 }
 
-// ── Road resolution (round 7) ───────────────────────────────────────────────
-// A branching draft still projects to ONE linear walk: pick a branch per fork
-// (branch 0 is the default road), splice it inline where the fork stood, and
-// drop skipped optionals. Everything downstream of this call — columns,
-// fringe, the bus — never learns that forks exist.
+// ── Road resolution ─────────────────────────────────────────────────────────
+// A branching draft still projects to ONE linear walk: at every container pick
+// the chosen variant (variant 0 is the default road) and drop skipped optionals.
+// Unlike the old model, a resolved container STAYS a named group (its single
+// surviving variant), rather than splicing its steps inline (#19) — everything
+// downstream renders a container the same way whether it began as a group or a
+// fork.
 
 export function resolveRoad(stops: Stop[], choices: Record<string, number>, withOptionals: boolean): Stop[] {
   const out: Stop[] = []
   for (const s of stops) {
-    if (s.kind === 'visit' && s.unset) {
-      continue // placeholder slot — never reaches the presented road
-    } else if (s.kind === 'fork') {
-      const branch = s.branches[choices[s.key] ?? 0] ?? s.branches[0]
-      out.push(...resolveRoad(branch?.steps ?? [], choices, withOptionals))
-    } else if (s.optional && !withOptionals) {
-      continue
-    } else if (s.kind === 'stage') {
-      out.push({ ...s, steps: resolveRoad(s.steps, choices, withOptionals) })
-    } else {
+    if (isLeaf(s)) {
+      if (s.unset) continue // placeholder slot — never reaches the presented road
+      if (s.optional && !withOptionals) continue
       out.push(s)
+    } else {
+      if (s.optional && !withOptionals) continue
+      const chosen = s.variants[chosenIdx(s, choices)]
+      out.push({
+        ...s,
+        variants: [{ label: chosen?.label ?? '', steps: resolveRoad(chosen?.steps ?? [], choices, withOptionals) }],
+      })
     }
   }
   return out
@@ -165,113 +162,35 @@ export function resolveRoad(stops: Stop[], choices: Record<string, number>, with
 
 // ── Shape helpers ───────────────────────────────────────────────────────────
 
-/** leaf visits under a stop, all tiers — a fork counts its longest road */
+/** leaf visits under a stop, all tiers — a fork counts its longest variant */
 export function visitCount(s: Stop): number {
-  if (s.kind === 'visit') return s.unset ? 0 : 1
-  if (s.kind === 'fork') return Math.max(0, ...s.branches.map((b) => b.steps.reduce((a, c) => a + visitCount(c), 0)))
-  return s.steps.reduce((a, c) => a + visitCount(c), 0)
-}
-
-/** tiers under a stop, counting itself — a fork adds no tier of its own */
-export function tierCount(s: Stop): number {
-  if (s.kind === 'visit') return 1
-  if (s.kind === 'fork') return Math.max(1, ...s.branches.flatMap((b) => b.steps.map(tierCount)))
-  return 1 + Math.max(...s.steps.map(tierCount))
-}
-
-/** the chain of stages from the plan root down to `key` (inclusive) */
-export function stagePath(stops: Stop[], key: string): StageStop[] {
-  for (const s of stops) {
-    if (s.kind === 'visit') continue
-    if (s.kind === 'fork') {
-      for (const b of s.branches) {
-        const below = stagePath(b.steps, key)
-        if (below.length) return below
-      }
-      continue
-    }
-    if (s.key === key) return [s]
-    const below = stagePath(s.steps, key)
-    if (below.length) return [s, ...below]
-  }
-  return []
-}
-
-// ── Tier lines (round 2) ────────────────────────────────────────────────────
-// The selection-driven reading: a PATH of stage keys, one per tier, derives
-// one line per tier. Picking a different stage on line N swaps out every line
-// below it — at most one decomposition is open per tier, unlike the round-1
-// expansion set where any number of stages could be open at once.
-
-export interface TierLine {
-  tier: number
-  /** what this line is the inside of — the plan itself, or a stage title */
-  source: string
-  stops: Stop[]
-}
-
-export function linesForPath(path: string[]): TierLine[] {
-  const lines: TierLine[] = [{ tier: 0, source: PLAN.title, stops: PLAN.stops }]
-  let stops = PLAN.stops
-  for (const key of path) {
-    const s = stops.find((x): x is StageStop => x.kind === 'stage' && x.key === key)
-    if (!s) break
-    lines.push({ tier: lines.length, source: s.title, stops: s.steps })
-    stops = s.steps
-  }
-  return lines
-}
-
-/** every stage key in the plan — "expand all" in one call */
-export function allExpandedKeys(): ReadonlySet<string> {
-  const keys = new Set<string>()
-  const collect = (stops: Stop[]) => {
-    for (const s of stops)
-      if (s.kind === 'stage') {
-        keys.add(s.key)
-        collect(s.steps)
-      }
-  }
-  collect(PLAN.stops)
-  return keys
-}
-
-/** every entry sitting AT a tier, in walk order, treating all stages as open —
- * the structural reading (layer stack), independent of expansion state */
-export function entriesAtTier(stops: Stop[], tier: number): Stop[] {
-  if (tier === 0) return stops
-  return stops.flatMap((s) => {
-    if (s.kind === 'stage') return entriesAtTier(s.steps, tier - 1)
-    if (s.kind === 'fork') return s.branches.flatMap((b) => entriesAtTier(b.steps, tier))
-    return []
-  })
+  if (isLeaf(s)) return s.unset ? 0 : 1
+  return Math.max(0, ...s.variants.map((vr) => vr.steps.reduce((a, c) => a + visitCount(c), 0)))
 }
 
 // ── Module-load guard — the walks.ts idiom: throw at load, not at render ────
 {
   const check = (stops: Stop[]) => {
     for (const s of stops) {
-      if (s.kind === 'visit') {
+      if (isLeaf(s)) {
+        if (s.unset) continue
         const n = byId.get(s.node)
-        if (!n) throw new Error(`walk-tiers mock references unknown node id: ${s.node}`)
-        if (!n.topic) throw new Error(`walk-tiers mock stop ${s.node} is not a topic`)
-      } else if (s.kind === 'fork') {
-        for (const b of s.branches) check(b.steps)
+        if (!n) throw new Error(`walk mock references unknown node id: ${s.node}`)
+        if (!n.topic) throw new Error(`walk mock stop ${s.node} is not a topic`)
       } else {
-        check(s.steps)
+        for (const vr of s.variants) check(vr.steps)
       }
     }
   }
   check(PLAN.stops)
   const keys: string[] = []
   const collect = (stops: Stop[]) => {
-    for (const s of stops) {
-      if (s.kind === 'visit') continue
-      keys.push(s.key)
-      if (s.kind === 'fork') for (const b of s.branches) collect(b.steps)
-      else collect(s.steps)
-    }
+    for (const s of stops)
+      if (isBox(s)) {
+        keys.push(s.key)
+        for (const vr of s.variants) collect(vr.steps)
+      }
   }
   collect(PLAN.stops)
-  if (new Set(keys).size !== keys.length) throw new Error('walk-tiers mock: duplicate stage key')
+  if (new Set(keys).size !== keys.length) throw new Error('walk mock: duplicate container key')
 }
