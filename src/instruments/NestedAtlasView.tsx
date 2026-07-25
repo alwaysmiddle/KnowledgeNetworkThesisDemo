@@ -51,9 +51,11 @@
 // component should be: a camera, a hover, and a paint order.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { DragEvent } from 'react'
 
-import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR } from '../corpus/graph'
+import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR, pathTo } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
+import { DT } from './walkdesk/authordnd'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, fillOf, inkOf, inkStrongOf } from '../model/color'
@@ -322,6 +324,19 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     onFocus(id)
   }
 
+  // #24 — drag the SELECTED cell onto the road. Only the selected cell is a drag
+  // source (the pointerdown gate above yields the gesture to the native drag on
+  // exactly this cell), so these props are inert everywhere else: draggable is
+  // false and dragstart never fires. The payload is the same `pal:<id>` the
+  // palette speaks, so the road's handleDrop needs no new case — and a CONTAINER
+  // id rides the same path, landing as a plain visit (everything is a node).
+  const dragProps = (id: string) => ({
+    draggable: sel === id,
+    onDragStart: (e: DragEvent) => {
+      if (sel === id) e.dataTransfer.setData(DT, 'pal:' + id)
+    },
+  })
+
   // ── the selection overlay, whole: which topics the selection resolves to,
   // which of their edges survive the roll-up to this grain, and how those
   // collapse into one road per pair. All of it is model/atlas.ts's job now.
@@ -344,6 +359,28 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   /** SCREEN pixels → world units at the current zoom AND pane size, so every
    * level renders the same authored style at its canonical scale */
   const px = (v: number) => (v * f) / view.s
+
+  // ── SEARCH MATCHES (#25) — the supply pane's live hit set, lit on the map ──
+  // A match deep in a subtree owns no cell at this stratum, so it ROLLS UP to
+  // its VISIBLE ANCESTOR: pathTo(m)[level+1] is the containment ancestor sitting
+  // exactly on the current level (or m itself when its own tier is this level).
+  // Tally per ancestor → a count, so "3 matches under Systems Programming" reads
+  // as one badge on that domain instead of three invisible deep hits. Matches
+  // shallower than the level (an ancestor of the whole stratum) have no single
+  // cell here and are dropped. Cheap (≤ MAX_HITS) so it runs each render — it
+  // must, since onScreen culling moves with the pan.
+  const matchPins: { id: string; c: XY; n: number }[] = []
+  if (bus.matches.size > 0) {
+    const tally = new Map<string, number>()
+    for (const m of bus.matches) {
+      const anc = pathTo(m)[level + 1]
+      if (anc) tally.set(anc, (tally.get(anc) ?? 0) + 1)
+    }
+    for (const [id, n] of tally) {
+      const ft = flightTargetOf(id)
+      if (ft && ft.tier === level && onScreen(ft.c, 60)) matchPins.push({ id, c: ft.c, n })
+    }
+  }
 
   // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
   // zoom — so a name's line breaks are decided once per level, not per frame
@@ -446,13 +483,28 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
         data-level={level}
         data-sel={sel ?? undefined}
         data-peek={peek?.id}
+        data-match-cells={matchPins.length || undefined}
         style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
         onPointerDown={(ev) => {
           cancelFlight()
-          drag.current = { x: ev.clientX, y: ev.clientY }
           dragDist.current = 0
+          // #24 — the SELECTED cell is the road's drag handle. A press on it must
+          // let the native HTML5 drag own the gesture, so DON'T arm a pan and
+          // DON'T capture the pointer (capture would suppress dragstart). A press
+          // anywhere else — another cell, water — pans exactly as before. Because
+          // selection is the gate, pan and drag never share a target and never
+          // race for the same movement. A plain click on the selected cell still
+          // deselects: drag.current stays null so no pan runs, dragDist is 0, and
+          // regionClick fires on click-up.
+          const t = ev.target as Element
+          const downId = t.getAttribute('data-terr') ?? t.getAttribute('data-region')
+          if (downId && downId === sel) {
+            drag.current = null
+            return
+          }
+          drag.current = { x: ev.clientX, y: ev.clientY }
           setDragging(true)
-          ;(ev.target as Element).setPointerCapture(ev.pointerId)
+          t.setPointerCapture(ev.pointerId)
         }}
         onPointerMove={(ev) => {
           if (!drag.current) return
@@ -509,7 +561,8 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 strokeOpacity={level === 0 ? 0.9 : 0}
                 strokeWidth={px(1.2)}
                 pointerEvents={level === 0 ? 'auto' : 'none'}
-                style={{ cursor: 'pointer', transition: FADE }}
+                style={{ cursor: sel === d ? 'grab' : 'pointer', transition: FADE }}
+                {...dragProps(d)}
                 onClick={() => regionClick(d)}
                 onPointerEnter={() => enterCell(d)}
                 onPointerLeave={() => leaveCell(d)}
@@ -531,7 +584,8 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 strokeOpacity={level === 1 ? 0.95 : 0}
                 strokeWidth={px(1.1)}
                 pointerEvents={level === 1 ? 'auto' : 'none'}
-                style={{ cursor: 'pointer', transition: FADE }}
+                style={{ cursor: sel === m ? 'grab' : 'pointer', transition: FADE }}
+                {...dragProps(m)}
                 onClick={() => regionClick(m)}
                 onPointerEnter={() => enterCell(m)}
                 onPointerLeave={() => leaveCell(m)}
@@ -553,7 +607,8 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                 strokeOpacity={isActive(t) ? 0.95 : 0}
                 strokeWidth={px(1.05)}
                 pointerEvents={isActive(t) ? 'auto' : 'none'}
-                style={{ cursor: 'pointer', transition: FADE }}
+                style={{ cursor: sel === t.id ? 'grab' : 'pointer', transition: FADE }}
+                {...dragProps(t.id)}
                 onClick={() => regionClick(t.id)}
                 onPointerEnter={() => enterCell(t.id)}
                 onPointerLeave={() => leaveCell(t.id)}
@@ -723,6 +778,32 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                   )
                 })}
           </g>
+
+          {/* ── SEARCH MATCH PINS (#25): the live hit set, lit on the territory
+              on a DIFFERENT visual axis than selection (glow) or hover (dashed)
+              — an amber count pin, so three highlight states never fight over
+              the ring. A deep hit rolls up to its visible ancestor and the pin
+              carries how many landed there. pointer-events none: a pin never
+              eats a click meant for the cell under it. ──────────────────── */}
+          {matchPins.length > 0 && (
+            <g data-matches pointerEvents="none">
+              {matchPins.map((p) => (
+                <g key={p.id} data-match={p.id} data-mn={p.n} transform={`translate(${p.c.x} ${p.c.y})`}>
+                  <circle r={px(8.5)} fill="#f59e0b" stroke="#ffffff" strokeWidth={px(2)} />
+                  <text
+                    textAnchor="middle"
+                    y={px(3.4)}
+                    fontSize={px(10)}
+                    fontWeight={800}
+                    fill="#ffffff"
+                    style={{ userSelect: 'none' }}
+                  >
+                    {p.n}
+                  </text>
+                </g>
+              ))}
+            </g>
+          )}
 
           {/* ── HOVER PRESELECTION: outline + light tint on the cell a click
               would pick — kills the "which region am I over?" guess ─────── */}

@@ -18,6 +18,7 @@ import { byId, childrenOf, domainOf, DOMAIN_COLOR, ROOT_ID } from '../corpus/gra
 import { edgesTouching } from '../model/flat'
 import { depth2Expanded } from '../model/nav'
 import type { Bus } from '../studio/bus'
+import { DT } from './walkdesk/authordnd'
 
 export default function TreePanel({ bus }: { bus: Bus }) {
   // the tree reads its root from the bus, and the bus re-roots it REACTIVELY
@@ -128,6 +129,13 @@ function TreeRow({
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         data-node-id={id}
+        // #24 — every Tree row is a drag source onto the road (same `pal:<id>`
+        // the palette and map speak). No selection gate here: the Tree doesn't
+        // pan, so there's no gesture to protect — any row drags, container or
+        // leaf. A native drag suppresses the click, so it never fights the
+        // single/double-click select/zoom below.
+        draggable
+        onDragStart={(e) => e.dataTransfer.setData(DT, 'pal:' + id)}
       >
         {isContainer ? (
           <button
