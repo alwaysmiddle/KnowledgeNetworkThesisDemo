@@ -12,7 +12,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-import { isBox, isFork, isLeaf } from './mockwalk'
+import { forEachStop, isBox, isFork, isLeaf } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
 export type Path = number[]
@@ -196,14 +196,9 @@ function contiguousRun(selected: ReadonlySet<string>): { parent: Path; from: num
 /** every container key in a draft — the "all open" expansion for fringe() */
 export function allKeysOf(stops: Stop[]): ReadonlySet<string> {
   const keys = new Set<string>()
-  const walk = (list: Stop[]) => {
-    for (const s of list)
-      if (isBox(s)) {
-        keys.add(s.key)
-        for (const vr of s.variants) walk(vr.steps)
-      }
-  }
-  walk(stops)
+  forEachStop(stops, (s) => {
+    if (isBox(s)) keys.add(s.key)
+  })
   return keys
 }
 

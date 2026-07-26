@@ -162,6 +162,18 @@ export function resolveRoad(stops: Stop[], choices: Record<string, number>, with
 
 // ── Shape helpers ───────────────────────────────────────────────────────────
 
+/** Depth-first visit of every stop, descending into EVERY variant (both roads
+ * of a fork, not just the chosen one). The one tree-walk the read-only
+ * traversals share — validation, key collection, "all open". Projection
+ * (`fringe`, `resolveRoad`) does NOT use it: those pick a single variant, so
+ * their branching is the point, not boilerplate to factor out. */
+export function forEachStop(stops: Stop[], visit: (s: Stop) => void): void {
+  for (const s of stops) {
+    visit(s)
+    if (isBox(s)) for (const vr of s.variants) forEachStop(vr.steps, visit)
+  }
+}
+
 /** leaf visits under a stop, all tiers — a fork counts its longest variant */
 export function visitCount(s: Stop): number {
   if (isLeaf(s)) return s.unset ? 0 : 1
@@ -170,27 +182,15 @@ export function visitCount(s: Stop): number {
 
 // ── Module-load guard — the walks.ts idiom: throw at load, not at render ────
 {
-  const check = (stops: Stop[]) => {
-    for (const s of stops) {
-      if (isLeaf(s)) {
-        if (s.unset) continue
-        const n = byId.get(s.node)
-        if (!n) throw new Error(`walk mock references unknown node id: ${s.node}`)
-        if (!n.topic) throw new Error(`walk mock stop ${s.node} is not a topic`)
-      } else {
-        for (const vr of s.variants) check(vr.steps)
-      }
-    }
-  }
-  check(PLAN.stops)
+  forEachStop(PLAN.stops, (s) => {
+    if (!isLeaf(s) || s.unset) return
+    const n = byId.get(s.node)
+    if (!n) throw new Error(`walk mock references unknown node id: ${s.node}`)
+    if (!n.topic) throw new Error(`walk mock stop ${s.node} is not a topic`)
+  })
   const keys: string[] = []
-  const collect = (stops: Stop[]) => {
-    for (const s of stops)
-      if (isBox(s)) {
-        keys.push(s.key)
-        for (const vr of s.variants) collect(vr.steps)
-      }
-  }
-  collect(PLAN.stops)
+  forEachStop(PLAN.stops, (s) => {
+    if (isBox(s)) keys.push(s.key)
+  })
   if (new Set(keys).size !== keys.length) throw new Error('walk mock: duplicate container key')
 }

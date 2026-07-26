@@ -42,6 +42,11 @@ const SELPAD = 7 // breathing room the selection box leaves around its members
 const BAR_ONE_LINE_W = 350
 const BAR_ROW_H = 26
 
+/** the header rows a container reserves above its body: the header, plus (fork
+ * only) a question line and a tab strip. One source of truth for the layout math
+ * AND the empty-body drop zone, so the two can never drift. */
+const headH = (s: Stop): number => HEAD + (isFork(s) ? QUESTION_H + TAB_H : 0)
+
 type Mark = { key: string; band: Band } | null
 
 interface Placed {
@@ -83,10 +88,6 @@ function layoutRoad(
   choices: Record<string, number>,
   withOptionals: boolean,
 ) {
-  /** the header rows a container reserves above its body: header, plus (fork
-   * only) a question line and a tab strip */
-  const headH = (s: Stop): number => HEAD + (isFork(s) ? QUESTION_H + TAB_H : 0)
-
   const measure = (s: Stop): { w: number; h: number } => {
     if (isLeaf(s) || collapsed.has(s.key!)) return { w: NODEW, h: NODEH }
     const kids = chosenSteps(s, choices).map(measure)
@@ -581,7 +582,7 @@ export default function AuthorRoad({
                       handleDrop(e, [...pl.path, chosen, 0], state)
                     }}
                     className="absolute inset-x-2 rounded-lg border-2 border-dashed border-slate-300 bg-white/60 flex items-center justify-center text-[9.5px] text-slate-400"
-                    style={{ top: (isFork(s) ? HEAD + QUESTION_H + TAB_H : HEAD) + PAD, height: EMPTY_BODY_H }}
+                    style={{ top: headH(s) + PAD, height: EMPTY_BODY_H }}
                   >
                     drop steps here
                   </div>
