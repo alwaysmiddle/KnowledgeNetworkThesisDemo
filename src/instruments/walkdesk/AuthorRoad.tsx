@@ -34,6 +34,7 @@ const HEAD = 28
 const MARGIN = 16
 const QUESTION_H = 18 // the fork question line, above the tabs
 const TAB_H = 22 // the variant tab strip
+const MIN_TAB_W = 80 // a fork tab's floor (~11 label chars) — measure() widens the card so even a 2-tab fork stops squeezing its labels (#33)
 const EMPTY_BODY_H = 30 // drop zone height when the chosen variant has no steps
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
 const SELPAD = 7 // breathing room the selection box leaves around its members
@@ -91,7 +92,15 @@ function layoutRoad(
   const measure = (s: Stop): { w: number; h: number } => {
     if (isLeaf(s) || collapsed.has(s.key!)) return { w: NODEW, h: NODEH }
     const kids = chosenSteps(s, choices).map(measure)
-    const innerW = Math.max(NODEW, ...kids.map((k) => k.w))
+    let innerW = Math.max(NODEW, ...kids.map((k) => k.w))
+    // a fork's tab strip also lays claim to width: N tabs each ≥ MIN_TAB_W, plus
+    // the gap-0.5 between them and the px-1.5 on the strip, must fit the card
+    // (cardW = innerW + 2*PAD). Widen innerW to hold them so tabs stop squeezing.
+    if (isFork(s)) {
+      const n = s.variants.length
+      const tabsW = n * MIN_TAB_W + (n - 1) * 2 + 2 * 6 // tabs + gaps(2) + strip pad(6)
+      innerW = Math.max(innerW, tabsW - 2 * PAD)
+    }
     const bodyH = kids.length ? kids.reduce((acc, k) => acc + k.h, 0) + (kids.length - 1) * AGAP : EMPTY_BODY_H
     return { w: innerW + 2 * PAD, h: headH(s) + PAD + bodyH + PAD }
   }
@@ -559,7 +568,8 @@ export default function AuthorRoad({
                             onFocus={() => pickBranch(s.key!, k)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => state.relabelVariant(s.key!, k, e.target.value)}
-                            className={['w-full bg-transparent text-[9px] outline-none min-w-0', k === chosen ? 'font-bold text-amber-800' : 'text-slate-500'].join(' ')}
+                            title={vr.label || undefined}
+                            className={['w-full bg-transparent text-[9px] outline-none min-w-0 text-ellipsis', k === chosen ? 'font-bold text-amber-800' : 'text-slate-500'].join(' ')}
                           />
                           {/* delete THIS route (#33). A route with real steps asks
                               first; an empty one drops immediately. Down to one
