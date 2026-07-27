@@ -8,6 +8,7 @@
 
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { columnsFor } from './columns'
+import { isBox, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
@@ -78,9 +79,9 @@ export default function LayerStack({
               <div className="absolute left-[20px] right-[22px] top-[57px] h-0.5 bg-amber-300/70 rounded" />
               {line.stops.map((s, i) => {
                 const left = 18 + i * spacing
-                // presentation receives RESOLVED trees — forks never reach here
-                if (s.kind === 'fork') return null
-                if (s.kind === 'stage') {
+                // presentation reads the RESOLVED road: every container is a
+                // one-variant box (a diamond you can drill), the rest are leaves
+                if (isBox(s)) {
                   const picked = path[t] === s.key
                   return (
                     <button
@@ -93,6 +94,7 @@ export default function LayerStack({
                     />
                   )
                 }
+                if (!isLeaf(s)) return null
                 return (
                   <button
                     key={`${i}-${s.node}`}

@@ -12,7 +12,7 @@
 
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { columnsFor } from './columns'
-import { visitCount } from './mockwalk'
+import { isBox, isLeaf, visitCount } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
@@ -100,9 +100,9 @@ export default function WalkColumns({
               tier {k} · {c.source}
             </div>
             {c.stops.map((s, i) => {
-              // presentation receives RESOLVED trees — forks never reach here
-              if (s.kind === 'fork') return null
-              if (s.kind === 'stage') {
+              // presentation reads the RESOLVED road: a container is a one-variant
+              // box you can drill; the rest are leaves
+              if (isBox(s)) {
                 const picked = path[k] === s.key
                 return (
                   <button
@@ -122,6 +122,7 @@ export default function WalkColumns({
                   </button>
                 )
               }
+              if (!isLeaf(s)) return null
               const color = DOMAIN_COLOR[domainOf(s.node)]
               return (
                 <button
