@@ -372,7 +372,9 @@ if ((await fringeCount()) !== '9') errors.push(`E19-B: 10 → delete one node in
 // ── C · #33: ⎍ Ungroup keeps the children on the road (first-class, no menu) ──
 await freshSeed()
 if ((await count('[data-rstage]')) !== 2) errors.push(`E13-C: fresh seed has two open cards (seed-net + seed-sec), got ${await count('[data-rstage]')}`)
-await click('[data-rgrab="seed-net"]') // select the container
+await click('[data-rgrab="seed-sec"]') // the FORK — ungroup must refuse it (no silent route discard)
+if (!(await page.locator('[data-fly-ungroup]').isDisabled())) errors.push('E13-C: ungroup is disabled on a fork — resolve routes via the tab ✕ first')
+await click('[data-rgrab="seed-net"]') // now the plain group
 await click('[data-fly-ungroup]') // remove the group node, keep its steps — no popover
 if ((await count('[data-rstage="seed-net"]')) !== 0) errors.push(`E13-C: ungroup dissolves the seed-net container, got ${await count('[data-rstage="seed-net"]')}`)
 if ((await count('[data-rnode]')) !== 7) errors.push(`E13-C: ungroup KEEPS the children (still 7 leaves), got ${await count('[data-rnode]')}`)
@@ -401,6 +403,20 @@ if ((await count('[data-rstage="seed-sec"]')) !== 1) errors.push('E19-D: the con
 if ((await fringeCount()) !== '10') errors.push(`E19-D: the surviving crypto variant becomes the road (10), got ${await fringeCount()}`)
 if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('E19-D: the survivor is now on the road')
 await shot('e13-drop-lane')
+
+// ── D2 · #33: DRAG a variant tab out of the fork → extractVariant lifts that
+//        route onto the road as its OWN group; the fork keeps the rest (down to
+//        one → a plain group). This is relocation — the thing ungroup used to
+//        fake by silently discarding the other routes ─────────────────────────
+await freshSeed()
+if ((await count('[data-tab="seed-sec.1"]')) !== 1) errors.push('E19-D2: the fork shows the crypto-tour tab to drag out')
+await dnd('[data-tab="seed-sec.1"]', roadNode('web-http-rest')) // drag the crypto tour onto the road
+if ((await count('[data-tab]')) !== 0) errors.push(`E19-D2: extracting a route leaves the fork a plain group (no tabs), got ${await count('[data-tab]')}`)
+if ((await count('[data-rstage="seed-sec"]')) !== 1) errors.push('E19-D2: the emptied-to-one fork STAYS as seed-sec (not dissolved)')
+if ((await count('[data-rstage]')) !== 3) errors.push(`E19-D2: the lifted route becomes a NEW group card (2 → 3 open cards), got ${await count('[data-rstage]')}`)
+if ((await count(roadNode('cry-public-key-cryptography'))) !== 1) errors.push('E19-D2: the extracted crypto route now rides the road')
+if ((await fringeCount()) !== '11') errors.push(`E19-D2: fork keeps handshake (1), lifted crypto group adds 4 → 7 becomes 11, got ${await fringeCount()}`)
+await shot('e19-tab-extract')
 
 // ── E · the whole group CARD is live, and Aside is gone (review 5) ──────────
 // no ⊞/⊟ buttons: double-click anywhere on the card closes it, the collapsed

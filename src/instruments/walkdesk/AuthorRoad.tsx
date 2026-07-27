@@ -545,10 +545,24 @@ export default function AuthorRoad({
                         <div
                           key={k}
                           data-tab={`${s.key}.${k}`}
+                          draggable
+                          // the tab IS the route's handle: drag it onto the road
+                          // and extractVariant lifts this variant out as its own
+                          // group at the drop point (#33).
+                          onDragStart={(e) => {
+                            e.stopPropagation()
+                            e.dataTransfer.setData(DT, `var:${pathKey(pl.path)}~${k}`)
+                            e.dataTransfer.effectAllowed = 'move'
+                          }}
+                          onDragEnd={() => {
+                            setMark(null)
+                            setHotSlot(null)
+                          }}
                           onClick={(e) => {
                             e.stopPropagation()
                             pickBranch(s.key!, k)
                           }}
+                          title="drag out to move this route onto the road"
                           className={[
                             'group flex-1 min-w-0 flex items-center gap-0.5 px-1 rounded-t border-t border-x cursor-pointer',
                             k === chosen ? 'border-amber-500 bg-amber-100' : 'border-slate-200 bg-white/70 hover:bg-slate-50',
@@ -559,6 +573,9 @@ export default function AuthorRoad({
                           </span>
                           <input
                             data-tablabel={`${s.key}.${k}`}
+                            // not a drag source itself — the tab is, so a drag
+                            // anywhere on it (label included) lifts the route
+                            draggable={false}
                             value={vr.label}
                             placeholder="label…"
                             // focusing a tab's label picks that variant — so a
@@ -704,7 +721,11 @@ export default function AuthorRoad({
                 onClick={() => {
                   if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
                 }}
-                title="ungroup — remove the group, keep its steps on the road"
+                title={
+                  selStop && isFork(selStop)
+                    ? 'a fork can’t be ungrouped — delete its extra routes first (✕ on a tab)'
+                    : 'ungroup — remove the group, keep its steps on the road'
+                }
                 className="text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
               >
                 ⎍ Ungroup
