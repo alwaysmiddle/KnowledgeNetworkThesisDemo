@@ -369,35 +369,33 @@ await click('[data-fly-del]') // …a leaf → deletes directly, no menu
 if ((await count(crypto)) !== 0) errors.push('E19-B: deleting inside the chosen variant removes the node')
 if ((await fringeCount()) !== '9') errors.push(`E19-B: 10 → delete one node in the variant → 9, got ${await fringeCount()}`)
 
-// ── C · container delete ASKS: promote keeps the children on the road ────────
+// ── C · #33: ⎍ Ungroup keeps the children on the road (first-class, no menu) ──
 await freshSeed()
 if ((await count('[data-rstage]')) !== 2) errors.push(`E13-C: fresh seed has two open cards (seed-net + seed-sec), got ${await count('[data-rstage]')}`)
-await click('[data-rgrab="seed-net"]')
-await click('[data-fly-del]') // a container → opens the decision menu, does not cascade
-if ((await count('[data-del-menu]')) !== 1) errors.push('E13-C: a container delete should open the choice menu, not cascade')
-if ((await count('[data-del-promote]')) !== 1) errors.push('E13-C: the menu offers keep-steps')
-await click('[data-del-promote]')
-if ((await count('[data-rstage="seed-net"]')) !== 0) errors.push(`E13-C: keep-steps dissolves the seed-net container, got ${await count('[data-rstage="seed-net"]')}`)
-if ((await count('[data-rnode]')) !== 7) errors.push(`E13-C: keep-steps KEEPS the children (still 7 leaves), got ${await count('[data-rnode]')}`)
-if ((await fringeCount()) !== '7') errors.push(`E13-C: keep-steps changes no visits — route stays 7, got ${await fringeCount()}`)
+await click('[data-rgrab="seed-net"]') // select the container
+await click('[data-fly-ungroup]') // remove the group node, keep its steps — no popover
+if ((await count('[data-rstage="seed-net"]')) !== 0) errors.push(`E13-C: ungroup dissolves the seed-net container, got ${await count('[data-rstage="seed-net"]')}`)
+if ((await count('[data-rnode]')) !== 7) errors.push(`E13-C: ungroup KEEPS the children (still 7 leaves), got ${await count('[data-rnode]')}`)
+if ((await fringeCount()) !== '7') errors.push(`E13-C: ungroup changes no visits — route stays 7, got ${await fringeCount()}`)
 if ((await count(roadNode('stk-ip-routing'))) !== 1) errors.push('E13-C: the kept child should sit on the road')
 await shot('e13-promote')
 
-// ── C2 · the menu's other arm: delete-all still cascades ─────────────────────
+// ── C2 · #33: ✕ Delete on a group takes everything inside, directly ──────────
 await freshSeed()
 await click('[data-rgrab="seed-net"]')
-await click('[data-fly-del]')
-await click('[data-del-all]')
-if ((await count('[data-rnode]')) !== 5) errors.push(`E13-C2: delete-all takes the container's 2 children (7 → 5), got ${await count('[data-rnode]')}`)
+await click('[data-fly-del]') // a group → deletes it and its contents, no popover
+if ((await count('[data-rnode]')) !== 5) errors.push(`E13-C2: delete takes the container's 2 children (7 → 5), got ${await count('[data-rnode]')}`)
 if ((await fringeCount()) !== '5') errors.push(`E13-C2: the route loses the container's 2 visits (5), got ${await fringeCount()}`)
 
-// ── D · #19: a FORK delete offers "drop this variant"; dropping to one variant
-//        leaves a plain GROUP (the survivor), NOT a dissolved inline run ───────
+// ── D · #33: the ✕ on a variant tab drops that route. The chosen "handshake"
+//        carries a step, so it ASKS first; confirming drops to one variant and
+//        leaves a plain GROUP (the crypto survivor), NOT a dissolved inline run ─
 await freshSeed()
-await click('[data-rgrab="seed-sec"]') // select the fork card
-await click('[data-fly-del]')
-if ((await count('[data-del-variant]')) !== 1) errors.push('E19-D: a fork delete should offer drop-this-variant')
-await click('[data-del-variant]') // drops the chosen "handshake" variant; crypto is the survivor
+if ((await count('[data-tab="seed-sec.0"]')) !== 1) errors.push('E19-D: the fork shows a per-route tab')
+await click('[data-tab-del="seed-sec.0"]') // ✕ the chosen handshake route — it has a step
+if ((await count('[data-varconfirm]')) !== 1) errors.push('E19-D: dropping a non-empty route should ask first')
+await click('[data-varconfirm-yes]') // confirm; crypto is the survivor
+if ((await count('[data-varconfirm]')) !== 0) errors.push('E19-D: confirming closes the prompt')
 if ((await count('[data-tab]')) !== 0) errors.push(`E19-D: dropping to one variant leaves a plain group (no tabs), got ${await count('[data-tab]')}`)
 if ((await count('[data-rstage="seed-sec"]')) !== 1) errors.push('E19-D: the container STAYS a group — not dissolved into an inline run')
 if ((await fringeCount()) !== '10') errors.push(`E19-D: the surviving crypto variant becomes the road (10), got ${await fringeCount()}`)

@@ -22,7 +22,7 @@ import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
 import type { Band } from './authordnd'
-import { chosenIdx, chosenSteps, isBox, isFork, isLeaf, visitCount } from './mockwalk'
+import { chosenIdx, chosenSteps, isFork, isLeaf, visitCount } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
@@ -39,7 +39,7 @@ const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
 const SELPAD = 7 // breathing room the selection box leaves around its members
 // The action toolbar WRAPS in a narrow slice (review 4), so the space it needs
 // above the selection box is derived from the width, not one fixed number.
-const BAR_ONE_LINE_W = 350
+const BAR_ONE_LINE_W = 430
 const BAR_ROW_H = 26
 
 /** the header rows a container reserves above its body: the header, plus (fork
@@ -163,9 +163,10 @@ export default function AuthorRoad({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [mark, setMark] = useState<Mark>(null)
   const [hotSlot, setHotSlot] = useState<number | null>(null)
-  // the delete popover: a container delete ASKS (keep steps / delete all / drop
-  // variant) instead of silently cascading — the pathKey of the box it's for
-  const [delMenu, setDelMenu] = useState<string | null>(null)
+  // deleting a variant that carries real steps ASKS first (#33) — the fork's
+  // path + which variant + how many steps would go, so the ✕ on a tab never
+  // silently discards authored work. Empty routes skip straight to the drop.
+  const [confirmVar, setConfirmVar] = useState<{ path: Path; idx: number; n: number } | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const marqueeDragRef = useRef(false)
@@ -185,8 +186,6 @@ export default function AuthorRoad({
   const selKey = state.selected.size === 1 ? [...state.selected][0] : null
   const selPlaced = selKey ? items.find((pl) => pathKey(pl.path) === selKey) : undefined
   const selStop = selPlaced?.stop
-  const selIsContainer = !!selStop && isBox(selStop)
-  const selIsFork = !!selStop && isFork(selStop)
 
   // the SELECTION BOX — the bounding rect of every selected block; the action
   // toolbar pins to it (stable) rather than chasing the cursor. #17.
@@ -209,7 +208,6 @@ export default function AuthorRoad({
     e.stopPropagation()
     if (e.shiftKey) state.toggleSelect(pl.path)
     else state.selectPaths([pl.path])
-    setDelMenu(null)
   }
 
   /** the block gestures every node shares — leaf pill, card header, closed pill */
@@ -250,12 +248,11 @@ export default function AuthorRoad({
     marqueeDragRef.current = false
     if (e.button !== 0 || !boardRef.current) return
     // only empty canvas starts a marquee — not a node, control, tab, or overlay
-    if ((e.target as HTMLElement).closest('[data-rnode],[data-rhead],[data-rstage],[data-rstage-closed],[data-fly],[data-del-menu],[data-tab],[data-tablabel],[data-add-variant],[data-rquestion],[data-rretitle],[data-rbody],button,input,select')) return
+    if ((e.target as HTMLElement).closest('[data-rnode],[data-rhead],[data-rstage],[data-rstage-closed],[data-fly],[data-varconfirm],[data-tab],[data-tablabel],[data-add-variant],[data-rquestion],[data-rretitle],[data-rbody],button,input,select')) return
     const { x, y } = boardPoint(e)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     setMarquee({ x0: x, y0: y, x1: x, y1: y })
     if (!e.shiftKey) state.selectPaths([])
-    setDelMenu(null)
   }
   const onBoardPointerMove = (e: ReactPointerEvent) => {
     if (!marquee) return
@@ -544,7 +541,7 @@ export default function AuthorRoad({
                             pickBranch(s.key!, k)
                           }}
                           className={[
-                            'flex-1 min-w-0 flex items-center gap-0.5 px-1 rounded-t border-t border-x cursor-pointer',
+                            'group flex-1 min-w-0 flex items-center gap-0.5 px-1 rounded-t border-t border-x cursor-pointer',
                             k === chosen ? 'border-amber-500 bg-amber-100' : 'border-slate-200 bg-white/70 hover:bg-slate-50',
                           ].join(' ')}
                         >
@@ -564,6 +561,23 @@ export default function AuthorRoad({
                             onChange={(e) => state.relabelVariant(s.key!, k, e.target.value)}
                             className={['w-full bg-transparent text-[9px] outline-none min-w-0', k === chosen ? 'font-bold text-amber-800' : 'text-slate-500'].join(' ')}
                           />
+                          {/* delete THIS route (#33). A route with real steps asks
+                              first; an empty one drops immediately. Down to one
+                              variant, dropVariant leaves a plain group. */}
+                          <button
+                            data-tab-del={`${s.key}.${k}`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const real = vr.steps.filter((st) => !(isLeaf(st) && st.unset))
+                              if (real.length === 0) state.dropVariant(pl.path, k)
+                              else setConfirmVar({ path: pl.path, idx: k, n: real.length })
+                            }}
+                            title="delete this route"
+                            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[9px] leading-none px-0.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                          >
+                            ✕
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -672,6 +686,19 @@ export default function AuthorRoad({
               >
                 ⊞ Group
               </button>
+              {/* ungroup (#33) — remove the group node, keep its steps on the
+                  road. The inverse of Group, enabled only for a single container. */}
+              <button
+                data-fly-ungroup
+                disabled={!state.canPromote}
+                onClick={() => {
+                  if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
+                }}
+                title="ungroup — remove the group, keep its steps on the road"
+                className="text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
+              >
+                ⎍ Ungroup
+              </button>
               <button
                 data-fly-opt
                 disabled={!state.canOptional}
@@ -681,63 +708,56 @@ export default function AuthorRoad({
               >
                 ◇ Optional
               </button>
+              {/* delete (#33) — a direct action now, no popover: a container
+                  takes everything inside with it (undoable). Ungroup is the
+                  keep-the-steps arm; dropping one route lives on its tab ✕. */}
               <button
                 data-fly-del
                 disabled={!state.canDelete}
-                onClick={() => {
-                  if (selIsContainer && selKey) setDelMenu(delMenu ? null : selKey)
-                  else state.deleteSelection()
-                }}
-                title={selIsContainer ? 'delete… (keep steps / all / variant)' : 'remove'}
+                onClick={state.deleteSelection}
+                title="delete — a group takes everything inside it (undoable)"
                 className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100"
               >
-                ✕ Delete{selIsContainer ? '…' : ''}
+                ✕ Delete
               </button>
             </div>
           )}
 
-          {/* container-delete decision — keep the chosen steps on the road,
-              cascade everything, or (forks) drop just the current variant. */}
-          {delMenu && selKey === delMenu && selPlaced && selIsContainer && selStop && selBox && (
-            <div
-              data-del-menu
-              className="absolute z-50 flex flex-col gap-0.5 p-1 rounded-lg border border-slate-300 bg-white shadow-lg text-[10px]"
-              style={{ left: Math.max(4, Math.min(selBox.x, W - 200)), top: selBox.y + selBox.h + 6 }}
-            >
-              <button
-                data-del-promote
-                onClick={() => {
-                  state.promote(selPlaced.path, chosenIdx(selStop, choices))
-                  setDelMenu(null)
-                }}
-                className="text-left px-1.5 py-0.5 rounded text-amber-700 hover:bg-amber-50"
-              >
-                ↥ keep steps on the road
-              </button>
-              {selIsFork && (
-                <button
-                  data-del-variant
-                  onClick={() => {
-                    state.dropVariant(selPlaced.path, chosenIdx(selStop, choices))
-                    setDelMenu(null)
-                  }}
-                  className="text-left px-1.5 py-0.5 rounded text-slate-600 hover:bg-slate-100"
+          {/* variant-delete confirm (#33) — dropping a route that carries real
+              steps asks first, anchored under the fork's tab strip. */}
+          {confirmVar &&
+            (() => {
+              const card = items.find((pl) => pathKey(pl.path) === pathKey(confirmVar.path))
+              if (!card) return null
+              return (
+                <div
+                  data-varconfirm
+                  className="absolute z-50 flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-300 bg-white shadow-lg text-[10px]"
+                  style={{ left: Math.max(4, Math.min(card.x, W - 200)), top: card.y + HEAD + QUESTION_H + TAB_H + 2 }}
                 >
-                  ⌫ drop this variant only
-                </button>
-              )}
-              <button
-                data-del-all
-                onClick={() => {
-                  state.deleteSelection()
-                  setDelMenu(null)
-                }}
-                className="text-left px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50"
-              >
-                ✕ delete it and everything inside
-              </button>
-            </div>
-          )}
+                  <span className="text-slate-600">
+                    Delete route + {confirmVar.n} step{confirmVar.n > 1 ? 's' : ''}?
+                  </span>
+                  <button
+                    data-varconfirm-yes
+                    onClick={() => {
+                      state.dropVariant(confirmVar.path, confirmVar.idx)
+                      setConfirmVar(null)
+                    }}
+                    className="px-1.5 py-0.5 rounded text-white bg-rose-600 hover:bg-rose-700"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    data-varconfirm-no
+                    onClick={() => setConfirmVar(null)}
+                    className="px-1.5 py-0.5 rounded text-slate-600 hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )
+            })()}
         </div>
       )}
     </div>
