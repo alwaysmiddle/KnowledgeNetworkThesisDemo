@@ -123,11 +123,13 @@ export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry
     if (isLeaf(s)) {
       if (s.unset) continue // an unbound placeholder is not a real stop yet
       out.push({ kind: 'node', id: s.node, note: s.note })
-    } else if (expanded.has(s.key)) {
-      // a container in the fringe walks its default (first) variant — the road
-      out.push(...fringe(s.variants[0].steps, expanded))
-    } else {
-      out.push({ kind: 'group', key: s.key, title: s.title, visits: visitCount(s) })
+    } else if (isBox(s)) {
+      if (expanded.has(s.key)) {
+        // a container in the fringe walks its default (first) variant — the road
+        out.push(...fringe(s.variants[0].steps, expanded))
+      } else {
+        out.push({ kind: 'group', key: s.key, title: s.title, visits: visitCount(s) })
+      }
     }
   }
   return out
