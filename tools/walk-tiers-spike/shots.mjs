@@ -177,6 +177,22 @@ await click(`[data-rnode][data-node="alg-graph-traversal"]`)
 await click('[data-fly-del]')
 if ((await fringeCount()) !== '7') errors.push(`S21: removing it puts the route back to 7, got ${await fringeCount()}`)
 
+// ── #34 · undo / redo step the tree back and forward ────────────────────────
+// the delete just above is the freshest edit. ↶ undo must bring the node back
+// (and the rail with it); ↷ redo must take it away again. History is over the
+// STOPS tree, so the route rail — a pure projection of it — follows for free.
+// The round-trip lands back on the post-delete state, so the checks below are
+// undisturbed.
+await click('[data-undo]')
+await page.waitForTimeout(150)
+if ((await count(roadNode('alg-graph-traversal'))) !== 1)
+  errors.push(`S34: undo should restore the deleted node, got ${await count(roadNode('alg-graph-traversal'))}`)
+if ((await fringeCount()) !== '8') errors.push(`S34: ...and the route rail returns to 8, got ${await fringeCount()}`)
+await click('[data-redo]')
+await page.waitForTimeout(150)
+if ((await count(roadNode('alg-graph-traversal'))) !== 0) errors.push('S34: redo should remove the node again')
+if ((await fringeCount()) !== '7') errors.push(`S34: ...and the route rail drops back to 7, got ${await fringeCount()}`)
+
 // ── #21 · the map MOVES the focus, it does not OPEN a pane ──────────────────
 // selecting a container used to reveal Connections. With several instruments
 // able to move the focus, a pane appearing because you clicked somewhere else

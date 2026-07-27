@@ -98,6 +98,52 @@ const choicesStore = store<Record<string, number>>({})
 const optionalsStore = store(true)
 const seq = { box: 0 }
 
+// ── Undo / redo over the stops tree (#34) ────────────────────────────────────
+// History lives UNDER the store interface: one historic setter records the
+// previous tree, so every structural op becomes undoable without the op knowing
+// history exists. Only `stops` is versioned — choices/optionals are the road's
+// VIEW (not edits), and selection/caret are ephemeral, cleared on undo exactly
+// as they are on commit. Snapshots are plain references (every op is a pure
+// immutable rebuild), so the stacks are cheap; capped so a long session can't
+// grow unbounded.
+const pastStore = store<Stop[][]>([])
+const futureStore = store<Stop[][]>([])
+const HISTORY_CAP = 100
+// The open text-edit session, if any. retitle/relabel/setQuestion fire per
+// keystroke; commits sharing a session key collapse into ONE undo entry instead
+// of one per character. Any structural op (no key) closes the session.
+let editSession: string | null = null
+
+/** the ONE write path for the stops tree: set the new value, recording the old
+ * one for undo. `session` coalesces consecutive same-session commits (a text
+ * edit) into a single history entry; pass null (default) for a discrete op. */
+function commitStops(next: Stop[], session: string | null = null): void {
+  const prev = stopsStore.get()
+  if (Object.is(prev, next)) return
+  const continuing = session !== null && session === editSession
+  if (!continuing) pastStore.set([...pastStore.get(), prev].slice(-HISTORY_CAP))
+  editSession = session
+  if (futureStore.get().length) futureStore.set([]) // a fresh edit forks the timeline
+  stopsStore.set(next)
+}
+
+/** move one step along history: pop `from`, push the current tree onto `to`.
+ * undo = past→future, redo = future→past. Ephemeral state is reset, never
+ * restored, so no revived path can dangle. */
+function step(from: Store<Stop[][]>, to: Store<Stop[][]>): void {
+  const stack = from.get()
+  if (stack.length === 0) return
+  const target = stack[stack.length - 1]
+  from.set(stack.slice(0, -1))
+  to.set([...to.get(), stopsStore.get()].slice(-HISTORY_CAP))
+  editSession = null
+  selectedStore.set(new Set())
+  caretStore.set(null)
+  stopsStore.set(target)
+}
+export const undoDraft = (): void => step(pastStore, futureStore)
+export const redoDraft = (): void => step(futureStore, pastStore)
+
 /** the road's resolution knobs, shared by the railroad and the projection */
 export function useRoad() {
   const [choices, setChoices] = useStore(choicesStore)
@@ -247,15 +293,23 @@ export interface AuthorState {
   canDelete: boolean
   /** exactly one container is selected — its chosen steps can be promoted */
   canPromote: boolean
+  /** step the stops tree back / forward through edit history (#34) */
+  undo(): void
+  redo(): void
+  canUndo: boolean
+  canRedo: boolean
 }
 
 export function useAuthorDraft(): AuthorState {
-  const [stops, setStops] = useStore(stopsStore)
+  const [stops] = useStore(stopsStore)
   const [selected, setSelected] = useStore(selectedStore)
   const [caret, setCaret] = useStore(caretStore)
 
+  const [past] = useStore(pastStore)
+  const [future] = useStore(futureStore)
+
   const commit = (next: Stop[]) => {
-    setStops(next)
+    commitStops(next)
     setSelected(new Set())
     setCaret(null)
   }
@@ -337,7 +391,7 @@ export function useAuthorDraft(): AuthorState {
       commit(mapStopAt(stops, path, (st) => (isLeaf(st) ? st : { ...st, variants: remaining })))
     },
     bindNode: (path, node) => {
-      setStops(mapStopAt(stops, path, (s) => (isLeaf(s) ? { ...s, node, unset: undefined } : s)))
+      commitStops(mapStopAt(stops, path, (s) => (isLeaf(s) ? { ...s, node, unset: undefined } : s)))
     },
     toggleOptionalSelection: () => {
       if (selected.size === 0) return
@@ -355,23 +409,27 @@ export function useAuthorDraft(): AuthorState {
       commit(insertAt(rest, [...single.slice(0, -1), idx - 1, 0, prevSibling.variants[0].steps.length], removed))
     },
     retitle: (key, title) => {
-      setStops(mapBox(stops, key, (s) => ({ ...s, title })))
+      commitStops(mapBox(stops, key, (s) => ({ ...s, title })), 'title:' + key)
     },
     addVariant: (key) => {
       const variant: Variant = { label: 'another way', steps: [{ node: '', unset: true, variants: [] }] }
-      setStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))
+      commitStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))
     },
     relabelVariant: (key, idx, label) => {
-      setStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })))
+      commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)
     },
     setQuestion: (key, question) => {
-      setStops(mapBox(stops, key, (s) => ({ ...s, question })))
+      commitStops(mapBox(stops, key, (s) => ({ ...s, question })), 'question:' + key)
     },
     canGroup: !!run,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,
     canPromote: !!single && !!stopAt(stops, single) && isBox(stopAt(stops, single)!),
+    undo: undoDraft,
+    redo: redoDraft,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
   }
 }
 
