@@ -673,15 +673,6 @@ export default function AuthorRoad({
                 ⊞ Group
               </button>
               <button
-                data-fly-fork
-                disabled={!state.canFork}
-                onClick={state.forkSelection}
-                title="fork the road here"
-                className="text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-800 bg-amber-100 disabled:opacity-30 hover:bg-amber-200"
-              >
-                ⑂ Fork
-              </button>
-              <button
                 data-fly-opt
                 disabled={!state.canOptional}
                 onClick={state.toggleOptionalSelection}

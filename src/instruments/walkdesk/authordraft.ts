@@ -216,11 +216,10 @@ export interface AuthorState {
   insertNode(node: string, at?: Path): void
   /** move an existing block to a new position (drag) */
   moveBlock(from: Path, to: Path): void
-  /** wrap the selected run into a plain group — one variant holding the run */
+  /** wrap the selected run into a plain group — one variant holding the run. A
+   * fork is reached from here: group, then grow a variant on the card (#19), so
+   * there is no separate fork op. */
   groupSelection(): void
-  /** wrap the selected run into a fork: it becomes the first variant, an empty
-   * alternative variant opens beside it */
-  forkSelection(): void
   deleteSelection(): void
   /** replace the container at `path` with variant `keep`'s steps, spliced into
    * the parent list in place — remove the box but KEEP its chosen steps on the
@@ -243,7 +242,6 @@ export interface AuthorState {
   relabelVariant(key: string, idx: number, label: string): void
   setQuestion(key: string, question: string): void
   canGroup: boolean
-  canFork: boolean
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
@@ -313,26 +311,6 @@ export function useAuthorDraft(): AuthorState {
         ]),
       )
     },
-    forkSelection: () => {
-      if (!run) return
-      const key = `fork-${seq.box++}`
-      commit(
-        rebuildListAt(stops, run.parent, (list) => [
-          ...list.slice(0, run.from),
-          {
-            key,
-            title: 'name this fork',
-            question: 'which way here?',
-            variants: [
-              { label: 'main path', steps: list.slice(run.from, run.to + 1) },
-              // a new variant opens with a node slot to bind, not an empty label
-              { label: 'alternative', steps: [{ node: '', unset: true, variants: [] }] },
-            ],
-          },
-          ...list.slice(run.to + 1),
-        ]),
-      )
-    },
     deleteSelection: () => {
       if (selected.size === 0) return
       // remove in reverse document order so earlier paths stay valid
@@ -390,7 +368,6 @@ export function useAuthorDraft(): AuthorState {
       setStops(mapBox(stops, key, (s) => ({ ...s, question })))
     },
     canGroup: !!run,
-    canFork: !!run,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,

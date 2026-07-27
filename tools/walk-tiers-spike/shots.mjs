@@ -210,23 +210,28 @@ await shot('s7-bypass')
 await click('[data-opt-toggle]')
 if ((await fringeCount()) !== '10') errors.push(`S: optionals back on the road — 10 again, got ${await fringeCount()}`)
 
-// ── selecting draws a boxed group + a pinned toolbar (#17); forking uses it ──
+// ── selecting draws a boxed group + a pinned toolbar (#17). Since #19 there is
+//    no fork button: a fork grows from a group by adding a variant on its card ─
 await click('[data-rnode][data-node="web-http-rest"]')
 if ((await count('[data-fly]')) !== 1) errors.push(`S: selecting a node pins the action toolbar, got ${await count('[data-fly]')}`)
 if ((await count('[data-selbox]')) !== 1) errors.push(`S: selecting a node draws one selection box, got ${await count('[data-selbox]')}`)
 await shiftClick('[data-rnode][data-node="web-sockets-apis"]') // shift adds to the selection (Windows-style)
 if ((await count('[data-selbox]')) !== 1) errors.push(`S: a multi-select is still ONE box around the run, got ${await count('[data-selbox]')}`)
 await shot('s7-selection')
-const cardsBeforeFork = await count('[data-rstage]')
-await click('[data-fly-fork]')
-if ((await count('[data-rstage]')) !== cardsBeforeFork + 1) errors.push(`S: forking the selection makes a new tabbed card, got ${await count('[data-rstage]')} (was ${cardsBeforeFork})`)
+const cardsBeforeWrap = await count('[data-rstage]')
+await click('[data-fly-group]') // wrap the run into a plain group (key draft-0)
+if ((await count('[data-rstage]')) !== cardsBeforeWrap + 1) errors.push(`S: grouping the selection makes a new card, got ${await count('[data-rstage]')} (was ${cardsBeforeWrap})`)
 if ((await count('[data-fly]')) !== 0) errors.push(`S: the toolbar retires once the selection clears, got ${await count('[data-fly]')}`)
 if ((await count('[data-selbox]')) !== 0) errors.push(`S: the selection box clears with the selection, got ${await count('[data-selbox]')}`)
-if ((await fringeCount()) !== '10') errors.push(`S: the selection became variant 0 — route unchanged (10), got ${await fringeCount()}`)
+if ((await fringeCount()) !== '10') errors.push(`S: grouping keeps both leaves on the road (10), got ${await fringeCount()}`)
 
-// ── #19 the new fork's alt variant is a TAB; its slot shows once chosen ──────
+// ── #19 a group becomes a fork by GROWING a variant on its card (⑂), then the
+//    alt variant is a TAB whose slot shows once chosen ─────────────────────────
+await click('[data-add-variant="draft-0"]') // the card's ⑂ — no toolbar fork button
+if ((await count('[data-rstage]')) !== cardsBeforeWrap + 1) errors.push(`S: adding a variant grows the same card, not a new one, got ${await count('[data-rstage]')}`)
+if ((await fringeCount()) !== '10') errors.push(`S: the chosen variant is unchanged — route still 10, got ${await fringeCount()}`)
 if ((await count('[data-runset]')) !== 0) errors.push(`S: the alt variant's slot is hidden behind its tab, got ${await count('[data-runset]')}`)
-await click('[data-tab="fork-0.1"]') // choose the alternative variant
+await click('[data-tab="draft-0.1"]') // choose the alternative variant
 if ((await count('[data-runset]')) !== 1) errors.push(`S: choosing the alt tab reveals one unset slot, got ${await count('[data-runset]')}`)
 if ((await fringeCount()) !== '8') errors.push(`S: the empty alt drops http+ws from the route (8), got ${await fringeCount()}`)
 // bind a corpus node through the revealed slot's picker
