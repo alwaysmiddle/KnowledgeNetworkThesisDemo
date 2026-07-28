@@ -276,6 +276,11 @@ export interface AuthorState {
    * removed; one variant left → it stays a plain GROUP (a one-variant container
    * is a legal shape now, no longer dissolved). */
   dropVariant(path: Path, idx: number): void
+  /** lift variant `idx` out of the fork at `forkPath` into its OWN group,
+   * inserted at `to` — extract + relocate in one gesture (drag a tab out). The
+   * fork keeps the rest (down to one → a plain group); the route's label becomes
+   * the new group's title. */
+  extractVariant(forkPath: Path, idx: number, to: Path): void
   /** bind a corpus node to an unset placeholder leaf at `path` */
   bindNode(path: Path, node: string): void
   /** flip the optional flag on every selected leaf / plain group (not a fork) */
@@ -291,7 +296,9 @@ export interface AuthorState {
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
-  /** exactly one container is selected — its chosen steps can be promoted */
+  /** exactly one PLAIN group is selected — Ungroup dissolves it, splicing its
+   * steps up. Disabled on a fork: resolving a fork to one road goes through the
+   * tab ✕ (delete the other routes), never a silent bulk discard. */
   canPromote: boolean
   /** step the stops tree back / forward through edit history (#34) */
   undo(): void
@@ -390,6 +397,20 @@ export function useAuthorDraft(): AuthorState {
       }
       commit(mapStopAt(stops, path, (st) => (isLeaf(st) ? st : { ...st, variants: remaining })))
     },
+    extractVariant: (forkPath, idx, to) => {
+      const s = stopAt(stops, forkPath)
+      if (!s || !isFork(s)) return
+      // a route cannot be dropped inside its own fork's subtree
+      if (to.length >= forkPath.length && forkPath.every((v, k) => v === to[k])) return
+      const vr = s.variants[idx]
+      if (!vr) return
+      const lifted: Stop = { key: `draft-${seq.box++}`, title: vr.label || s.title, variants: [{ label: '', steps: vr.steps }] }
+      const remaining = s.variants.filter((_, k) => k !== idx)
+      // the fork stays in place and only loses a variant, so every sibling index
+      // before `to` is unchanged — no adjustAfterRemoval needed.
+      const pruned = mapStopAt(stops, forkPath, (st) => (isLeaf(st) ? st : { ...st, variants: remaining }))
+      commit(insertAt(pruned, to, lifted))
+    },
     bindNode: (path, node) => {
       commitStops(mapStopAt(stops, path, (s) => (isLeaf(s) ? { ...s, node, unset: undefined } : s)))
     },
@@ -425,7 +446,8 @@ export function useAuthorDraft(): AuthorState {
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,
-    canPromote: !!single && !!stopAt(stops, single) && isBox(stopAt(stops, single)!),
+    canPromote:
+      !!single && !!stopAt(stops, single) && isBox(stopAt(stops, single)!) && !isFork(stopAt(stops, single)!),
     undo: undoDraft,
     redo: redoDraft,
     canUndo: past.length > 0,

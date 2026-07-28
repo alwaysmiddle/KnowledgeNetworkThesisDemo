@@ -1,8 +1,10 @@
 // The one drag-and-drop contract every authoring view shares (round 4 —
 // three views author the SAME draft, so a drop must mean the same thing in
 // all of them). Payloads: `pal:<nodeId>` from the palette, `blk:<pathKey>`
-// for an existing block. A drop resolves to an insertion Path and goes
-// through the same AuthorState ops regardless of which view caught it.
+// for an existing block, `var:<forkPathKey>~<idx>` for a fork's variant tab
+// (dragging a route out extracts it as its own group). A drop resolves to an
+// insertion Path and goes through the same AuthorState ops regardless of which
+// view caught it.
 
 import type { DragEvent as ReactDragEvent } from 'react'
 
@@ -41,5 +43,9 @@ export function handleDrop(e: ReactDragEvent, target: Path, state: AuthorState) 
   const data = e.dataTransfer.getData(DT)
   if (data.startsWith('pal:')) state.insertNode(data.slice(4), target)
   else if (data.startsWith('blk:')) state.moveBlock(parsePath(data.slice(4)), target)
+  else if (data.startsWith('var:')) {
+    const [pk, idx] = data.slice(4).split('~')
+    state.extractVariant(parsePath(pk), Number(idx), target)
+  }
   state.setCaret(null)
 }
