@@ -10,9 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b",
-    "spec-gate": "node scripts/spec-gate.mjs",
-    "docs:validate": "npm --prefix ../DocHub run validate",
-    "verify": "npm run spec-gate && npm run typecheck && npm run lint && npm run test && npm run docs:validate"
+    "verify": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "@types/d3-delaunay": "^6.0.4",

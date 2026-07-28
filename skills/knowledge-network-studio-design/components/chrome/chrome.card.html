@@ -1,0 +1,51 @@
+<!-- @dsCard group="Components" viewport="700x300" subtitle="PaneHeader · ToggleButton · ActionStrip · ActionChoice" name="Pane chrome" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin:0; padding:14px 16px; background:#fff; font-family:var(--font-ui); color:var(--text-1); }
+  .n { font-size:9.5px; color:var(--text-2); }
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+  .stop { width:170px; min-height:34px; box-sizing:border-box; display:flex; align-items:center; gap:6px;
+          padding:0 4px 0 6px; border-radius:var(--radius-pill); background:var(--surface-card);
+          border:2px solid var(--domain-net); box-shadow:var(--lift-node);
+          font-size:var(--fs-label); font-weight:600; color:var(--domain-net); }
+  .gut { width:18px; flex:0 0 18px; display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--text-3); }
+  .ord { width:16px; height:16px; border-radius:50%; background:var(--road-badge); color:#fff; font-size:9px;
+         font-weight:700; display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums; }
+  .ttl { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mnu { width:18px; flex:0 0 18px; text-align:center; color:var(--text-3); font-size:11px; }
+  .btn { min-height:24px; padding:0 8px; display:inline-flex; align-items:center; gap:4px; font-size:var(--fs-caption);
+         border-radius:var(--radius-sm); border:1px solid var(--border-card); background:var(--surface-card); color:var(--text-2); }
+</style>
+</head>
+<body>
+<div style="width:640px;border:1px solid var(--border-rule);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-pane)">
+  <div style="padding:6px 8px;border-bottom:1px solid var(--border-hairline);background:var(--surface-card)">
+    <div style="font-size:var(--fs-pane);font-weight:700">railroad</div>
+    <div style="margin-top:2px;font-size:var(--fs-meta);color:var(--text-3)">the road can fork and rejoin; ● picks the branch</div>
+    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
+      <span class="btn" style="border-color:var(--amber-400);background:var(--amber-50);color:var(--amber-700)">◇ optionals bypassed</span>
+      <span class="btn">route → right</span>
+      <span class="btn" style="margin-left:auto;opacity:var(--opacity-disabled)">↶ undo</span>
+      <span class="btn">↷ redo</span>
+    </div>
+  </div>
+  <div style="height:56px;display:flex;align-items:center;justify-content:center;font-size:var(--fs-meta);color:var(--text-3)">the road</div>
+  <div style="border-top:1px solid var(--border-rule);background:var(--surface-card);padding:6px 8px;display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:6px;min-height:26px">
+      <span style="font-size:var(--fs-caption);font-weight:600;color:var(--state-selected)">1 selected</span>
+      <span class="btn">Group</span><span class="btn">◇ Optional</span><span class="btn">⥂ Add a branch</span><span class="btn" style="color:var(--state-danger);border-color:var(--state-danger)">Delete…</span>
+    </div>
+    <div style="border-top:1px solid var(--border-hairline);padding-top:6px;display:flex;flex-direction:column;gap:4px">
+      <span style="text-align:left;min-height:24px;display:flex;align-items:center;padding:0 6px;font-size:var(--fs-body);border-radius:var(--radius-sm);border:1px solid var(--border-card);background:var(--surface-card)">Keep the 4 steps on the road, remove the group</span>
+      <span style="text-align:left;min-height:24px;display:flex;align-items:center;padding:0 6px;font-size:var(--fs-body);border-radius:var(--radius-sm);border:1px solid var(--border-card);background:var(--surface-card)">Drop the "Skim" branch only</span>
+      <span style="text-align:left;min-height:24px;display:flex;align-items:center;padding:0 6px;font-size:var(--fs-body);border-radius:var(--radius-sm);border:1px solid var(--state-danger);background:var(--state-danger-wash);color:var(--state-danger)">Delete the group and all 4 steps inside it</span>
+    </div>
+  </div>
+</div>
+<div class="n" style="margin-top:8px;max-width:640px">Every destructive choice is a full sentence naming its blast radius. It fits because the dock is a fixed 640px-wide row, not a toolbar sized by <span style="font-family:var(--font-mono)">Math.ceil(BAR_ONE_LINE_W / barMaxW)</span>.</div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!-- @dsCard group="Colors" viewport="700x170" subtitle="Node = raised white. Group = recessed, one tint step per depth" name="Surfaces & depth" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin:0; padding:14px 16px; background:#fff; font-family:var(--font-ui); color:var(--text-1); }
+  .row { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .sw { display:flex; flex-direction:column; gap:5px; }
+  .chip { width:78px; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border-card); }
+  .n { font-size:9.5px; color:var(--text-2); line-height:1.35; }
+  .v { font-family:var(--font-mono); font-size:9px; color:var(--text-3); }
+
+</style>
+</head>
+<body>
+<div class="row" style="align-items:stretch">
+<div class="sw"><div class="chip" style="background:var(--surface-card);box-shadow:var(--lift-node)"></div><div class="n">a stop — raised</div><div class="v">--surface-card</div></div>
+<div class="sw"><div class="chip" style="background:var(--surface-well-1);box-shadow:var(--sink-well);border-color:var(--border-well)"></div><div class="n">group, depth 1</div><div class="v">--surface-well-1</div></div>
+<div class="sw"><div class="chip" style="background:var(--surface-well-2);box-shadow:var(--sink-well);border-color:var(--border-well)"></div><div class="n">group, depth 2</div><div class="v">--surface-well-2</div></div>
+<div class="sw"><div class="chip" style="background:var(--surface-well-3);box-shadow:var(--sink-well);border-color:var(--border-well)"></div><div class="n">group, depth 3</div><div class="v">--surface-well-3</div></div>
+<div class="sw"><div class="chip" style="background:var(--surface-well-4);box-shadow:var(--sink-well);border-color:var(--border-well)"></div><div class="n">group, depth 4</div><div class="v">--surface-well-4</div></div>
+<div class="sw"><div class="chip" style="background:var(--surface-pane)"></div><div class="n">pane</div><div class="v">--surface-pane</div></div>
+</div>
+</body>
+</html>

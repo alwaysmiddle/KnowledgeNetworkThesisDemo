@@ -19,9 +19,8 @@ The four authored relations are pedagogical, and named for what they mean:
 `depends_on` ("builds on" — the prerequisite backbone, a DAG, and the spine of
 a generated curriculum), `uses`, `see_also`, and `implemented_with`.
 
-The roadmap's earlier slices — a graph-model backend and PPTX import — are
-tracked in DocHub and have not started yet. There is currently no backend
-and no PPTX import in this repo.
+Two earlier roadmap slices — a graph-model backend and PPTX import — have not
+started. There is currently no backend and no PPTX import in this repo.
 
 ## Getting Started
 
@@ -41,22 +40,24 @@ KnowledgeNetworkThesisDemo/
 │   ├── studio/              # StudioView — the instrument palette + presets + sync bus
 │   ├── App.tsx, main.tsx
 │   └── index.css
-├── scripts/                 # deterministic verification scripts
+├── skills/                  # packaged procedures, and material mirrored in from outside
 ├── tools/*-spike/           # spike verification scripts + RESULTS.md write-ups
 └── package.json
 ```
 
-## Current Docs
+## Where things are written down
 
-The knowledge base lives in the sibling DocHub repository — goals, problems,
-ideas, decisions, specs, roadmap, and orchestration:
+This project keeps no single source of truth. What you need is spread across
+the sources that actually hold it:
 
-- `D:\ShiZhong\MyCode\DocHub\docs\knowledge-network-thesis-demo\`
-
-This repository holds app code and spike tooling only; DocHub is the source of
-truth. See its `progress/` section for spike
-write-ups (`EVoC-Auto-Clustering-Spike.md`, `Map-Tree-Walk-Navigation-Model.md`,
-`Relation-Graphs-Lens-and-Preset-Model.md`).
+- **GitHub issues and PRs** — in-flight work and the reasoning behind changes.
+- **The code and its comments** — the current model. The layout arithmetic in
+  `AuthorRoad.tsx` and the ops in `authordraft.ts` document themselves.
+- **`tools/*-spike/RESULTS.md`** — spike findings, beside the shots that
+  produced them.
+- **`skills/`** — packaged procedures, plus mirrors of external material such as
+  the Claude Design system under `skills/knowledge-network-studio-design/`
+  (see its `SYNC.md` for how to refresh it).
 
 ## Scripts
 
@@ -64,7 +65,6 @@ write-ups (`EVoC-Auto-Clustering-Spike.md`, `Map-Tree-Walk-Navigation-Model.md`,
 npm run dev
 npm run build
 npm run lint
-npm run spec-gate
 npm run verify
 ```
 
