@@ -1,0 +1,37 @@
+<!-- @dsCard group="Grammar" viewport="700x210" subtitle="A branch is the heaviest thing on the road — it should look it" name="Fork switch" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin:0; padding:14px 16px; background:#fff; font-family:var(--font-ui); color:var(--text-1); }
+  .row { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .sw { display:flex; flex-direction:column; gap:5px; }
+  .chip { width:78px; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border-card); }
+  .n { font-size:9.5px; color:var(--text-2); line-height:1.35; }
+  .v { font-family:var(--font-mono); font-size:9px; color:var(--text-3); }
+
+</style>
+</head>
+<body>
+<div class="row" style="gap:24px;align-items:flex-start">
+<div style="width:250px;border-radius:var(--radius-card);background:var(--surface-well-1);border:1px solid var(--border-well);box-shadow:var(--sink-well);padding:8px">
+  <div style="display:flex;align-items:center;gap:6px;font-size:var(--fs-title);font-weight:700"><span style="color:var(--road-live)">⥂</span> Depth of the crypto detour</div>
+  <div style="font-size:var(--fs-meta);font-style:italic;color:var(--road-question);margin-top:3px">How much cryptography does this class need?</div>
+  <div style="display:flex;gap:4px;margin-top:7px">
+    <div style="flex:1;padding:4px 6px;border-radius:var(--radius-sm);background:var(--amber-100);border:1px solid var(--amber-500);font-size:var(--fs-micro);font-weight:700;color:var(--amber-700)">● Deep dive <span style="font-weight:400">· 7</span></div>
+    <div style="flex:1;padding:4px 6px;border-radius:var(--radius-sm);background:#fff;border:1px solid var(--border-card);font-size:var(--fs-micro);color:var(--text-2)">○ Skim <span style="color:var(--text-3)">· 2</span></div>
+  </div>
+  <div style="margin-top:7px;height:22px;border-radius:var(--radius-pill);background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node)"></div>
+  <div style="margin-top:5px;height:22px;border-radius:var(--radius-pill);background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node)"></div>
+  <div style="margin-top:6px;border-top:1px dashed var(--border-dashed-optional);padding-top:5px;font-size:var(--fs-micro);color:var(--text-3)">Skim holds 2 stops, not shown</div>
+</div>
+<div style="max-width:320px;display:flex;flex-direction:column;gap:7px">
+<div class="n">Tabs carry a step count, so the cost of a branch is visible without switching to it.</div>
+<div class="n">A ghost line keeps the unchosen variant on the page instead of vanishing it.</div>
+<div class="n">Clicking a tab switches the branch. Focusing a tab’s label must NOT — in the as-built pane onFocus calls pickBranch, so a read gesture silently rewrites the plan.</div>
+</div>
+</div>
+</body>
+</html>

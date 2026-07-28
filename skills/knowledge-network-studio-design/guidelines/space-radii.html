@@ -1,0 +1,27 @@
+<!-- @dsCard group="Spacing" viewport="700x150" subtitle="Pill = a stop. Card = an open container. Nothing in between" name="Radii" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin:0; padding:14px 16px; background:#fff; font-family:var(--font-ui); color:var(--text-1); }
+  .row { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .sw { display:flex; flex-direction:column; gap:5px; }
+  .chip { width:78px; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border-card); }
+  .n { font-size:9.5px; color:var(--text-2); line-height:1.35; }
+  .v { font-family:var(--font-mono); font-size:9px; color:var(--text-3); }
+
+</style>
+</head>
+<body>
+<div class="row" style="align-items:flex-end">
+<div class="sw"><div style="width:78px;height:34px;background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node);border-radius:var(--radius-pill)"></div><div class="n">a stop</div><div class="v">9999px</div></div>
+<div class="sw"><div style="width:78px;height:34px;background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node);border-radius:var(--radius-card)"></div><div class="n">open container</div><div class="v">16px</div></div>
+<div class="sw"><div style="width:78px;height:34px;background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node);border-radius:var(--radius-sel)"></div><div class="n">selection box</div><div class="v">12px</div></div>
+<div class="sw"><div style="width:78px;height:34px;background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node);border-radius:var(--radius-md)"></div><div class="n">menus, zones</div><div class="v">8px</div></div>
+<div class="sw"><div style="width:78px;height:34px;background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node);border-radius:var(--radius-sm)"></div><div class="n">buttons, tabs</div><div class="v">4px</div></div>
+<div class="sw"><div style="width:78px;height:34px;background:var(--surface-card);border:1px solid var(--border-card);box-shadow:var(--lift-node);border-radius:var(--radius-xs)"></div><div class="n">rename field</div><div class="v">2px</div></div>
+</div>
+</body>
+</html>

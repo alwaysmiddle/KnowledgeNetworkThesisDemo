@@ -1,0 +1,30 @@
+<!-- @dsCard group="Grammar" viewport="700x190" subtitle="Same three slots on every block: status · title · menu. Actions never live in the title row" name="Anatomy zones" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin:0; padding:14px 16px; background:#fff; font-family:var(--font-ui); color:var(--text-1); }
+  .row { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .sw { display:flex; flex-direction:column; gap:5px; }
+  .chip { width:78px; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border-card); }
+  .n { font-size:9.5px; color:var(--text-2); line-height:1.35; }
+  .v { font-family:var(--font-mono); font-size:9px; color:var(--text-3); }
+
+</style>
+</head>
+<body>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="position:relative;width:340px;height:34px;border-radius:var(--radius-pill);background:var(--surface-card);border:2px solid var(--domain-cs);box-shadow:var(--lift-node);display:flex;align-items:center;padding:0 4px 0 6px;gap:6px">
+  <span style="width:18px;display:flex;justify-content:center"><span style="width:16px;height:16px;border-radius:50%;background:var(--road-badge);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">7</span></span>
+  <span style="flex:1;font-size:var(--fs-label);font-weight:600;color:var(--domain-cs)">Public-key cryptography</span>
+  <span style="width:18px;text-align:center;color:var(--text-3);font-size:11px">⋯</span>
+</div>
+<div class="row" style="gap:0;width:340px">
+  <div style="width:24px" class="v">18px</div><div style="flex:1" class="v">title — the only thing that grows</div><div style="width:60px;text-align:right" class="v">18px</div>
+</div>
+<div class="n" style="max-width:620px">Left gutter carries STATUS only — the step number, ◇ optional, ⥂ fork, ↺ revisit. Right slot is a single ⋯ that appears on hover and opens every action. The as-built header instead stacks ✎ ⥂ ◇ ⋮⋮ permanently at 9–11px, four affordances competing with the title.</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+/* SPACING & GEOMETRY — the road's layout arithmetic is the spacing system.
+   Every --road-* value is a live constant from
+   src/instruments/walkdesk/AuthorRoad.tsx (or RailroadView.tsx for the rail).
+   Change one here and change it there; the layout is measure-free, so these
+   numbers ARE the layout. */
+:root {
+  /* generic scale (Tailwind steps actually used in walkdesk/) */
+  --space-05: 2px;
+  --space-1: 4px;
+  --space-15: 6px;
+  --space-2: 8px;
+  --space-25: 10px;
+  --space-3: 12px;
+  --space-4: 16px;
+
+  /* ── road geometry (AuthorRoad.tsx) ─────────────────────────────────── */
+  --road-node-w: 150px;      /* NODEW */
+  --road-node-h: 34px;       /* NODEH */
+  --road-gap: 26px;          /* AGAP — the arrow lives in this gap */
+  --road-pad: 10px;          /* PAD — a container's inner padding */
+  --road-head-h: 28px;       /* HEAD — container header row */
+  --road-margin: 16px;       /* MARGIN — board margin */
+  --road-question-h: 18px;   /* QUESTION_H — fork question line */
+  --road-tab-h: 22px;        /* TAB_H — variant tab strip */
+  --road-empty-body-h: 30px; /* EMPTY_BODY_H — "drop steps here" zone */
+  --road-slot-h: 18px;       /* SLOTH — between-node drop catch height */
+  --road-sel-pad: 7px;       /* SELPAD — selection box breathing room */
+  --road-bar-row-h: 26px;    /* BAR_ROW_H — action toolbar row */
+  --road-bar-one-line-w: 350px; /* BAR_ONE_LINE_W — wrap threshold */
+  --rail-w: 186px;           /* RAIL_W — projected-route column */
+
+  /* proposed additions for the redesign (readme ▸ Anatomy) */
+  --road-gutter-w: 18px;     /* fixed status gutter, left of every title */
+  --road-menu-w: 18px;       /* hover-only ⋯ affordance, right of every title */
+  --road-hit-min: 24px;      /* minimum square for any clickable road control */
+  --rail-step-w: 30px;       /* the rail's number column — wider than the road's
+                                gutter because a collapsed group shows a RANGE
+                                ("1–12"), not a single circular badge */
+
+  /* ── radii (as used) ────────────────────────────────────────────────── */
+  --radius-pill: 9999px;     /* rounded-full — leaf stops, collapsed pills */
+  --radius-card: 16px;       /* rounded-2xl — open container card */
+  --radius-sel: 12px;        /* rounded-xl — selection box */
+  --radius-md: 8px;          /* rounded-lg — menus, toolbars, drop zones */
+  --radius-sm: 4px;          /* rounded — buttons, tabs, drop marks */
+  --radius-xs: 2px;          /* rounded-sm — inline rename field */
+
+  /* ── strokes ────────────────────────────────────────────────────────── */
+  --stroke-hair: 1px;
+  --stroke-node: 2px;        /* border-2 on every stop */
+  --stroke-road-live: 2.5px;
+  --stroke-road-ghost: 1.5px;
+  --stroke-bypass-ghost: 1.2px;
+  --stroke-drop-line: 3px;
+  --dash-ghost: 4 3;         /* off-road arrow */
+  --dash-bypass: 3 3;        /* inactive bypass rail */
+}

@@ -1,0 +1,23 @@
+/* MOTION — from src/index.css and the walkdesk transition utilities.
+   The principle in the repo's own words: a relayout should be legible ("nodes
+   visibly make room") rather than a teleport. Nothing bounces. */
+:root {
+  --dur-trace: 180ms;     /* edge opacity/width on link tracing */
+  --dur-move: 200ms;      /* a block's left/top/width/height after an edit */
+  --dur-fade: 250ms;      /* node opacity */
+  --dur-enter: 280ms;     /* scope-change entrance */
+  --dur-relayout: 300ms;  /* expand/collapse transform */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);  /* ease-out */
+  --ease-inout: ease;
+
+  --transition-block: left var(--dur-move) var(--ease-out),
+                      top var(--dur-move) var(--ease-out),
+                      width var(--dur-move) var(--ease-out),
+                      height var(--dur-move) var(--ease-out);
+  --transition-trace: opacity var(--dur-trace) ease, stroke-width var(--dur-trace) ease;
+}
+
+@keyframes drill-down { from { opacity: 0; transform: scale(0.82); } }
+@keyframes drill-up { from { opacity: 0; transform: scale(1.18); } }
+@keyframes drill-left { from { opacity: 0; transform: translateX(-90px); } }
+@keyframes drill-right { from { opacity: 0; transform: translateX(90px); } }

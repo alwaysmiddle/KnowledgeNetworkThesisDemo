@@ -1,0 +1,130 @@
+/* COLORS — as-built from the repo, plus semantic aliases that carry the
+   containment grammar (elevation, not hue).
+
+   Sources:
+   - src/corpus/graph.ts  DOMAIN_COLOR, EDGE_COLOR, MIXED_EDGE_COLOR (authored hex)
+   - src/instruments/walkdesk/*  Tailwind v4 utility classes (slate/green/amber/blue/sky/rose)
+   - AuthorRoad.tsx  #d97706 (amber-600) live road, #94a3b8 (slate-400) ghost road
+*/
+:root {
+  /* ── Domain identity — AUTHORED, do not derive or round ─────────────── */
+  --domain-sys: #008300;   /* hardware, PCB */
+  --domain-math: #4a3aa7;  /* abstraction */
+  --domain-cs: #2a78d6;    /* the core */
+  --domain-net: #0891b2;   /* comms */
+  --domain-sec: #eda100;   /* caution */
+  --domain-se: #1baf7a;    /* shipping */
+
+  /* Derived swatch roles produced by src/model/color.ts in OKLCH.
+     Recompute per node with colorOf/fillOf/inkOf/inkStrongOf — these are the
+     documented recipes, not substitutes. */
+  --swatch-anchor-fallback: #64748b;
+  --swatch-fill-fallback: #e2e8f0;
+  --swatch-ink-fallback: #334155;
+  --swatch-ink-strong-fallback: #1e2530;
+  --swatch-fill-l: 0.905;   /* oklch L for a pale country fill */
+  --swatch-fill-c: 0.058;
+  --swatch-ink-l: 0.42;
+  --swatch-ink-c: 0.1;
+  --swatch-ink-strong-l: 0.30;
+  --swatch-ink-strong-c: 0.04;
+
+  /* ── Edge kinds ─────────────────────────────────────────────────────── */
+  --edge-depends-on: #94a3b8;       /* the quiet backbone */
+  --edge-uses: #eb6834;
+  --edge-see-also: #e87ba4;
+  --edge-implemented-with: #e34948;
+  --edge-mixed: #64748b;
+
+  /* ── Neutral ramp (Tailwind slate — the Studio's chrome) ─────────────── */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+
+  /* ── Accent ramps as used ───────────────────────────────────────────── */
+  --amber-50: #fffbeb;
+  --amber-100: #fef3c7;
+  --amber-300: #fcd34d;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+  --green-50: #f0fdf4;
+  --green-100: #dcfce7;
+  --green-200: #bbf7d0;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-800: #166534;
+  --blue-100: #dbeafe;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --sky-300: #7dd3fc;
+  --rose-50: #fff1f2;
+  --rose-600: #e11d48;
+
+  /* ── Surfaces — containment reads as DEPTH ──────────────────────────── */
+  --surface-desk: #f8fafc;              /* the studio behind the panes */
+  --surface-pane: color-mix(in srgb, var(--slate-50) 50%, #fff);
+  --surface-card: #ffffff;              /* a NODE: raised, always white */
+  --surface-card-hover: #fdfefe;
+  --surface-inset: rgba(255, 255, 255, 0.6);
+
+  /* a GROUP: recessed. Tint darkens one step per nesting depth, unbounded —
+     depth 4+ clamps to well-4 and relies on the inset shadow to keep reading. */
+  --surface-well-1: #eef2f6;
+  --surface-well-2: #e7ecf2;
+  --surface-well-3: #dfe6ee;
+  --surface-well-4: #d8e0ea;
+
+  /* ── Borders ────────────────────────────────────────────────────────── */
+  --border-hairline: var(--slate-100);  /* pane divisions */
+  --border-rule: var(--slate-200);      /* rail / pane edges */
+  --border-card: rgba(51, 65, 85, 0.20);
+  --border-card-hover: rgba(51, 65, 85, 0.34);
+  --border-well: rgba(51, 65, 85, 0.16);
+  /* the collapsed-group stack: the ONLY cue separating a folded group from a
+     leaf, so it gets a stronger edge than an open well's */
+  --border-well-strong: rgba(51, 65, 85, 0.30);
+  --border-dashed-optional: var(--slate-300);
+
+  /* ── Ink ────────────────────────────────────────────────────────────── */
+  --text-1: var(--slate-700);
+  --text-2: var(--slate-500);
+  --text-3: var(--slate-400);
+  --text-inverse: #ffffff;
+
+  /* ── The road ───────────────────────────────────────────────────────── */
+  --road-live: var(--amber-600);        /* on-road arrow, bypass in effect */
+  --road-ghost: var(--slate-400);       /* off-road / skipped */
+  --road-badge: var(--amber-500);       /* the step-number chip */
+  --road-badge-ink: #ffffff;
+  --road-question: var(--amber-700);    /* a fork's question line */
+  --road-question-placeholder: var(--amber-300);
+
+  /* ── Containers (legacy hue signal — kept for continuity, demoted) ──── */
+  --container-accent: var(--green-600);
+  --container-ink: var(--green-800);
+  --container-wash: var(--green-50);
+
+  /* ── State ──────────────────────────────────────────────────────────── */
+  --state-selected: var(--blue-500);
+  --state-selected-wash: var(--blue-100);
+  --state-marquee: var(--blue-400);
+  --state-linked: var(--sky-300);       /* cross-pane hover correspondence */
+  --state-danger: var(--rose-600);
+  --state-danger-wash: var(--rose-50);
+  --state-optional: var(--amber-400);
+
+  /* ── Drag mode ──────────────────────────────────────────────────────── */
+  --drop-line: var(--amber-500);
+  --drop-zone-border: var(--slate-300);
+  --drop-zone-wash: rgba(255, 255, 255, 0.6);
+  --drop-inside-ring: var(--green-500);
+}
