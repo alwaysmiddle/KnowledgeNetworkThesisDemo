@@ -6,40 +6,38 @@ navigation instruments.
 
 Its scope is the **teaching domain** of the knowledge network, iterated
 independently of the coding and infrastructure projects. The coder-shaped
-framing has been removed: there is no Coding preset and no `npm run map`
-architecture generator. The corpus's four relations are pedagogical
-(`depends_on`, `uses`, `see_also`, `implemented_with`), with `depends_on` — the
-prerequisite backbone — as the spine of a generated curriculum.
+framing has been removed: there is no Coding preset and no architecture-map
+generator. The corpus's four relations are pedagogical (`depends_on`, `uses`,
+`see_also`, `implemented_with`), with `depends_on` — the prerequisite backbone —
+as the spine of a generated curriculum.
 
-**The knowledge base is NOT in this repo — it lives in the DocHub project.**
-DocHub (`D:\ShiZhong\MyCode\DocHub`, a Docusaurus site) is the single source of
-truth for goals, problems, ideas, decisions, specs, the roadmap, and the
-orchestration design, under `docs/knowledge-network-thesis-demo/`. The `wiki/`
-folder in THIS repo is **deprecated** — its content was migrated into DocHub and
-it should not be edited. When this file or the old `wiki/` disagree with DocHub,
-trust DocHub.
+## Where the knowledge lives
 
-## Session Start
+There is **no single source of truth**, deliberately. A knowledge network that
+can only read one repository is not a knowledge network. Context for this
+project is assembled from whichever sources actually hold it:
 
-Read, in the DocHub project (`docs/knowledge-network-thesis-demo/`):
+| Source | Holds |
+| --- | --- |
+| GitHub issues and PRs | in-flight work, why a change was made, what was tried and rejected |
+| the code and its comments | the current model — the ops in `authordraft.ts`, the layout arithmetic in `AuthorRoad.tsx` |
+| `tools/*-spike/RESULTS.md` | spike findings, next to the shots that produced them |
+| `skills/` | packaged procedures, and material mirrored in from outside |
 
-1. `index.md` — wiki index and the document pipeline.
-2. `goals/Goal-Map.md` — the root Goal and its decomposition (the entry point).
-3. `Roadmap.md` — product milestone slices (docs-reset → presentation-preview) and infrastructure phases.
-4. `Orchestration.md` — how LangGraph + the agents drive the loop (current MVP).
-5. The relevant page under `goals/`, `problems/`, `ideas/`, `decisions/`, or
-   `specs/` for the slice being worked.
+Read the sources the task actually touches. Do not assume any one of them is
+complete, and do not treat a page as authoritative just because it is written
+down — when a document and the code disagree, the code and the issue thread win
+unless the document records a decision that has not been implemented yet.
 
-DocHub enforces its own conventions: `scripts/validate-docs.mjs` is the
-verifier (run it before declaring any doc change done), and the `write-goal-page`
-skill is the authoring guide. Author knowledge docs there, not here.
+## Session start
+
+1. Skim the open issues covering the area you are about to touch.
+2. Read the files the task names, plus their neighbours in the same folder.
+3. If a spike covers the area, read its `RESULTS.md` before re-deriving it.
 
 ## This repo's role
 
 - The app code (`src/`) and the spike tooling under `tools/`.
 - Agents open PRs here.
-- Do **not** author knowledge/design docs in this repo.
-
-## Deprecated
-
-- `wiki/` — migrated into DocHub. Retained only for history; do not edit.
+- Verification is self-contained: `npm run verify` runs typecheck, lint, and
+  tests, and reaches outside this repository for nothing.

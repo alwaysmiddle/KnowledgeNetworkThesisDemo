@@ -1,7 +1,6 @@
 name: code-verify
 
-# Knowledge docs live in DocHub. This repository verifies the app code only;
-# generated DocHub reconciliation is handled by the orchestration workflow.
+# Verifies the app code, and nothing outside this repository.
 
 on:
   push:
