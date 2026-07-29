@@ -4,15 +4,17 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   4eb5cca
+commit:   0f5bf39
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
 
-**Stale for your specimens (`4eb5cca`, #15):** the amber walk-order step badge
-(`bg-amber-500`, the round number on road leaves) is **retired** — any card that
-shows it is out of date. Every node now carries a slate outline number
-(`1.`, `2.`, `2.1.`) left of its title, and a leaf's title is **centre-aligned**.
+**Stale for your specimens (#15):** the amber walk-order step badge (`bg-amber-500`,
+the round number on road leaves) is **retired** (`4eb5cca`) — every node now carries
+a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's title is
+**centre-aligned**. The always-on header `✎` and `⋮⋮` are **gone** (`0f5bf39`): rename,
+an item-count circle, minimise/maximise and close now live in a hover/select
+**browser bar** at each node's top-right; the header still drags.
 
 Clean on top of that commit for everything below. Still dirty and NOT part of
 this build: `tools/walk-tiers-spike/shots.mjs` and an untracked
@@ -77,10 +79,15 @@ CORE of the study — D1, D3, D5, D10 — is in.
   same `placeList` traversal. A leaf's title now centres; a fork's two columns each
   restart at `n.1` (parallel alternatives). The multi-select action toolbar moved
   to the **left** of the selection (was above/below), stacking vertical on a narrow
-  road. Still open on #15: the per-node browser bar (counter / minimise-maximise /
-  close), item counter, per-node close, jiggle-on-hover, description text, the
-  right-pane simple/complex toggle, scrollbars. #15's "active = green" is superseded
-  by `0006`'s light-blue.
+  road. #15's "active = green" is superseded by `0006`'s light-blue.
+- **#15 · per-node browser bar** (`0f5bf39`). Each node gains a hover/select
+  top-right cluster (additive — the multi-select toolbar stays). Open container:
+  count · rename · minimise · close. Collapsed pill: count · maximise · close.
+  Leaf: close. Count = the ACTIVE version's step count in a round unfilled circle.
+  Close ungroups a plain group (keeps its steps); on a fork it opens a guard popup
+  rather than silently dropping the other versions. Still open on #15:
+  jiggle-on-hover, description text under titles, the right-pane simple/complex
+  toggle, and the no-bezel scrollbars.
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
