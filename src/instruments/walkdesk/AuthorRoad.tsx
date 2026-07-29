@@ -48,6 +48,21 @@ const SELPAD = 7 // breathing room the selection box leaves around its members
 const BAR_ONE_LINE_W = 430
 const BAR_ROW_H = 26
 
+// Elevation grammar (0005 D1 + tokens/elevation.css + tokens/colors.css):
+// containment reads as DEPTH, not hue. A leaf is flat; an OPEN container is a
+// recessed WELL whose surface darkens one step per nesting level; a SHUT
+// container is the one persistently-raised thing, with stacked silhouettes
+// behind it. These mirror the design tokens as STRINGS — so the numeric
+// spacing-parity test (tokens.test.ts) does not cover them, and Job B (wiring
+// color/elevation through a Tailwind @theme block) is what will make them a
+// single source. Until then this block is the one place they live in the code.
+const WELL_FILL = ['#eef2f6', '#e7ecf2', '#dfe6ee', '#d8e0ea'] // --surface-well-1..4
+const wellFill = (depth: number): string => WELL_FILL[Math.min(depth, WELL_FILL.length - 1)]
+const SINK_WELL = 'inset 0 1px 3px rgba(30, 41, 59, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5)' // --sink-well
+const LIFT_NODE = '0 1px 2px rgba(30, 41, 59, 0.10), 0 6px 14px -10px rgba(30, 41, 59, 0.35)' // --lift-node
+const BORDER_WELL = 'rgba(51, 65, 85, 0.16)' // --border-well — an open well's hairline edge
+const BORDER_WELL_STRONG = 'rgba(51, 65, 85, 0.30)' // --border-well-strong — the shut group's stronger edge
+
 /** the visibility key for one variant of one fork — the id the bottom namecard
  * bar toggles. Absent from the `hidden` set means the column is shown. */
 const visKey = (s: Stop, k: number): string => `${s.key!}.${k}`
@@ -88,6 +103,10 @@ interface Placed {
   order?: number
   onRoad: boolean
   skipped: boolean
+  /** container nesting depth (0 at the board's top level, +1 per open container
+   * we recurse into) — drives the recessed well's per-level surface tint. Counts
+   * containers, NOT path hops: a fork's columns are the same well, not deeper. */
+  depth: number
   /** an expanded container's per-variant column boxes, in variant order — the
    * render pass reads these to place column headers and empty-column drop zones */
   cols?: Col[]
@@ -146,7 +165,7 @@ function layoutRoad(
   const slots: Slot[] = []
   const ctr = { n: 0 }
 
-  const placeList = (list: Stop[], parent: Path, centerX: number, y0: number, onRoad: boolean) => {
+  const placeList = (list: Stop[], parent: Path, centerX: number, y0: number, onRoad: boolean, depth: number) => {
     let y = y0
     let prevBottom: number | null = null
     let prevSkipped = false
@@ -168,12 +187,12 @@ function layoutRoad(
         })
       if (isLeaf(s)) {
         const order = onRoad && !skipped ? ++ctr.n : undefined
-        items.push({ path: p, stop: s, x, y, w, h, order, onRoad, skipped })
+        items.push({ path: p, stop: s, x, y, w, h, order, onRoad, skipped, depth })
       } else if (collapsed.has(s.key!)) {
-        items.push({ path: p, stop: s, x, y, w, h, onRoad, skipped })
+        items.push({ path: p, stop: s, x, y, w, h, onRoad, skipped, depth })
       } else {
         const cols = m.cols!
-        items.push({ path: p, stop: s, x, y, w, h, onRoad, skipped, cols })
+        items.push({ path: p, stop: s, x, y, w, h, onRoad, skipped, depth, cols })
         // lay each SHOWN variant out as its own column, centered as a group under
         // the card. Only the CHOSEN column is the road (live arrows, order
         // numbers); the rest pass onRoad=false, so the same dim/ghost machinery a
@@ -187,7 +206,7 @@ function layoutRoad(
         vis.forEach((k, ci) => {
           const cw = cols[ci].w
           const steps = s.variants[k].steps
-          if (steps.length) placeList(steps, [...p, k], cx + cw / 2, top, onRoad && !skipped && k === chosen)
+          if (steps.length) placeList(steps, [...p, k], cx + cw / 2, top, onRoad && !skipped && k === chosen, depth + 1)
           cx += cw + COLGAP
         })
       }
@@ -200,7 +219,7 @@ function layoutRoad(
   }
 
   const W = Math.max(NODEW, ...stops.map((s) => measure(s).w)) + 2 * MARGIN
-  placeList(stops, [], W / 2, MARGIN, true)
+  placeList(stops, [], W / 2, MARGIN, true, 0)
   const bottoms = items.map((it) => it.y + it.h)
   const H = (bottoms.length ? Math.max(...bottoms) : 0) + MARGIN
   return { items, arrows, bypasses, slots, W, H }
@@ -493,7 +512,20 @@ export default function AuthorRoad({
 
             // a container — collapsed to a pill
             if (collapsed.has(s.key!)) {
-              return (
+              // D1 (0005): a SHUT group is the only persistently-RAISED thing on
+              // the road — it behaves as one stop, so it lifts (--lift-node). An
+              // open well, by contrast, is recessed and casts nothing.
+              // D2 (0005): behind the pill, two stacked silhouettes peek out
+              // down-right (within --road-hatch = 6px) so a fold reads as a FOLDED
+              // STACK, not a leaf, without opening it. The plates are decorative —
+              // no gestures, no data, pointer-events-none so the peeking corner
+              // never steals the double-click — and they ride the same relayout
+              // transition as the pill so the stack moves as one.
+              const plate = 'absolute rounded-full border pointer-events-none transition-[left,top,width,height] duration-200 ease-out'
+              const plateStyle = { width: pl.w, height: pl.h, background: '#fff', borderColor: BORDER_WELL_STRONG, zIndex: 20 }
+              return [
+                <div key={`${key}-p2`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 5, top: pl.y + 5 }} />,
+                <div key={`${key}-p1`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 2.5, top: pl.y + 2.5 }} />,
                 <div
                   key={key}
                   {...gestures(pl)}
@@ -504,11 +536,9 @@ export default function AuthorRoad({
                   }}
                   title="double-click to open"
                   className={[
-                    // D1 (0005): a SHUT group is the only persistently-raised thing
-                    // on the road — it behaves as one stop, so it should look
-                    // liftable (--lift-node ~ shadow-md). An open card, by contrast,
-                    // is recessed and casts nothing.
-                    'absolute z-20 rounded-full border-2 border-green-500 bg-green-50 px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-green-800 cursor-grab shadow-md',
+                    // neutral white, raised, a stronger neutral edge than an open
+                    // well's — depth + the stack say "group", not green.
+                    'absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
                     'transition-[left,top,width,height] duration-200 ease-out',
                     // D10 (0005): an optional stop is drawn EXACTLY like any other —
                     // no dashed edge. A dash reads as emphasis, backwards for a stop
@@ -516,9 +546,9 @@ export default function AuthorRoad({
                     // badge carry optionality; optionality is a fact about the ROUTE,
                     // not the stop.
                     dim,
-                    isSelected ? 'ring-2 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-green-100',
+                    isSelected ? 'ring-2 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
                   ].join(' ')}
-                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
+                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: BORDER_WELL_STRONG, boxShadow: LIFT_NODE }}
                 >
                   <span className="truncate">{s.title}</span>
                   {isFork(s) && (
@@ -528,9 +558,9 @@ export default function AuthorRoad({
                       · {s.variants[chosenIdx(s, choices)]?.label || `V${chosenIdx(s, choices) + 1}`}
                     </span>
                   )}
-                  <span className="font-normal text-green-600 whitespace-nowrap">{visitCount(s)}</span>
-                </div>
-              )
+                  <span className="font-normal text-slate-400 whitespace-nowrap">{visitCount(s)}</span>
+                </div>,
+              ]
             }
 
             // a container — the OPEN card. A plain group and a collapsed fork are
@@ -574,10 +604,23 @@ export default function AuthorRoad({
                   toggle(s.key!)
                 }}
                 title="double-click to close · ✎ renames"
-                // D10: an optional OPEN card is drawn like any other card; the
-                // bypass rail around it says the road may skip it.
-                className={['absolute rounded-2xl border-2 border-green-500 bg-green-50/50 cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
-                style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
+                // Elevation grammar (0005 D1): an OPEN container is RECESSED — a
+                // well sunk into the board, not a green-tinted card. Its surface
+                // darkens one step per nesting depth (wellFill) and it carries the
+                // inset --sink-well shadow, so containment reads as depth and keeps
+                // reading when wells nest. The green border/wash is retired; a
+                // neutral hairline is all an open well needs. D10: an optional open
+                // card is drawn like any other — the bypass rail says it may skip.
+                className={['absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
+                style={{
+                  left: pl.x,
+                  top: pl.y,
+                  width: pl.w,
+                  height: pl.h,
+                  background: wellFill(pl.depth),
+                  borderColor: BORDER_WELL,
+                  boxShadow: SINK_WELL,
+                }}
               >
                 <div
                   {...gestures(pl)}
@@ -597,10 +640,10 @@ export default function AuthorRoad({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === 'Escape') setEditKey(null)
                       }}
-                      className="text-[10.5px] font-bold text-green-800 bg-white border-b border-green-500 outline-none flex-1 min-w-0 px-0.5 rounded-sm"
+                      className="text-[10.5px] font-bold text-slate-700 bg-white border-b border-slate-400 outline-none flex-1 min-w-0 px-0.5 rounded-sm"
                     />
                   ) : (
-                    <span data-rtitle={s.key} className="text-[10.5px] font-bold text-green-800 truncate flex-1 min-w-0">
+                    <span data-rtitle={s.key} className="text-[10.5px] font-bold text-slate-700 truncate flex-1 min-w-0">
                       {s.title}
                     </span>
                   )}
@@ -613,7 +656,7 @@ export default function AuthorRoad({
                     }}
                     onDoubleClick={(e) => e.stopPropagation()}
                     title={editing ? 'done renaming' : 'rename this group'}
-                    className={['shrink-0 text-[10px] leading-none px-1 py-0.5 rounded', editing ? 'text-white bg-green-600' : 'text-green-600 hover:bg-green-200'].join(' ')}
+                    className={['shrink-0 text-[10px] leading-none px-1 py-0.5 rounded', editing ? 'text-white bg-slate-600' : 'text-slate-500 hover:bg-slate-200'].join(' ')}
                   >
                     {editing ? '✓' : '✎'}
                   </button>
@@ -621,7 +664,7 @@ export default function AuthorRoad({
                       (0006): forking is a toolbar button now, and a fork always
                       shows its visible columns — visibility lives in the bottom
                       namecard bar, not an all-or-nothing fan. */}
-                  {s.optional && <span className="text-[9px] text-green-600">◇</span>}
+                  {s.optional && <span className="text-[9px] text-slate-400">◇</span>}
                   <span data-rgrab={s.key} className="text-[10px] text-slate-300 select-none px-0.5">
                     ⋮⋮
                   </span>
