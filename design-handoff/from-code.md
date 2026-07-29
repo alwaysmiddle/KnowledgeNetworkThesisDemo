@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   34176772cd40202d6cb583b5132e550f81e3e163
+commit:   ce08f093fedd566aad04053d69902370042a2522
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -36,6 +36,16 @@ CORE of the study — D1, D3, D5, D10 — is in.
   tokenised, now the sole signal) + the ◇ gutter badge carry optionality.
   Optionals on → through-arrow live, bypass ghost-dashed; off → they swap and the
   stop dims 50%. Verified in both toggle states, and for optional groups.
+- **D9 · the walk as a slide-in chaptered preview** (`ce08f09`). The always-on
+  FringeRail is retired; a `▶ read the walk` trigger slides a 344px pane in from
+  the right that OVERLAYS the road (no reflow), fading it to 30%. `WalkPreview.tsx`
+  renders `resolveRoad()` as a book: top-level group → chapter (hairline, 26px air,
+  `chapter n · stops a–b`, 17px title); nested group → softer (dashed hairline, 20px
+  indent); a fork names its chosen version once in the section line; a stop is
+  `number · domain dot · title`, no chip/border/rail; a chapterless top-level leaf
+  runs on as a coda. No hover correspondence crosses in — the one purely-read
+  surface, so it takes no bus. `PREVIEW_W` 344 replaces the retired `RAIL_W` in the
+  parity guard.
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
@@ -59,8 +69,9 @@ teaching corpus, so they are held rather than built blind:
 
 ## Still to build
 
-- **D9 · the 344px slide-in preview / chapters** (`--preview-w` 344) in
-  `RailroadView.tsx`. The one remaining panel from the study. Not started.
+Nothing. `0005` is fully built except the two deferred layout-affecting items
+above (D2 hatch, D10 optional-group clearance) — both held for want of a
+manifestation in the corpus, not overlooked.
 
 ## Channel
 
@@ -83,4 +94,5 @@ inside the project is therefore not maintained; this file is the live status.
 
 `0001`–`0003` are answered in substance by this file and `0006`; their code-side
 asks have all landed (parity guard, `onFocus` fix, `CLAUDE.md` merge). `0005` is
-built except D9 and the two deferred items above. `0007` is the next free id.
+built end to end (D1–D10) except the two deferred layout items. `0007` is the
+next free id.
