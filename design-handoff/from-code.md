@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   0f5bf39
+commit:   0600eb1
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -12,9 +12,14 @@ date:     2026-07-29
 **Stale for your specimens (#15):** the amber walk-order step badge (`bg-amber-500`,
 the round number on road leaves) is **retired** (`4eb5cca`) — every node now carries
 a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's title is
-**centre-aligned**. The always-on header `✎` and `⋮⋮` are **gone** (`0f5bf39`): rename,
-an item-count circle, minimise/maximise and close now live in a hover/select
-**browser bar** at each node's top-right; the header still drags.
+**centre-aligned**. The always-on header `✎` and `⋮⋮` are **gone**: an item-count
+circle, minimise/maximise and close live in a hover/select **browser bar** at each
+node's top-right; the header still drags. As of `0600eb1` **rename is no longer a
+browser-bar button** — you rename an open card by **clicking its title** (cursor-text
+on hover). Two more `0600eb1` changes: **double-click no longer collapses** an open
+card (minimise is the browser-bar `—` button only; double-click still *expands* a
+collapsed pill), and the multi-select **action toolbar is a fixed left-edge vertical
+dock** (`left: 4px`), no longer anchored above/below the selection.
 
 Clean on top of that commit for everything below. Still dirty and NOT part of
 this build: `tools/walk-tiers-spike/shots.mjs` and an untracked
@@ -80,21 +85,31 @@ CORE of the study — D1, D3, D5, D10 — is in.
   restart at `n.1` (parallel alternatives). The multi-select action toolbar moved
   to the **left** of the selection (was above/below), stacking vertical on a narrow
   road. #15's "active = green" is superseded by `0006`'s light-blue.
-- **#15 · per-node browser bar** (`0f5bf39`). Each node gains a hover/select
-  top-right cluster (additive — the multi-select toolbar stays). Open container:
-  count · rename · minimise · close. Collapsed pill: count · maximise · close.
+- **#15 · per-node browser bar** (`0f5bf39`, revised `0600eb1`). Each node gains a
+  hover/select top-right cluster (additive — the multi-select toolbar stays). Open
+  container: count · minimise · close. Collapsed pill: count · maximise · close.
   Leaf: close. Count = the ACTIVE version's step count in a round unfilled circle.
   Close ungroups a plain group (keeps its steps); on a fork it opens a guard popup
-  rather than silently dropping the other versions. Still open on #15:
-  jiggle-on-hover, description text under titles, the right-pane simple/complex
-  toggle, and the no-bezel scrollbars.
+  rather than silently dropping the other versions. (Rename left the bar in
+  `0600eb1` — it is title-click now.)
+- **#15 · title-click rename, minimise-by-button, left toolbar, g/Ctrl+g**
+  (`0600eb1`). Rename is click-the-title, not a `✎`. Collapsing an open card is the
+  browser-bar `—` only (the double-click-to-collapse gesture is gone; double-click
+  still expands a shut pill). The multi-select toolbar is a fixed left-edge vertical
+  strip. After a selection, `g` groups a contiguous sibling run and `Ctrl+g`
+  ungroups a single plain container (both guarded off text inputs); each shows a
+  hint badge (`G` / `Ctrl+G`) after ~1s hovering its button. The retired wrap
+  constant `BAR_ONE_LINE_W` took its `--road-bar-one-line-w` token with it.
+  Still open on #15: **jiggle-on-hover** and **description text under titles** (the
+  right-pane toggle and the scrollbars were struck from the issue on 2026-07-29).
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
   your six-constant table.
 - **the protocol** merged into `CLAUDE.md` (`0767f9f`).
 
-`npm run verify` (typecheck + lint + 164 tests) is green at each commit.
+`npm run verify` (typecheck + lint + 163 tests) is green at each commit. (164 → 163
+at `0600eb1`: retiring `BAR_ONE_LINE_W` removed exactly its one parity test.)
 
 ## Deferred — recorded, not dropped
 
