@@ -124,3 +124,61 @@ describe('the road\'s layout constants and the design tokens are one number', ()
     expect(shipped, 'these landed — move them from PROPOSED into BOUND').toEqual([])
   })
 })
+
+// ── The containment-grammar surfaces (#44) ──────────────────────────────────
+// Spacing is a mirror of NUMBERS between the token file and the TSX. Elevation,
+// surface and border are STRINGS (shadows, rgba, hex), and until #44 they lived
+// in THREE places: the design mirror, hardcoded utility classes, and a set of
+// string consts in AuthorRoad.tsx — invisible to the numeric guard above, so
+// free to drift. #44 wired them: the values live once in src/index.css (@theme),
+// the TSX consumes them as var(--…). This guards the one remaining seam — that
+// the wired block still agrees with the design agent's authored mirror.
+
+/** every `--name: value;` custom property, value whitespace-normalised */
+function props(css: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const m of css.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) out.set(m[1], m[2].trim().replace(/\s+/g, ' '))
+  return out
+}
+
+// each wired token → the mirror file that is its authoritative source
+const WIRED: Record<string, 'colors' | 'elevation'> = {
+  '--surface-well-1': 'colors',
+  '--surface-well-2': 'colors',
+  '--surface-well-3': 'colors',
+  '--surface-well-4': 'colors',
+  '--border-well': 'colors',
+  '--border-well-strong': 'colors',
+  '--sink-well': 'elevation',
+  '--lift-node': 'elevation',
+}
+
+describe('the wired tokens agree with the design mirror', () => {
+  const wired = props(read('../../index.css'))
+  const mirror = {
+    colors: props(read('../../../skills/knowledge-network-studio-design/tokens/colors.css')),
+    elevation: props(read('../../../skills/knowledge-network-studio-design/tokens/elevation.css')),
+  }
+
+  test('index.css and the mirror files actually parsed', () => {
+    expect(wired.size).toBeGreaterThan(5)
+    expect(mirror.colors.size).toBeGreaterThan(10)
+    expect(mirror.elevation.size).toBeGreaterThan(5)
+  })
+
+  for (const [token, file] of Object.entries(WIRED)) {
+    test(`${token} in index.css === ${file}.css`, () => {
+      expect(wired.get(token), `${token} is gone from src/index.css @theme`).toBeDefined()
+      expect(mirror[file].get(token), `${token} is gone from tokens/${file}.css`).toBeDefined()
+      expect(wired.get(token)).toBe(mirror[file].get(token))
+    })
+  }
+
+  test('AuthorRoad consumes the tokens, it does not re-inline them', () => {
+    const road = SOURCES.road
+    for (const varRef of ['var(--sink-well)', 'var(--lift-node)', 'var(--border-well)', 'var(--border-well-strong)', 'var(--surface-well-'])
+      expect(road, `AuthorRoad no longer reads ${varRef} — a literal has crept back in`).toContain(varRef)
+    // the exact shadow literals must NOT reappear as raw strings in the TSX
+    expect(road, 'the --sink-well literal is back in AuthorRoad — wire it, do not inline').not.toContain('inset 0 1px 3px rgba(30, 41, 59, 0.13)')
+  })
+})

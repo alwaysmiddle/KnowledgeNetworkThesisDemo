@@ -56,12 +56,12 @@ const BAR_ROW_H = 26
 // spacing-parity test (tokens.test.ts) does not cover them, and Job B (wiring
 // color/elevation through a Tailwind @theme block) is what will make them a
 // single source. Until then this block is the one place they live in the code.
-const WELL_FILL = ['#eef2f6', '#e7ecf2', '#dfe6ee', '#d8e0ea'] // --surface-well-1..4
-const wellFill = (depth: number): string => WELL_FILL[Math.min(depth, WELL_FILL.length - 1)]
-const SINK_WELL = 'inset 0 1px 3px rgba(30, 41, 59, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5)' // --sink-well
-const LIFT_NODE = '0 1px 2px rgba(30, 41, 59, 0.10), 0 6px 14px -10px rgba(30, 41, 59, 0.35)' // --lift-node
-const BORDER_WELL = 'rgba(51, 65, 85, 0.16)' // --border-well — an open well's hairline edge
-const BORDER_WELL_STRONG = 'rgba(51, 65, 85, 0.30)' // --border-well-strong — the shut group's stronger edge
+// Containment-grammar surfaces are wired tokens now (#44): the values live once,
+// in src/index.css (@theme), guarded against the design mirror by tokens.test.ts.
+// Here we only name them. wellFill picks the per-depth tint (--surface-well-1..4,
+// 1-indexed, clamped at 4); --sink-well / --lift-node / --border-well* are used
+// inline as var(--…). Nothing to keep in sync by hand.
+const wellFill = (depth: number): string => `var(--surface-well-${Math.min(depth + 1, 4)})`
 
 /** the visibility key for one variant of one fork — the id the bottom namecard
  * bar toggles. Absent from the `hidden` set means the column is shown. */
@@ -522,7 +522,7 @@ export default function AuthorRoad({
               // never steals the double-click — and they ride the same relayout
               // transition as the pill so the stack moves as one.
               const plate = 'absolute rounded-full border pointer-events-none transition-[left,top,width,height] duration-200 ease-out'
-              const plateStyle = { width: pl.w, height: pl.h, background: '#fff', borderColor: BORDER_WELL_STRONG, zIndex: 20 }
+              const plateStyle = { width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', zIndex: 20 }
               return [
                 <div key={`${key}-p2`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 5, top: pl.y + 5 }} />,
                 <div key={`${key}-p1`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 2.5, top: pl.y + 2.5 }} />,
@@ -548,7 +548,7 @@ export default function AuthorRoad({
                     dim,
                     isSelected ? 'ring-2 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
                   ].join(' ')}
-                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: BORDER_WELL_STRONG, boxShadow: LIFT_NODE }}
+                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)' }}
                 >
                   <span className="truncate">{s.title}</span>
                   {isFork(s) && (
@@ -618,8 +618,8 @@ export default function AuthorRoad({
                   width: pl.w,
                   height: pl.h,
                   background: wellFill(pl.depth),
-                  borderColor: BORDER_WELL,
-                  boxShadow: SINK_WELL,
+                  borderColor: 'var(--border-well)',
+                  boxShadow: 'var(--sink-well)',
                 }}
               >
                 <div

@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/* ── Design-system tokens, WIRED ─────────────────────────────────────────────
+   The single source the app consumes for the containment-grammar surfaces
+   (elevation / depth, not hue). Values conform to the design agent's authored
+   token files under skills/knowledge-network-studio-design/tokens/ — colors.css
+   (--surface-well-*, --border-well*) and elevation.css (--sink-well, --lift-node).
+   That agreement is not a promise: tokens.test.ts parses this block and those
+   files and asserts they are the same value, so a drift fails the build.
+
+   These are consumed as var(--…) in inline styles (AuthorRoad.tsx), so they only
+   need to reach :root — Tailwind v4 emits every @theme variable there. See #44
+   for the open source-of-truth decision (this block, vs. @import-ing the mirror). */
+@theme {
+  /* a GROUP is recessed: the well tint darkens one step per nesting depth */
+  --surface-well-1: #eef2f6;
+  --surface-well-2: #e7ecf2;
+  --surface-well-3: #dfe6ee;
+  --surface-well-4: #d8e0ea;
+
+  /* an OPEN well's hairline edge, and the SHUT group's stronger one */
+  --border-well: rgba(51, 65, 85, 0.16);
+  --border-well-strong: rgba(51, 65, 85, 0.30);
+
+  /* elevation: an open container sinks, a shut one (a single stop) lifts */
+  --sink-well: inset 0 1px 3px rgba(30, 41, 59, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  --lift-node: 0 1px 2px rgba(30, 41, 59, 0.10), 0 6px 14px -10px rgba(30, 41, 59, 0.35);
+}
+
 /* Expand/collapse in the map view relayouts every box; animating the transform
    makes the reshaping legible (nodes visibly make room) instead of teleporting.
    Safe globally because node dragging is disabled in all experiment views. */
