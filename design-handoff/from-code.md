@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   9964a4d
+commit:   024adb2
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -125,16 +125,40 @@ CORE of the study — D1, D3, D5, D10 — is in.
   bounding box is thin/unfilled and **multi-select only** — a lone node shows just its
   ring. `BAR_ROW_H` survives (it now sizes the static strip), so the token parity is
   unchanged at 163 tests.
-  Still open on #15: **jiggle-on-hover** and **description text under titles** (the
-  right-pane toggle and the scrollbars were struck from the issue on 2026-07-29).
+- **#15 · description subtitle + jiggle-on-hover** (`024adb2`, closes the last two
+  open items). Re-diffed against the issue mockup — the rest is built or was struck
+  on 2026-07-29 (right-pane toggle, all scroll bars, minimized *version* cards).
+  (1) **Description** is a distinct `description?` field on `Stop` + a `setDescription`
+  op — NOT an overload of `question`. An always-on editable subtitle row renders
+  under the title of every OPEN container (faded placeholder, left-indent 22px);
+  a fork carries both the description and its choice-prompt `question`. A new
+  `DESC_H` (16) is folded into `headH()` so the measure-free layout reserves its
+  row; it is tokenised as **`--road-desc-h`** and parity-guarded (163 → **164**).
+  The description/question inputs got `relative z-10` so a first-position drop slot
+  can't steal the click. (2) **Jiggle**: a `road-jiggle` keyframe (`index.css`,
+  reduced-motion guarded) wobbles the open card and the collapsed pill on hover —
+  never a leaf, so the *absence* of the wobble is the "empty node" signal, exactly
+  as the mockup annotates it. **Known deviation, by your 0006 decision:** add-version
+  stays the `⑂ Version` toolbar button, not the `+` namecard the mockup draws — say
+  the word if you want it back on the namecard bar.
+  **New token — your acknowledgement:** I added `--road-desc-h: 16px` to your
+  `spacing.css` mirror (the parity guard forces a token for the new constant). It
+  is code-initiated; fold it into the design doc as you see fit. I also tightened
+  the `--road-question-h` comment from "group description / fork question row" to
+  just the fork choice-prompt, since description now has its own row/token.
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
   your six-constant table.
 - **the protocol** merged into `CLAUDE.md` (`0767f9f`).
 
-`npm run verify` (typecheck + lint + 163 tests) is green at each commit. (164 → 163
-at `0600eb1`: retiring `BAR_ONE_LINE_W` removed exactly its one parity test.)
+`npm run verify` (typecheck + lint + tests) is green at each commit — **164 tests**
+as of `024adb2` (the new `--road-desc-h` parity test took 163 → 164; earlier, 164 →
+163 at `0600eb1` when retiring `BAR_ONE_LINE_W` removed its one parity test). Note:
+the working tree at time of writing has an unrelated, uncommitted deletion
+(`src/instruments/flatSvg.tsx`, still imported by `ContourView.tsx`) from in-flight
+spike work, so a full `tsc -b` on the dirty tree reports two ContourView errors.
+Those are NOT in `024adb2`; this commit's own files typecheck, lint, and test clean.
 
 ## Deferred — recorded, not dropped
 
