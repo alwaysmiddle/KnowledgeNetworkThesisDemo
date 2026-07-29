@@ -38,7 +38,7 @@ const SOURCES = {
 /** every `--road-*` / `--rail-*` px declaration in the token file */
 function tokens(css: string): Map<string, number> {
   const out = new Map<string, number>()
-  for (const m of css.matchAll(/^\s*(--(?:road|rail)-[a-z0-9-]+)\s*:\s*(-?[\d.]+)px\s*;/gm))
+  for (const m of css.matchAll(/^\s*(--(?:road|rail|preview)-[a-z0-9-]+)\s*:\s*(-?[\d.]+)px\s*;/gm))
     out.set(m[1], Number(m[2]))
   return out
 }
@@ -68,7 +68,7 @@ const BOUND: Record<string, [keyof typeof SOURCES, string]> = {
   '--road-sel-pad': ['road', 'SELPAD'],
   '--road-bar-row-h': ['road', 'BAR_ROW_H'],
   '--road-bar-one-line-w': ['road', 'BAR_ONE_LINE_W'],
-  '--rail-w': ['railroad', 'RAIL_W'],
+  '--preview-w': ['railroad', 'PREVIEW_W'],
 }
 
 // Tokens the design system PROPOSES, with no constant behind them yet. Each one

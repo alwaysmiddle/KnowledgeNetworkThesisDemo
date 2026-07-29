@@ -29,7 +29,8 @@
   --road-sel-pad: 7px;       /* SELPAD — selection box breathing room */
   --road-bar-row-h: 26px;    /* BAR_ROW_H — action toolbar row */
   --road-bar-one-line-w: 430px; /* BAR_ONE_LINE_W — wrap threshold */
-  --rail-w: 186px;           /* RAIL_W — projected-route column */
+  --preview-w: 344px;        /* PREVIEW_W — the slide-in walk preview (D9). It
+                                OVERLAYS the road, so it takes no layout width. */
 
   /* proposed additions for the redesign (readme ▸ Anatomy) */
   --road-gutter-w: 18px;     /* fixed status gutter, left of every title */

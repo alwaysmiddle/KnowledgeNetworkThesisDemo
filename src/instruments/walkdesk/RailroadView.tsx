@@ -25,20 +25,21 @@
 import { useEffect, useState } from 'react'
 
 import AuthorRoad from './AuthorRoad'
-import { allKeysOf, redoDraft, undoDraft, useAuthorDraft, useRoad } from './authordraft'
-import { fringe, resolveRoad } from './mockwalk'
-import { FringeRail } from './shared'
+import { redoDraft, undoDraft, useAuthorDraft, useRoad } from './authordraft'
+import { resolveRoad } from './mockwalk'
+import WalkPreview from './WalkPreview'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
 
-/** wide enough for a chip plus its step number; the title truncates past that */
-const RAIL_W = 186
+/** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting
+ *  the pane, so it takes no width from the layout and the road never reflows. */
+const PREVIEW_W = 344
 
 export default function RailroadView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)
   const state = useAuthorDraft()
   const { choices, pickBranch, withOptionals, setWithOptionals } = useRoad()
-  const [railRight, setRailRight] = useState(true)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   // Undo / redo shortcuts (#34). Global so they work wherever focus sits ON the
   // road — but bail inside a text field so a rename keeps its own native undo,
@@ -84,12 +85,12 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             ◇ optionals: {withOptionals ? 'on the road' : 'bypassed'}
           </button>
           <button
-            data-rail-side={railRight ? 'right' : 'left'}
-            onClick={() => setRailRight(!railRight)}
-            title="which side the projected route runs down"
+            data-read-walk
+            onClick={() => setPreviewOpen(true)}
+            title="read the resolved walk as chapters"
             className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 text-slate-600 bg-white hover:bg-slate-50"
           >
-            route {railRight ? '→ right' : '← left'}
+            ▶ read the walk
           </button>
           <div className="ml-auto flex items-center gap-1">
             <button
@@ -114,8 +115,15 @@ export default function RailroadView({ bus }: { bus: Bus }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 min-w-0 flex flex-col" style={{ order: railRight ? 0 : 1 }}>
+      {/* The road, and the walk you slide in over it. The preview OVERLAYS rather
+          than splits (D9): the road keeps its full width and never reflows, it only
+          fades to 30% behind the pane. Dismiss and you are back on exactly the road
+          you left. overflow-hidden clips the pane while it sits off to the right. */}
+      <div className="relative flex-1 min-h-0 overflow-hidden">
+        <div
+          className="h-full flex flex-col transition-opacity ease-out"
+          style={{ opacity: previewOpen ? 0.3 : 1, transitionDuration: previewOpen ? '280ms' : '200ms' }}
+        >
           <AuthorRoad
             state={state}
             sync={sync}
@@ -124,15 +132,33 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             withOptionals={withOptionals}
           />
         </div>
+
+        {/* clicking the faded road dismisses the preview */}
+        {previewOpen && <div className="absolute inset-0 z-10" onClick={() => setPreviewOpen(false)} />}
+
         <div
-          data-fringe-rail
-          className={[
-            'shrink-0 min-h-0 border-slate-200',
-            railRight ? 'border-l' : 'border-r',
-          ].join(' ')}
-          style={{ order: railRight ? 1 : 0, width: RAIL_W }}
+          data-walk-preview
+          className="absolute inset-y-0 right-0 z-20 flex flex-col bg-white border-l border-slate-200 shadow-xl transition-transform ease-out"
+          style={{
+            width: PREVIEW_W,
+            transform: previewOpen ? 'translateX(0)' : `translateX(${PREVIEW_W}px)`,
+            transitionDuration: previewOpen ? '280ms' : '200ms',
+          }}
         >
-          <FringeRail entries={fringe(resolved, allKeysOf(resolved))} sync={sync} />
+          <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-slate-100">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">the walk</span>
+            <button
+              data-preview-close
+              onClick={() => setPreviewOpen(false)}
+              title="back to the road"
+              className="text-[13px] leading-none text-slate-400 hover:text-slate-700"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <WalkPreview walk={resolved} />
+          </div>
         </div>
       </div>
     </div>
