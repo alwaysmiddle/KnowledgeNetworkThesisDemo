@@ -67,7 +67,6 @@ const BOUND: Record<string, [keyof typeof SOURCES, string]> = {
   '--road-slot-h': ['road', 'SLOTH'],
   '--road-sel-pad': ['road', 'SELPAD'],
   '--road-bar-row-h': ['road', 'BAR_ROW_H'],
-  '--road-bar-one-line-w': ['road', 'BAR_ONE_LINE_W'],
   '--preview-w': ['railroad', 'PREVIEW_W'],
 }
 

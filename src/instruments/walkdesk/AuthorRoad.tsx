@@ -18,7 +18,7 @@
 // for the walk arrows and the optional-bypass rails. Step nodes float as
 // board-level siblings OVER each card, so no inner click bubbles into a parent.
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, topicIds } from '../../corpus/graph'
@@ -43,9 +43,8 @@ const VIS_BAR_H = 26 // version-visibility namecard bar under a fork's columns (
 const EMPTY_BODY_H = 30 // drop zone height when a variant has no steps
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
 const SELPAD = 7 // breathing room the selection box leaves around its members
-// The action toolbar WRAPS in a narrow slice (review 4), so the space it needs
-// above the selection box is derived from the width, not one fixed number.
-const BAR_ONE_LINE_W = 430
+// The action toolbar is a vertical strip docked to the board's left edge (#15);
+// BAR_ROW_H is one button row, used to size the strip for on-board clamping.
 const BAR_ROW_H = 26
 
 // Elevation grammar (0005 D1 + tokens/elevation.css + tokens/colors.css):
@@ -262,6 +261,9 @@ export default function AuthorRoad({
   // a fork whose close (ungroup) was blocked — #15 wants a popup, not a silent
   // no-op, when you try to ungroup a container that still has multiple versions.
   const [blockUngroup, setBlockUngroup] = useState<string | null>(null)
+  // a toolbar button's keyboard-shortcut hint, revealed after a 1s hover (#15)
+  const [shortcutHint, setShortcutHint] = useState<string | null>(null)
+  const hintTimer = useRef<number | null>(null)
 
   const toggle = (key: string) => {
     const next = new Set(collapsed)
@@ -303,20 +305,46 @@ export default function AuthorRoad({
         return { x, y, w: right - x, h: bottom - y }
       })()
     : null
-  // #15 feedback: the multi-select toolbar sits to the LEFT of the selection, not
-  // above/below it. Anchor its RIGHT edge barGap px left of the box (so its width
-  // never has to be measured) and let it wrap within the room there — on a narrow
-  // road that room is slim, so the buttons stack nearly vertical. maxWidth = the
-  // left room, which also guarantees the left edge stays on-board (>= 4). If the
-  // box hugs the left edge (no room), fall back to the right side.
-  const barGap = 6
-  const barMinW = 84
-  const leftRoom = selBox ? selBox.x - barGap - 4 : 0
-  const rightRoom = selBox ? W - (selBox.x + selBox.w) - barGap - 4 : 0
-  const barOnLeft = leftRoom >= barMinW
-  const barMaxW = Math.max(barMinW, Math.min(BAR_ONE_LINE_W, barOnLeft ? leftRoom : rightRoom))
-  const barH = Math.max(1, Math.ceil(BAR_ONE_LINE_W / barMaxW)) * BAR_ROW_H + 8
-  const barTop = selBox ? Math.max(4, Math.min(selBox.y, H - barH - 4)) : 0
+  // #15: the multi-select toolbar is docked to the board's LEFT edge as a fixed
+  // vertical strip. It follows the selection VERTICALLY (barTop) but always sits
+  // at the left, so it never covers the selected nodes and lives in one place.
+  const barRows = 6
+  const barH = barRows * BAR_ROW_H + 8
+  const barLeft = 4
+  const barTop = selBox ? Math.max(4, Math.min(selBox.y, Math.max(4, H - barH - 4))) : 0
+
+  // g = group, Ctrl/Cmd+g = ungroup, once a selection exists (#15). The rest of
+  // the toolbar stays mouse-only for now. Ignored while a text field is focused.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.key !== 'g' && e.key !== 'G') return
+      if (e.ctrlKey || e.metaKey) {
+        if (state.canPromote && selPlaced && selStop) {
+          e.preventDefault()
+          state.promote(selPlaced.path, chosenIdx(selStop, choices))
+        }
+      } else if (!e.altKey && !e.shiftKey) {
+        if (state.canGroup) {
+          e.preventDefault()
+          state.groupSelection()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [state, selPlaced, selStop, choices])
+
+  // a toolbar button reveals its shortcut after a full second of hover (#15)
+  const hintOn = (k: string) => {
+    if (hintTimer.current) clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => setShortcutHint(k), 1000)
+  }
+  const hintOff = () => {
+    if (hintTimer.current) clearTimeout(hintTimer.current)
+    setShortcutHint(null)
+  }
 
   /** Windows-style select: a plain click takes just this block, shift adds. */
   const selectOn = (pl: Placed) => (e: ReactMouseEvent) => {
@@ -364,7 +392,6 @@ export default function AuthorRoad({
   const browserBar = (pl: Placed, kind: 'leaf' | 'open' | 'closed', shown: boolean) => {
     const s = pl.stop
     const key = pathKey(pl.path)
-    const editing = editKey === s.key
     const count = kind === 'leaf' ? 0 : s.variants[chosenIdx(s, choices)]?.steps.length ?? 0
     const btn = 'shrink-0 grid place-items-center w-4 h-4 rounded text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition-colors'
     return (
@@ -384,22 +411,6 @@ export default function AuthorRoad({
           >
             {count}
           </span>
-        )}
-        {kind === 'open' && (
-          <button
-            type="button"
-            data-rtitle-edit={s.key}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation()
-              setEditKey(editing ? null : s.key!)
-            }}
-            title={editing ? 'done renaming' : 'rename'}
-            aria-label={editing ? 'done renaming' : 'rename'}
-            className={[btn, editing ? 'text-white bg-slate-600 hover:bg-slate-600 hover:text-white' : ''].join(' ')}
-          >
-            {editing ? '✓' : '✎'}
-          </button>
         )}
         {kind !== 'leaf' && (
           <button
@@ -708,11 +719,9 @@ export default function AuthorRoad({
                   if (marqueeDragRef.current) return
                   selectOn(pl)(e)
                 }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation()
-                  toggle(s.key!)
-                }}
-                title="double-click to close · ✎ renames"
+                // #15: minimise is the browser-bar button now — no double-click to
+                // collapse. (A collapsed pill still double-clicks to expand.)
+                title="click the title to rename · drag to move"
                 // Elevation grammar (0005 D1): an OPEN container is RECESSED — a
                 // well sunk into the board, not a green-tinted card. Its surface
                 // darkens one step per nesting depth (wellFill) and it carries the
@@ -756,7 +765,15 @@ export default function AuthorRoad({
                       className="text-[10.5px] font-bold text-slate-700 bg-white border-b border-slate-400 outline-none flex-1 min-w-0 px-0.5 rounded-sm"
                     />
                   ) : (
-                    <span data-rtitle={s.key} className="text-[10.5px] font-bold text-slate-700 truncate flex-1 min-w-0">
+                    <span
+                      data-rtitle={s.key}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditKey(s.key!)
+                      }}
+                      title="click to rename"
+                      className="text-[10.5px] font-bold text-slate-700 truncate flex-1 min-w-0 cursor-text hover:text-slate-900"
+                    >
                       {s.title}
                     </span>
                   )}
@@ -1028,40 +1045,50 @@ export default function AuthorRoad({
             <div
               data-fly
               data-seltools
-              className="absolute z-40 flex flex-wrap items-center gap-1 px-1.5 py-1 rounded-lg border border-slate-300 bg-white shadow-md transition-[left,top] duration-200 ease-out"
-              style={
-                barOnLeft
-                  ? { right: W - selBox.x + barGap, top: barTop, maxWidth: barMaxW }
-                  : { left: selBox.x + selBox.w + barGap, top: barTop, maxWidth: barMaxW }
-              }
+              className="absolute z-40 flex flex-col items-stretch gap-1 px-1.5 py-1 rounded-lg border border-slate-300 bg-white shadow-md transition-[left,top] duration-200 ease-out"
+              style={{ left: barLeft, top: barTop }}
             >
               <span className="text-[10px] font-semibold text-blue-600 px-1 select-none">{state.selected.size} selected</span>
-              <button
-                data-fly-group
-                disabled={!state.canGroup}
-                onClick={state.groupSelection}
-                title="group into stage"
-                className="text-[11px] px-2 py-1 rounded border border-green-400 text-green-700 bg-green-50 disabled:opacity-30 hover:bg-green-100"
-              >
-                ⊞ Group
-              </button>
+              <span className="relative flex" onMouseEnter={() => hintOn('group')} onMouseLeave={hintOff}>
+                <button
+                  data-fly-group
+                  disabled={!state.canGroup}
+                  onClick={state.groupSelection}
+                  title="group into stage"
+                  className="flex-1 text-[11px] px-2 py-1 rounded border border-green-400 text-green-700 bg-green-50 disabled:opacity-30 hover:bg-green-100"
+                >
+                  ⊞ Group
+                </button>
+                {shortcutHint === 'group' && (
+                  <span className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
+                    G
+                  </span>
+                )}
+              </span>
               {/* ungroup (#33) — remove the group node, keep its steps on the
                   road. The inverse of Group, enabled only for a single container. */}
-              <button
-                data-fly-ungroup
-                disabled={!state.canPromote}
-                onClick={() => {
-                  if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
-                }}
-                title={
-                  selStop && isFork(selStop)
-                    ? 'a fork can’t be ungrouped — delete its extra routes first (✕ on a tab)'
-                    : 'ungroup — remove the group, keep its steps on the road'
-                }
-                className="text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
-              >
-                ⎍ Ungroup
-              </button>
+              <span className="relative flex" onMouseEnter={() => hintOn('ungroup')} onMouseLeave={hintOff}>
+                <button
+                  data-fly-ungroup
+                  disabled={!state.canPromote}
+                  onClick={() => {
+                    if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
+                  }}
+                  title={
+                    selStop && isFork(selStop)
+                      ? 'a fork can’t be ungrouped — delete its extra routes first (✕ on a tab)'
+                      : 'ungroup — remove the group, keep its steps on the road'
+                  }
+                  className="flex-1 text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
+                >
+                  ⎍ Ungroup
+                </button>
+                {shortcutHint === 'ungroup' && (
+                  <span className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
+                    Ctrl+G
+                  </span>
+                )}
+              </span>
               {/* fork gesture, moved off the node face (0006): add a version to a
                   selected container — the second one turns a group into a fork. */}
               <button
