@@ -460,13 +460,22 @@ export default function AuthorRoad({
                   data-node={s.node}
                   data-ropt={s.optional ? 1 : undefined}
                   className={[
-                    'absolute z-20 rounded-full border-2 bg-white px-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold cursor-grab',
+                    // D1/D3 (0005): a leaf is the quietest thing on the road —
+                    // flat white, one 2px domain border, NEUTRAL ink. Domain now
+                    // lives in the border (and the rail dot) only; --domain-sec
+                    // #eda100 failed contrast as 10.5px text. It lifts (--lift-node,
+                    // ~shadow-md) only while grabbed; at rest it casts no shadow.
+                    'absolute z-20 rounded-full border-2 bg-white px-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-700 cursor-grab active:shadow-md',
                     'transition-[left,top,width,height] duration-200 ease-out',
-                    s.optional ? 'border-dashed' : '',
+                    // D10 (0005): an optional stop is drawn EXACTLY like any other —
+                    // no dashed edge. A dash reads as emphasis, backwards for a stop
+                    // that might not be walked. The ghost bypass rail + the ◇ gutter
+                    // badge carry optionality; optionality is a fact about the ROUTE,
+                    // not the stop.
                     dim,
                     isSelected ? 'ring-2 ring-blue-500 bg-blue-100' : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
                   ].join(' ')}
-                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: color, color }}
+                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: color }}
                 >
                   {pl.order !== undefined && (
                     <span
@@ -495,9 +504,17 @@ export default function AuthorRoad({
                   }}
                   title="double-click to open"
                   className={[
-                    'absolute z-20 rounded-full border-2 border-green-500 bg-green-50 px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-green-800 cursor-grab',
+                    // D1 (0005): a SHUT group is the only persistently-raised thing
+                    // on the road — it behaves as one stop, so it should look
+                    // liftable (--lift-node ~ shadow-md). An open card, by contrast,
+                    // is recessed and casts nothing.
+                    'absolute z-20 rounded-full border-2 border-green-500 bg-green-50 px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-green-800 cursor-grab shadow-md',
                     'transition-[left,top,width,height] duration-200 ease-out',
-                    s.optional ? 'border-dashed' : '',
+                    // D10 (0005): an optional stop is drawn EXACTLY like any other —
+                    // no dashed edge. A dash reads as emphasis, backwards for a stop
+                    // that might not be walked. The ghost bypass rail + the ◇ gutter
+                    // badge carry optionality; optionality is a fact about the ROUTE,
+                    // not the stop.
                     dim,
                     isSelected ? 'ring-2 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-green-100',
                   ].join(' ')}
@@ -557,7 +574,9 @@ export default function AuthorRoad({
                   toggle(s.key!)
                 }}
                 title="double-click to close · ✎ renames"
-                className={['absolute rounded-2xl border-2 border-green-500 bg-green-50/50 cursor-pointer transition-[left,top,width,height] duration-200 ease-out', s.optional ? 'border-dashed' : '', dim].join(' ')}
+                // D10: an optional OPEN card is drawn like any other card; the
+                // bypass rail around it says the road may skip it.
+                className={['absolute rounded-2xl border-2 border-green-500 bg-green-50/50 cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
                 style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
               >
                 <div
