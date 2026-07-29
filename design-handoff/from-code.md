@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   0600eb1
+commit:   9964a4d
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -14,12 +14,26 @@ the round number on road leaves) is **retired** (`4eb5cca`) — every node now c
 a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's title is
 **centre-aligned**. The always-on header `✎` and `⋮⋮` are **gone**: an item-count
 circle, minimise/maximise and close live in a hover/select **browser bar** at each
-node's top-right; the header still drags. As of `0600eb1` **rename is no longer a
-browser-bar button** — you rename an open card by **clicking its title** (cursor-text
-on hover). Two more `0600eb1` changes: **double-click no longer collapses** an open
-card (minimise is the browser-bar `—` button only; double-click still *expands* a
-collapsed pill), and the multi-select **action toolbar is a fixed left-edge vertical
-dock** (`left: 4px`), no longer anchored above/below the selection.
+node's top-right; the header still drags. Rename is **not** a browser-bar button.
+
+Three **`9964a4d`** refinements supersede the `0600eb1` node/toolbar treatment:
+- **The action toolbar is now a STATIC horizontal strip pinned to the top of the
+  road panel** — no longer the left-edge vertical dock, and no longer a popup that
+  appears on selection. It is always present; its buttons enable/disable off the
+  selection. (An experiment — we may keep it or revert to floating.)
+- **Rename is click-to-select-then-edit, text-only.** A first click on a title
+  *selects* the node; only a *second* click, on the title **text glyphs** of an
+  already-sole-selected node, enters rename. The header space beside the text
+  selects, it does not edit. (Was: a single click anywhere on the title row.)
+- **Selection is a thin outline, not a filled box.** The per-node selected ring is
+  now **1px** (`ring-1`) with **no blue fill wash**; the bounding box is thin and
+  unfilled and is drawn for a **multi-selection only** — a lone selected node shows
+  just its ring. This is the "a thin outline like the design files" ask.
+
+Two `0600eb1` behaviours still hold: **double-click no longer collapses** an open
+card (minimise is the browser-bar `—` button; double-click still *expands* a shut
+pill), and the `g` / `Ctrl+G` group/ungroup shortcuts (hint badges after ~1s hover,
+now dropping **below** their button on the horizontal bar).
 
 Clean on top of that commit for everything below. Still dirty and NOT part of
 this build: `tools/walk-tiers-spike/shots.mjs` and an untracked
@@ -100,6 +114,17 @@ CORE of the study — D1, D3, D5, D10 — is in.
   ungroups a single plain container (both guarded off text inputs); each shows a
   hint badge (`G` / `Ctrl+G`) after ~1s hovering its button. The retired wrap
   constant `BAR_ONE_LINE_W` took its `--road-bar-one-line-w` token with it.
+- **#15 · static toolbar, two-click text rename, thin selection** (`9964a4d`,
+  refines `0600eb1`). Three presentation tweaks, no new ops. (1) The multi-select
+  toolbar is no longer the left-edge dock — it is a **static horizontal strip at the
+  top of the road panel**, always present, buttons enable/disable off the selection
+  (an experiment; may keep or revert). Hint badges now drop **below** their button.
+  (2) Rename is **click-to-select-then-edit**: first click selects, a second click of
+  the already-sole-selected node's title **text** enters rename; the header space
+  beside the text selects. (3) The selected ring is **1px with no fill wash**, and the
+  bounding box is thin/unfilled and **multi-select only** — a lone node shows just its
+  ring. `BAR_ROW_H` survives (it now sizes the static strip), so the token parity is
+  unchanged at 163 tests.
   Still open on #15: **jiggle-on-hover** and **description text under titles** (the
   right-pane toggle and the scrollbars were struck from the issue on 2026-07-29).
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
