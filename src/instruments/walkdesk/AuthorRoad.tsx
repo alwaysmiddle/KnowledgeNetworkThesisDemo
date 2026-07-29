@@ -43,8 +43,8 @@ const VIS_BAR_H = 26 // version-visibility namecard bar under a fork's columns (
 const EMPTY_BODY_H = 30 // drop zone height when a variant has no steps
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
 const SELPAD = 7 // breathing room the selection box leaves around its members
-// The action toolbar is a vertical strip docked to the board's left edge (#15);
-// BAR_ROW_H is one button row, used to size the strip for on-board clamping.
+// The action toolbar is a static strip pinned to the top of the road panel;
+// BAR_ROW_H is one button row, used to size that strip's height.
 const BAR_ROW_H = 26
 
 // Elevation grammar (0005 D1 + tokens/elevation.css + tokens/colors.css):
@@ -256,7 +256,8 @@ export default function AuthorRoad({
   const boardRef = useRef<HTMLDivElement>(null)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const marqueeDragRef = useRef(false)
-  // which container's title is open for editing — renaming is a MODE behind ✎
+  // which container's title is open for editing — you enter it by clicking the
+  // title TEXT of an already-selected node (a second click), not a ✎ button
   const [editKey, setEditKey] = useState<string | null>(null)
   // a fork whose close (ungroup) was blocked — #15 wants a popup, not a silent
   // no-op, when you try to ungroup a container that still has multiple versions.
@@ -296,7 +297,9 @@ export default function AuthorRoad({
   // the SELECTION BOX — the bounding rect of every selected block; the action
   // toolbar pins to it (stable) rather than chasing the cursor. #17.
   const selItems = items.filter((pl) => state.selected.has(pathKey(pl.path)))
-  const selBox = selItems.length
+  // only drawn for a MULTI-selection — for a single node the per-node thin ring
+  // is the whole selection cue, so we don't box a lone node twice.
+  const selBox = selItems.length > 1
     ? (() => {
         const x = Math.min(...selItems.map((p) => p.x)) - SELPAD
         const y = Math.min(...selItems.map((p) => p.y)) - SELPAD
@@ -305,13 +308,10 @@ export default function AuthorRoad({
         return { x, y, w: right - x, h: bottom - y }
       })()
     : null
-  // #15: the multi-select toolbar is docked to the board's LEFT edge as a fixed
-  // vertical strip. It follows the selection VERTICALLY (barTop) but always sits
-  // at the left, so it never covers the selected nodes and lives in one place.
-  const barRows = 6
-  const barH = barRows * BAR_ROW_H + 8
-  const barLeft = 4
-  const barTop = selBox ? Math.max(4, Math.min(selBox.y, Math.max(4, H - barH - 4))) : 0
+  // refinement: the action toolbar no longer floats near the selection. It is a
+  // STATIC strip pinned to the top of the road panel (rendered below), always
+  // present; its buttons enable/disable off the selection instead of appearing
+  // and disappearing. The selection box below still marks the run itself.
 
   // g = group, Ctrl/Cmd+g = ungroup, once a selection exists (#15). The rest of
   // the toolbar stays mouse-only for now. Ignored while a text field is focused.
@@ -498,6 +498,96 @@ export default function AuthorRoad({
         handleDrop(e, [state.stops.length], state)
       }}
     >
+      {/* STATIC action toolbar — pinned to the top of the road panel, always
+          present (an experiment, replacing the floating dock that chased the
+          selection). data-fly keeps onBoardPointerDown from treating a toolbar
+          click as a board marquee/deselect. Buttons enable/disable off the
+          current selection; the shortcut-hint badges (G / Ctrl+G) still appear
+          after ~1s of hover, now dropping BELOW their button. */}
+      <div
+        data-fly
+        data-seltools
+        className="sticky top-0 z-40 flex items-center gap-1 px-2 border-b border-slate-200 bg-white/95 backdrop-blur-sm"
+        style={{ minHeight: BAR_ROW_H + 8 }}
+      >
+        <span className="text-[10px] font-semibold text-blue-600 px-1 select-none tabular-nums">
+          {state.selected.size > 0 ? `${state.selected.size} selected` : 'no selection'}
+        </span>
+        <span className="relative flex" onMouseEnter={() => hintOn('group')} onMouseLeave={hintOff}>
+          <button
+            data-fly-group
+            disabled={!state.canGroup}
+            onClick={state.groupSelection}
+            title="group into stage"
+            className="text-[11px] px-2 py-1 rounded border border-green-400 text-green-700 bg-green-50 disabled:opacity-30 hover:bg-green-100"
+          >
+            ⊞ Group
+          </button>
+          {shortcutHint === 'group' && (
+            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
+              G
+            </span>
+          )}
+        </span>
+        {/* ungroup (#33) — remove the group node, keep its steps on the road.
+            The inverse of Group, enabled only for a single container. */}
+        <span className="relative flex" onMouseEnter={() => hintOn('ungroup')} onMouseLeave={hintOff}>
+          <button
+            data-fly-ungroup
+            disabled={!state.canPromote}
+            onClick={() => {
+              if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
+            }}
+            title={
+              selStop && isFork(selStop)
+                ? 'a fork can’t be ungrouped — delete its extra routes first (✕ on a tab)'
+                : 'ungroup — remove the group, keep its steps on the road'
+            }
+            className="text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
+          >
+            ⎍ Ungroup
+          </button>
+          {shortcutHint === 'ungroup' && (
+            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
+              Ctrl+G
+            </span>
+          )}
+        </span>
+        {/* fork gesture, off the node face (0006): add a version to a selected
+            container — the second one turns a group into a fork. */}
+        <button
+          data-fly-fork
+          disabled={!selStop || isLeaf(selStop)}
+          onClick={() => {
+            if (selStop) state.addVariant(selStop.key!)
+          }}
+          title="add a version — a second one makes this group a fork"
+          className="text-[11px] px-2 py-1 rounded border border-sky-400 text-sky-700 bg-sky-50 disabled:opacity-30 hover:bg-sky-100"
+        >
+          ⑂ Version
+        </button>
+        <button
+          data-fly-opt
+          disabled={!state.canOptional}
+          onClick={state.toggleOptionalSelection}
+          title="toggle optional"
+          className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 bg-slate-50 disabled:opacity-30 hover:bg-slate-100"
+        >
+          ◇ Optional
+        </button>
+        {/* delete (#33) — direct, no popover: a container takes everything inside
+            with it (undoable). Ungroup is the keep-the-steps arm. */}
+        <button
+          data-fly-del
+          disabled={!state.canDelete}
+          onClick={state.deleteSelection}
+          title="delete — a group takes everything inside it (undoable)"
+          className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100"
+        >
+          ✕ Delete
+        </button>
+      </div>
+
       {state.stops.length === 0 ? (
         <div className="text-[11px] text-slate-400 p-3">drop a node from the palette to start the plan</div>
       ) : (
@@ -559,7 +649,7 @@ export default function AuthorRoad({
                       'absolute z-20 rounded-full border-2 border-dashed border-slate-300 bg-slate-50 px-2 flex items-center cursor-grab',
                       'transition-[left,top,width,height] duration-200 ease-out',
                       dim,
-                      isSelected ? 'ring-2 ring-blue-500' : '',
+                      isSelected ? 'ring-1 ring-blue-500' : '',
                     ].join(' ')}
                     style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
                   >
@@ -606,7 +696,7 @@ export default function AuthorRoad({
                     // badge carry optionality; optionality is a fact about the ROUTE,
                     // not the stop.
                     dim,
-                    isSelected ? 'ring-2 ring-blue-500 bg-blue-100' : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
+                    isSelected ? 'ring-1 ring-blue-500' : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: color }}
                 >
@@ -661,7 +751,7 @@ export default function AuthorRoad({
                     // badge carry optionality; optionality is a fact about the ROUTE,
                     // not the stop.
                     dim,
-                    isSelected ? 'ring-2 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
+                    isSelected ? 'ring-1 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)' }}
                 >
@@ -743,7 +833,7 @@ export default function AuthorRoad({
                 <div
                   {...gestures(pl)}
                   data-rhead={s.key}
-                  className={['flex items-center gap-1 px-2 cursor-grab rounded-t-2xl', isSelected ? 'ring-2 ring-blue-500 bg-blue-100' : ''].join(' ')}
+                  className={['flex items-center gap-1 px-2 cursor-grab rounded-t-2xl', isSelected ? 'ring-1 ring-blue-500' : ''].join(' ')}
                   style={{ height: HEAD }}
                 >
                   {/* #15: the group's outline number, left of its title */}
@@ -765,16 +855,30 @@ export default function AuthorRoad({
                       className="text-[10.5px] font-bold text-slate-700 bg-white border-b border-slate-400 outline-none flex-1 min-w-0 px-0.5 rounded-sm"
                     />
                   ) : (
-                    <span
-                      data-rtitle={s.key}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setEditKey(s.key!)
-                      }}
-                      title="click to rename"
-                      className="text-[10.5px] font-bold text-slate-700 truncate flex-1 min-w-0 cursor-text hover:text-slate-900"
-                    >
-                      {s.title}
+                    // refinement: renaming is no longer a hair-trigger on the whole
+                    // title row. The flex-1 wrapper is header space — a click there
+                    // SELECTS (it bubbles to the header's selectOn). Only the text
+                    // glyphs are the rename target, and only on a SECOND click of an
+                    // already-sole-selected node: click once to select, click the
+                    // text again to edit (Windows/Finder-style).
+                    <span className="flex-1 min-w-0 flex items-center">
+                      <span
+                        data-rtitle={s.key}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (e.shiftKey) {
+                            state.toggleSelect(pl.path)
+                          } else if (isSelected && state.selected.size === 1) {
+                            setEditKey(s.key!)
+                          } else {
+                            state.selectPaths([pl.path])
+                          }
+                        }}
+                        title={isSelected ? 'click to rename' : 'click to select'}
+                        className="max-w-full truncate text-[10.5px] font-bold text-slate-700 cursor-text hover:text-slate-900"
+                      >
+                        {s.title}
+                      </span>
                     </span>
                   )}
                   {/* the optional badge stays always-on (a status, not an action);
@@ -1004,7 +1108,7 @@ export default function AuthorRoad({
           {selBox && (
             <div
               data-selbox
-              className="absolute z-30 rounded-xl border-2 border-blue-500 bg-blue-500/5 pointer-events-none transition-all duration-200 ease-out"
+              className="absolute z-30 rounded-lg border border-blue-400 pointer-events-none transition-all duration-200 ease-out"
               style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h }}
             />
           )}
@@ -1040,91 +1144,9 @@ export default function AuthorRoad({
               )
             })()}
 
-          {/* action toolbar — pinned to the selection box (stable). #17 */}
-          {state.selected.size > 0 && selBox && (
-            <div
-              data-fly
-              data-seltools
-              className="absolute z-40 flex flex-col items-stretch gap-1 px-1.5 py-1 rounded-lg border border-slate-300 bg-white shadow-md transition-[left,top] duration-200 ease-out"
-              style={{ left: barLeft, top: barTop }}
-            >
-              <span className="text-[10px] font-semibold text-blue-600 px-1 select-none">{state.selected.size} selected</span>
-              <span className="relative flex" onMouseEnter={() => hintOn('group')} onMouseLeave={hintOff}>
-                <button
-                  data-fly-group
-                  disabled={!state.canGroup}
-                  onClick={state.groupSelection}
-                  title="group into stage"
-                  className="flex-1 text-[11px] px-2 py-1 rounded border border-green-400 text-green-700 bg-green-50 disabled:opacity-30 hover:bg-green-100"
-                >
-                  ⊞ Group
-                </button>
-                {shortcutHint === 'group' && (
-                  <span className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
-                    G
-                  </span>
-                )}
-              </span>
-              {/* ungroup (#33) — remove the group node, keep its steps on the
-                  road. The inverse of Group, enabled only for a single container. */}
-              <span className="relative flex" onMouseEnter={() => hintOn('ungroup')} onMouseLeave={hintOff}>
-                <button
-                  data-fly-ungroup
-                  disabled={!state.canPromote}
-                  onClick={() => {
-                    if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
-                  }}
-                  title={
-                    selStop && isFork(selStop)
-                      ? 'a fork can’t be ungrouped — delete its extra routes first (✕ on a tab)'
-                      : 'ungroup — remove the group, keep its steps on the road'
-                  }
-                  className="flex-1 text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
-                >
-                  ⎍ Ungroup
-                </button>
-                {shortcutHint === 'ungroup' && (
-                  <span className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
-                    Ctrl+G
-                  </span>
-                )}
-              </span>
-              {/* fork gesture, moved off the node face (0006): add a version to a
-                  selected container — the second one turns a group into a fork. */}
-              <button
-                data-fly-fork
-                disabled={!selStop || isLeaf(selStop)}
-                onClick={() => {
-                  if (selStop) state.addVariant(selStop.key!)
-                }}
-                title="add a version — a second one makes this group a fork"
-                className="text-[11px] px-2 py-1 rounded border border-sky-400 text-sky-700 bg-sky-50 disabled:opacity-30 hover:bg-sky-100"
-              >
-                ⑂ Version
-              </button>
-              <button
-                data-fly-opt
-                disabled={!state.canOptional}
-                onClick={state.toggleOptionalSelection}
-                title="toggle optional"
-                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 bg-slate-50 disabled:opacity-30 hover:bg-slate-100"
-              >
-                ◇ Optional
-              </button>
-              {/* delete (#33) — a direct action now, no popover: a container
-                  takes everything inside with it (undoable). Ungroup is the
-                  keep-the-steps arm; dropping one route lives on its tab ✕. */}
-              <button
-                data-fly-del
-                disabled={!state.canDelete}
-                onClick={state.deleteSelection}
-                title="delete — a group takes everything inside it (undoable)"
-                className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100"
-              >
-                ✕ Delete
-              </button>
-            </div>
-          )}
+          {/* the action toolbar used to float here, pinned to the selection box.
+              It is now a STATIC strip at the top of the road panel — see the
+              data-seltools bar rendered above the board. */}
 
           {/* variant-delete confirm (#33) — dropping a route that carries real
               steps asks first, anchored just under the fork's column headers. */}
