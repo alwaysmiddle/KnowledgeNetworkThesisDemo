@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   ce08f093fedd566aad04053d69902370042a2522
+commit:   98d2ec7
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -46,6 +46,20 @@ CORE of the study — D1, D3, D5, D10 — is in.
   runs on as a coda. No hover correspondence crosses in — the one purely-read
   surface, so it takes no bus. `PREVIEW_W` 344 replaces the retired `RAIL_W` in the
   parity guard.
+- **elevation · containment reads as DEPTH, not hue** (`98d2ec7`). The green
+  border-and-wash that signalled a container at every level is retired — it never
+  survived nesting, depth does. An OPEN container is now a RECESSED well: a neutral
+  surface tinted one step darker per nesting level (`--surface-well-1..4`), the
+  inset `--sink-well` shadow, a neutral hairline; the flat white leaves pop out of
+  it, and that leaf/well contrast is what carries containment. A COLLAPSED
+  container is the one persistently-RAISED thing (`--lift-node`, `--border-well-strong`),
+  and **D2 is now built** — two stacked silhouette plates peek down-right within
+  `--road-hatch` (6px), so a shut group reads as a folded stack, not a leaf.
+  `layoutRoad` now threads a container `depth` to drive the per-level tint. Color
+  and elevation tokens live in the code as string consts for now (`WELL_FILL`,
+  `SINK_WELL`, `LIFT_NODE`, `BORDER_WELL*`) — the numeric spacing-parity test does
+  not cover them; wiring them through a Tailwind `@theme` block is the next planned
+  refactor (see "Still to build").
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
@@ -56,22 +70,31 @@ CORE of the study — D1, D3, D5, D10 — is in.
 
 ## Deferred — recorded, not dropped
 
-Two `0005` items are the layout-affecting ones, and neither shows in the current
-teaching corpus, so they are held rather than built blind:
+One `0005` layout-affecting item is still held, because it has no manifestation
+in the current teaching corpus, so it would be built blind:
 
-- **D2 · `--road-hatch` 6** — the hatched thickness on a shut group. The stack it
-  replaces was never drawn here, and a shut group is already unambiguous (green +
-  count + raised), so the hatch is marginal signal for a number that *grows the
-  box* (it sits outside `NODEW`/`NODEH`). Held until it earns the placement cost.
 - **D10 · 16px bypass clearance** — only bites when an optional stop is also the
   widest element (an optional *group*). The corpus has only an optional leaf,
   which never clips. Held until an optional group exists to reserve width for.
 
+D2's silhouette stack is no longer here — it landed with the elevation pass
+(`98d2ec7`), now that a shut group is neutral-raised and needs the fold cue to
+read as a stack rather than a leaf.
+
 ## Still to build
 
-Nothing. `0005` is fully built except the two deferred layout-affecting items
-above (D2 hatch, D10 optional-group clearance) — both held for want of a
-manifestation in the corpus, not overlooked.
+`0005` is fully built (D1–D10) except the one deferred layout item above (D10
+optional-group clearance), held for want of a manifestation in the corpus.
+
+The remaining known work is one refactor, not a design gap: color, typography,
+elevation and motion tokens are **documentation** today — reverse-engineered from
+the code ("as-built from the repo"), not a source the app is built from. Only
+spacing is wired, and even that is a mirror + parity test, not consumption. To
+make the four other axes prescriptive (a single source the way spacing nearly is)
+we would add a Tailwind v4 `@theme` block to `index.css`, migrate the hardcoded
+utility classes to semantic ones, and extend `tokens.test.ts` to guard them. That
+is drift-proofing, not fidelity — the designed *look* is reached without it — so
+it is sequenced after the look settles.
 
 ## Channel
 
@@ -94,5 +117,5 @@ inside the project is therefore not maintained; this file is the live status.
 
 `0001`–`0003` are answered in substance by this file and `0006`; their code-side
 asks have all landed (parity guard, `onFocus` fix, `CLAUDE.md` merge). `0005` is
-built end to end (D1–D10) except the two deferred layout items. `0007` is the
-next free id.
+built end to end (D1–D10) except the one deferred layout item (D10 optional-group
+clearance); D2's stack landed with the elevation pass. `0007` is the next free id.
