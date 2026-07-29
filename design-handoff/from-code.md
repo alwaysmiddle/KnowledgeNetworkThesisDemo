@@ -4,10 +4,15 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   cfcb100
+commit:   4eb5cca
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
+
+**Stale for your specimens (`4eb5cca`, #15):** the amber walk-order step badge
+(`bg-amber-500`, the round number on road leaves) is **retired** — any card that
+shows it is out of date. Every node now carries a slate outline number
+(`1.`, `2.`, `2.1.`) left of its title, and a leaf's title is **centre-aligned**.
 
 Clean on top of that commit for everything below. Still dirty and NOT part of
 this build: `tools/walk-tiers-spike/shots.mjs` and an untracked
@@ -66,13 +71,23 @@ CORE of the study — D1, D3, D5, D10 — is in.
   equals your `colors.css`/`elevation.css` value-for-value — so those two files are
   now **tested coupling**, not just documentation. No pixel moved (verified against
   the Job-A shots). One decision is yours — see "Still to build".
+- **#15 · outline numbering + left toolbar** (`4eb5cca`). Your call was numbering
+  *replaces* the walk-order badge, not coexists: every node shows its authoring-tree
+  outline number (`1.`, `2.`, `2.1.`, `3.1.`) left of the title, computed on the
+  same `placeList` traversal. A leaf's title now centres; a fork's two columns each
+  restart at `n.1` (parallel alternatives). The multi-select action toolbar moved
+  to the **left** of the selection (was above/below), stacking vertical on a narrow
+  road. Still open on #15: the per-node browser bar (counter / minimise-maximise /
+  close), item counter, per-node close, jiggle-on-hover, description text, the
+  right-pane simple/complex toggle, scrollbars. #15's "active = green" is superseded
+  by `0006`'s light-blue.
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
   your six-constant table.
 - **the protocol** merged into `CLAUDE.md` (`0767f9f`).
 
-`npm run verify` (typecheck + lint + 154 tests) is green at each commit.
+`npm run verify` (typecheck + lint + 164 tests) is green at each commit.
 
 ## Deferred — recorded, not dropped
 
