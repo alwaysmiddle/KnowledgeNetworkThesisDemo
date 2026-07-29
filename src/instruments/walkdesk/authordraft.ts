@@ -267,6 +267,9 @@ export interface AuthorState {
    * there is no separate fork op. */
   groupSelection(): void
   deleteSelection(): void
+  /** delete exactly the block at `path` — the per-node close button (#15), which
+   * acts on one node regardless of the current selection. */
+  deleteAt(path: Path): void
   /** replace the container at `path` with variant `keep`'s steps, spliced into
    * the parent list in place — remove the box but KEEP its chosen steps on the
    * road. Merges the old promote (plain group) and resolve-fork (chosen branch)
@@ -380,6 +383,7 @@ export function useAuthorDraft(): AuthorState {
       for (const p of paths) next = removeAt(next, p).rest
       commit(next)
     },
+    deleteAt: (path) => commit(removeAt(stops, path).rest),
     promote: (path, keep) => {
       const s = stopAt(stops, path)
       if (!s || isLeaf(s)) return

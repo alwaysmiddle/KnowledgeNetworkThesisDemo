@@ -259,6 +259,9 @@ export default function AuthorRoad({
   const marqueeDragRef = useRef(false)
   // which container's title is open for editing — renaming is a MODE behind ✎
   const [editKey, setEditKey] = useState<string | null>(null)
+  // a fork whose close (ungroup) was blocked — #15 wants a popup, not a silent
+  // no-op, when you try to ungroup a container that still has multiple versions.
+  const [blockUngroup, setBlockUngroup] = useState<string | null>(null)
 
   const toggle = (key: string) => {
     const next = new Set(collapsed)
@@ -351,12 +354,98 @@ export default function AuthorRoad({
     }
   }
 
+  /** the per-node hover/select chrome (#15): a compact top-right corner cluster.
+   * A container shows its active-version item count, rename (open only),
+   * minimise/maximise, and close; a leaf shows close only. Close ungroups a plain
+   * group (keeping its steps on the road), deletes a leaf, and on a FORK opens a
+   * guard popup rather than silently discarding the other versions. It lives
+   * inside the node's `group`, so it fades in on hover; `shown` forces it visible
+   * (selected, or mid-rename). */
+  const browserBar = (pl: Placed, kind: 'leaf' | 'open' | 'closed', shown: boolean) => {
+    const s = pl.stop
+    const key = pathKey(pl.path)
+    const editing = editKey === s.key
+    const count = kind === 'leaf' ? 0 : s.variants[chosenIdx(s, choices)]?.steps.length ?? 0
+    const btn = 'shrink-0 grid place-items-center w-4 h-4 rounded text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition-colors'
+    return (
+      <span
+        data-browserbar={key}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className={['shrink-0 flex items-center gap-0.5 pl-0.5 transition-opacity duration-150', shown ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'].join(' ')}
+      >
+        {kind !== 'leaf' && (
+          // item counter: active-version step count in a round unfilled circle (#15)
+          <span
+            title={`${count} inside`}
+            aria-label={`${count} items inside`}
+            className="shrink-0 grid place-items-center min-w-[16px] h-4 px-1 rounded-full border border-slate-300 text-slate-500 text-[8.5px] font-bold tabular-nums leading-none"
+          >
+            {count}
+          </span>
+        )}
+        {kind === 'open' && (
+          <button
+            type="button"
+            data-rtitle-edit={s.key}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditKey(editing ? null : s.key!)
+            }}
+            title={editing ? 'done renaming' : 'rename'}
+            aria-label={editing ? 'done renaming' : 'rename'}
+            className={[btn, editing ? 'text-white bg-slate-600 hover:bg-slate-600 hover:text-white' : ''].join(' ')}
+          >
+            {editing ? '✓' : '✎'}
+          </button>
+        )}
+        {kind !== 'leaf' && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggle(s.key!)
+            }}
+            title={kind === 'closed' ? 'maximise' : 'minimise'}
+            aria-label={kind === 'closed' ? 'maximise' : 'minimise'}
+            className={btn}
+          >
+            {kind === 'closed' ? '▢' : '—'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (kind === 'leaf') {
+              state.deleteAt(pl.path)
+              return
+            }
+            if (isFork(s)) {
+              setBlockUngroup(key)
+              return
+            }
+            state.promote(pl.path, chosenIdx(s, choices))
+          }}
+          title={kind === 'leaf' ? 'delete this node' : isFork(s) ? 'ungroup — delete the extra versions first' : 'ungroup — keep the steps on the road'}
+          aria-label={kind === 'leaf' ? 'delete' : 'ungroup'}
+          className={[btn, 'hover:bg-rose-100 hover:text-rose-600'].join(' ')}
+        >
+          ✕
+        </button>
+      </span>
+    )
+  }
+
   // ── marquee (rubber-band) select ──────────────────────────────────────────
   const boardPoint = (e: ReactPointerEvent) => {
     const r = boardRef.current!.getBoundingClientRect()
     return { x: e.clientX - r.left, y: e.clientY - r.top }
   }
   const onBoardPointerDown = (e: ReactPointerEvent) => {
+    setBlockUngroup(null) // any board press dismisses the ungroup-guard popup (#15)
     marqueeDragRef.current = false
     if (e.button !== 0 || !boardRef.current) return
     // only empty canvas starts a marquee — not a node, control, tab, or overlay
@@ -498,7 +587,7 @@ export default function AuthorRoad({
                     // lives in the border (and the rail dot) only; --domain-sec
                     // #eda100 failed contrast as 10.5px text. It lifts (--lift-node,
                     // ~shadow-md) only while grabbed; at rest it casts no shadow.
-                    'absolute z-20 rounded-full border-2 bg-white px-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-700 cursor-grab active:shadow-md',
+                    'group absolute z-20 rounded-full border-2 bg-white px-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-700 cursor-grab active:shadow-md',
                     'transition-[left,top,width,height] duration-200 ease-out',
                     // D10 (0005): an optional stop is drawn EXACTLY like any other —
                     // no dashed edge. A dash reads as emphasis, backwards for a stop
@@ -519,6 +608,8 @@ export default function AuthorRoad({
                   {s.optional && <span className="shrink-0 text-[9px] text-slate-400">◇</span>}
                   {/* a leaf (unnested node) centres its title (#15) */}
                   <span className="flex-1 text-center truncate">{byId.get(s.node)!.title}</span>
+                  {/* #15: a leaf's close (delete) button, top-right, on hover/select */}
+                  {browserBar(pl, 'leaf', isSelected)}
                 </div>
               )
             }
@@ -551,7 +642,7 @@ export default function AuthorRoad({
                   className={[
                     // neutral white, raised, a stronger neutral edge than an open
                     // well's — depth + the stack say "group", not green.
-                    'absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
+                    'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
                     'transition-[left,top,width,height] duration-200 ease-out',
                     // D10 (0005): an optional stop is drawn EXACTLY like any other —
                     // no dashed edge. A dash reads as emphasis, backwards for a stop
@@ -575,6 +666,8 @@ export default function AuthorRoad({
                     </span>
                   )}
                   <span className="font-normal text-slate-400 whitespace-nowrap">{visitCount(s)}</span>
+                  {/* #15 minimized node: counter · maximise · close, on hover/select */}
+                  {browserBar(pl, 'closed', isSelected)}
                 </div>,
               ]
             }
@@ -627,7 +720,7 @@ export default function AuthorRoad({
                 // reading when wells nest. The green border/wash is retired; a
                 // neutral hairline is all an open well needs. D10: an optional open
                 // card is drawn like any other — the bypass rail says it may skip.
-                className={['absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
+                className={['group absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
                 style={{
                   left: pl.x,
                   top: pl.y,
@@ -667,27 +760,13 @@ export default function AuthorRoad({
                       {s.title}
                     </span>
                   )}
-                  <button
-                    data-rtitle-edit={s.key}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setEditKey(editing ? null : s.key!)
-                    }}
-                    onDoubleClick={(e) => e.stopPropagation()}
-                    title={editing ? 'done renaming' : 'rename this group'}
-                    className={['shrink-0 text-[10px] leading-none px-1 py-0.5 rounded', editing ? 'text-white bg-slate-600' : 'text-slate-500 hover:bg-slate-200'].join(' ')}
-                  >
-                    {editing ? '✓' : '✎'}
-                  </button>
-                  {/* fork gesture (⑂) and the fan toggle moved OFF the node face
-                      (0006): forking is a toolbar button now, and a fork always
-                      shows its visible columns — visibility lives in the bottom
-                      namecard bar, not an all-or-nothing fan. */}
-                  {s.optional && <span className="text-[9px] text-slate-400">◇</span>}
-                  <span data-rgrab={s.key} className="text-[10px] text-slate-300 select-none px-0.5">
-                    ⋮⋮
-                  </span>
+                  {/* the optional badge stays always-on (a status, not an action);
+                      rename (✎), item count, minimise and close now live in the
+                      hover/select browser bar (#15). The ⑂ fork gesture and fan
+                      toggle are off the node face since 0006 (forking is a toolbar
+                      button; a fork always shows its visible columns). */}
+                  {s.optional && <span className="shrink-0 text-[9px] text-slate-400">◇</span>}
+                  {browserBar(pl, 'open', isSelected || editing)}
                 </div>
 
                 {/* a fork: a description row, then one HEADER per VISIBLE variant
@@ -912,6 +991,37 @@ export default function AuthorRoad({
               style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h }}
             />
           )}
+
+          {/* #15: close on a container ungroups it — but a fork (>1 version) is
+              guarded by this popup rather than silently dropping the other routes.
+              Anchored under the offending node; dismissed on OK or a board click. */}
+          {blockUngroup &&
+            (() => {
+              const pl = items.find((p) => pathKey(p.path) === blockUngroup)
+              if (!pl) return null
+              const w = 212
+              return (
+                <div
+                  data-blockungroup={blockUngroup}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="absolute z-50 rounded-lg border border-slate-300 bg-white shadow-md px-3 py-2 text-[10.5px]"
+                  style={{ left: Math.max(4, Math.min(pl.x + pl.w / 2 - w / 2, W - w - 4)), top: pl.y + pl.h + 6, width: w }}
+                >
+                  <div className="font-semibold text-slate-700">This group has more than one version</div>
+                  <div className="mt-0.5 text-slate-500">Delete the extra versions first — the ✕ on a version tab — then it can be ungrouped.</div>
+                  <div className="mt-1.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setBlockUngroup(null)}
+                      className="text-[10px] px-2 py-0.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-100"
+                    >
+                      OK
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
           {/* action toolbar — pinned to the selection box (stable). #17 */}
           {state.selected.size > 0 && selBox && (
