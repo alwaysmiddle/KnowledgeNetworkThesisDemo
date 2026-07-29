@@ -23,6 +23,7 @@ project is assembled from whichever sources actually hold it:
 | the code and its comments | the current model — the ops in `authordraft.ts`, the layout arithmetic in `AuthorRoad.tsx` |
 | `tools/*-spike/RESULTS.md` | spike findings, next to the shots that produced them |
 | `skills/` | packaged procedures, and material mirrored in from outside |
+| `design-handoff/` | the running conversation with the design agent |
 
 Read the sources the task actually touches. Do not assume any one of them is
 complete, and do not treat a page as authoritative just because it is written
@@ -34,6 +35,17 @@ unless the document records a decision that has not been implemented yet.
 1. Skim the open issues covering the area you are about to touch.
 2. Read the files the task names, plus their neighbours in the same folder.
 3. If a spike covers the area, read its `RESULTS.md` before re-deriving it.
+
+## Design agent
+
+A design agent works on the visual system in a Claude Design project and cannot
+write to this repo. `design-handoff/` is our side of that conversation; read
+`design-handoff/PROTOCOL.md` once — it is short, and it is the whole contract.
+
+The two habits it asks for: after a commit that touches `src/instruments/`,
+rewrite `design-handoff/from-code.md` with a real `git rev-parse HEAD` and
+anything that just made the design system stale; and reply to their messages as
+a new numbered file under `design-handoff/msg/`, never by editing theirs.
 
 ## This repo's role
 

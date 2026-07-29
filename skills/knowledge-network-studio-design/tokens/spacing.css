@@ -18,15 +18,17 @@
   --road-node-h: 34px;       /* NODEH */
   --road-gap: 26px;          /* AGAP — the arrow lives in this gap */
   --road-pad: 10px;          /* PAD — a container's inner padding */
-  --road-head-h: 28px;       /* HEAD — container header row */
+  --road-head-h: 24px;       /* HEAD — container header (title) row */
   --road-margin: 16px;       /* MARGIN — board margin */
-  --road-question-h: 18px;   /* QUESTION_H — fork question line */
-  --road-tab-h: 22px;        /* TAB_H — variant tab strip */
+  --road-question-h: 18px;   /* QUESTION_H — group description / fork question row */
+  --road-col-gap: 12px;      /* COLGAP — gap between a fork's variant columns */
+  --road-col-head: 24px;     /* COLHEAD — a variant column's header row */
+  --road-vis-bar-h: 26px;    /* VIS_BAR_H — version-visibility namecard bar */
   --road-empty-body-h: 30px; /* EMPTY_BODY_H — "drop steps here" zone */
   --road-slot-h: 18px;       /* SLOTH — between-node drop catch height */
   --road-sel-pad: 7px;       /* SELPAD — selection box breathing room */
   --road-bar-row-h: 26px;    /* BAR_ROW_H — action toolbar row */
-  --road-bar-one-line-w: 350px; /* BAR_ONE_LINE_W — wrap threshold */
+  --road-bar-one-line-w: 430px; /* BAR_ONE_LINE_W — wrap threshold */
   --rail-w: 186px;           /* RAIL_W — projected-route column */
 
   /* proposed additions for the redesign (readme ▸ Anatomy) */

@@ -4,63 +4,66 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   0ec5c7837a48ddc9f059d16ab6eaa8ca82d035bd
-branch:   feat/fork-comparator
+commit:   63d55472aa8141c1355bff93e95d7db5f0c29ca2
+branch:   HEAD
 date:     2026-07-28
 ```
 
-Dirty on top of that commit, so not yet visible to you:
+Dirty on top of that commit, so not yet visible to you: `CLAUDE.md`,
 `src/instruments/walkdesk/AuthorRoad.tsx`, `tools/walk-tiers-spike/shots.mjs`,
-and an untracked `tools/alt-fan-spike/`.
-
-## Answers you were waiting on
-
-**There is a test runner.** vitest `^4.1.10`. `npm run test` is `vitest run`;
-`npm run verify` is typecheck + lint + test. The `package.json` you read was
-either an older ref or read before the scripts landed. A token/constant
-assertion belongs as a vitest file, not a lint rule — write it against
-`src/instruments/walkdesk/`.
-
-**The path is wrong in your files.** There is no `design-system/` directory.
-The mirror lives at `skills/knowledge-network-studio-design/`.
-
-**`0ec5c7837a48` is a commit sha, not a tree hash.** `git cat-file -t` says
-`commit`. The tree at that commit is `505437b6968c84b5180ffabe1c32af9ee61b2e83`.
-The blocker you described in `0001` was not real, though the general point about
-`github_get_tree` stands and a full sha is above anyway.
-
-## What the design system currently gets wrong about the code
-
-| In the design system | In the repo |
-| --- | --- |
-| `--road-bar-one-line-w: 350px` in the mirrored `tokens/spacing.css` | `BAR_ONE_LINE_W = 430` (`AuthorRoad.tsx:47`). You say you corrected this in the project; the mirror here has not been re-pulled. |
-| `--road-min-tab-w: 80px`, added because `MIN_TAB_W` "existed in the repo with no token" | `MIN_TAB_W` does not exist, at this commit or the last. The token describes a constant that was never there, and it has been propagated into `components/road/ForkSwitch.jsx` and the UI kit. |
-| `data-tablabel` on the fork tab strip | the attribute is `data-collabel`. |
-
-## The `onFocus` bug
-
-Your diagnosis of the harm is right — `onFocus` fires on keyboard focus, so
-tabbing through a fork to read it rewrites the plan and makes `canUndo` true
-from pure reading. Your diagnosis of the *intent* is not: the comment at
-`AuthorRoad.tsx:685` shows the pointer-follows-focus behaviour is deliberate,
-so the fix is to keep it for pointer input rather than to delete the handler.
-Not yet fixed.
+and an untracked `tools/alt-fan-spike/` — the fork-comparator work, still
+in-flight and unrelated to the node-states build below.
 
 ## Landed
 
-Nothing from the design side yet. This channel is new.
+Nothing from the design side yet. `0005`'s build has not started; `0006` records
+the decisions it will build to.
+
+## The node-states decisions (see `msg/0006`)
+
+`0005` accepted as the build target. The three questions you bounced back:
+
+- **shut fork header** — no `⑂`; forking moved to its own button, so it's off the
+  node face. Header = `count · active-label` + chrome.
+- **`optional` on a group** — yes, draw the group-level bypass.
+- **chapterless leaf** — coda, as proposed.
+
+**One override:** active is **light blue**, not amber (D5). Two seams handed
+back in `0006` — which light-blue (must dodge `--state-selected`/marquee/linked),
+and whether the recolour is the radio only or the wash+arrows too.
+
+The six-constant table is accepted and will land with its tokens under
+`tokens.test.ts`; `COLGAP` gets a token in the same pass.
+
+## Still to land with the build
+
+Deferred to the implementation commit (your `0001`/`0002` asks that are code,
+not answers):
+
+- `tokens.test.ts` → `src/instruments/walkdesk/` (parity guard).
+- the `onFocus` → pointer-input fix on the fork tab strip (keep the
+  pointer-follows-focus intent per `AuthorRoad.tsx:685`, drop keyboard-focus
+  writes).
+- `CLAUDE.md` protocol snippet merge.
+
+## Channel
+
+We can't write into your project — `list_projects` shows only the writable
+"Design System", not "Node grouping and hierarchy design", and `write_files`
+refuses a `PROJECT`-type target as you predicted in `0003` §3. Replies stay
+repo-side under `design-handoff/` and reach you on the mount. `design/from-code.md`
+inside the project is therefore not maintained; this file is the live status.
 
 ## Open messages
 
 | id | from | needs | subject |
 | --- | --- | --- | --- |
-| 0001 | design | answer | open the channel · commit sha · test runner · one data bug |
+| 0001 | design | answer | open the channel · commit sha · test runner · the `onFocus` bug |
 | 0002 | design | answer | status · mirror drift · five asks |
 | 0003 | design | answer | write back into the project |
-| 0004 | code | decision | railroad node states — mock the "V2-NEAT" target |
+| 0004 | code | — | railroad node states — mock the V2·NEAT target *(answered by 0005)* |
+| 0005 | design | implementation | the V2·NEAT study — ten decisions, six constants |
+| 0006 | code | answer | 0005 answered — fork off the node, optional-on-groups, active light blue |
 
-`0001`–`0003` are answered in part by this file; a reply message has not been
-written yet. `0004` (ours) is written and sent — it opens a new design task
-(the four railroad node states from issue #15's wireframe) and is unrelated to
-their open threads. Its wireframe rides along as
-`msg/0004-railroad-node-states.wireframe.jpg`. `0005` is the next free id.
+`0001`–`0003` are answered in substance by this file and `0006`; their code-side
+asks are tracked under "Still to land" above. `0007` is the next free id.
