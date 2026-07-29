@@ -99,8 +99,10 @@ interface Placed {
   y: number
   w: number
   h: number
-  /** a leaf's position on the resolved road (unbadged off the road) */
-  order?: number
+  /** hierarchical outline number by AUTHORING position — "2", "2.1", "2.1.3" —
+   * shown left of every title. Replaced the flat amber walk-order badge (#15);
+   * the walk sequence now lives only in the right-pane route preview. */
+  outline: string
   onRoad: boolean
   skipped: boolean
   /** container nesting depth (0 at the board's top level, +1 per open container
@@ -163,15 +165,17 @@ function layoutRoad(
   const arrows: Arrow[] = []
   const bypasses: Bypass[] = []
   const slots: Slot[] = []
-  const ctr = { n: 0 }
 
-  const placeList = (list: Stop[], parent: Path, centerX: number, y0: number, onRoad: boolean, depth: number) => {
+  // `prefix` is the parent container's outline number ("" at the top level); each
+  // child is prefix.(i+1), so numbering follows AUTHORING position, not walk order.
+  const placeList = (list: Stop[], parent: Path, centerX: number, y0: number, onRoad: boolean, depth: number, prefix: string) => {
     let y = y0
     let prevBottom: number | null = null
     let prevSkipped = false
     let lastW = NODEW
     list.forEach((s, i) => {
       const p = [...parent, i]
+      const outline = prefix ? `${prefix}.${i + 1}` : String(i + 1)
       const m = measure(s)
       const { w, h } = m
       const x = centerX - w / 2
@@ -186,13 +190,12 @@ function layoutRoad(
           live: onRoad && skipped,
         })
       if (isLeaf(s)) {
-        const order = onRoad && !skipped ? ++ctr.n : undefined
-        items.push({ path: p, stop: s, x, y, w, h, order, onRoad, skipped, depth })
+        items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth })
       } else if (collapsed.has(s.key!)) {
-        items.push({ path: p, stop: s, x, y, w, h, onRoad, skipped, depth })
+        items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth })
       } else {
         const cols = m.cols!
-        items.push({ path: p, stop: s, x, y, w, h, onRoad, skipped, depth, cols })
+        items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth, cols })
         // lay each SHOWN variant out as its own column, centered as a group under
         // the card. Only the CHOSEN column is the road (live arrows, order
         // numbers); the rest pass onRoad=false, so the same dim/ghost machinery a
@@ -206,7 +209,7 @@ function layoutRoad(
         vis.forEach((k, ci) => {
           const cw = cols[ci].w
           const steps = s.variants[k].steps
-          if (steps.length) placeList(steps, [...p, k], cx + cw / 2, top, onRoad && !skipped && k === chosen, depth + 1)
+          if (steps.length) placeList(steps, [...p, k], cx + cw / 2, top, onRoad && !skipped && k === chosen, depth + 1, outline)
           cx += cw + COLGAP
         })
       }
@@ -219,7 +222,7 @@ function layoutRoad(
   }
 
   const W = Math.max(NODEW, ...stops.map((s) => measure(s).w)) + 2 * MARGIN
-  placeList(stops, [], W / 2, MARGIN, true, 0)
+  placeList(stops, [], W / 2, MARGIN, true, 0, '')
   const bottoms = items.map((it) => it.y + it.h)
   const H = (bottoms.length ? Math.max(...bottoms) : 0) + MARGIN
   return { items, arrows, bypasses, slots, W, H }
@@ -297,9 +300,20 @@ export default function AuthorRoad({
         return { x, y, w: right - x, h: bottom - y }
       })()
     : null
-  const barMaxW = Math.max(180, W - 8)
+  // #15 feedback: the multi-select toolbar sits to the LEFT of the selection, not
+  // above/below it. Anchor its RIGHT edge barGap px left of the box (so its width
+  // never has to be measured) and let it wrap within the room there — on a narrow
+  // road that room is slim, so the buttons stack nearly vertical. maxWidth = the
+  // left room, which also guarantees the left edge stays on-board (>= 4). If the
+  // box hugs the left edge (no room), fall back to the right side.
+  const barGap = 6
+  const barMinW = 84
+  const leftRoom = selBox ? selBox.x - barGap - 4 : 0
+  const rightRoom = selBox ? W - (selBox.x + selBox.w) - barGap - 4 : 0
+  const barOnLeft = leftRoom >= barMinW
+  const barMaxW = Math.max(barMinW, Math.min(BAR_ONE_LINE_W, barOnLeft ? leftRoom : rightRoom))
   const barH = Math.max(1, Math.ceil(BAR_ONE_LINE_W / barMaxW)) * BAR_ROW_H + 8
-  const barY = selBox ? (selBox.y - barH - 4 >= 0 ? selBox.y - barH - 4 : selBox.y + selBox.h + 4) : 0
+  const barTop = selBox ? Math.max(4, Math.min(selBox.y, H - barH - 4)) : 0
 
   /** Windows-style select: a plain click takes just this block, shift adds. */
   const selectOn = (pl: Placed) => (e: ReactMouseEvent) => {
@@ -496,16 +510,15 @@ export default function AuthorRoad({
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: color }}
                 >
-                  {pl.order !== undefined && (
-                    <span
-                      data-rord={pl.order}
-                      className="shrink-0 w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center"
-                    >
-                      {pl.order}
-                    </span>
-                  )}
+                  {/* #15: hierarchical outline number, left of the title with a
+                      trailing dot. Replaced the amber walk-order badge — the walk
+                      sequence lives in the right-pane preview now. */}
+                  <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
+                    {pl.outline}.
+                  </span>
                   {s.optional && <span className="shrink-0 text-[9px] text-slate-400">◇</span>}
-                  <span className="truncate">{byId.get(s.node)!.title}</span>
+                  {/* a leaf (unnested node) centres its title (#15) */}
+                  <span className="flex-1 text-center truncate">{byId.get(s.node)!.title}</span>
                 </div>
               )
             }
@@ -550,6 +563,9 @@ export default function AuthorRoad({
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)' }}
                 >
+                  <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
+                    {pl.outline}.
+                  </span>
                   <span className="truncate">{s.title}</span>
                   {isFork(s) && (
                     // shut fork header (0005 D2 + 0006): no ⑂ — the active route's
@@ -628,6 +644,10 @@ export default function AuthorRoad({
                   className={['flex items-center gap-1 px-2 cursor-grab rounded-t-2xl', isSelected ? 'ring-2 ring-blue-500 bg-blue-100' : ''].join(' ')}
                   style={{ height: HEAD }}
                 >
+                  {/* #15: the group's outline number, left of its title */}
+                  <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
+                    {pl.outline}.
+                  </span>
                   {editing ? (
                     <input
                       data-rretitle={s.key}
@@ -899,7 +919,11 @@ export default function AuthorRoad({
               data-fly
               data-seltools
               className="absolute z-40 flex flex-wrap items-center gap-1 px-1.5 py-1 rounded-lg border border-slate-300 bg-white shadow-md transition-[left,top] duration-200 ease-out"
-              style={{ left: Math.max(4, Math.min(selBox.x, W - 180)), top: barY, maxWidth: barMaxW }}
+              style={
+                barOnLeft
+                  ? { right: W - selBox.x + barGap, top: barTop, maxWidth: barMaxW }
+                  : { left: selBox.x + selBox.w + barGap, top: barTop, maxWidth: barMaxW }
+              }
             >
               <span className="text-[10px] font-semibold text-blue-600 px-1 select-none">{state.selected.size} selected</span>
               <button
