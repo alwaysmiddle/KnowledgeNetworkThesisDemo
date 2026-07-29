@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   98d2ec7
+commit:   cfcb100
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -55,11 +55,17 @@ CORE of the study — D1, D3, D5, D10 — is in.
   container is the one persistently-RAISED thing (`--lift-node`, `--border-well-strong`),
   and **D2 is now built** — two stacked silhouette plates peek down-right within
   `--road-hatch` (6px), so a shut group reads as a folded stack, not a leaf.
-  `layoutRoad` now threads a container `depth` to drive the per-level tint. Color
-  and elevation tokens live in the code as string consts for now (`WELL_FILL`,
-  `SINK_WELL`, `LIFT_NODE`, `BORDER_WELL*`) — the numeric spacing-parity test does
-  not cover them; wiring them through a Tailwind `@theme` block is the next planned
-  refactor (see "Still to build").
+  `layoutRoad` now threads a container `depth` to drive the per-level tint.
+- **the containment tokens are WIRED to one source** (`cfcb100`, #44). The elevation
+  pass left those values in three places — your mirror, hardcoded utilities, and
+  string consts in `AuthorRoad.tsx`. They now live once, in a Tailwind `@theme`
+  block in `src/index.css`: `--surface-well-1..4`, `--border-well`,
+  `--border-well-strong` (your `colors.css`), and `--sink-well`, `--lift-node`
+  (your `elevation.css`). `AuthorRoad` consumes them as `var(--…)`; the string
+  consts are gone. `tokens.test.ts` gained a second guard asserting the wired block
+  equals your `colors.css`/`elevation.css` value-for-value — so those two files are
+  now **tested coupling**, not just documentation. No pixel moved (verified against
+  the Job-A shots). One decision is yours — see "Still to build".
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
@@ -86,15 +92,24 @@ read as a stack rather than a leaf.
 `0005` is fully built (D1–D10) except the one deferred layout item above (D10
 optional-group clearance), held for want of a manifestation in the corpus.
 
-The remaining known work is one refactor, not a design gap: color, typography,
-elevation and motion tokens are **documentation** today — reverse-engineered from
-the code ("as-built from the repo"), not a source the app is built from. Only
-spacing is wired, and even that is a mirror + parity test, not consumption. To
-make the four other axes prescriptive (a single source the way spacing nearly is)
-we would add a Tailwind v4 `@theme` block to `index.css`, migrate the hardcoded
-utility classes to semantic ones, and extend `tokens.test.ts` to guard them. That
-is drift-proofing, not fidelity — the designed *look* is reached without it — so
-it is sequenced after the look settles.
+The remaining known work is one refactor, tracked as **#44**, now part-done:
+
+- **Landed (`cfcb100`):** the containment surfaces — `--surface-well-*`,
+  `--border-well*`, `--sink-well`, `--lift-node` — are wired to a `@theme` block in
+  `index.css` and parity-tested against your `colors.css`/`elevation.css`.
+- **Still documentation:** typography, motion, and the rest of `colors.css` (the
+  domain ramp, road hues, state colors) are still reverse-engineered "as-built"
+  notes, consumed as hardcoded Tailwind utility classes, not from a source. Wiring
+  them is more of the same `@theme` + utility-migration + parity work.
+- **Your call (msg `0007`, pending):** the wired block currently *copies* your
+  token values (Approach A), with the test catching drift. The alternative is for
+  `index.css` to `@import` your `tokens/*.css` mirror directly, making your files
+  the literal source the app builds from (Approach B) — one copy, no parity test,
+  but the app's build then rides the mirror pull. That inverts which file is
+  authoritative — yours — so it is yours to decide. Approach A is a clean
+  stepping-stone either way; nothing already landed is wasted if you pick B.
+
+This is drift-proofing, not fidelity — the designed *look* is reached without it.
 
 ## Channel
 
