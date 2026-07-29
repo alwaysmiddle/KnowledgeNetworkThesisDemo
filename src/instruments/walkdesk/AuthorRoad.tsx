@@ -37,6 +37,7 @@ const PAD = 10
 const HEAD = 24 // container header (title) row — 24 fits 20px chrome with 2px either side (0005 D-coupling)
 const MARGIN = 16
 const QUESTION_H = 18 // the fork question line, above the columns
+const DESC_H = 16 // the description subtitle row under any open container's title (#15)
 const COLGAP = 12 // horizontal space between a fork's variant columns
 const COLHEAD = 24 // a variant column's header (● chosen · label · ✕ · drag-out) — 24 so the ✕ hover fill doesn't clip (0005 D-coupling)
 const VIS_BAR_H = 26 // version-visibility namecard bar under a fork's columns (0005 D5); = BAR_ROW_H so both bars share a row height
@@ -73,10 +74,11 @@ const visKey = (s: Stop, k: number): string => `${s.key!}.${k}`
 const visibleVariantIdxs = (s: Stop, hidden: ReadonlySet<string>): number[] =>
   isFork(s) ? s.variants.map((_, k) => k).filter((k) => !hidden.has(visKey(s, k))) : s.variants.map((_, k) => k)
 
-/** the rows a container reserves above its column band: the header, plus (fork
- * only) a description/question row. A fork always shows its columns now — the old
- * fan toggle is gone, so this gates on isFork rather than on an expand flag. */
-const headH = (s: Stop): number => HEAD + (isFork(s) ? QUESTION_H : 0)
+/** the rows a container reserves above its column band: the header, the
+ * always-on description subtitle row (#15, every open container), plus (fork
+ * only) the question line. A fork always shows its columns now — the old fan
+ * toggle is gone, so the question gates on isFork rather than on an expand flag. */
+const headH = (s: Stop): number => HEAD + DESC_H + (isFork(s) ? QUESTION_H : 0)
 /** the y-offset from a card's top to where its step columns begin: head, pad, and
  * (fork only) the per-variant column-header band (COLHEAD). One source of truth
  * shared by the layout math, the column headers, and the empty-column drop zones. */
@@ -743,7 +745,7 @@ export default function AuthorRoad({
                   className={[
                     // neutral white, raised, a stronger neutral edge than an open
                     // well's — depth + the stack say "group", not green.
-                    'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
+                    'group road-jiggle absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
                     'transition-[left,top,width,height] duration-200 ease-out',
                     // D10 (0005): an optional stop is drawn EXACTLY like any other —
                     // no dashed edge. A dash reads as emphasis, backwards for a stop
@@ -819,7 +821,7 @@ export default function AuthorRoad({
                 // reading when wells nest. The green border/wash is retired; a
                 // neutral hairline is all an open well needs. D10: an optional open
                 // card is drawn like any other — the bypass rail says it may skip.
-                className={['group absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
+                className={['group road-jiggle absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
                 style={{
                   left: pl.x,
                   top: pl.y,
@@ -890,7 +892,25 @@ export default function AuthorRoad({
                   {browserBar(pl, 'open', isSelected || editing)}
                 </div>
 
-                {/* a fork: a description row, then one HEADER per VISIBLE variant
+                {/* #15: a description subtitle for ANY open container — one always-on
+                    editable row under the title, left-indented so it reads as "under"
+                    the title, not under the outline number. Empty by default (faded
+                    placeholder); its DESC_H height is reserved in headH() so the
+                    floating steps never overlap it. Distinct from the fork question. */}
+                <input
+                  data-rdesc={s.key}
+                  value={s.description ?? ''}
+                  placeholder="describe this node…"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => state.setDescription(s.key!, e.target.value)}
+                  // relative z-10: the description is interactive and sits in the
+                  // header band, where a first-position drop slot (z-0) would
+                  // otherwise paint over its lower half and steal the click.
+                  className="relative z-10 block w-full pr-2 text-[9.5px] text-slate-500 bg-transparent outline-none placeholder:text-slate-300 placeholder:italic"
+                  style={{ height: DESC_H, paddingLeft: 22 }}
+                />
+
+                {/* a fork: the question row, then one HEADER per VISIBLE variant
                     column (in visible order ci — a hidden version has no column).
                     Each header is that route's handle — click to make it ACTIVE
                     (the ● radio, light blue per 0006), drag out to lift it onto the
@@ -904,7 +924,7 @@ export default function AuthorRoad({
                       placeholder="describe this fork…"
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => state.setQuestion(s.key!, e.target.value)}
-                      className="block w-full px-2 text-[9.5px] text-slate-500 bg-transparent outline-none placeholder:text-slate-300"
+                      className="relative z-10 block w-full px-2 text-[9.5px] text-slate-500 bg-transparent outline-none placeholder:text-slate-300"
                       style={{ height: QUESTION_H }}
                     />
                     {vis.map((k, ci) => {

@@ -53,3 +53,19 @@
 .drill-enter-up    { animation: drill-up 280ms ease-out; }
 .drill-enter-left  { animation: drill-left 280ms ease-out; }
 .drill-enter-right { animation: drill-right 280ms ease-out; }
+
+/* Walk·Desk (#15): a nested node JIGGLES on hover to say "there is stuff inside".
+   A leaf never gets this class — the absence of the wobble is itself the signal
+   that the node is empty. One short wobble per hover-enter (not a loop), so it
+   reads as a nudge, not a vibration. The road already animates left/top/width/
+   height; transform is a separate channel, so the two don't fight. */
+@keyframes road-jiggle {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20%      { transform: translateX(-1.5px) rotate(-0.5deg); }
+  55%      { transform: translateX(1.5px) rotate(0.4deg); }
+  80%      { transform: translateX(-0.6px) rotate(-0.15deg); }
+}
+.road-jiggle:hover { animation: road-jiggle 360ms ease-in-out; }
+@media (prefers-reduced-motion: reduce) {
+  .road-jiggle:hover { animation: none; }
+}

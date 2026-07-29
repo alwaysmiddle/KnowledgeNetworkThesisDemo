@@ -42,6 +42,10 @@ export interface Stop {
   title?: string
   /** the question shown above a fork's tabs (only meaningful when variants>1) */
   question?: string
+  /** a free-text description shown under the title of any OPEN container — a
+   * node subtitle (#15). Distinct from `question`: this says what the node IS,
+   * the question poses the fork's choice. A fork can carry both. */
+  description?: string
   /** []  = leaf · 1 = plain group · 2+ = fork */
   variants: Variant[]
 }

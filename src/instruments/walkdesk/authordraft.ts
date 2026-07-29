@@ -295,6 +295,8 @@ export interface AuthorState {
   addVariant(key: string): void
   relabelVariant(key: string, idx: number, label: string): void
   setQuestion(key: string, question: string): void
+  /** edit a container's description subtitle (#15) — the row under its title */
+  setDescription(key: string, description: string): void
   canGroup: boolean
   canOptional: boolean
   canIndent: boolean
@@ -445,6 +447,9 @@ export function useAuthorDraft(): AuthorState {
     },
     setQuestion: (key, question) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, question })), 'question:' + key)
+    },
+    setDescription: (key, description) => {
+      commitStops(mapBox(stops, key, (s) => ({ ...s, description })), 'description:' + key)
     },
     canGroup: !!run,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
