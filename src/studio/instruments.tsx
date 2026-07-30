@@ -209,7 +209,7 @@ export const lensTypeOf = (id: string): EdgeType | undefined =>
 
 // ── Presets ─────────────────────────────────────────────────────────────────
 // A preset is (instrument list + geometry), not an instrument list alone:
-// Teaching wants one or two canvases with room to breathe, Cockpit wants
+// Present wants one or two canvases with room to breathe, Explore wants
 // territory and prose side by side on one focus.
 //
 // A third preset, Coding (tree + three relation lenses in small glanceable
@@ -228,7 +228,7 @@ export const flattenSlots = (slots: readonly Slot[]): InstrumentId[] =>
   slots.flatMap((s) => (Array.isArray(s) ? s : [s]))
 
 export interface Preset {
-  id: 'teaching' | 'cockpit' | 'authoring'
+  id: 'present' | 'explore' | 'plan'
   label: string
   hint: string
   /** column order; strips always sit at the bottom */
@@ -238,15 +238,15 @@ export interface Preset {
 
 export const PRESETS: Preset[] = [
   {
-    id: 'teaching',
-    label: 'Teaching',
+    id: 'present',
+    label: 'Present',
     hint: 'map + unfold + document + walk — accumulating, authored order',
     active: ['nested', 'unfoldg', 'doc', 'walk'],
     flex: { nested: 2, unfoldg: 1.4, doc: 1 },
   },
   {
-    id: 'cockpit',
-    label: 'Cockpit',
+    id: 'explore',
+    label: 'Explore',
     hint: 'nested map + connections + document — territory, subtree wheel, and prose on one focus',
     active: ['nested', 'children', 'doc'],
     flex: { nested: 1.8, children: 1, doc: 1 },
@@ -262,8 +262,8 @@ export const PRESETS: Preset[] = [
     // The search column is stacked because both halves are the same gesture at
     // different zoom: "what is there" and "what is this one about". Walk·Columns
     // and Walk·Stack stay one sidebar click away rather than crowding the row.
-    id: 'authoring',
-    label: 'Authoring',
+    id: 'plan',
+    label: 'Plan',
     hint: 'palette over document, then the railroad and its route, then the map',
     active: [['palette', 'doc'], 'railroad', 'nested'],
     flex: { palette: 1, railroad: 1.6, nested: 2 },

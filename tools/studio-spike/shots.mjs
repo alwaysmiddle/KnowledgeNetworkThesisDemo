@@ -12,7 +12,7 @@
 // gone, and hand-composing it exercises the toggle path more than clicking a
 // preset did. The behaviors worth provoking:
 //   1. SIDEBAR PALETTE — 15 instruments (11 views + one generated lens per
-//      relation type) and 2 presets listed; Teaching is the default
+//      relation type) and 2 presets listed; Present is the default
 //      composition (4 panes on); hand-toggling drops it to "custom
 //      composition" and yields the lens workspace.
 //   2/3. FOCUS BUS — picking a tree leaf writes focus; every lens pane reads
@@ -21,14 +21,14 @@
 //   4. DEPTH is local per-pane state, not bus state — toggling it changes
 //      only that lens's cone and exposes frontier counts at the cap.
 //   5. SIDE-BY-SIDE comparison — adding map and contours to the composition.
-//   6/7/8. TEACHING PRESET — map + unfold-graph + document + walk strip,
+//   6/7/8. PRESENT PRESET — map + unfold-graph + document + walk strip,
 //      lenses benched (not unmounted). Growing the unfold graph paints
 //      visited rings on the map and drives the document pane; "teach me
 //      this" runs lens.ts's curriculum over the focused leaf's depends_on
 //      cone and drops it onto the shared route, ending AT the goal.
 //   9. ROUNDTRIP — switching preset only changes which panes are ON; a
 //      benched instrument (kept mounted, display:none) keeps its own state,
-//      so Teaching -> Cockpit -> Teaching must not lose the grown unfold
+//      so Present -> Explore -> Present must not lose the grown unfold
 //      graph or the route, and a lens re-shown after being benched reads
 //      CURRENT bus focus rather than the focus it was benched with.
 //   10. MAP CAMERA SYNC (asserted in 7, 8 and 10 via the svg's data-tx /
@@ -99,7 +99,7 @@ const focusReadout = page.locator('[aria-label="studio-header"] [data-focus]')
 await page.goto(`http://localhost:${PORT}/`)
 await page.waitForTimeout(600)
 
-// ── 1. sidebar palette, default Teaching composition ───────────────────────
+// ── 1. sidebar palette, default Present composition ────────────────────────
 // No entry click any more: the app IS the Studio (App.tsx), so the sidebar is
 // always mounted. This used to click a tab button in the old shell.
 const sidebar = page.locator('[aria-label="studio-sidebar"]')
@@ -240,7 +240,7 @@ await page.screenshot({ path: `${OUT}/05-custom-compare.png` })
 console.log('05-custom-compare.png taken')
 
 // ── 6. apply teaching preset ────────────────────────────────────────────────
-await page.locator('[aria-label="studio-preset-teaching"]').click()
+await page.locator('[aria-label="studio-preset-present"]').click()
 await page.waitForTimeout(400)
 
 const slotOf = async (inst) => (await page.locator(`[aria-label="studio-pane-${inst}"]`).getAttribute('data-slot')) === 'on'
@@ -346,13 +346,13 @@ if (!lastCardText.includes(focusTitleAtTeach)) fail(`last step card "${lastCardT
 await page.screenshot({ path: `${OUT}/08-teaching-curriculum.png` })
 console.log('08-teaching-curriculum.png taken')
 
-// ── 9. roundtrip: a re-shown lens recenters on bus focus, teaching keeps state
+// ── 9. roundtrip: a re-shown lens recenters on bus focus, Present keeps state
 // Was Teaching -> Coding -> Teaching; Coding is gone, so the switch goes via
-// Cockpit and the lenses are brought back by hand. The point is unchanged and
+// Explore and the lenses are brought back by hand. The point is unchanged and
 // arguably sharper: these lens panes have been BENCHED (mounted, display:none)
 // since scenario 6, so re-showing them proves a benched instrument re-reads
 // current bus focus rather than replaying the focus it was benched with.
-await page.locator('[aria-label="studio-preset-cockpit"]').click()
+await page.locator('[aria-label="studio-preset-explore"]').click()
 await page.waitForTimeout(400)
 
 for (const t of LENS_TYPES) {
@@ -368,7 +368,7 @@ for (const t of LENS_TYPES) {
   if (!text.includes(focusTitleRoundtrip)) fail(`lens ${t} header does not show current bus focus "${focusTitleRoundtrip}": "${text.replace(/\s+/g, ' ')}"`)
 }
 
-await page.locator('[aria-label="studio-preset-teaching"]').click()
+await page.locator('[aria-label="studio-preset-present"]').click()
 await page.waitForTimeout(400)
 
 const unfoldNodeCountAfterRoundtrip = await unfoldPane.locator('circle[data-node]').count()

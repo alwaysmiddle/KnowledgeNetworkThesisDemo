@@ -52,12 +52,12 @@ page.on('console', (m) => {
 })
 
 await page.goto(`http://localhost:${PORT}/`)
-await page.getByLabel('studio-preset-authoring').click()
+await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(500)
 
 const search = page.locator('[data-pal-search]')
 const road = page.locator('[data-railroad]')
-if ((await search.count()) !== 1) errors.push('palette: the search input did not mount in the Authoring preset')
+if ((await search.count()) !== 1) errors.push('palette: the search input did not mount in the Plan preset')
 
 // 0 — EMPTY STATE: nothing typed, no history yet → the cold prompt, zero result
 // rows. The pane should also be SHORT now (it sizes to its content, handing the

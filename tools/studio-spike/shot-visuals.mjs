@@ -48,7 +48,7 @@ page.on('console', (m) => {
 })
 
 await page.goto(`http://localhost:${PORT}/`)
-await page.getByLabel('studio-preset-cockpit').click()
+await page.getByLabel('studio-preset-explore').click()
 await page.waitForTimeout(600)
 
 /** the map camera's transform, for asserting flights happened / came home */
@@ -473,7 +473,7 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 
 // 6 — Teaching preset: since the flat Map was deleted (2026-07-14) this preset
 // inherits the nested atlas in its place — check it still lays out sanely
-await page.getByLabel('studio-preset-teaching').click()
+await page.getByLabel('studio-preset-present').click()
 await page.waitForTimeout(900)
 await page.screenshot({ path: OUT + '/6-teaching.png' })
 

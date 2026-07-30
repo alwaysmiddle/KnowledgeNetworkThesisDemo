@@ -150,7 +150,7 @@ export default function Palette({
   useEffect(() => {
     onMatches(new Set(hits))
   }, [hits, onMatches])
-  // and clear the map when this pane goes away — switching off the Authoring
+  // and clear the map when this pane goes away — switching off the Plan
   // preset must not strand pins on a map that no longer has a search beside it.
   useEffect(() => () => onMatches(new Set()), [onMatches])
 

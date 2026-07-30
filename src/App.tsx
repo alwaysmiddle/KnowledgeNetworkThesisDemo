@@ -1,7 +1,7 @@
 // The app IS the Studio: after the consolidation, every navigation-UX
 // prototype is a pickable instrument inside StudioView (the old tab-per-view
 // Shell and the standalone Cockpit tab live on as git history and the
-// 'cockpit' preset). App owns only the corpus header — what the graph is —
+// 'explore' preset). App owns only the corpus header — what the graph is —
 // while Studio owns everything about how it's explored.
 import { byId, domainIds, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, edges, MAX_DEPTH, nodes, topicIds } from './corpus/graph'
 import type { EdgeType } from './corpus/graph'

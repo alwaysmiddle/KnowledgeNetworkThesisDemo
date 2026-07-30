@@ -3,7 +3,7 @@
 //
 // It is a stand-in for the map: the whole feed contract is `pal:<nodeId>` on
 // text/plain, so the real map beside it is a dragstart handler away, not a
-// redesign. The Authoring preset now literally puts the two side by side, which
+// redesign. The Plan preset now literally puts the two side by side, which
 // is what the google-maps framing on #20 was asking for — the territory you can
 // see, and the filtered list of what is in it.
 //
