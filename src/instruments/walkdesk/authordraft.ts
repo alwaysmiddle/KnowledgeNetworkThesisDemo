@@ -70,7 +70,6 @@ const SEED: Stop[] = [
   {
     key: 'seed-sec',
     title: 'Secure the channel',
-    question: 'how deep on security?',
     variants: [
       { label: 'just the handshake', steps: [{ node: 'cry-tls-certificates', variants: [] }] },
       {
@@ -109,8 +108,8 @@ const seq = { box: 0 }
 const pastStore = store<Stop[][]>([])
 const futureStore = store<Stop[][]>([])
 const HISTORY_CAP = 100
-// The open text-edit session, if any. retitle/relabel/setQuestion fire per
-// keystroke; commits sharing a session key collapse into ONE undo entry instead
+// The open text-edit session, if any. retitle/relabel fire per keystroke;
+// commits sharing a session key collapse into ONE undo entry instead
 // of one per character. Any structural op (no key) closes the session.
 let editSession: string | null = null
 
@@ -267,10 +266,13 @@ export interface AuthorState {
    * there is no separate fork op. */
   groupSelection(): void
   deleteSelection(): void
-  /** replace the container at `path` with variant `keep`'s steps, spliced into
-   * the parent list in place — remove the box but KEEP its chosen steps on the
-   * road. Merges the old promote (plain group) and resolve-fork (chosen branch)
-   * into one op: both keep the steps that were showing. */
+  /** delete exactly the block at `path` — the per-node close button (#15), which
+   * acts on one node regardless of the current selection. */
+  deleteAt(path: Path): void
+  /** UNGROUP the container at `path`: replace it with `keep`'s steps, spliced in
+   * place. The per-node ✕ on a container calls this with the active version, so
+   * ungroup keeps the route you were looking at and drops the wrapper (and, for a
+   * fork, the other versions). Undoable. A leaf has nothing to ungroup — no-op. */
   promote(path: Path, keep: number): void
   /** drop ONE variant from the container at `path`. Emptied → the container is
    * removed; one variant left → it stays a plain GROUP (a one-variant container
@@ -291,15 +293,10 @@ export interface AuthorState {
   /** append a variant to the container — turns a plain group into a fork */
   addVariant(key: string): void
   relabelVariant(key: string, idx: number, label: string): void
-  setQuestion(key: string, question: string): void
   canGroup: boolean
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
-  /** exactly one PLAIN group is selected — Ungroup dissolves it, splicing its
-   * steps up. Disabled on a fork: resolving a fork to one road goes through the
-   * tab ✕ (delete the other routes), never a silent bulk discard. */
-  canPromote: boolean
   /** step the stops tree back / forward through edit history (#34) */
   undo(): void
   redo(): void
@@ -380,6 +377,7 @@ export function useAuthorDraft(): AuthorState {
       for (const p of paths) next = removeAt(next, p).rest
       commit(next)
     },
+    deleteAt: (path) => commit(removeAt(stops, path).rest),
     promote: (path, keep) => {
       const s = stopAt(stops, path)
       if (!s || isLeaf(s)) return
@@ -433,21 +431,17 @@ export function useAuthorDraft(): AuthorState {
       commitStops(mapBox(stops, key, (s) => ({ ...s, title })), 'title:' + key)
     },
     addVariant: (key) => {
-      const variant: Variant = { label: 'another way', steps: [{ node: '', unset: true, variants: [] }] }
+      // empty label → the version box + namecard show the default vN name
+      const variant: Variant = { label: '', steps: [{ node: '', unset: true, variants: [] }] }
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))
     },
     relabelVariant: (key, idx, label) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)
     },
-    setQuestion: (key, question) => {
-      commitStops(mapBox(stops, key, (s) => ({ ...s, question })), 'question:' + key)
-    },
     canGroup: !!run,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,
-    canPromote:
-      !!single && !!stopAt(stops, single) && isBox(stopAt(stops, single)!) && !isFork(stopAt(stops, single)!),
     undo: undoDraft,
     redo: redoDraft,
     canUndo: past.length > 0,
