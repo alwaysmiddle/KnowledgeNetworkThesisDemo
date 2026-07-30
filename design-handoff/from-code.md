@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   8e90ffb
+commit:   eb6642d
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -16,22 +16,44 @@ a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's titl
 circle, minimise/maximise and close live in a hover/select **browser bar** at each
 node's top-right; the header still drags. Rename is **not** a browser-bar button.
 
-**Newest — the #15 V2-NEAT version pass (`8e90ffb`), which supersedes several
-notes further down:** each visible version now renders as a **light-blue
-rounded-rectangle box** (all boxes equal height, aligned to the frame) wrapping
-its steps; a fork's box carries a header of **green ● active toggle · vN title ·
-item-count circle · ✕**, and inactive versions **fade** (box + contents).
-**Active is GREEN now** — this supersedes #15's original "green" having been
-overridden to light-blue in `0005` D5 / `4eb5cca`, *and* the `024adb2` note that
-add-version stays a toolbar button. **Add-version is the round `⊕` namecard** at
-the end of the bottom bar, which now shows for **every** open container (a plain
-group shows `☑v1` + `⊕`); the `⑂ Version` toolbar button is **gone**. Version
-names **default to v1/v2/v3**. The fork **"question" row is removed** (and its
-`--road-question-h` token) — per-version titles name the versions; the node
-**description** row under the title stays. **Deferred to its own pass:** the
-bounded version viewport with side **scroll arrows** (and the namecard scroll ▶)
-— it needs the board-level floating steps re-parented to clip inside a
-fixed-width frame, so it is not in this commit.
+**Newest — the resync/refactor pass (`eb6642d`), which supersedes the light-blue
+note directly below it AND the ungroup note further down:**
+
+- **Version boxes are NEUTRAL now, not light-blue.** The `8e90ffb` light-blue
+  boxes were off-palette (`sky-50/500`, `emerald`) and fought two rules — blue
+  already means *selection*, and containment is meant to read as DEPTH, not hue.
+  They are redrawn in the depth grammar: the **active** version box is a bright
+  translucent panel (**new wired token `--surface-inset` = `rgba(255,255,255,.6)`**,
+  in `index.css @theme` + `colors.css`), the **inactive** boxes are transparent
+  and faded so they recede into the well. Equal height + frame alignment unchanged.
+- **Active markers use on-palette `green-600`** (the ● version toggle and the
+  namecard active dot) — was off-palette `emerald-500`. #15's "green when ticked"
+  still holds; only the shade moved onto the token ramp.
+- **`⊕` add-version is a slate filled circle** (`slate-600`), was `sky-500`.
+- **Jiggle rewritten**: rise-and-**snap-back** (`translateY -5px → 0`, one bounce
+  per hover-enter, resets on leave) — was a left-right wobble.
+- **Ungroup is retired entirely.** The `⎍ Ungroup` toolbar button, the `Ctrl+G`
+  shortcut, the fork-guard popup, and the browser-bar keep-the-steps arm are all
+  gone; a container's **✕ now deletes it whole** (undoable). The dead
+  `promote`/`canPromote` store ops were removed too.
+- **Collapsed pill decluttered**: the inline `· vN` active-version label and the
+  `visitCount` number are gone — the browser-bar item counter already carries it.
+- **Namecard scroll button LANDED.** The bar's `▶` (solid gray) now scrolls the
+  chip track when the chips overflow; extracted into `VersionNamecardBar`, which
+  owns the one scoped overflow measurement. This is the *only* scroll control —
+  the version-column **scroll bars / bounded viewport are struck from #15**
+  ("out for now"), so that is NOT deferred, it is *out*.
+- **Token cleanup**: dropped the orphaned `--road-question` / `--road-question-h`
+  mirror tokens left by the removed fork-question row.
+
+**Superseded (kept for diff continuity) — the #15 V2-NEAT version pass
+(`8e90ffb`):** each visible version rendered as a **light-blue rounded-rectangle
+box**; a fork's box carried a header of **green ● active toggle · vN title ·
+item-count circle · ✕**, inactive versions **faded**; add-version became the round
+`⊕` namecard (shown for every open container, `⑂ Version` toolbar button gone);
+version names **default to v1/v2/v3**; the fork **"question" row was removed**;
+the node **description** row stays. All of that still holds EXCEPT the light-blue
+fill (now neutral, see above).
 
 Three **`9964a4d`** refinements supersede the `0600eb1` node/toolbar treatment:
 - **The action toolbar is now a STATIC horizontal strip pinned to the top of the
@@ -49,8 +71,9 @@ Three **`9964a4d`** refinements supersede the `0600eb1` node/toolbar treatment:
 
 Two `0600eb1` behaviours still hold: **double-click no longer collapses** an open
 card (minimise is the browser-bar `—` button; double-click still *expands* a shut
-pill), and the `g` / `Ctrl+G` group/ungroup shortcuts (hint badges after ~1s hover,
-now dropping **below** their button on the horizontal bar).
+pill), and the `g` group shortcut (hint badge after ~1s hover, dropping **below**
+its button on the horizontal bar). NB the `Ctrl+G` ungroup shortcut is **gone** as
+of `eb6642d` — see the ungroup note at the top.
 
 Clean on top of that commit for everything below. Still dirty and NOT part of
 this build: `tools/walk-tiers-spike/shots.mjs` and an untracked
