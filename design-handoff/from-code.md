@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   e5b8a93
+commit:   87594a3
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -16,7 +16,32 @@ a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's titl
 circle, minimise/maximise and close live in a hover/select **browser bar** at each
 node's top-right; the header still drags. Rename is **not** a browser-bar button.
 
-**Newest — the #15 refactor pass (`e5b8a93`), which walks back several things
+**Newest — the hologram-lift pass (`87594a3`), which brings the jiggle back as a
+different effect and supersedes D1's "an open well casts nothing":**
+
+- **A group node LIFTS on hover** — a smooth ~500ms scale to **1.05**
+  (`.hover-lift` in `index.css`), like a card floating up off the board. This
+  is the jiggle *reworked*, not restored: the old effect was a fast SHAKE that
+  retriggered on every stacked card as the cursor swept a nested group (the
+  disorienting part). A smooth scale plays only on the node under the cursor and
+  settles back, so a sweep is a gentle rise-and-settle. The `e5b8a93` "jiggle
+  removed entirely" note is now qualified — the *shake* is gone, a *lift*
+  replaces it. Applies to **group nodes only** (collapsed pill + open card);
+  leaves stay quiet. `prefers-reduced-motion` drops the scale.
+- **Group nodes now cast a shadow.** A collapsed pill already lifted
+  (`--lift-node`). An **open card** now layers the inset `--sink-well` (the well
+  stays recessed) with an outer `--lift-node` drop, so the whole card floats off
+  the board — a **floating recessed panel**. This **supersedes 0005 D1** ("an
+  open well is recessed and casts nothing"): per the user, group cards should
+  read as cards with elevation. The per-depth well tint and the neutral hairline
+  are unchanged; only the outer shadow is added.
+- **Implementation note for your grammar:** the scale carries no `z-index`
+  bump. An open card's step chips are board-level siblings at `z-20` sitting
+  above the card's `z-index:auto`; lifting the hovered card above them would
+  hide its own contents. So a lifted card grows *under* its chips — worth knowing
+  if you spec any further hover elevation on containers.
+
+**Previous — the #15 refactor pass (`e5b8a93`), which walks back several things
 from the pass below it and supersedes D10:**
 
 - **The per-node ✕ on a CONTAINER now UNGROUPS again** (restores `promote()`,
