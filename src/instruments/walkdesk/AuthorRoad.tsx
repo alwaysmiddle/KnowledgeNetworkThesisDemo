@@ -6,13 +6,14 @@
 // flipped between. #19's one-column rule is deliberately reversed here; the
 // horizontal width it saved is spent, under control, on the comparison.
 //
-// One card renders both: a plain group (one variant) is just header + body — a
-// single column, unchanged. A fork (two or more) grows a question line and then
-// one COLUMN per variant, each with its own header (● chosen · label · ✕ ·
-// drag-out). The CHOSEN column is the road — bright, numbered, live arrows;
-// the others show muted with ghost arrows (the same onRoad/dim machinery a
-// skipped optional uses). "⑂ add a variant" in the header still branches — a
-// plain group grows a second column and becomes a fork.
+// One card renders both: a plain group (one variant) is a single column; a fork
+// (two or more) lays one COLUMN per variant side by side. Since #15 each visible
+// version is wrapped in a light-blue rounded-rectangle BOX, and a fork's box
+// carries a header (● active · vN title · item-count · ✕). The ACTIVE column is
+// the road — bright, numbered, live arrows; the others show muted+faded with
+// ghost arrows (the same onRoad/dim machinery a skipped optional uses). Adding a
+// version is the ⊕ namecard at the end of the bottom bar — a plain group grows a
+// second column and becomes a fork.
 //
 // Layout is arithmetic (measure → place): no DOM measurement, one SVG underlay
 // for the walk arrows and the optional-bypass rails. Step nodes float as
@@ -36,7 +37,6 @@ const AGAP = 26 // vertical space between siblings — the arrow lives here
 const PAD = 10
 const HEAD = 24 // container header (title) row — 24 fits 20px chrome with 2px either side (0005 D-coupling)
 const MARGIN = 16
-const QUESTION_H = 18 // the fork question line, above the columns
 const DESC_H = 16 // the description subtitle row under any open container's title (#15)
 const COLGAP = 12 // horizontal space between a fork's variant columns
 const COLHEAD = 24 // a variant column's header (● chosen · label · ✕ · drag-out) — 24 so the ✕ hover fill doesn't clip (0005 D-coupling)
@@ -74,17 +74,21 @@ const visKey = (s: Stop, k: number): string => `${s.key!}.${k}`
 const visibleVariantIdxs = (s: Stop, hidden: ReadonlySet<string>): number[] =>
   isFork(s) ? s.variants.map((_, k) => k).filter((k) => !hidden.has(visKey(s, k))) : s.variants.map((_, k) => k)
 
-/** the rows a container reserves above its column band: the header, the
- * always-on description subtitle row (#15, every open container), plus (fork
- * only) the question line. A fork always shows its columns now — the old fan
- * toggle is gone, so the question gates on isFork rather than on an expand flag. */
-const headH = (s: Stop): number => HEAD + DESC_H + (isFork(s) ? QUESTION_H : 0)
+/** the rows a container reserves above its column band: the title header and the
+ * always-on description subtitle row (#15, every open container). The old fork
+ * "question" row was removed in the V2-NEAT pass — the per-version v1/v2/v3
+ * titles name the versions now, so there is nothing fork-specific to reserve. */
+const headH = (): number => HEAD + DESC_H
 /** the y-offset from a card's top to where its step columns begin: head, pad, and
  * (fork only) the per-variant column-header band (COLHEAD). One source of truth
  * shared by the layout math, the column headers, and the empty-column drop zones. */
-const bodyTop = (s: Stop): number => headH(s) + PAD + (isFork(s) ? COLHEAD : 0)
-/** the extra height a fork reserves BELOW its columns for the visibility bar. */
-const visBarH = (s: Stop): number => (isFork(s) ? VIS_BAR_H : 0)
+const bodyTop = (s: Stop): number => headH() + PAD + (isFork(s) ? COLHEAD : 0)
+/** the extra height every OPEN container reserves BELOW its columns for the
+ * version namecard bar. Shown for plain groups too now (#15) — a single-version
+ * group still gets its "v1" namecard and the ⊕ add-version card — so this no
+ * longer gates on isFork. Only called for open containers (measure returns early
+ * for leaves and collapsed pills), so it is unconditional. */
+const visBarH = (): number => VIS_BAR_H
 
 type Mark = { key: string; band: Band } | null
 
@@ -159,7 +163,7 @@ function layoutRoad(
     const colsW = cols.reduce((acc, c) => acc + c.w, 0) + (cols.length - 1) * COLGAP
     const innerW = Math.max(NODEW, colsW)
     const bodyH = Math.max(...cols.map((c) => c.h))
-    return { w: innerW + 2 * PAD, h: bodyTop(s) + bodyH + PAD + visBarH(s), cols }
+    return { w: innerW + 2 * PAD, h: bodyTop(s) + bodyH + PAD + visBarH(), cols }
   }
 
   const items: Placed[] = []
@@ -462,7 +466,7 @@ export default function AuthorRoad({
     marqueeDragRef.current = false
     if (e.button !== 0 || !boardRef.current) return
     // only empty canvas starts a marquee — not a node, control, tab, or overlay
-    if ((e.target as HTMLElement).closest('[data-rnode],[data-rhead],[data-rstage],[data-rstage-closed],[data-fly],[data-varconfirm],[data-col],[data-collabel],[data-visbar],[data-rquestion],[data-rretitle],[data-rbody],button,input,select')) return
+    if ((e.target as HTMLElement).closest('[data-rnode],[data-rhead],[data-rstage],[data-rstage-closed],[data-fly],[data-varconfirm],[data-col],[data-collabel],[data-visbar],[data-rretitle],[data-rbody],button,input,select')) return
     const { x, y } = boardPoint(e)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     setMarquee({ x0: x, y0: y, x1: x, y1: y })
@@ -555,19 +559,9 @@ export default function AuthorRoad({
             </span>
           )}
         </span>
-        {/* fork gesture, off the node face (0006): add a version to a selected
-            container — the second one turns a group into a fork. */}
-        <button
-          data-fly-fork
-          disabled={!selStop || isLeaf(selStop)}
-          onClick={() => {
-            if (selStop) state.addVariant(selStop.key!)
-          }}
-          title="add a version — a second one makes this group a fork"
-          className="text-[11px] px-2 py-1 rounded border border-sky-400 text-sky-700 bg-sky-50 disabled:opacity-30 hover:bg-sky-100"
-        >
-          ⑂ Version
-        </button>
+        {/* the ⑂ Version toolbar button is gone (#15): adding a version now lives
+            on the ⊕ add-version namecard at the end of every container's bottom
+            namecard bar, next to the version chips it grows. */}
         <button
           data-fly-opt
           disabled={!state.canOptional}
@@ -765,7 +759,7 @@ export default function AuthorRoad({
                     // shut fork header (0005 D2 + 0006): no ⑂ — the active route's
                     // label stands in for it, since forking moved to a button.
                     <span className="shrink-0 font-normal text-slate-400 whitespace-nowrap">
-                      · {s.variants[chosenIdx(s, choices)]?.label || `V${chosenIdx(s, choices) + 1}`}
+                      · {s.variants[chosenIdx(s, choices)]?.label || `v${chosenIdx(s, choices) + 1}`}
                     </span>
                   )}
                   <span className="font-normal text-slate-400 whitespace-nowrap">{visitCount(s)}</span>
@@ -775,10 +769,11 @@ export default function AuthorRoad({
               ]
             }
 
-            // a container — the OPEN card. A plain group and a collapsed fork are
-            // one column; a FANNED fork grows a question line and one COLUMN per
-            // variant. Steps float over the body as board-level siblings, so no
-            // inner click bubbles up; the card only draws headers and empty zones.
+            // a container — the OPEN card. A plain group is one column; a fork
+            // lays one COLUMN per visible variant, each wrapped in a light-blue
+            // version box. Steps float over the body as board-level siblings, so no
+            // inner click bubbles up; the card only draws the boxes, headers, empty
+            // zones, and the bottom namecard bar.
             const editing = editKey === s.key
             const fork = isFork(s)
             const chosen = chosenIdx(s, choices)
@@ -789,6 +784,10 @@ export default function AuthorRoad({
             const vis = visibleVariantIdxs(s, hidden)
             const cols = pl.cols ?? []
             const colsW = cols.reduce((a, c) => a + c.w, 0) + Math.max(0, cols.length - 1) * COLGAP
+            // every version box spans the TALLEST column, so a 1-step version and a
+            // 4-step one read as equal-height panels aligned to the frame (#15),
+            // rather than each box shrink-wrapping its own steps.
+            const bodyMaxH = Math.max(EMPTY_BODY_H, ...cols.map((c) => c.h))
             const colLeft: number[] = []
             {
               let cx = (pl.w - colsW) / 2
@@ -896,7 +895,8 @@ export default function AuthorRoad({
                     editable row under the title, left-indented so it reads as "under"
                     the title, not under the outline number. Empty by default (faded
                     placeholder); its DESC_H height is reserved in headH() so the
-                    floating steps never overlap it. Distinct from the fork question. */}
+                    floating steps never overlap it. This is the node subtitle — the
+                    per-version v1/v2/v3 titles name the versions themselves. */}
                 <input
                   data-rdesc={s.key}
                   value={s.description ?? ''}
@@ -910,25 +910,42 @@ export default function AuthorRoad({
                   style={{ height: DESC_H, paddingLeft: 22 }}
                 />
 
-                {/* a fork: the question row, then one HEADER per VISIBLE variant
-                    column (in visible order ci — a hidden version has no column).
-                    Each header is that route's handle — click to make it ACTIVE
-                    (the ● radio, light blue per 0006), drag out to lift it onto the
-                    road (#33). Steps float over the body as board-level items,
+                {/* #15: one light-blue rounded-rectangle box per VISIBLE version,
+                    wrapping that version's header + its steps. It sits BEHIND the
+                    floating steps (pointer-events-none, z-1) so drops still land on
+                    the steps and the between-node slots; the header rides on top
+                    (z-30). Inactive versions fade — the road is the active one. A
+                    plain group has one column and no header, so its box just wraps
+                    the steps ("wrap the background for each version" — #15). */}
+                {vis.map((k, ci) => {
+                  const active = k === chosen
+                  const boxTop = fork ? headH() + PAD : bodyTop(s)
+                  const boxBottom = bodyTop(s) + bodyMaxH
+                  return (
+                    <div
+                      key={`vbox-${k}`}
+                      aria-hidden
+                      className={[
+                        'absolute rounded-xl border pointer-events-none transition-opacity duration-200',
+                        active ? 'bg-sky-50 border-sky-200' : 'bg-sky-50/40 border-sky-100 opacity-60',
+                      ].join(' ')}
+                      style={{ left: colLeft[ci], top: boxTop, width: cols[ci]?.w, height: boxBottom - boxTop + 6, zIndex: 1 }}
+                    />
+                  )
+                })}
+
+                {/* a fork: one HEADER per VISIBLE variant column (visible order ci —
+                    a hidden version has no column). The header is that version's
+                    handle — click to make it ACTIVE (green ● per #15), drag out to
+                    lift it onto the road (#33). It carries the active toggle, the
+                    version title (default vN, editable), an item counter, and a
+                    delete-version ✕. Steps float over the body as board-level items
                     placed by layoutRoad; the header just sits atop them. */}
                 {fork && (
                   <>
-                    <input
-                      data-rquestion={s.key}
-                      value={s.question ?? ''}
-                      placeholder="describe this fork…"
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => state.setQuestion(s.key!, e.target.value)}
-                      className="relative z-10 block w-full px-2 text-[9.5px] text-slate-500 bg-transparent outline-none placeholder:text-slate-300"
-                      style={{ height: QUESTION_H }}
-                    />
                     {vis.map((k, ci) => {
                       const vr = s.variants[k]
+                      const vcount = vr.steps.filter((st) => !(isLeaf(st) && st.unset)).length
                       return (
                         <div
                           key={k}
@@ -953,36 +970,53 @@ export default function AuthorRoad({
                             e.stopPropagation()
                             pickBranch(s.key!, k)
                           }}
-                          title="click to make this the active road · drag out to lift it onto the road"
-                          // z-30 so the header wins over the z-0 between-node drop
-                          // slots that share its band at the top of the column
-                          className={[
-                            'group absolute z-30 flex items-center gap-0.5 px-1 rounded-md border cursor-grab',
-                            k === chosen ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white/70 hover:bg-slate-50',
-                          ].join(' ')}
-                          style={{ left: colLeft[ci], top: headH(s) + PAD, width: cols[ci]?.w, height: COLHEAD }}
+                          title="click to make this the active version · drag out to lift it onto the road"
+                          // a transparent strip riding the TOP of the light-blue
+                          // version box; z-30 so it wins over the z-0 between-node
+                          // drop slots that share its band at the top of the column
+                          className="group absolute z-30 flex items-center gap-1 px-1.5 cursor-grab"
+                          style={{ left: colLeft[ci], top: headH() + PAD, width: cols[ci]?.w, height: COLHEAD }}
                         >
-                          <span className={['shrink-0 text-[9px]', k === chosen ? 'text-sky-500' : 'text-slate-400'].join(' ')}>
+                          {/* active toggle — GREEN ● when this version is the road
+                              (#15 asks green, superseding 0006's light-blue ●);
+                              hollow gray ○ otherwise. A click anywhere on the header
+                              (this span included) activates via the onClick above. */}
+                          <span
+                            title={k === chosen ? 'active version' : 'make this the active version'}
+                            className={['shrink-0 text-[11px] leading-none', k === chosen ? 'text-emerald-500' : 'text-slate-300'].join(' ')}
+                          >
                             {k === chosen ? '●' : '○'}
                           </span>
                           <input
                             data-collabel={`${s.key}.${k}`}
                             // not a drag source itself — the header is, so a drag
-                            // anywhere on it (label included) lifts the route
+                            // anywhere on it (title included) lifts the version out
                             draggable={false}
                             value={vr.label}
-                            placeholder="label…"
+                            // #15: version titles default to vN. The placeholder is
+                            // inked (placeholder:text-slate-500), so an unnamed
+                            // version still reads "v2", not a faint ghost hint.
+                            placeholder={`v${k + 1}`}
                             // NB no onFocus→pickBranch: keyboard-tabbing to READ a
                             // label used to rewrite the plan (canUndo went true from
                             // pure reading). Active is the ● control alone now (0005
-                            // D5) — relabelling a route no longer activates it.
+                            // D5) — relabelling a version no longer activates it.
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => state.relabelVariant(s.key!, k, e.target.value)}
-                            title={vr.label || undefined}
-                            className={['w-full bg-transparent text-[9px] outline-none min-w-0 text-ellipsis', k === chosen ? 'font-bold text-sky-700' : 'text-slate-500'].join(' ')}
+                            title={vr.label || `v${k + 1}`}
+                            className={['flex-1 min-w-0 bg-transparent text-[10px] outline-none text-ellipsis placeholder:text-slate-500', k === chosen ? 'font-bold text-slate-700' : 'text-slate-500'].join(' ')}
                           />
-                          {/* delete THIS route (#33). A route with real steps asks
-                              first; an empty one drops immediately. Down to one
+                          {/* item counter for THIS version — its own real-step
+                              count in a round unfilled circle (#15). */}
+                          <span
+                            aria-label={`${vcount} items inside`}
+                            title={`${vcount} inside`}
+                            className="shrink-0 grid place-items-center min-w-[15px] h-3.5 px-0.5 rounded-full border border-slate-300 text-slate-500 text-[8px] font-bold tabular-nums leading-none"
+                          >
+                            {vcount}
+                          </span>
+                          {/* delete THIS version (#33). A version with real steps
+                              asks first; an empty one drops immediately. Down to one
                               variant, dropVariant leaves a plain group. */}
                           <button
                             data-col-del={`${s.key}.${k}`}
@@ -993,8 +1027,8 @@ export default function AuthorRoad({
                               if (real.length === 0) state.dropVariant(pl.path, k)
                               else setConfirmVar({ path: pl.path, idx: k, n: real.length })
                             }}
-                            title="delete this route"
-                            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[9px] leading-none px-0.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="delete this version"
+                            className="shrink-0 grid place-items-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 text-[9px] leading-none text-slate-400 hover:text-rose-600 hover:bg-rose-100"
                           >
                             ✕
                           </button>
@@ -1028,44 +1062,64 @@ export default function AuthorRoad({
                   ) : null,
                 )}
 
-                {/* the VISIBILITY bar (0005 D5): one square-checkbox namecard per
-                    variant — ☑ shown / ☐ hidden — the multi-select viewport control.
-                    Distinct from ACTIVE in BOTH shape and hue: square + ink here vs
-                    the round light-blue ● in the column header. The ● repeats on the
-                    active namecard so hiding the active version is never silent (the
-                    legal 5th cell). Floor of one: toggleHidden won't hide the last. */}
-                {fork && (
-                  <div
-                    data-visbar={s.key}
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute flex items-center gap-1 overflow-x-auto px-1"
-                    style={{ left: PAD, top: pl.h - VIS_BAR_H, width: pl.w - 2 * PAD, height: VIS_BAR_H }}
+                {/* the version NAMECARD bar (#15) — shown for EVERY open container
+                    now, not just forks: a plain group still gets its "v1" card and
+                    the ⊕ add-version card. Each namecard is a ☑/☐ visibility toggle
+                    (multi-select viewport control — 0005 D5), the version name
+                    (default vN), and a GREEN ● on the active one (so hiding the
+                    active version is never silent — the legal 5th cell). Floor of
+                    one: toggleHidden won't hide the last shown. The ⊕ at the end is
+                    the add-version button that used to be the ⑂ Version toolbar
+                    button; the second version turns a plain group into a fork.
+                    (When the bar overflows, a scroll-right ▶ belongs here — deferred
+                    with the bounded version viewport, since the card grows to fit
+                    all versions until that lands, so it never overflows yet.) */}
+                <div
+                  data-visbar={s.key}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute flex items-center gap-1 overflow-x-auto px-1"
+                  style={{ left: PAD, top: pl.h - VIS_BAR_H, width: pl.w - 2 * PAD, height: VIS_BAR_H }}
+                >
+                  {s.variants.map((vr, k) => {
+                    const shown = !hidden.has(visKey(s, k))
+                    return (
+                      <button
+                        key={k}
+                        data-vischip={`${s.key}.${k}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleHidden(s, k)
+                        }}
+                        title={shown ? 'hide this version' : 'show this version'}
+                        className={[
+                          'shrink-0 flex items-center gap-0.5 px-1 h-[18px] rounded-sm border text-[9px] whitespace-nowrap',
+                          shown ? 'border-slate-400 text-slate-700 bg-white' : 'border-slate-200 text-slate-400 bg-slate-50',
+                        ].join(' ')}
+                      >
+                        <span className="shrink-0 leading-none">{shown ? '☑' : '☐'}</span>
+                        <span className="truncate max-w-[64px]">{vr.label || `v${k + 1}`}</span>
+                        {k === chosen && <span className="shrink-0 text-emerald-500 leading-none">●</span>}
+                      </button>
+                    )
+                  })}
+                  {/* ⊕ add-version namecard — a + in a round filled circle (#15),
+                      at the end of the namecards. Grows a version; the second one
+                      turns this plain group into a fork. */}
+                  <button
+                    data-addversion={s.key}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      state.addVariant(s.key!)
+                    }}
+                    title="add a version"
+                    aria-label="add a version"
+                    className="shrink-0 grid place-items-center w-[18px] h-[18px] rounded-full bg-sky-500 text-white text-[12px] leading-none hover:bg-sky-600"
                   >
-                    {s.variants.map((vr, k) => {
-                      const shown = !hidden.has(visKey(s, k))
-                      return (
-                        <button
-                          key={k}
-                          data-vischip={`${s.key}.${k}`}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleHidden(s, k)
-                          }}
-                          title={shown ? 'hide this version' : 'show this version'}
-                          className={[
-                            'shrink-0 flex items-center gap-0.5 px-1 h-[18px] rounded-sm border text-[9px] whitespace-nowrap',
-                            shown ? 'border-slate-400 text-slate-700 bg-white' : 'border-slate-200 text-slate-400 bg-slate-50',
-                          ].join(' ')}
-                        >
-                          <span className="shrink-0 leading-none">{shown ? '☑' : '☐'}</span>
-                          <span className="truncate max-w-[64px]">{vr.label || `V${k + 1}`}</span>
-                          {k === chosen && <span className="shrink-0 text-sky-500 leading-none">●</span>}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+                    +
+                  </button>
+                </div>
               </div>
             )
           })}

@@ -40,11 +40,10 @@ export interface Stop {
   /** a CONTAINER's stable id — choice, collapse and rename state hang off it */
   key?: string
   title?: string
-  /** the question shown above a fork's tabs (only meaningful when variants>1) */
-  question?: string
-  /** a free-text description shown under the title of any OPEN container — a
-   * node subtitle (#15). Distinct from `question`: this says what the node IS,
-   * the question poses the fork's choice. A fork can carry both. */
+  /** a free-text description shown under the title of any OPEN container — the
+   * node subtitle (#15), left-indented so it reads as "under" the title. What
+   * the node IS. (A separate fork "question" field was removed in the V2-NEAT
+   * pass — the per-version v1/v2/v3 titles carry version naming instead.) */
   description?: string
   /** []  = leaf · 1 = plain group · 2+ = fork */
   variants: Variant[]

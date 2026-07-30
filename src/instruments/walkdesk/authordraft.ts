@@ -70,7 +70,6 @@ const SEED: Stop[] = [
   {
     key: 'seed-sec',
     title: 'Secure the channel',
-    question: 'how deep on security?',
     variants: [
       { label: 'just the handshake', steps: [{ node: 'cry-tls-certificates', variants: [] }] },
       {
@@ -109,7 +108,7 @@ const seq = { box: 0 }
 const pastStore = store<Stop[][]>([])
 const futureStore = store<Stop[][]>([])
 const HISTORY_CAP = 100
-// The open text-edit session, if any. retitle/relabel/setQuestion fire per
+// The open text-edit session, if any. retitle/relabel/setDescription fire per
 // keystroke; commits sharing a session key collapse into ONE undo entry instead
 // of one per character. Any structural op (no key) closes the session.
 let editSession: string | null = null
@@ -294,7 +293,6 @@ export interface AuthorState {
   /** append a variant to the container — turns a plain group into a fork */
   addVariant(key: string): void
   relabelVariant(key: string, idx: number, label: string): void
-  setQuestion(key: string, question: string): void
   /** edit a container's description subtitle (#15) — the row under its title */
   setDescription(key: string, description: string): void
   canGroup: boolean
@@ -439,14 +437,12 @@ export function useAuthorDraft(): AuthorState {
       commitStops(mapBox(stops, key, (s) => ({ ...s, title })), 'title:' + key)
     },
     addVariant: (key) => {
-      const variant: Variant = { label: 'another way', steps: [{ node: '', unset: true, variants: [] }] }
+      // empty label → the version box + namecard show the default vN name
+      const variant: Variant = { label: '', steps: [{ node: '', unset: true, variants: [] }] }
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))
     },
     relabelVariant: (key, idx, label) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)
-    },
-    setQuestion: (key, question) => {
-      commitStops(mapBox(stops, key, (s) => ({ ...s, question })), 'question:' + key)
     },
     setDescription: (key, description) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, description })), 'description:' + key)
