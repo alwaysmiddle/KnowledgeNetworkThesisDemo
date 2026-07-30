@@ -58,24 +58,8 @@
 .drill-enter-left  { animation: drill-left 280ms ease-out; }
 .drill-enter-right { animation: drill-right 280ms ease-out; }
 
-/* Walk·Desk (#15): a nested node JIGGLES on hover to say "there is stuff inside".
-   A leaf never gets this class — the absence of the wobble is itself the signal
-   that the node is empty. It rises a few px and SNAPS back — one bounce per
-   hover-enter, never a loop, and it resets the moment the cursor leaves (a pure
-   CSS :hover animation starts once on enter and is torn off on leave, so the
-   transform returns to base without a JS timer). The road already animates
-   left/top/width/height; transform is a separate channel, so the two don't fight. */
-@keyframes road-jiggle {
-  0%, 100% { transform: translateY(0); }
-  45%      { transform: translateY(-5px); }
-}
-.road-jiggle:hover { animation: road-jiggle 280ms ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .road-jiggle:hover { animation: none; }
-}
-
-/* The version namecard track scrolls via its ▶ button (#15), not a native
-   scrollbar — the scroll BARS were struck from the spec, only the button kept.
-   Hide the bar on the overflow container the button drives. */
+/* The version namecard track can overflow when a card is narrower than its
+   chips. There is no scroll button (the whole railroad scrolls left/right), so
+   hide the native scrollbar and let the rare overflow scroll by wheel/trackpad. */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }

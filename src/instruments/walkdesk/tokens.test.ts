@@ -59,7 +59,6 @@ const BOUND: Record<string, [keyof typeof SOURCES, string]> = {
   '--road-pad': ['road', 'PAD'],
   '--road-head-h': ['road', 'HEAD'],
   '--road-margin': ['road', 'MARGIN'],
-  '--road-desc-h': ['road', 'DESC_H'],
   '--road-col-gap': ['road', 'COLGAP'],
   '--road-col-head': ['road', 'COLHEAD'],
   '--road-vis-bar-h': ['road', 'VIS_BAR_H'],

@@ -108,8 +108,8 @@ const seq = { box: 0 }
 const pastStore = store<Stop[][]>([])
 const futureStore = store<Stop[][]>([])
 const HISTORY_CAP = 100
-// The open text-edit session, if any. retitle/relabel/setDescription fire per
-// keystroke; commits sharing a session key collapse into ONE undo entry instead
+// The open text-edit session, if any. retitle/relabel fire per keystroke;
+// commits sharing a session key collapse into ONE undo entry instead
 // of one per character. Any structural op (no key) closes the session.
 let editSession: string | null = null
 
@@ -269,6 +269,11 @@ export interface AuthorState {
   /** delete exactly the block at `path` — the per-node close button (#15), which
    * acts on one node regardless of the current selection. */
   deleteAt(path: Path): void
+  /** UNGROUP the container at `path`: replace it with `keep`'s steps, spliced in
+   * place. The per-node ✕ on a container calls this with the active version, so
+   * ungroup keeps the route you were looking at and drops the wrapper (and, for a
+   * fork, the other versions). Undoable. A leaf has nothing to ungroup — no-op. */
+  promote(path: Path, keep: number): void
   /** drop ONE variant from the container at `path`. Emptied → the container is
    * removed; one variant left → it stays a plain GROUP (a one-variant container
    * is a legal shape now, no longer dissolved). */
@@ -288,8 +293,6 @@ export interface AuthorState {
   /** append a variant to the container — turns a plain group into a fork */
   addVariant(key: string): void
   relabelVariant(key: string, idx: number, label: string): void
-  /** edit a container's description subtitle (#15) — the row under its title */
-  setDescription(key: string, description: string): void
   canGroup: boolean
   canOptional: boolean
   canIndent: boolean
@@ -375,6 +378,13 @@ export function useAuthorDraft(): AuthorState {
       commit(next)
     },
     deleteAt: (path) => commit(removeAt(stops, path).rest),
+    promote: (path, keep) => {
+      const s = stopAt(stops, path)
+      if (!s || isLeaf(s)) return
+      const steps = s.variants[keep]?.steps ?? s.variants[0]?.steps ?? []
+      const i = path[path.length - 1]
+      commit(rebuildListAt(stops, path.slice(0, -1), (list) => [...list.slice(0, i), ...steps, ...list.slice(i + 1)]))
+    },
     dropVariant: (path, idx) => {
       const s = stopAt(stops, path)
       if (!s || isLeaf(s)) return
@@ -427,9 +437,6 @@ export function useAuthorDraft(): AuthorState {
     },
     relabelVariant: (key, idx, label) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)
-    },
-    setDescription: (key, description) => {
-      commitStops(mapBox(stops, key, (s) => ({ ...s, description })), 'description:' + key)
     },
     canGroup: !!run,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),

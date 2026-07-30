@@ -15,11 +15,16 @@
 // active column is the road (numbered, live arrows); the others show muted+faded
 // with ghost arrows (the same onRoad/dim machinery a skipped optional uses).
 // Adding a version is the ⊕ namecard at the end of the bottom bar — a plain group
-// grows a second column and becomes a fork; a ▶ scrolls the bar when it overflows.
+// grows a second column and becomes a fork. (The whole railroad scrolls, so the
+// namecard bar needs no scroll button of its own; the chips just overflow.)
+//
+// An OPTIONAL stop is drawn like any other but with a DASHED border and a DASHED
+// arrow leading into it — the two signals that it may be skipped. There is no
+// separate bypass rail any more; the dashed edge + inbound arrow carry it.
 //
 // Layout is arithmetic (measure → place): no DOM measurement, one SVG underlay
-// for the walk arrows and the optional-bypass rails. Step nodes float as
-// board-level siblings OVER each card, so no inner click bubbles into a parent.
+// for the walk arrows. Step nodes float as board-level siblings OVER each card,
+// so no inner click bubbles into a parent.
 
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
@@ -39,7 +44,6 @@ const AGAP = 26 // vertical space between siblings — the arrow lives here
 const PAD = 10
 const HEAD = 24 // container header (title) row — 24 fits 20px chrome with 2px either side (0005 D-coupling)
 const MARGIN = 16
-const DESC_H = 16 // the description subtitle row under any open container's title (#15)
 const COLGAP = 12 // horizontal space between a fork's variant columns
 const COLHEAD = 24 // a variant column's header (● chosen · label · ✕ · drag-out) — 24 so the ✕ hover fill doesn't clip (0005 D-coupling)
 const VIS_BAR_H = 26 // version-visibility namecard bar under a fork's columns (0005 D5); = BAR_ROW_H so both bars share a row height
@@ -76,11 +80,11 @@ const visKey = (s: Stop, k: number): string => `${s.key!}.${k}`
 const visibleVariantIdxs = (s: Stop, hidden: ReadonlySet<string>): number[] =>
   isFork(s) ? s.variants.map((_, k) => k).filter((k) => !hidden.has(visKey(s, k))) : s.variants.map((_, k) => k)
 
-/** the rows a container reserves above its column band: the title header and the
- * always-on description subtitle row (#15, every open container). The old fork
- * "question" row was removed in the V2-NEAT pass — the per-version v1/v2/v3
- * titles name the versions now, so there is nothing fork-specific to reserve. */
-const headH = (): number => HEAD + DESC_H
+/** the rows a container reserves above its column band: just the title header
+ * now. The description subtitle row was removed (it wasn't earning its space);
+ * the old fork "question" row went in the V2-NEAT pass — the per-version titles
+ * name the versions, so there is nothing fork-specific to reserve either. */
+const headH = (): number => HEAD
 /** the y-offset from a card's top to where its step columns begin: head, pad, and
  * (fork only) the per-variant column-header band (COLHEAD). One source of truth
  * shared by the layout math, the column headers, and the empty-column drop zones. */
@@ -126,10 +130,10 @@ interface Arrow {
   x2: number
   y2: number
   live: boolean
-}
-interface Bypass {
-  d: string
-  live: boolean
+  /** this arrow leads INTO an optional stop — drawn dashed to say "may be
+   * skipped". Optionality reads off the inbound arrow + the node's dashed border
+   * now; the old bypass rail is gone. */
+  optional: boolean
 }
 /** a forgiving drop target filling the gap between two siblings (or before the
  * first / after the last) — inserts at `path`, so a drop in dead space no longer
@@ -170,7 +174,6 @@ function layoutRoad(
 
   const items: Placed[] = []
   const arrows: Arrow[] = []
-  const bypasses: Bypass[] = []
   const slots: Slot[] = []
 
   // `prefix` is the parent container's outline number ("" at the top level); each
@@ -190,12 +193,7 @@ function layoutRoad(
       lastW = w
       const skipped = !!s.optional && !withOptionals
       if (prevBottom !== null)
-        arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped })
-      if (s.optional)
-        bypasses.push({
-          d: `M ${centerX} ${y - 6} C ${x + w + 26} ${y + 8}, ${x + w + 26} ${y + h - 8}, ${centerX} ${y + h + 6}`,
-          live: onRoad && skipped,
-        })
+        arrows.push({ x1: centerX, y1: prevBottom + 3, x2: centerX, y2: y - 5, live: onRoad && !prevSkipped && !skipped, optional: !!s.optional })
       if (isLeaf(s)) {
         items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth })
       } else if (collapsed.has(s.key!)) {
@@ -232,17 +230,16 @@ function layoutRoad(
   placeList(stops, [], W / 2, MARGIN, true, 0, '')
   const bottoms = items.map((it) => it.y + it.h)
   const H = (bottoms.length ? Math.max(...bottoms) : 0) + MARGIN
-  return { items, arrows, bypasses, slots, W, H }
+  return { items, arrows, slots, W, H }
 }
 
 /** the version NAMECARD bar (#15) — one ☑/☐ visibility chip per version (a
- * multi-select viewport control, 0005 D5), a GREEN ● on the active one, the ⊕
- * add-version card, and — only when the chips overflow the bar — a solid-gray ▶
- * that scrolls the chip track right (the version scroll BARS were struck from
- * the spec; only this button survives). Extracted so it can own the overflow
- * MEASUREMENT — the one DOM read in this otherwise measure-free file, scoped to
- * this bar. The ⊕ and ▶ sit OUTSIDE the measured track, so toggling ▶ can never
- * change the track's width and start an oscillation. */
+ * multi-select viewport control, 0005 D5), a GREEN ● on the active one, and the
+ * ⊕ add-version card pinned after them. No scroll button: the whole railroad
+ * scrolls left/right, so the bar needs none of its own — in the rare case a card
+ * is narrower than its chips the track just overflows (native scrollbar hidden,
+ * wheel-scrollable). Kept as its own component for readability; it holds no state
+ * now — the overflow measurement it used to own is gone with the button. */
 function VersionNamecardBar({
   stop,
   chosen,
@@ -258,28 +255,11 @@ function VersionNamecardBar({
   onAdd(key: string): void
   style: CSSProperties
 }) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [overflow, setOverflow] = useState(false)
-  // the chips are the only thing in the measured track; ⊕/▶ are pinned outside
-  // it. Re-measure when a version is added/removed or a label's length changes
-  // (both grow the track's scrollWidth), and whenever the bar itself resizes.
-  const labelsKey = stop.variants.map((v) => v.label).join(' ')
-  useEffect(() => {
-    const el = trackRef.current
-    if (!el) return
-    const check = () => setOverflow(el.scrollWidth - el.clientWidth > 1)
-    check()
-    const ro = new ResizeObserver(check)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [stop.variants.length, labelsKey])
-
   return (
     <div data-visbar={stop.key} onClick={(e) => e.stopPropagation()} className="absolute flex items-center gap-1 px-1" style={style}>
-      {/* the scrolling chip track — shrinks to its content, then scrolls (bar
-          hidden, .no-scrollbar) once the chips outrun the space the pinned
-          ⊕/▶ leave. */}
-      <div ref={trackRef} className="min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar">
+      {/* the chip track — shrinks to its content, then overflows (scrollbar
+          hidden) if it can't fit the space the pinned ⊕ leaves. */}
+      <div className="min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar">
         {stop.variants.map((vr, k) => {
           const shown = !hidden.has(visKey(stop, k))
           return (
@@ -323,22 +303,6 @@ function VersionNamecardBar({
       >
         +
       </button>
-      {/* ▶ scroll-right — solid gray, shown only when the chips overflow (#15). */}
-      {overflow && (
-        <button
-          data-visscroll={stop.key}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => {
-            e.stopPropagation()
-            trackRef.current?.scrollBy({ left: 96, behavior: 'smooth' })
-          }}
-          title="scroll to more versions"
-          aria-label="scroll to more versions"
-          className="shrink-0 grid place-items-center w-[18px] h-[18px] rounded-sm text-slate-500 text-[11px] leading-none hover:text-slate-700 hover:bg-slate-200/70"
-        >
-          ▶
-        </button>
-      )}
     </div>
   )
 }
@@ -400,7 +364,7 @@ export default function AuthorRoad({
     setHidden(next)
   }
 
-  const { items, arrows, bypasses, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals, hidden)
+  const { items, arrows, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals, hidden)
 
   // the SELECTION BOX — the bounding rect of every selected block; the action
   // toolbar pins to it (stable) rather than chasing the cursor. #17.
@@ -421,9 +385,9 @@ export default function AuthorRoad({
   // present; its buttons enable/disable off the selection instead of appearing
   // and disappearing. The selection box below still marks the run itself.
 
-  // g = group, once a selection exists (#15). Ungroup is gone (delete replaces
-  // it — a container's ✕ deletes it whole), so there is no Ctrl+G any more. The
-  // rest of the toolbar stays mouse-only. Ignored while a text field is focused.
+  // g = group, once a selection exists (#15). Ungroup has no shortcut — it is the
+  // container's ✕ now (the toolbar ✕ Delete removes the whole group). The rest of
+  // the toolbar stays mouse-only. Ignored while a text field is focused.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -486,10 +450,11 @@ export default function AuthorRoad({
   }
 
   /** the per-node hover/select chrome (#15): a compact top-right corner cluster.
-   * A container shows its active-version item count, minimise/maximise, and
-   * close; a leaf shows close only. Close DELETES — a leaf goes, a container goes
-   * with everything inside it (undoable). Ungroup is retired: delete is the one
-   * close gesture now, so there is no keep-the-steps arm and no fork guard popup.
+   * A container shows its active-version item count, minimise/maximise, and the
+   * ✕; a leaf shows the ✕ only. What the ✕ does depends on the node: a leaf is
+   * DELETED, a container is UNGROUPED — its active version's steps are lifted out
+   * in place and the wrapper (plus any other versions) drops. Deleting a whole
+   * group, contents and all, is the toolbar's ✕ Delete instead. Both are undoable.
    * It lives inside the node's `group`, so it fades in on hover; `shown` forces
    * it visible (selected, or mid-rename). */
   const browserBar = (pl: Placed, kind: 'leaf' | 'open' | 'closed', shown: boolean) => {
@@ -533,11 +498,12 @@ export default function AuthorRoad({
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            state.deleteAt(pl.path)
+            if (kind === 'leaf') state.deleteAt(pl.path)
+            else state.promote(pl.path, chosenIdx(s, choices))
           }}
-          title={kind === 'leaf' ? 'delete this node' : 'delete this group and everything inside it'}
-          aria-label="delete"
-          className={[btn, 'hover:bg-rose-100 hover:text-rose-600'].join(' ')}
+          title={kind === 'leaf' ? 'delete this node' : 'ungroup — lift its steps out (use the toolbar ✕ Delete to remove the whole group)'}
+          aria-label={kind === 'leaf' ? 'delete' : 'ungroup'}
+          className={[btn, kind === 'leaf' ? 'hover:bg-rose-100 hover:text-rose-600' : ''].join(' ')}
         >
           ✕
         </button>
@@ -623,11 +589,10 @@ export default function AuthorRoad({
             </span>
           )}
         </span>
-        {/* Ungroup is gone (#15): delete is the one close gesture now — a
-            container's ✕ deletes it whole (undoable), so there is no separate
-            keep-the-steps arm and no Ctrl+G. The ⑂ Version toolbar button is
-            also gone — adding a version lives on the ⊕ namecard at the end of
-            every container's bottom bar, next to the version chips it grows. */}
+        {/* No Ungroup toolbar button: ungroup is the per-node ✕ now (it lifts a
+            container's active version out in place). The ⑂ Version button is also
+            gone — adding a version lives on the ⊕ namecard at the end of every
+            container's bottom bar, next to the version chips it grows. */}
         <button
           data-fly-opt
           disabled={!state.canOptional}
@@ -638,7 +603,7 @@ export default function AuthorRoad({
           ◇ Optional
         </button>
         {/* delete (#33) — direct, no popover: a container takes everything inside
-            with it (undoable). Ungroup is the keep-the-steps arm. */}
+            it (undoable). The per-node ✕ is the keep-the-steps (ungroup) arm. */}
         <button
           data-fly-del
           disabled={!state.canDelete}
@@ -673,20 +638,8 @@ export default function AuthorRoad({
                 y2={a.y2}
                 stroke={a.live ? '#d97706' : '#94a3b8'}
                 strokeWidth={a.live ? 2.5 : 1.5}
-                strokeDasharray={a.live ? undefined : '4 3'}
+                strokeDasharray={a.optional ? '5 4' : a.live ? undefined : '4 3'}
                 markerEnd={a.live ? 'url(#wt-road-head)' : 'url(#wt-road-ghost)'}
-              />
-            ))}
-            {bypasses.map((r, i) => (
-              <path
-                key={`b${i}`}
-                data-rbypass
-                fill="none"
-                d={r.d}
-                stroke={r.live ? '#d97706' : '#94a3b8'}
-                strokeWidth={r.live ? 2.5 : 1.2}
-                strokeDasharray={r.live ? undefined : '3 3'}
-                markerEnd={r.live ? 'url(#wt-road-head)' : undefined}
               />
             ))}
           </svg>
@@ -752,11 +705,11 @@ export default function AuthorRoad({
                     // ~shadow-md) only while grabbed; at rest it casts no shadow.
                     'group absolute z-20 rounded-full border-2 bg-white px-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-700 cursor-grab active:shadow-md',
                     'transition-[left,top,width,height] duration-200 ease-out',
-                    // D10 (0005): an optional stop is drawn EXACTLY like any other —
-                    // no dashed edge. A dash reads as emphasis, backwards for a stop
-                    // that might not be walked. The ghost bypass rail + the ◇ gutter
-                    // badge carry optionality; optionality is a fact about the ROUTE,
-                    // not the stop.
+                    // an OPTIONAL stop now wears a DASHED border, superseding 0005's
+                    // D10 (which drew it exactly like any other): the user's call is
+                    // that optionality reads off the node's own edge plus the dashed
+                    // arrow leading into it — no separate bypass rail, no ◇ badge.
+                    s.optional ? 'border-dashed' : '',
                     dim,
                     isSelected ? 'ring-1 ring-blue-500' : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
                   ].join(' ')}
@@ -768,7 +721,6 @@ export default function AuthorRoad({
                   <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
                     {pl.outline}.
                   </span>
-                  {s.optional && <span className="shrink-0 text-[9px] text-slate-400">◇</span>}
                   {/* a leaf (unnested node) centres its title (#15) */}
                   <span className="flex-1 text-center truncate">{byId.get(s.node)!.title}</span>
                   {/* #15: a leaf's close (delete) button, top-right, on hover/select */}
@@ -805,13 +757,11 @@ export default function AuthorRoad({
                   className={[
                     // neutral white, raised, a stronger neutral edge than an open
                     // well's — depth + the stack say "group", not green.
-                    'group road-jiggle absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
+                    'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
                     'transition-[left,top,width,height] duration-200 ease-out',
-                    // D10 (0005): an optional stop is drawn EXACTLY like any other —
-                    // no dashed edge. A dash reads as emphasis, backwards for a stop
-                    // that might not be walked. The ghost bypass rail + the ◇ gutter
-                    // badge carry optionality; optionality is a fact about the ROUTE,
-                    // not the stop.
+                    // an optional container wears a DASHED edge too (see the leaf) —
+                    // border + inbound arrow are the optionality signal now.
+                    s.optional ? 'border-dashed' : '',
                     dim,
                     isSelected ? 'ring-1 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
                   ].join(' ')}
@@ -831,10 +781,11 @@ export default function AuthorRoad({
             }
 
             // a container — the OPEN card. A plain group is one column; a fork
-            // lays one COLUMN per visible variant, each wrapped in a light-blue
-            // version box. Steps float over the body as board-level siblings, so no
-            // inner click bubbles up; the card only draws the boxes, headers, empty
-            // zones, and the bottom namecard bar.
+            // lays one COLUMN per visible variant, each wrapped in a neutral-depth
+            // version box (surface-inset when active, transparent when not). Steps
+            // float over the body as board-level siblings, so no inner click bubbles
+            // up; the card only draws the boxes, headers, empty zones, and the
+            // bottom namecard bar.
             const editing = editKey === s.key
             const fork = isFork(s)
             const chosen = chosenIdx(s, choices)
@@ -879,9 +830,9 @@ export default function AuthorRoad({
                 // darkens one step per nesting depth (wellFill) and it carries the
                 // inset --sink-well shadow, so containment reads as depth and keeps
                 // reading when wells nest. The green border/wash is retired; a
-                // neutral hairline is all an open well needs. D10: an optional open
-                // card is drawn like any other — the bypass rail says it may skip.
-                className={['group road-jiggle absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', dim].join(' ')}
+                // neutral hairline is all an open well needs — DASHED when the
+                // container is optional (border + inbound arrow, no bypass rail).
+                className={['group absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', s.optional ? 'border-dashed' : '', dim].join(' ')}
                 style={{
                   left: pl.x,
                   top: pl.y,
@@ -943,33 +894,13 @@ export default function AuthorRoad({
                       </span>
                     </span>
                   )}
-                  {/* the optional badge stays always-on (a status, not an action);
-                      rename (✎), item count, minimise and close now live in the
-                      hover/select browser bar (#15). The ⑂ fork gesture and fan
+                  {/* rename (✎), item count, minimise and close live in the
+                      hover/select browser bar (#15); optionality reads off the
+                      card's dashed edge, not a badge. The ⑂ fork gesture and fan
                       toggle are off the node face since 0006 (forking is a toolbar
                       button; a fork always shows its visible columns). */}
-                  {s.optional && <span className="shrink-0 text-[9px] text-slate-400">◇</span>}
                   {browserBar(pl, 'open', isSelected || editing)}
                 </div>
-
-                {/* #15: a description subtitle for ANY open container — one always-on
-                    editable row under the title, left-indented so it reads as "under"
-                    the title, not under the outline number. Empty by default (faded
-                    placeholder); its DESC_H height is reserved in headH() so the
-                    floating steps never overlap it. This is the node subtitle — the
-                    per-version v1/v2/v3 titles name the versions themselves. */}
-                <input
-                  data-rdesc={s.key}
-                  value={s.description ?? ''}
-                  placeholder="describe this node…"
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => state.setDescription(s.key!, e.target.value)}
-                  // relative z-10: the description is interactive and sits in the
-                  // header band, where a first-position drop slot (z-0) would
-                  // otherwise paint over its lower half and steal the click.
-                  className="relative z-10 block w-full pr-2 text-[9.5px] text-slate-500 bg-transparent outline-none placeholder:text-slate-300 placeholder:italic"
-                  style={{ height: DESC_H, paddingLeft: 22 }}
-                />
 
                 {/* #15: one rounded-rectangle box per VISIBLE version, wrapping
                     that version's header + its steps, drawn in the DEPTH grammar —
@@ -1041,8 +972,8 @@ export default function AuthorRoad({
                             pickBranch(s.key!, k)
                           }}
                           title="click to make this the active version · drag out to lift it onto the road"
-                          // a transparent strip riding the TOP of the light-blue
-                          // version box; z-30 so it wins over the z-0 between-node
+                          // a transparent strip riding the TOP of the version
+                          // box; z-30 so it wins over the z-0 between-node
                           // drop slots that share its band at the top of the column
                           className="group absolute z-30 flex items-center gap-1 px-1.5 cursor-grab"
                           style={{ left: colLeft[ci], top: headH() + PAD, width: cols[ci]?.w, height: COLHEAD }}
