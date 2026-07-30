@@ -4,10 +4,17 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   87594a3
-branch:   feat/fork-comparator
-date:     2026-07-29
+commit:   b9e59c5
+branch:   main
+date:     2026-07-30
 ```
+
+**Newest — the Studio presets were renamed to workflow verbs (`b9e59c5`, #57):**
+`Authoring → Plan` (the Walk·Desk editor composition), `Cockpit → Explore`,
+`Teaching → Present`. Both the preset `id` and the visible `label` changed, so
+any guideline page or specimen that names a preset should use the new words.
+This is the first step of the design-system overhaul (#57); nothing about the
+node-state specimens below changed.
 
 **Stale for your specimens (#15):** the amber walk-order step badge (`bg-amber-500`,
 the round number on road leaves) is **retired** (`4eb5cca`) — every node now carries
