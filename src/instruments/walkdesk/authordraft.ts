@@ -269,11 +269,6 @@ export interface AuthorState {
   /** delete exactly the block at `path` — the per-node close button (#15), which
    * acts on one node regardless of the current selection. */
   deleteAt(path: Path): void
-  /** replace the container at `path` with variant `keep`'s steps, spliced into
-   * the parent list in place — remove the box but KEEP its chosen steps on the
-   * road. Merges the old promote (plain group) and resolve-fork (chosen branch)
-   * into one op: both keep the steps that were showing. */
-  promote(path: Path, keep: number): void
   /** drop ONE variant from the container at `path`. Emptied → the container is
    * removed; one variant left → it stays a plain GROUP (a one-variant container
    * is a legal shape now, no longer dissolved). */
@@ -299,10 +294,6 @@ export interface AuthorState {
   canOptional: boolean
   canIndent: boolean
   canDelete: boolean
-  /** exactly one PLAIN group is selected — Ungroup dissolves it, splicing its
-   * steps up. Disabled on a fork: resolving a fork to one road goes through the
-   * tab ✕ (delete the other routes), never a silent bulk discard. */
-  canPromote: boolean
   /** step the stops tree back / forward through edit history (#34) */
   undo(): void
   redo(): void
@@ -384,13 +375,6 @@ export function useAuthorDraft(): AuthorState {
       commit(next)
     },
     deleteAt: (path) => commit(removeAt(stops, path).rest),
-    promote: (path, keep) => {
-      const s = stopAt(stops, path)
-      if (!s || isLeaf(s)) return
-      const steps = s.variants[keep]?.steps ?? s.variants[0]?.steps ?? []
-      const i = path[path.length - 1]
-      commit(rebuildListAt(stops, path.slice(0, -1), (list) => [...list.slice(0, i), ...steps, ...list.slice(i + 1)]))
-    },
     dropVariant: (path, idx) => {
       const s = stopAt(stops, path)
       if (!s || isLeaf(s)) return
@@ -451,8 +435,6 @@ export function useAuthorDraft(): AuthorState {
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,
-    canPromote:
-      !!single && !!stopAt(stops, single) && isBox(stopAt(stops, single)!) && !isFork(stopAt(stops, single)!),
     undo: undoDraft,
     redo: redoDraft,
     canUndo: past.length > 0,

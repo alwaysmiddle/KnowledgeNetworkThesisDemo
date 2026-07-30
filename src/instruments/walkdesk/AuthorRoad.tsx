@@ -8,26 +8,28 @@
 //
 // One card renders both: a plain group (one variant) is a single column; a fork
 // (two or more) lays one COLUMN per variant side by side. Since #15 each visible
-// version is wrapped in a light-blue rounded-rectangle BOX, and a fork's box
-// carries a header (● active · vN title · item-count · ✕). The ACTIVE column is
-// the road — bright, numbered, live arrows; the others show muted+faded with
-// ghost arrows (the same onRoad/dim machinery a skipped optional uses). Adding a
-// version is the ⊕ namecard at the end of the bottom bar — a plain group grows a
-// second column and becomes a fork.
+// version is wrapped in a rounded-rectangle BOX drawn in the SAME depth grammar
+// as everything else — no hue: the ACTIVE version's box is a bright translucent
+// panel (--surface-inset), the inactive ones recede into the well and fade. A
+// fork's box carries a header (green ● active · vN title · item-count · ✕). The
+// active column is the road (numbered, live arrows); the others show muted+faded
+// with ghost arrows (the same onRoad/dim machinery a skipped optional uses).
+// Adding a version is the ⊕ namecard at the end of the bottom bar — a plain group
+// grows a second column and becomes a fork; a ▶ scrolls the bar when it overflows.
 //
 // Layout is arithmetic (measure → place): no DOM measurement, one SVG underlay
 // for the walk arrows and the optional-bypass rails. Step nodes float as
 // board-level siblings OVER each card, so no inner click bubbles into a parent.
 
 import { useEffect, useRef, useState } from 'react'
-import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { CSSProperties, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, topicIds } from '../../corpus/graph'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
 import type { Band } from './authordnd'
-import { chosenIdx, chosenSteps, isFork, isLeaf, visitCount } from './mockwalk'
+import { chosenIdx, chosenSteps, isFork, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
@@ -233,6 +235,114 @@ function layoutRoad(
   return { items, arrows, bypasses, slots, W, H }
 }
 
+/** the version NAMECARD bar (#15) — one ☑/☐ visibility chip per version (a
+ * multi-select viewport control, 0005 D5), a GREEN ● on the active one, the ⊕
+ * add-version card, and — only when the chips overflow the bar — a solid-gray ▶
+ * that scrolls the chip track right (the version scroll BARS were struck from
+ * the spec; only this button survives). Extracted so it can own the overflow
+ * MEASUREMENT — the one DOM read in this otherwise measure-free file, scoped to
+ * this bar. The ⊕ and ▶ sit OUTSIDE the measured track, so toggling ▶ can never
+ * change the track's width and start an oscillation. */
+function VersionNamecardBar({
+  stop,
+  chosen,
+  hidden,
+  onToggle,
+  onAdd,
+  style,
+}: {
+  stop: Stop
+  chosen: number
+  hidden: ReadonlySet<string>
+  onToggle(s: Stop, k: number): void
+  onAdd(key: string): void
+  style: CSSProperties
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [overflow, setOverflow] = useState(false)
+  // the chips are the only thing in the measured track; ⊕/▶ are pinned outside
+  // it. Re-measure when a version is added/removed or a label's length changes
+  // (both grow the track's scrollWidth), and whenever the bar itself resizes.
+  const labelsKey = stop.variants.map((v) => v.label).join(' ')
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    const check = () => setOverflow(el.scrollWidth - el.clientWidth > 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [stop.variants.length, labelsKey])
+
+  return (
+    <div data-visbar={stop.key} onClick={(e) => e.stopPropagation()} className="absolute flex items-center gap-1 px-1" style={style}>
+      {/* the scrolling chip track — shrinks to its content, then scrolls (bar
+          hidden, .no-scrollbar) once the chips outrun the space the pinned
+          ⊕/▶ leave. */}
+      <div ref={trackRef} className="min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar">
+        {stop.variants.map((vr, k) => {
+          const shown = !hidden.has(visKey(stop, k))
+          return (
+            <button
+              key={k}
+              data-vischip={`${stop.key}.${k}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle(stop, k)
+              }}
+              title={shown ? 'hide this version' : 'show this version'}
+              className={[
+                'shrink-0 flex items-center gap-0.5 px-1 h-[18px] rounded-sm border text-[9px] whitespace-nowrap',
+                shown ? 'border-slate-400 text-slate-700 bg-white' : 'border-slate-200 text-slate-400 bg-slate-50',
+              ].join(' ')}
+            >
+              <span className="shrink-0 leading-none">{shown ? '☑' : '☐'}</span>
+              <span className="truncate max-w-[64px]">{vr.label || `v${k + 1}`}</span>
+              {/* active-version dot — GREEN, on-palette (--green-600 via Tailwind
+                  green-600), so hiding the active version is never silent. */}
+              {k === chosen && <span className="shrink-0 text-green-600 leading-none">●</span>}
+            </button>
+          )
+        })}
+      </div>
+      {/* ⊕ add-version — a + in a round filled NEUTRAL (slate) circle; the mockup
+          draws it monochrome and the palette has no version hue, so slate chrome,
+          not the old off-palette sky-500. Grows a version; the second turns a
+          plain group into a fork. Pinned after the chips (right of the track). */}
+      <button
+        data-addversion={stop.key}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.stopPropagation()
+          onAdd(stop.key!)
+        }}
+        title="add a version"
+        aria-label="add a version"
+        className="shrink-0 grid place-items-center w-[18px] h-[18px] rounded-full bg-slate-600 text-white text-[12px] leading-none hover:bg-slate-700"
+      >
+        +
+      </button>
+      {/* ▶ scroll-right — solid gray, shown only when the chips overflow (#15). */}
+      {overflow && (
+        <button
+          data-visscroll={stop.key}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation()
+            trackRef.current?.scrollBy({ left: 96, behavior: 'smooth' })
+          }}
+          title="scroll to more versions"
+          aria-label="scroll to more versions"
+          className="shrink-0 grid place-items-center w-[18px] h-[18px] rounded-sm text-slate-500 text-[11px] leading-none hover:text-slate-700 hover:bg-slate-200/70"
+        >
+          ▶
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function AuthorRoad({
   state,
   sync,
@@ -265,9 +375,6 @@ export default function AuthorRoad({
   // which container's title is open for editing — you enter it by clicking the
   // title TEXT of an already-selected node (a second click), not a ✎ button
   const [editKey, setEditKey] = useState<string | null>(null)
-  // a fork whose close (ungroup) was blocked — #15 wants a popup, not a silent
-  // no-op, when you try to ungroup a container that still has multiple versions.
-  const [blockUngroup, setBlockUngroup] = useState<string | null>(null)
   // a toolbar button's keyboard-shortcut hint, revealed after a 1s hover (#15)
   const [shortcutHint, setShortcutHint] = useState<string | null>(null)
   const hintTimer = useRef<number | null>(null)
@@ -295,11 +402,6 @@ export default function AuthorRoad({
 
   const { items, arrows, bypasses, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals, hidden)
 
-  // the single selected block, if it's a container — drives the delete popover
-  const selKey = state.selected.size === 1 ? [...state.selected][0] : null
-  const selPlaced = selKey ? items.find((pl) => pathKey(pl.path) === selKey) : undefined
-  const selStop = selPlaced?.stop
-
   // the SELECTION BOX — the bounding rect of every selected block; the action
   // toolbar pins to it (stable) rather than chasing the cursor. #17.
   const selItems = items.filter((pl) => state.selected.has(pathKey(pl.path)))
@@ -319,28 +421,23 @@ export default function AuthorRoad({
   // present; its buttons enable/disable off the selection instead of appearing
   // and disappearing. The selection box below still marks the run itself.
 
-  // g = group, Ctrl/Cmd+g = ungroup, once a selection exists (#15). The rest of
-  // the toolbar stays mouse-only for now. Ignored while a text field is focused.
+  // g = group, once a selection exists (#15). Ungroup is gone (delete replaces
+  // it — a container's ✕ deletes it whole), so there is no Ctrl+G any more. The
+  // rest of the toolbar stays mouse-only. Ignored while a text field is focused.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
       if (e.key !== 'g' && e.key !== 'G') return
-      if (e.ctrlKey || e.metaKey) {
-        if (state.canPromote && selPlaced && selStop) {
-          e.preventDefault()
-          state.promote(selPlaced.path, chosenIdx(selStop, choices))
-        }
-      } else if (!e.altKey && !e.shiftKey) {
-        if (state.canGroup) {
-          e.preventDefault()
-          state.groupSelection()
-        }
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+      if (state.canGroup) {
+        e.preventDefault()
+        state.groupSelection()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [state, selPlaced, selStop, choices])
+  }, [state])
 
   // a toolbar button reveals its shortcut after a full second of hover (#15)
   const hintOn = (k: string) => {
@@ -389,12 +486,12 @@ export default function AuthorRoad({
   }
 
   /** the per-node hover/select chrome (#15): a compact top-right corner cluster.
-   * A container shows its active-version item count, rename (open only),
-   * minimise/maximise, and close; a leaf shows close only. Close ungroups a plain
-   * group (keeping its steps on the road), deletes a leaf, and on a FORK opens a
-   * guard popup rather than silently discarding the other versions. It lives
-   * inside the node's `group`, so it fades in on hover; `shown` forces it visible
-   * (selected, or mid-rename). */
+   * A container shows its active-version item count, minimise/maximise, and
+   * close; a leaf shows close only. Close DELETES — a leaf goes, a container goes
+   * with everything inside it (undoable). Ungroup is retired: delete is the one
+   * close gesture now, so there is no keep-the-steps arm and no fork guard popup.
+   * It lives inside the node's `group`, so it fades in on hover; `shown` forces
+   * it visible (selected, or mid-rename). */
   const browserBar = (pl: Placed, kind: 'leaf' | 'open' | 'closed', shown: boolean) => {
     const s = pl.stop
     const key = pathKey(pl.path)
@@ -436,18 +533,10 @@ export default function AuthorRoad({
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            if (kind === 'leaf') {
-              state.deleteAt(pl.path)
-              return
-            }
-            if (isFork(s)) {
-              setBlockUngroup(key)
-              return
-            }
-            state.promote(pl.path, chosenIdx(s, choices))
+            state.deleteAt(pl.path)
           }}
-          title={kind === 'leaf' ? 'delete this node' : isFork(s) ? 'ungroup — delete the extra versions first' : 'ungroup — keep the steps on the road'}
-          aria-label={kind === 'leaf' ? 'delete' : 'ungroup'}
+          title={kind === 'leaf' ? 'delete this node' : 'delete this group and everything inside it'}
+          aria-label="delete"
           className={[btn, 'hover:bg-rose-100 hover:text-rose-600'].join(' ')}
         >
           ✕
@@ -462,7 +551,6 @@ export default function AuthorRoad({
     return { x: e.clientX - r.left, y: e.clientY - r.top }
   }
   const onBoardPointerDown = (e: ReactPointerEvent) => {
-    setBlockUngroup(null) // any board press dismisses the ungroup-guard popup (#15)
     marqueeDragRef.current = false
     if (e.button !== 0 || !boardRef.current) return
     // only empty canvas starts a marquee — not a node, control, tab, or overlay
@@ -535,33 +623,11 @@ export default function AuthorRoad({
             </span>
           )}
         </span>
-        {/* ungroup (#33) — remove the group node, keep its steps on the road.
-            The inverse of Group, enabled only for a single container. */}
-        <span className="relative flex" onMouseEnter={() => hintOn('ungroup')} onMouseLeave={hintOff}>
-          <button
-            data-fly-ungroup
-            disabled={!state.canPromote}
-            onClick={() => {
-              if (selPlaced && selStop) state.promote(selPlaced.path, chosenIdx(selStop, choices))
-            }}
-            title={
-              selStop && isFork(selStop)
-                ? 'a fork can’t be ungrouped — delete its extra routes first (✕ on a tab)'
-                : 'ungroup — remove the group, keep its steps on the road'
-            }
-            className="text-[11px] px-2 py-1 rounded border border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-30 hover:bg-amber-100"
-          >
-            ⎍ Ungroup
-          </button>
-          {shortcutHint === 'ungroup' && (
-            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
-              Ctrl+G
-            </span>
-          )}
-        </span>
-        {/* the ⑂ Version toolbar button is gone (#15): adding a version now lives
-            on the ⊕ add-version namecard at the end of every container's bottom
-            namecard bar, next to the version chips it grows. */}
+        {/* Ungroup is gone (#15): delete is the one close gesture now — a
+            container's ✕ deletes it whole (undoable), so there is no separate
+            keep-the-steps arm and no Ctrl+G. The ⑂ Version toolbar button is
+            also gone — adding a version lives on the ⊕ namecard at the end of
+            every container's bottom bar, next to the version chips it grows. */}
         <button
           data-fly-opt
           disabled={!state.canOptional}
@@ -754,16 +820,11 @@ export default function AuthorRoad({
                   <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
                     {pl.outline}.
                   </span>
+                  {/* #15: a minimized node shows ONLY its number, title, and the
+                      hover browser bar (counter · maximise · close). The old
+                      inline "· vN" active-version label and the visitCount number
+                      were dropped — they read as clutter next to the counter. */}
                   <span className="truncate">{s.title}</span>
-                  {isFork(s) && (
-                    // shut fork header (0005 D2 + 0006): no ⑂ — the active route's
-                    // label stands in for it, since forking moved to a button.
-                    <span className="shrink-0 font-normal text-slate-400 whitespace-nowrap">
-                      · {s.variants[chosenIdx(s, choices)]?.label || `v${chosenIdx(s, choices) + 1}`}
-                    </span>
-                  )}
-                  <span className="font-normal text-slate-400 whitespace-nowrap">{visitCount(s)}</span>
-                  {/* #15 minimized node: counter · maximise · close, on hover/select */}
                   {browserBar(pl, 'closed', isSelected)}
                 </div>,
               ]
@@ -910,13 +971,17 @@ export default function AuthorRoad({
                   style={{ height: DESC_H, paddingLeft: 22 }}
                 />
 
-                {/* #15: one light-blue rounded-rectangle box per VISIBLE version,
-                    wrapping that version's header + its steps. It sits BEHIND the
-                    floating steps (pointer-events-none, z-1) so drops still land on
-                    the steps and the between-node slots; the header rides on top
-                    (z-30). Inactive versions fade — the road is the active one. A
-                    plain group has one column and no header, so its box just wraps
-                    the steps ("wrap the background for each version" — #15). */}
+                {/* #15: one rounded-rectangle box per VISIBLE version, wrapping
+                    that version's header + its steps, drawn in the DEPTH grammar —
+                    no hue (the light-blue was off-palette; blue means selection
+                    here). The ACTIVE box is a bright translucent panel lifted over
+                    the well (--surface-inset); inactive boxes are transparent and
+                    faded, so they recede into the well ("faded out for not being
+                    active" — #15). It sits BEHIND the floating steps
+                    (pointer-events-none, z-1) so drops still land on the steps and
+                    the between-node slots; the header rides on top (z-30). A plain
+                    group has one column and no header, so its box just wraps the
+                    steps ("wrap the background for each version" — #15). */}
                 {vis.map((k, ci) => {
                   const active = k === chosen
                   const boxTop = fork ? headH() + PAD : bodyTop(s)
@@ -925,11 +990,16 @@ export default function AuthorRoad({
                     <div
                       key={`vbox-${k}`}
                       aria-hidden
-                      className={[
-                        'absolute rounded-xl border pointer-events-none transition-opacity duration-200',
-                        active ? 'bg-sky-50 border-sky-200' : 'bg-sky-50/40 border-sky-100 opacity-60',
-                      ].join(' ')}
-                      style={{ left: colLeft[ci], top: boxTop, width: cols[ci]?.w, height: boxBottom - boxTop + 6, zIndex: 1 }}
+                      className={['absolute rounded-xl border pointer-events-none transition-opacity duration-200', active ? '' : 'opacity-60'].join(' ')}
+                      style={{
+                        left: colLeft[ci],
+                        top: boxTop,
+                        width: cols[ci]?.w,
+                        height: boxBottom - boxTop + 6,
+                        zIndex: 1,
+                        background: active ? 'var(--surface-inset)' : 'transparent',
+                        borderColor: 'var(--border-well)',
+                      }}
                     />
                   )
                 })}
@@ -978,12 +1048,14 @@ export default function AuthorRoad({
                           style={{ left: colLeft[ci], top: headH() + PAD, width: cols[ci]?.w, height: COLHEAD }}
                         >
                           {/* active toggle — GREEN ● when this version is the road
-                              (#15 asks green, superseding 0006's light-blue ●);
-                              hollow gray ○ otherwise. A click anywhere on the header
-                              (this span included) activates via the onClick above. */}
+                              (#15: "when ticked it should be green"; superseding
+                              0006's light-blue ●). Uses the on-palette green-600
+                              (= the token --green-600), not the off-palette emerald
+                              that was here. Hollow gray ○ otherwise. A click
+                              anywhere on the header activates via the onClick above. */}
                           <span
                             title={k === chosen ? 'active version' : 'make this the active version'}
-                            className={['shrink-0 text-[11px] leading-none', k === chosen ? 'text-emerald-500' : 'text-slate-300'].join(' ')}
+                            className={['shrink-0 text-[11px] leading-none', k === chosen ? 'text-green-600' : 'text-slate-300'].join(' ')}
                           >
                             {k === chosen ? '●' : '○'}
                           </span>
@@ -1062,64 +1134,21 @@ export default function AuthorRoad({
                   ) : null,
                 )}
 
-                {/* the version NAMECARD bar (#15) — shown for EVERY open container
-                    now, not just forks: a plain group still gets its "v1" card and
-                    the ⊕ add-version card. Each namecard is a ☑/☐ visibility toggle
-                    (multi-select viewport control — 0005 D5), the version name
-                    (default vN), and a GREEN ● on the active one (so hiding the
-                    active version is never silent — the legal 5th cell). Floor of
-                    one: toggleHidden won't hide the last shown. The ⊕ at the end is
-                    the add-version button that used to be the ⑂ Version toolbar
-                    button; the second version turns a plain group into a fork.
-                    (When the bar overflows, a scroll-right ▶ belongs here — deferred
-                    with the bounded version viewport, since the card grows to fit
-                    all versions until that lands, so it never overflows yet.) */}
-                <div
-                  data-visbar={s.key}
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute flex items-center gap-1 overflow-x-auto px-1"
+                {/* the version NAMECARD bar (#15) — shown for EVERY open container,
+                    not just forks: a plain group still gets its "v1" card and the ⊕.
+                    Extracted to VersionNamecardBar (it owns the overflow measurement
+                    that drives the ▶ scroll button). ☑/☐ visibility chips
+                    (multi-select viewport, 0005 D5) with a green ● on the active
+                    one; ⊕ grows a version (the second turns a plain group into a
+                    fork); ▶ appears only when the chips overflow. */}
+                <VersionNamecardBar
+                  stop={s}
+                  chosen={chosen}
+                  hidden={hidden}
+                  onToggle={toggleHidden}
+                  onAdd={state.addVariant}
                   style={{ left: PAD, top: pl.h - VIS_BAR_H, width: pl.w - 2 * PAD, height: VIS_BAR_H }}
-                >
-                  {s.variants.map((vr, k) => {
-                    const shown = !hidden.has(visKey(s, k))
-                    return (
-                      <button
-                        key={k}
-                        data-vischip={`${s.key}.${k}`}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleHidden(s, k)
-                        }}
-                        title={shown ? 'hide this version' : 'show this version'}
-                        className={[
-                          'shrink-0 flex items-center gap-0.5 px-1 h-[18px] rounded-sm border text-[9px] whitespace-nowrap',
-                          shown ? 'border-slate-400 text-slate-700 bg-white' : 'border-slate-200 text-slate-400 bg-slate-50',
-                        ].join(' ')}
-                      >
-                        <span className="shrink-0 leading-none">{shown ? '☑' : '☐'}</span>
-                        <span className="truncate max-w-[64px]">{vr.label || `v${k + 1}`}</span>
-                        {k === chosen && <span className="shrink-0 text-emerald-500 leading-none">●</span>}
-                      </button>
-                    )
-                  })}
-                  {/* ⊕ add-version namecard — a + in a round filled circle (#15),
-                      at the end of the namecards. Grows a version; the second one
-                      turns this plain group into a fork. */}
-                  <button
-                    data-addversion={s.key}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      state.addVariant(s.key!)
-                    }}
-                    title="add a version"
-                    aria-label="add a version"
-                    className="shrink-0 grid place-items-center w-[18px] h-[18px] rounded-full bg-sky-500 text-white text-[12px] leading-none hover:bg-sky-600"
-                  >
-                    +
-                  </button>
-                </div>
+                />
               </div>
             )
           })}
@@ -1186,37 +1215,6 @@ export default function AuthorRoad({
               style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h }}
             />
           )}
-
-          {/* #15: close on a container ungroups it — but a fork (>1 version) is
-              guarded by this popup rather than silently dropping the other routes.
-              Anchored under the offending node; dismissed on OK or a board click. */}
-          {blockUngroup &&
-            (() => {
-              const pl = items.find((p) => pathKey(p.path) === blockUngroup)
-              if (!pl) return null
-              const w = 212
-              return (
-                <div
-                  data-blockungroup={blockUngroup}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className="absolute z-50 rounded-lg border border-slate-300 bg-white shadow-md px-3 py-2 text-[10.5px]"
-                  style={{ left: Math.max(4, Math.min(pl.x + pl.w / 2 - w / 2, W - w - 4)), top: pl.y + pl.h + 6, width: w }}
-                >
-                  <div className="font-semibold text-slate-700">This group has more than one version</div>
-                  <div className="mt-0.5 text-slate-500">Delete the extra versions first — the ✕ on a version tab — then it can be ungrouped.</div>
-                  <div className="mt-1.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setBlockUngroup(null)}
-                      className="text-[10px] px-2 py-0.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-100"
-                    >
-                      OK
-                    </button>
-                  </div>
-                </div>
-              )
-            })()}
 
           {/* the action toolbar used to float here, pinned to the selection box.
               It is now a STATIC strip at the top of the road panel — see the

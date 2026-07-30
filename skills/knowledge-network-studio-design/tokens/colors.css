@@ -105,8 +105,6 @@
   --road-ghost: var(--slate-400);       /* off-road / skipped */
   --road-badge: var(--amber-500);       /* the step-number chip */
   --road-badge-ink: #ffffff;
-  --road-question: var(--amber-700);    /* a fork's question line */
-  --road-question-placeholder: var(--amber-300);
 
   /* ── Containers (legacy hue signal — kept for continuity, demoted) ──── */
   --container-accent: var(--green-600);

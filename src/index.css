@@ -25,6 +25,10 @@
   /* elevation: an open container sinks, a shut one (a single stop) lifts */
   --sink-well: inset 0 1px 3px rgba(30, 41, 59, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   --lift-node: 0 1px 2px rgba(30, 41, 59, 0.10), 0 6px 14px -10px rgba(30, 41, 59, 0.35);
+
+  /* a translucent-white panel lifted over a recessed well — the ACTIVE version
+     box's surface (#15). Neutral, not hue: containment stays depth, not blue. */
+  --surface-inset: rgba(255, 255, 255, 0.6);
 }
 
 /* Expand/collapse in the map view relayouts every box; animating the transform
@@ -56,16 +60,22 @@
 
 /* Walk·Desk (#15): a nested node JIGGLES on hover to say "there is stuff inside".
    A leaf never gets this class — the absence of the wobble is itself the signal
-   that the node is empty. One short wobble per hover-enter (not a loop), so it
-   reads as a nudge, not a vibration. The road already animates left/top/width/
-   height; transform is a separate channel, so the two don't fight. */
+   that the node is empty. It rises a few px and SNAPS back — one bounce per
+   hover-enter, never a loop, and it resets the moment the cursor leaves (a pure
+   CSS :hover animation starts once on enter and is torn off on leave, so the
+   transform returns to base without a JS timer). The road already animates
+   left/top/width/height; transform is a separate channel, so the two don't fight. */
 @keyframes road-jiggle {
-  0%, 100% { transform: translateX(0) rotate(0); }
-  20%      { transform: translateX(-1.5px) rotate(-0.5deg); }
-  55%      { transform: translateX(1.5px) rotate(0.4deg); }
-  80%      { transform: translateX(-0.6px) rotate(-0.15deg); }
+  0%, 100% { transform: translateY(0); }
+  45%      { transform: translateY(-5px); }
 }
-.road-jiggle:hover { animation: road-jiggle 360ms ease-in-out; }
+.road-jiggle:hover { animation: road-jiggle 280ms ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .road-jiggle:hover { animation: none; }
 }
+
+/* The version namecard track scrolls via its ▶ button (#15), not a native
+   scrollbar — the scroll BARS were struck from the spec, only the button kept.
+   Hide the bar on the overflow container the button drives. */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

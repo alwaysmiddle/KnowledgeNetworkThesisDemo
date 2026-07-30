@@ -146,6 +146,7 @@ const WIRED: Record<string, 'colors' | 'elevation'> = {
   '--surface-well-2': 'colors',
   '--surface-well-3': 'colors',
   '--surface-well-4': 'colors',
+  '--surface-inset': 'colors',
   '--border-well': 'colors',
   '--border-well-strong': 'colors',
   '--sink-well': 'elevation',
@@ -175,7 +176,7 @@ describe('the wired tokens agree with the design mirror', () => {
 
   test('AuthorRoad consumes the tokens, it does not re-inline them', () => {
     const road = SOURCES.road
-    for (const varRef of ['var(--sink-well)', 'var(--lift-node)', 'var(--border-well)', 'var(--border-well-strong)', 'var(--surface-well-'])
+    for (const varRef of ['var(--sink-well)', 'var(--lift-node)', 'var(--border-well)', 'var(--border-well-strong)', 'var(--surface-well-', 'var(--surface-inset)'])
       expect(road, `AuthorRoad no longer reads ${varRef} — a literal has crept back in`).toContain(varRef)
     // the exact shadow literals must NOT reappear as raw strings in the TSX
     expect(road, 'the --sink-well literal is back in AuthorRoad — wire it, do not inline').not.toContain('inset 0 1px 3px rgba(30, 41, 59, 0.13)')
