@@ -55,9 +55,9 @@ the sources that actually hold it:
   `AuthorRoad.tsx` and the ops in `authordraft.ts` document themselves.
 - **`tools/*-spike/RESULTS.md`** — spike findings, beside the shots that
   produced them.
-- **`skills/`** — packaged procedures, plus mirrors of external material such as
-  the Claude Design system under `skills/knowledge-network-studio-design/`
-  (see its `SYNC.md` for how to refresh it).
+- **`skills/`** — packaged procedures. (The former Claude Design mirror here was
+  removed with #44; the **KnowledgeNetwork Design System** Claude Design project
+  is now the source of truth, adopted via the `/design-sync` workflow.)
 
 ## Scripts
 

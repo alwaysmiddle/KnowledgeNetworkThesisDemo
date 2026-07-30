@@ -4,6 +4,16 @@ A design agent works on this product's visual system inside a Claude Design
 project. It is not reachable by a function call, so files are the whole
 conversation. This folder is our side of it.
 
+> **2026-07-29 — under revision.** The local pull-only mirror at
+> `skills/knowledge-network-studio-design/` was removed (issue #44). The
+> **KnowledgeNetwork Design System** Claude Design project is now the source of
+> truth, and code adopts it via the `/design-sync` workflow rather than a mirror
+> pull. The mirror-based mechanics below — the "arrives here as … mirror pull"
+> row, the `SYNC.md` references, and the spacing coupling `tokens.test.ts` used
+> to guard — are historical until the design-overhaul session rewrites this
+> contract. The **message protocol** (§What we write, §When to write, §Delivery)
+> is still current; the **mirror** is gone.
+
 ## Who can write where
 
 | | this repo | the design project |

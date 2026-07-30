@@ -1,16 +1,17 @@
 @import "tailwindcss";
 
 /* ── Design-system tokens, WIRED ─────────────────────────────────────────────
-   The single source the app consumes for the containment-grammar surfaces
-   (elevation / depth, not hue). Values conform to the design agent's authored
-   token files under skills/knowledge-network-studio-design/tokens/ — colors.css
-   (--surface-well-*, --border-well*) and elevation.css (--sink-well, --lift-node).
-   That agreement is not a promise: tokens.test.ts parses this block and those
-   files and asserts they are the same value, so a drift fails the build.
+   The values the app consumes for the containment-grammar surfaces (elevation /
+   depth, not hue): --surface-well-*, --border-well*, --sink-well, --lift-node.
 
-   These are consumed as var(--…) in inline styles (AuthorRoad.tsx), so they only
-   need to reach :root — Tailwind v4 emits every @theme variable there. See #44
-   for the open source-of-truth decision (this block, vs. @import-ing the mirror). */
+   These conform to the KnowledgeNetwork Design System (a Claude Design project),
+   now the source of truth. The former local mirror under skills/ and its
+   tokens.test.ts parity guard were removed with #44; until the design overhaul
+   re-establishes adoption via the /design-sync workflow, the values below are
+   maintained by hand and are NOT guarded against drift.
+
+   Consumed as var(--…) in inline styles (AuthorRoad.tsx), so they only need to
+   reach :root — Tailwind v4 emits every @theme variable there. */
 @theme {
   /* a GROUP is recessed: the well tint darkens one step per nesting depth */
   --surface-well-1: #eef2f6;
