@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   024adb2
+commit:   8e90ffb
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -15,6 +15,23 @@ a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's titl
 **centre-aligned**. The always-on header `✎` and `⋮⋮` are **gone**: an item-count
 circle, minimise/maximise and close live in a hover/select **browser bar** at each
 node's top-right; the header still drags. Rename is **not** a browser-bar button.
+
+**Newest — the #15 V2-NEAT version pass (`8e90ffb`), which supersedes several
+notes further down:** each visible version now renders as a **light-blue
+rounded-rectangle box** (all boxes equal height, aligned to the frame) wrapping
+its steps; a fork's box carries a header of **green ● active toggle · vN title ·
+item-count circle · ✕**, and inactive versions **fade** (box + contents).
+**Active is GREEN now** — this supersedes #15's original "green" having been
+overridden to light-blue in `0005` D5 / `4eb5cca`, *and* the `024adb2` note that
+add-version stays a toolbar button. **Add-version is the round `⊕` namecard** at
+the end of the bottom bar, which now shows for **every** open container (a plain
+group shows `☑v1` + `⊕`); the `⑂ Version` toolbar button is **gone**. Version
+names **default to v1/v2/v3**. The fork **"question" row is removed** (and its
+`--road-question-h` token) — per-version titles name the versions; the node
+**description** row under the title stays. **Deferred to its own pass:** the
+bounded version viewport with side **scroll arrows** (and the namecard scroll ▶)
+— it needs the board-level floating steps re-parented to clip inside a
+fixed-width frame, so it is not in this commit.
 
 Three **`9964a4d`** refinements supersede the `0600eb1` node/toolbar treatment:
 - **The action toolbar is now a STATIC horizontal strip pinned to the top of the
@@ -146,19 +163,33 @@ CORE of the study — D1, D3, D5, D10 — is in.
   is code-initiated; fold it into the design doc as you see fit. I also tightened
   the `--road-question-h` comment from "group description / fork question row" to
   just the fork choice-prompt, since description now has its own row/token.
+- **#15 · V2-NEAT version boxes + ⊕ namecard, fork question removed** (`8e90ffb`).
+  Re-diffed against the mockup with you. Each visible version is a **light-blue
+  rounded-rectangle box** (equal height, frame-aligned) wrapping its steps; a
+  fork's box header is **green ● active · vN title (default) · item-count · ✕**,
+  and inactive versions fade (box + contents). Add-version moved off the
+  `⑂ Version` toolbar button onto a **round `⊕` namecard** at the end of the
+  bottom bar; that bar now renders for **every** open container, so a plain group
+  shows `☑v1` + `⊕`. **`0005`/`0006`'s light-blue active ● is superseded by
+  GREEN**, per #15. The fork **`question`** field/row/`setQuestion` op and its
+  **`--road-question-h`** token are **removed** — per-version titles carry naming;
+  the node `description` row stays. Parity **164 → 163**. **Deferred to its own
+  pass:** the bounded version viewport with side scroll arrows + the namecard
+  scroll ▶ (needs the floating steps re-parented to clip inside a fixed-width
+  frame). NB your design-mirror `design/tokens.test.ts` still lists
+  `--road-question-h`; it isn't in this repo's test run, so update it your side.
 - **the parity guard** (`0767f9f`). `tokens.test.ts` asserts every `--road-*` /
   `--rail-*` token and its SHOUTING_CASE constant are one number, with
   `COLGAP`/`COLHEAD`/`VIS_BAR_H` now tokenised. `HEAD` 28→24, `COLHEAD` 20→24 per
   your six-constant table.
 - **the protocol** merged into `CLAUDE.md` (`0767f9f`).
 
-`npm run verify` (typecheck + lint + tests) is green at each commit — **164 tests**
-as of `024adb2` (the new `--road-desc-h` parity test took 163 → 164; earlier, 164 →
-163 at `0600eb1` when retiring `BAR_ONE_LINE_W` removed its one parity test). Note:
-the working tree at time of writing has an unrelated, uncommitted deletion
-(`src/instruments/flatSvg.tsx`, still imported by `ContourView.tsx`) from in-flight
-spike work, so a full `tsc -b` on the dirty tree reports two ContourView errors.
-Those are NOT in `024adb2`; this commit's own files typecheck, lint, and test clean.
+`npm run verify` (typecheck + lint + tests) is green at each commit — **163 tests**
+as of `8e90ffb` (removing the fork `question` dropped its `--road-question-h`
+parity test, 164 → 163; the `--road-desc-h` test added at `024adb2` stays). The
+working tree's only other changes are the in-flight fork-comparator spike
+(`tools/walk-tiers-spike/shots.mjs`, untracked `tools/alt-fan-spike/`), not part
+of this build; `8e90ffb` typechecks, lints, and tests clean on its own files.
 
 ## Deferred — recorded, not dropped
 
