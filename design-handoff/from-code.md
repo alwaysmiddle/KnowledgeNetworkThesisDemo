@@ -4,7 +4,7 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   eb6642d
+commit:   e5b8a93
 branch:   feat/fork-comparator
 date:     2026-07-29
 ```
@@ -16,8 +16,34 @@ a slate outline number (`1.`, `2.`, `2.1.`) left of its title, and a leaf's titl
 circle, minimise/maximise and close live in a hover/select **browser bar** at each
 node's top-right; the header still drags. Rename is **not** a browser-bar button.
 
-**Newest — the resync/refactor pass (`eb6642d`), which supersedes the light-blue
-note directly below it AND the ungroup note further down:**
+**Newest — the #15 refactor pass (`e5b8a93`), which walks back several things
+from the pass below it and supersedes D10:**
+
+- **The per-node ✕ on a CONTAINER now UNGROUPS again** (restores `promote()`,
+  lifting the active version's steps in place). The `eb6642d` note that "✕
+  deletes it whole" is reversed. Deleting a whole group is the **toolbar ✕
+  Delete** now; a leaf's ✕ still deletes. Both undoable.
+- **Jiggle removed entirely.** The `road-jiggle` class + keyframes are gone — it
+  retriggered on every stacked card as the cursor swept a nested group, which the
+  user found disorienting. The `eb6642d` "jiggle rewritten" note no longer
+  applies. Your specimens still say "jiggles on hover/select" — that is now *out*.
+- **Namecard scroll button removed.** The `▶` is gone; the whole railroad scrolls
+  left/right, so the bar needs none of its own. `VersionNamecardBar` is hook-free
+  again (no overflow measurement). The `eb6642d` "scroll button LANDED" note is
+  reversed — there is now **no** namecard scroll control at all.
+- **Node description subtitle row removed.** `DESC_H`, `setDescription`, the
+  `--road-desc-h` token and the `data-rdesc` input are gone; `headH()` is just
+  `HEAD`. The V2-NEAT "`desc goes here`" row is *out*.
+- **Optional is now a DASHED node border + a DASHED inbound arrow.** The ghost
+  **bypass rail is removed** (no more `data-rbypass`), and so is the `◇` gutter
+  badge. This **supersedes 0005 D10** ("optional drawn exactly like any other, no
+  dashed edge") and **0006 #2** ("draw the group-level bypass"): the user's call
+  is that optionality reads off the node's edge + the arrow leading into it.
+  Scoped to the AuthorRoad authoring instrument; `RailroadView` keeps its own
+  bypass rail for now.
+
+**Previous pass — the resync/refactor (`eb6642d`), still current EXCEPT where the
+pass above reverses it (jiggle, ✕-behaviour, scroll button, description row):**
 
 - **Version boxes are NEUTRAL now, not light-blue.** The `8e90ffb` light-blue
   boxes were off-palette (`sky-50/500`, `emerald`) and fought two rules — blue
@@ -52,8 +78,9 @@ box**; a fork's box carried a header of **green ● active toggle · vN title ·
 item-count circle · ✕**, inactive versions **faded**; add-version became the round
 `⊕` namecard (shown for every open container, `⑂ Version` toolbar button gone);
 version names **default to v1/v2/v3**; the fork **"question" row was removed**;
-the node **description** row stays. All of that still holds EXCEPT the light-blue
-fill (now neutral, see above).
+the node **description** row was added. All of that still holds EXCEPT the
+light-blue fill (now neutral) and the description row (now **removed**) — see the
+newest pass above.
 
 Three **`9964a4d`** refinements supersede the `0600eb1` node/toolbar treatment:
 - **The action toolbar is now a STATIC horizontal strip pinned to the top of the
@@ -97,11 +124,11 @@ CORE of the study — D1, D3, D5, D10 — is in.
   domain border, NEUTRAL slate ink (domain lives in the border only). It lifts
   only while grabbed. A shut group is the one persistently-raised thing; an open
   card is recessed.
-- **D10 · optional-as-bypass** (`3417677`). The dashed border is gone; an
-  optional stop is drawn exactly like any other. The ghost bypass rail (already
-  tokenised, now the sole signal) + the ◇ gutter badge carry optionality.
-  Optionals on → through-arrow live, bypass ghost-dashed; off → they swap and the
-  stop dims 50%. Verified in both toggle states, and for optional groups.
+- **D10 · optional-as-bypass — SUPERSEDED by `e5b8a93`** (was `3417677`). This
+  decision (no dashed edge; the ghost bypass rail + ◇ badge carry optionality) is
+  reversed at user direction. Now: **dashed node border + dashed inbound arrow**,
+  no bypass rail, no ◇ badge. The withOptionals-off state still dims the stop 50%.
+  Kept here for diff continuity; see the newest pass at the top.
 - **D9 · the walk as a slide-in chaptered preview** (`ce08f09`). The always-on
   FringeRail is retired; a `▶ read the walk` trigger slides a 344px pane in from
   the right that OVERLAYS the road (no reflow), fading it to 30%. `WalkPreview.tsx`
@@ -219,9 +246,9 @@ of this build; `8e90ffb` typechecks, lints, and tests clean on its own files.
 One `0005` layout-affecting item is still held, because it has no manifestation
 in the current teaching corpus, so it would be built blind:
 
-- **D10 · 16px bypass clearance** — only bites when an optional stop is also the
-  widest element (an optional *group*). The corpus has only an optional leaf,
-  which never clips. Held until an optional group exists to reserve width for.
+- ~~**D10 · 16px bypass clearance**~~ — MOOT now that the bypass rail is gone
+  (`e5b8a93` supersedes D10; optional = dashed edge + inbound arrow). There is no
+  right-margin curve left to reserve width for.
 
 D2's silhouette stack is no longer here — it landed with the elevation pass
 (`98d2ec7`), now that a shut group is neutral-raised and needs the fold cue to
@@ -229,8 +256,10 @@ read as a stack rather than a leaf.
 
 ## Still to build
 
-`0005` is fully built (D1–D10) except the one deferred layout item above (D10
-optional-group clearance), held for want of a manifestation in the corpus.
+`0005` is fully built (D1–D10), except **D10 has since been SUPERSEDED** by
+`e5b8a93` (optional is a dashed edge + inbound arrow now, not a bypass rail — see
+the newest pass at the top), which also makes the old optional-group clearance
+item moot.
 
 The remaining known work is one refactor, tracked as **#44**, now part-done:
 
