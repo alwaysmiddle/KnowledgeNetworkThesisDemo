@@ -732,8 +732,11 @@ export default function AuthorRoad({
             // a container — collapsed to a pill
             if (collapsed.has(s.key!)) {
               // D1 (0005): a SHUT group is the only persistently-RAISED thing on
-              // the road — it behaves as one stop, so it lifts (--lift-node). An
-              // open well, by contrast, is recessed and casts nothing.
+              // the road — it behaves as one stop, so it lifts (--lift-node). The
+              // open well is recessed too but, since the shadow pass, also casts an
+              // outer drop shadow (see the open card). A shut group is a self-
+              // contained pill (no floating step children), so it takes the
+              // hover-lift scale cleanly.
               // D2 (0005): behind the pill, two stacked silhouettes peek out
               // down-right (within --road-hatch = 6px) so a fold reads as a FOLDED
               // STACK, not a leaf, without opening it. The plates are decorative —
@@ -758,7 +761,9 @@ export default function AuthorRoad({
                     // neutral white, raised, a stronger neutral edge than an open
                     // well's — depth + the stack say "group", not green.
                     'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
-                    'transition-[left,top,width,height] duration-200 ease-out',
+                    // hover-lift owns the transition (layout + the ~500ms scale/shadow):
+                    // a shut group is self-contained, so the scale is clean here.
+                    'hover-lift',
                     // an optional container wears a DASHED edge too (see the leaf) —
                     // border + inbound arrow are the optionality signal now.
                     s.optional ? 'border-dashed' : '',
@@ -832,7 +837,11 @@ export default function AuthorRoad({
                 // reading when wells nest. The green border/wash is retired; a
                 // neutral hairline is all an open well needs — DASHED when the
                 // container is optional (border + inbound arrow, no bypass rail).
-                className={['group absolute rounded-2xl border cursor-pointer transition-[left,top,width,height] duration-200 ease-out', s.optional ? 'border-dashed' : '', dim].join(' ')}
+                // Since the shadow pass it ALSO casts an OUTER --lift-node drop
+                // shadow so the whole card floats off the board — a floating
+                // recessed panel, superseding D1's "an open well casts nothing".
+                // hover-lift scales it to 1.05 on hover like every group node.
+                className={['group absolute rounded-2xl border cursor-pointer hover-lift', s.optional ? 'border-dashed' : '', dim].join(' ')}
                 style={{
                   left: pl.x,
                   top: pl.y,
@@ -840,7 +849,7 @@ export default function AuthorRoad({
                   height: pl.h,
                   background: wellFill(pl.depth),
                   borderColor: 'var(--border-well)',
-                  boxShadow: 'var(--sink-well)',
+                  boxShadow: 'var(--sink-well), var(--lift-node)',
                 }}
               >
                 <div
