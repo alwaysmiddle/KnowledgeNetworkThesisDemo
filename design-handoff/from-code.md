@@ -4,12 +4,25 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   b9e59c5
-branch:   main
+commit:   b1554e8
+branch:   feat/57-design-system-overhaul
 date:     2026-07-30
 ```
 
-**Newest — the Studio presets were renamed to workflow verbs (`b9e59c5`, #57):**
+**Newest — the token closure is now adopted DS → code (`b1554e8`, #60), the
+first substantive step of the overhaul (#57, roadmap #58):** your `tokens/*.css`
+are vendored byte-identical into `src/tokens/` and are the value source the app
+builds from; `src/index.css` imports the five definition files and the road's
+containment surfaces (`--surface-well-1..4`, `--border-well*`, `--sink-well`,
+`--lift-node`, `--surface-inset`) are now **thin aliases onto your semantic
+tokens**, not hand-maintained values. Three consequences to ratify are in **msg
+`0007`**: the road wells re-tinted cool→warm, your two sunken surfaces stand in
+for the app's four well depths, and `base.css`/`fonts.css` are vendored but
+**held** (they would re-tint the whole app before its components migrate) for the
+chrome step (#64). This is **Approach B** from `0007` below — you are now the
+literal source the build rides.
+
+**Previous — the Studio presets were renamed to workflow verbs (`b9e59c5`, #57):**
 `Authoring → Plan` (the Walk·Desk editor composition), `Cockpit → Explore`,
 `Teaching → Present`. Both the preset `id` and the visible `label` changed, so
 any guideline page or specimen that names a preset should use the new words.
@@ -302,13 +315,12 @@ The remaining known work is one refactor, tracked as **#44**, now part-done:
   domain ramp, road hues, state colors) are still reverse-engineered "as-built"
   notes, consumed as hardcoded Tailwind utility classes, not from a source. Wiring
   them is more of the same `@theme` + utility-migration + parity work.
-- **Your call (msg `0007`, pending):** the wired block currently *copies* your
-  token values (Approach A), with the test catching drift. The alternative is for
-  `index.css` to `@import` your `tokens/*.css` mirror directly, making your files
-  the literal source the app builds from (Approach B) — one copy, no parity test,
-  but the app's build then rides the mirror pull. That inverts which file is
-  authoritative — yours — so it is yours to decide. Approach A is a clean
-  stepping-stone either way; nothing already landed is wasted if you pick B.
+- **Your call (msg `0007`) — DECIDED: Approach B, landed `b1554e8`.** `index.css`
+  now imports your `tokens/*.css` directly (vendored byte-identical into
+  `src/tokens/`), so your files are the literal source the build rides — one copy,
+  no parity test. This retired the old value-copy + `tokens.test.ts` guard (the
+  mirror itself went at `0ee480d`). Drift is now caught by the DS adherence rules
+  ported into ESLint (#61), not a value table.
 
 This is drift-proofing, not fidelity — the designed *look* is reached without it.
 
@@ -330,8 +342,10 @@ inside the project is therefore not maintained; this file is the live status.
 | 0004 | code | — | railroad node states — mock the V2·NEAT target *(answered by 0005)* |
 | 0005 | design | implementation | the V2·NEAT study — ten decisions, six constants |
 | 0006 | code | answer | 0005 answered — fork off the node, optional-on-groups, active light blue |
+| 0007 | code | none | token closure adopted DS→code; wells collapsed 4→2; base/fonts held |
 
 `0001`–`0003` are answered in substance by this file and `0006`; their code-side
 asks have all landed (parity guard, `onFocus` fix, `CLAUDE.md` merge). `0005` is
 built end to end (D1–D10) except the one deferred layout item (D10 optional-group
-clearance); D2's stack landed with the elevation pass. `0007` is the next free id.
+clearance); D2's stack landed with the elevation pass. `0007` is FYI (`needs:
+none`) — ratify the three consequences if you disagree. `0008` is the next free id.
