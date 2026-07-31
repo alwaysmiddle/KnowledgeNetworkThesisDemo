@@ -1,0 +1,65 @@
+/* SPACING & GEOMETRY.
+
+   The generic scale is a 4px grid with a 6px half-step (the round shapes need
+   a little more air than a strict 4 gives).
+
+   The --road-* block is different in kind: those are LIVE LAYOUT CONSTANTS
+   from src/instruments/walkdesk/AuthorRoad.tsx. The road does measure-free
+   layout, so the numbers ARE the layout — change one here and change it there.
+   They are recorded verbatim, un-rounded. */
+:root {
+  --space-05: 2px;
+  --space-1: 4px;
+  --space-15: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Radii — the brand is ROUND. Nothing in a P.Kt UI is square. ────── */
+  --radius-xs: 6px;    /* inline fields, tiny tags */
+  --radius-sm: 10px;   /* buttons, tabs, rows */
+  --radius-md: 14px;   /* menus, drop zones, inputs */
+  --radius-lg: 20px;   /* cards, panes */
+  --radius-xl: 28px;   /* the app shell, big surfaces */
+  --radius-pill: 999px;/* chips, dots, node stops, counters */
+
+  /* ── Strokes ────────────────────────────────────────────────────────── */
+  --stroke-hair: 1px;
+  --stroke-rule: 1.5px;
+  --stroke-node: 2px;      /* a node's own border, in its domain colour */
+  --stroke-ring: 2px;      /* selection / correspondence rings */
+  --dash-conditional: 4 4; /* @kind other */
+
+  /* ── Hit targets ────────────────────────────────────────────────────── */
+  --hit-min: 28px;         /* any clickable control in a dense pane */
+  --hit-comfortable: 36px;
+
+  /* ── Pane furniture ─────────────────────────────────────────────────── */
+  --pane-header-h: 34px;
+  --pane-pad-x: 14px;
+  --pane-pad-y: 10px;
+  --sidebar-w: 208px;      /* w-52, as built (StudioView) */
+  --tree-w: 240px;         /* Tree instrument, flex { fixed: 240 } */
+  --walkstack-w: 372px;    /* Walk-Stack instrument, flex { fixed: 372 } */
+  --walk-strip-h: 240px;   /* Walk instrument height */
+  --trail-strip-h: 92px;   /* TrailStrip h-[92px] */
+
+  /* ── Road geometry — AuthorRoad.tsx constants, as built ─────────────── */
+  --road-node-w: 150px;      /* NODEW */
+  --road-node-h: 34px;       /* NODEH */
+  --road-gap: 26px;          /* AGAP — the arrow lives in this gap */
+  --road-pad: 10px;          /* PAD */
+  --road-head-h: 28px;       /* HEAD */
+  --road-margin: 16px;       /* MARGIN */
+  --road-question-h: 18px;   /* QUESTION_H */
+  --road-tab-h: 22px;        /* TAB_H */
+  --road-empty-body-h: 30px; /* EMPTY_BODY_H */
+  --road-slot-h: 18px;       /* SLOTH */
+  --road-sel-pad: 7px;       /* SELPAD */
+  --rail-w: 186px;           /* RAIL_W — projected-route column */
+}

@@ -1,0 +1,43 @@
+/* MOTION.
+   The repo's own rule, kept: a relayout should be LEGIBLE — "nodes visibly
+   make room" — not a teleport. Nothing bounces, nothing springs, nothing
+   overshoots. Durations are the as-built ones; the easing is softened.
+   Never animate colour. */
+:root {
+  --dur-tap: 90ms; /* @kind other */
+  --dur-hover: 140ms; /* @kind other */
+  --dur-trace: 180ms; /* @kind other */
+  --dur-move: 200ms; /* @kind other */
+  --dur-fade: 250ms; /* @kind other */
+  --dur-enter: 280ms; /* @kind other */
+  --dur-relayout: 300ms; /* @kind other */
+
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1); /* @kind other */
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1); /* @kind other */
+  --ease-linear: linear; /* @kind other */
+
+  --transition-block: left var(--dur-move) var(--ease-settle),
+                      top var(--dur-move) var(--ease-settle),
+                      width var(--dur-move) var(--ease-settle),
+                      height var(--dur-move) var(--ease-settle); /* @kind other */
+  --transition-wash: background-color var(--dur-hover) var(--ease-soft),
+                     border-color var(--dur-hover) var(--ease-soft),
+                     box-shadow var(--dur-hover) var(--ease-soft); /* @kind other */
+  --transition-trace: opacity var(--dur-trace) var(--ease-soft),
+                      stroke-width var(--dur-trace) var(--ease-soft); /* @kind other */
+}
+
+/* scope change enters FROM its navigation direction (src/index.css) */
+@keyframes drill-down { from { opacity: 0; transform: scale(0.82); } }
+@keyframes drill-up { from { opacity: 0; transform: scale(1.18); } }
+@keyframes drill-left { from { opacity: 0; transform: translateX(-90px); } }
+@keyframes drill-right { from { opacity: 0; transform: translateX(90px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-move: 1ms; /* @kind other */
+    --dur-fade: 1ms; /* @kind other */
+    --dur-enter: 1ms; /* @kind other */
+    --dur-relayout: 1ms; /* @kind other */
+  }
+}

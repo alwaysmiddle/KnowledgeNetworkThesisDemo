@@ -1,0 +1,44 @@
+/* BASE — the smallest possible reset. Element defaults only; no component
+   classes live in the token closure. */
+:root { color-scheme: light; }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-snug);
+  color: var(--text-1);
+  background: var(--surface-canopy);
+}
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: var(--fw-bold); letter-spacing: var(--ls-display); line-height: var(--lh-tight); margin: 0; }
+p { margin: 0; text-wrap: pretty; }
+button { font: inherit; color: inherit; }
+a { color: var(--moss-600); text-decoration-color: var(--moss-200); text-underline-offset: 2px; }
+a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
+::selection { background: var(--pond-100); }
+:focus-visible { outline: none; box-shadow: var(--ring-focus); border-radius: var(--radius-sm); }
+
+/* Scrollbars are a single soft bar: no arrows, no track, no bezel, no outline.
+   NOTE: in Chromium, specifying `scrollbar-width`/`scrollbar-color` switches the
+   element to the NATIVE themed scrollbar and makes it ignore every
+   ::-webkit-scrollbar rule below — which is how the arrow buttons come back on
+   Windows. So the standard properties are scoped to engines that have no
+   ::-webkit-scrollbar support (Firefox), and Chromium/Safari get the pseudos. */
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--bark-300) transparent; }
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; border: none; box-shadow: none; }
+::-webkit-scrollbar-thumb { background: var(--bark-300); border-radius: var(--radius-pill); border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--bark-400); background-clip: content-box; }
+::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; }
+::-webkit-scrollbar-button:single-button, ::-webkit-scrollbar-button:double-button,
+::-webkit-scrollbar-button:start:decrement, ::-webkit-scrollbar-button:end:increment,
+::-webkit-scrollbar-button:vertical:start, ::-webkit-scrollbar-button:vertical:end,
+::-webkit-scrollbar-button:horizontal:start, ::-webkit-scrollbar-button:horizontal:end { display: none !important; width: 0 !important; height: 0 !important; background: transparent; }
+::-webkit-scrollbar-track-piece { background: transparent; }
+/* the bar stops short of a rounded pane's corners instead of running into them */
+::-webkit-scrollbar-track-piece:vertical:end { margin-bottom: 12px; }
+::-webkit-scrollbar-track-piece:vertical:start { margin-top: 4px; }
+::-webkit-scrollbar-track-piece:horizontal:end { margin-right: 12px; }
+::-webkit-scrollbar-corner { background: transparent; }
