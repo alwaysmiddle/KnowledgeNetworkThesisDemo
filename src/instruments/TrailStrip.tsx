@@ -7,7 +7,10 @@
 
 import { useEffect, useRef } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { StepDot, TrailChip } from '@/ds'
+import type { DomainCode } from '@/ds'
+
+import { byId, domainOf } from '../corpus/graph'
 import { WALKS } from '../corpus/walks'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../studio/bus'
@@ -48,21 +51,14 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
         <div ref={scroller} className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-3 pb-2">
           <div className="flex items-center gap-1.5 h-full">
             {trail.map((t, i) => (
-              <button
+              <TrailChip
                 key={`${i}-${t.id}`}
+                title={byId.get(t.id)!.title}
+                domain={domainOf(t.id) as DomainCode}
+                via={VIA_TAG[t.via]}
+                jump={t.jump}
                 onClick={() => onSelectTrailEntry(t.id)}
-                title={`${VIA_TAG[t.via]} · step ${i + 1}`}
-                className={[
-                  'shrink-0 px-2 py-1 rounded-md border text-[11px] flex items-center gap-1',
-                  t.jump ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100',
-                ].join(' ')}
-              >
-                {t.jump && <span className="text-amber-600 font-bold">⤳</span>}
-                <span style={{ color: DOMAIN_COLOR[domainOf(t.id)] ?? '#475569' }} className="font-medium truncate max-w-[120px]">
-                  {byId.get(t.id)!.title}
-                </span>
-                <span className="text-slate-400 text-[9px]">{VIA_TAG[t.via]}</span>
-              </button>
+              />
             ))}
           </div>
         </div>
@@ -105,21 +101,13 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
         {walk && (
           <div className="flex gap-1 mt-1.5 flex-wrap">
             {walk.stops.map((s, i) => (
-              <button
+              <StepDot
                 key={s.id + i}
-                onClick={() => onJumpToStop(i)}
+                n={i + 1}
+                state={i === cursor ? 'current' : i < cursor ? 'done' : 'ahead'}
                 title={s.note}
-                className={[
-                  'w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center border',
-                  i === cursor
-                    ? 'bg-amber-500 border-amber-500 text-white'
-                    : i < cursor
-                      ? 'bg-amber-100 border-amber-300 text-amber-700'
-                      : 'bg-white border-slate-300 text-slate-400',
-                ].join(' ')}
-              >
-                {i + 1}
-              </button>
+                onClick={() => onJumpToStop(i)}
+              />
             ))}
           </div>
         )}
