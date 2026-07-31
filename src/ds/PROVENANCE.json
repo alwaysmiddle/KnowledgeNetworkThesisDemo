@@ -1,0 +1,38 @@
+{
+  "$note": "Sync stamp for the vendored KnowledgeNetwork Design System snapshot. The DS is a Claude Design project with NO native version/release and NO per-file hashes in its manifest, so this file IS the diffable version marker of what state we adopted. To check for drift: re-read the DS via /design-sync, re-hash, and compare against `tokens.files` below; to adopt a change, re-vendor and update the hashes + syncedAt here. Graduating to a properly published/semver'd dependency is tracked in issue #66.",
+  "source": {
+    "kind": "claude-design-project",
+    "projectId": "0ec749ff-3549-4c16-9d1f-09ab8e8d9039",
+    "projectName": "KnowledgeNetwork Design System",
+    "namespace": "KnowledgeNetworkDesignSystem_0ec749",
+    "hasNativeVersion": false,
+    "accessedVia": "/design-sync (DesignSync tool)"
+  },
+  "syncedAt": "2026-07-30",
+  "tokens": {
+    "vendoredInto": "src/tokens/",
+    "verbatim": true,
+    "note": "Byte-identical copies of the DS tokens/*.css. These hashes ARE the DS token-file fingerprints; a mismatch on re-hash means the DS changed. base.css + fonts.css are vendored but not yet imported (held for #64).",
+    "hashAlgo": "sha256",
+    "files": {
+      "base.css": "1f7dc386d41b51151d63f31708ad6969619a3b9beeb2aad2a87d172768541f5c",
+      "colors.css": "5613b65a5cb84f677d3897d6d868cd56e804edb85cdcfd7912b9e5e1d3513f57",
+      "elevation.css": "e24f882e85f082bf09374231fd17be261584a093bda4cb9a26736f8ef33a2cd5",
+      "fonts.css": "14e22b8683c96397919dc8b99e7d34fe0050fadb30019a7c802a4698d8db3bcf",
+      "motion.css": "a45296468f1f3649ecce810d01b3118b2cb3f4e5eb0eb6cb43bf329fe534c6eb",
+      "spacing.css": "5d710f1092ac79feab867562e6ca4ac7c2c6518b35f9cb4306cbd90d11a823fe",
+      "typography.css": "623d3f3f25bba316f6cb06401c783246f2c0ab6859b645bfd7ce55b72acfb7ab"
+    }
+  },
+  "components": {
+    "vendoredInto": "src/ds/",
+    "verbatim": false,
+    "kind": "port",
+    "note": "Typed .tsx ports of the DS .jsx sources (NOT byte-identical — jsx→tsx adaptation). The prop contract each is ported against is the DS .d.ts, machine-enforced by _adherence.oxlintrc.json (ported into ESLint at #61). Drift-check a port by re-reading its `from` source and comparing behaviour.",
+    "ported": {
+      "src/ds/graph/NodeChip.tsx": { "from": "components/graph/NodeChip.jsx", "contract": "components/graph/NodeChip.d.ts", "syncedAt": "2026-07-30", "deviations": ["dropped the jsx's undocumented `wrap` prop (absent from d.ts + adherence allowlist)"] },
+      "src/ds/graph/DomainDot.tsx": { "from": "components/graph/DomainDot.jsx", "contract": "components/graph/DomainDot.d.ts", "syncedAt": "2026-07-30", "deviations": [] },
+      "src/ds/graph/EdgeLegend.tsx": { "from": "components/graph/EdgeLegend.jsx", "contract": "components/graph/EdgeLegend.d.ts", "syncedAt": "2026-07-30", "deviations": [] }
+    }
+  }
+}

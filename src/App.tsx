@@ -3,8 +3,8 @@
 // Shell and the standalone Cockpit tab live on as git history and the
 // 'explore' preset). App owns only the corpus header — what the graph is —
 // while Studio owns everything about how it's explored.
-import { byId, domainIds, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, edges, MAX_DEPTH, nodes, topicIds } from './corpus/graph'
-import type { EdgeType } from './corpus/graph'
+import { byId, domainIds, edges, MAX_DEPTH, nodes, topicIds } from './corpus/graph'
+import { DomainDot, EdgeLegend, type DomainCode } from '@/ds'
 import StudioView from './studio/StudioView'
 
 export default function App() {
@@ -16,21 +16,18 @@ export default function App() {
           one corpus — {nodes.length} nodes on {MAX_DEPTH} levels / {topicIds.length} CS topics / {edges.length} typed links, hand-authored
         </span>
         <span className="flex-1" />
-        {/* legend: domains (node identity) vs link types — hue-disjoint on purpose */}
+        {/* legend: domains (node identity) vs link types — hue-disjoint on purpose.
+            Both halves now render the DS graph primitives (#62), so the swatches
+            carry the DS's muted palette rather than the corpus's raw hex. */}
         <div className="flex items-center gap-2.5 text-[10px] text-slate-500">
           {domainIds.map((d) => (
             <span key={d} className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: DOMAIN_COLOR[d] }} />
+              <DomainDot domain={d as DomainCode} size={8} />
               {byId.get(d)!.title}
             </span>
           ))}
           <span className="w-px h-4 bg-slate-200 mx-1" />
-          {(Object.keys(EDGE_LABEL) as EdgeType[]).map((t) => (
-            <span key={t} className="flex items-center gap-1">
-              <span className="w-4 h-0.5 inline-block rounded" style={{ background: EDGE_COLOR[t] }} />
-              {EDGE_LABEL[t]}
-            </span>
-          ))}
+          <EdgeLegend />
         </div>
       </header>
       <main className="flex-1 min-h-0">

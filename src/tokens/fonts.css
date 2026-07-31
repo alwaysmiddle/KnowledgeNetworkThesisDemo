@@ -1,0 +1,9 @@
+/* FONTS — P.Kt has no licensed typefaces of its own, and the source app ships
+   no webfont at all (Tailwind v4 preflight's system stack). These two Google
+   families are a deliberate CHOICE for the round/natural direction, not a
+   recovery of something that existed. Swap them the day P.Kt licenses a face.
+
+   Quicksand  — geometric, fully rounded terminals. Display + pane titles.
+   Nunito     — rounded humanist, very legible at 11-13px. Everything else.
+   JetBrains Mono — ids, counts, code. Softer than Menlo, still monospaced. */
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap");

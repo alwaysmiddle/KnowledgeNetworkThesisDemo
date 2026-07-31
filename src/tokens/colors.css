@@ -1,0 +1,134 @@
+/* COLORS.
+
+   Two families, and they never mix roles:
+   1. CHROME — the forest neutrals + moss/acorn/pond accents. Everything the
+      interface is made of.
+   2. DATA — domain identity and edge kinds. Authored in the corpus
+      (src/corpus/graph.ts) and load-bearing: a colour here is a claim about
+      what a node IS. The raw authored hex is preserved as --*-raw; the
+      --domain-* / --edge-* values are the P.Kt naturalisation of the SAME hues
+      (lower chroma, mid lightness) so they sit on paper instead of shouting.
+      Use --*-raw only when matching the current build pixel for pixel. */
+:root {
+  /* ── Bark: the warm neutral ramp. Paper, not slate. ─────────────────── */
+  --bark-50:  #faf8f4;
+  --bark-100: #f2eee6;
+  --bark-200: #e6e0d4;
+  --bark-300: #d3cabb;
+  --bark-400: #b0a693;
+  --bark-500: #8a8071;
+  --bark-600: #6b6255;
+  --bark-700: #4e483e;
+  --bark-800: #35312a;
+  --bark-900: #23201b;
+
+  /* ── Moss: the primary. Growth, containment, "yes". ─────────────────── */
+  --moss-50:  #f0f5ee;
+  --moss-100: #dfe9da;
+  --moss-200: #c2d6ba;
+  --moss-300: #9dbd93;
+  --moss-400: #74a068;
+  --moss-500: #558148;
+  --moss-600: #416838;
+  --moss-700: #33512d;
+  --moss-800: #263c22;
+
+  /* ── Acorn: the walk. Reserved — it means "on the authored path". ───── */
+  --acorn-50:  #fbf4e8;
+  --acorn-100: #f5e6cb;
+  --acorn-200: #eccfa0;
+  --acorn-300: #ddb26e;
+  --acorn-400: #cb9441;
+  --acorn-500: #b47a2b;
+  --acorn-600: #94611f;
+
+  /* ── Pond: selection and cross-pane correspondence only. ────────────── */
+  --pond-50:  #eef3f7;
+  --pond-100: #dae7ef;
+  --pond-200: #bcd3e3;
+  --pond-300: #99bcd5;
+  --pond-400: #6f9dbd;
+  --pond-500: #4f80a2;
+  --pond-600: #3d6884;
+
+  /* ── Berry: destructive only. ───────────────────────────────────────── */
+  --berry-50:  #fbf0ee;
+  --berry-100: #f5dcd8;
+  --berry-500: #b4574a;
+  --berry-600: #99453a;
+
+  /* ── DATA · domain identity (6 hue-disjoint slots) ──────────────────── */
+  --domain-sys:  #4a8a3c;  /* leaf   — computer systems, hardware */
+  --domain-math: #6b5ca8;  /* iris   — mathematical foundations */
+  --domain-cs:   #3f7bb0;  /* river  — core computer science */
+  --domain-net:  #3d9199;  /* pond   — networking */
+  --domain-sec:  #c08a2e;  /* honey  — security */
+  --domain-se:   #4aa583;  /* fern   — software engineering */
+
+  /* authored in src/corpus/graph.ts — do not round, do not derive */
+  --domain-sys-raw:  #008300;
+  --domain-math-raw: #4a3aa7;
+  --domain-cs-raw:   #2a78d6;
+  --domain-net-raw:  #0891b2;
+  --domain-sec-raw:  #eda100;
+  --domain-se-raw:   #1baf7a;
+
+  /* ── DATA · edge kinds (hue-disjoint from the domains, on purpose) ──── */
+  --edge-depends-on: #ada291;  /* the backbone recedes: it is the common case */
+  --edge-uses: #cf7043;        /* clay */
+  --edge-see-also: #c37fa0;    /* mallow */
+  --edge-implemented-with: #b0524a; /* brick */
+  --edge-mixed: #8a8071;
+
+  --edge-depends-on-raw: #94a3b8;
+  --edge-uses-raw: #eb6834;
+  --edge-see-also-raw: #e87ba4;
+  --edge-implemented-with-raw: #e34948;
+  --edge-mixed-raw: #64748b;
+
+  /* per-node derived swatch roles — recompute in OKLCH with src/model/color.ts
+     (arc span 46deg, sibling floor 11deg, KEEP 0.82). These are the fallbacks. */
+  --swatch-anchor-fallback: #8a8071; /* @kind color */
+  --swatch-fill-fallback: #ece7dd;
+  --swatch-ink-fallback: #4e483e;
+  --swatch-ink-strong-fallback: #23201b;
+
+  /* ── Surfaces ───────────────────────────────────────────────────────── */
+  --surface-canopy: #f2eee6;   /* the desk behind every pane */
+  --surface-paper: #fdfcfa;    /* a pane */
+  --surface-raised: #ffffff;   /* a card / a node: raised, always lightest */
+  --surface-sunken: #eae4d9;   /* a well: a group, recessed */
+  --surface-sunken-2: #e2dbcd;
+  --surface-hover: rgba(53, 49, 42, 0.04);
+  --surface-hover-raised: #faf8f4;  /* the hovered face of a RAISED element — a wash can't tint white */
+  --surface-press: rgba(53, 49, 42, 0.07);
+  --surface-veil: rgba(253, 252, 250, 0.72);  /* the only translucency */
+
+  /* ── Borders ────────────────────────────────────────────────────────── */
+  --border-hair: rgba(53, 49, 42, 0.09);   /* divisions inside a pane */
+  --border-rule: rgba(53, 49, 42, 0.15);   /* pane and card edges */
+  --border-frame: var(--bark-400);         /* a PANE's own frame — visible on purpose */
+  --border-strong: rgba(53, 49, 42, 0.28); /* a thing you can act on */
+  --border-dashed: var(--bark-300);        /* dashed ALWAYS means conditional */
+
+  /* ── Ink ────────────────────────────────────────────────────────────── */
+  --text-1: var(--bark-800);
+  --text-2: var(--bark-600);
+  --text-3: var(--bark-400);
+  --text-inverse: #fdfcfa;
+  --text-accent: var(--moss-700);
+  --text-walk: var(--acorn-600);
+
+  /* ── State ──────────────────────────────────────────────────────────── */
+  --accent-primary: var(--moss-500);
+  --accent-primary-ink: var(--moss-700);
+  --accent-primary-wash: var(--moss-50);
+  --accent-walk: var(--acorn-500);
+  --accent-walk-wash: var(--acorn-50);
+  --state-selected: var(--pond-500);
+  --state-selected-wash: var(--pond-50);
+  --state-linked: var(--pond-300);   /* cross-pane hover correspondence only */
+  --state-danger: var(--berry-500);
+  --state-danger-wash: var(--berry-50);
+  --state-optional: var(--acorn-300);
+}

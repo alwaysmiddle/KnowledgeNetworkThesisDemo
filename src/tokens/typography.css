@@ -1,0 +1,47 @@
+/* TYPOGRAPHY.
+   Two ramps live here on purpose.
+
+   --fs-*   is the P.Kt ramp: what new work should use.
+   --asbuilt-fs-* is what the source app renders today (9-11px, leading-tight).
+     Recorded because it is real and because a recreation has to match it, NOT
+     because it is a target. Anything a person READS rather than glances at is
+     --fs-body or larger. 11px (--fs-micro) is the floor, and only for numerals,
+     glyph marks and tags. */
+:root {
+  --font-display: "Quicksand", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* P.Kt ramp */
+  --fs-micro: 11px;    /* step numbers, via tags, glyph marks */
+  --fs-caption: 12px;  /* eyebrows, meta lines, sidebar section labels */
+  --fs-body: 13px;     /* THE workhorse: rows, chips, buttons, list items */
+  --fs-title: 15px;    /* pane titles, card titles */
+  --fs-head: 18px;     /* document title */
+  --fs-display: 28px;  /* screen headline */
+  --fs-display-lg: 44px; /* the one big number / the brand line */
+
+  /* as-built, from src/instruments/**: Tailwind arbitrary sizes */
+  --asbuilt-fs-micro: 9px;
+  --asbuilt-fs-meta: 9.5px;
+  --asbuilt-fs-caption: 10px;
+  --asbuilt-fs-label: 10.5px;
+  --asbuilt-fs-body: 11px;
+  --asbuilt-fs-pane: 12px;
+
+  --lh-tight: 1.15; /* @kind other */
+  --lh-snug: 1.35; /* @kind other */
+  --lh-normal: 1.6; /* @kind other */
+
+  --fw-regular: 400; /* @kind font */
+  --fw-medium: 500; /* @kind font */
+  --fw-semibold: 600; /* @kind font */
+  --fw-bold: 700; /* @kind font */
+  --fw-heavy: 800; /* @kind font */
+
+  --ls-display: -0.015em; /* @kind other */
+  --ls-eyebrow: 0.08em; /* @kind other */
+  --ls-normal: 0; /* @kind other */
+
+  --tnum: tabular-nums; /* @kind other */
+}

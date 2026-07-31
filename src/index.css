@@ -1,35 +1,47 @@
 @import "tailwindcss";
 
-/* ── Design-system tokens, WIRED ─────────────────────────────────────────────
-   The values the app consumes for the containment-grammar surfaces (elevation /
-   depth, not hue): --surface-well-*, --border-well*, --sink-well, --lift-node.
+/* ── Design-system token closure ─────────────────────────────────────────────
+   Vendored from the KnowledgeNetwork Design System (a Claude Design project),
+   the source of truth for style — see src/tokens/README.md. These declare the
+   :root variables the app consumes; do not hand-edit the vendored files.
 
-   These conform to the KnowledgeNetwork Design System (a Claude Design project),
-   now the source of truth. The former local mirror under skills/ and its
-   tokens.test.ts parity guard were removed with #44; until the design overhaul
-   re-establishes adoption via the /design-sync workflow, the values below are
-   maintained by hand and are NOT guarded against drift.
+   Only the DEFINITION files are imported here. base.css (the reset that applies
+   the tokens to body/*) and fonts.css (the webfont loader) are vendored but held
+   for the chrome/global adoption step (#64), so this step re-tints only the road
+   wells, not the whole app. */
+@import "./tokens/colors.css";
+@import "./tokens/elevation.css";
+@import "./tokens/spacing.css";
+@import "./tokens/typography.css";
+@import "./tokens/motion.css";
 
-   Consumed as var(--…) in inline styles (AuthorRoad.tsx), so they only need to
-   reach :root — Tailwind v4 emits every @theme variable there. */
+/* ── Containment-grammar surfaces ────────────────────────────────────────────
+   The road consumes these as var(--…) in AuthorRoad.tsx inline styles, so they
+   only need to reach :root — Tailwind v4 emits every @theme variable there.
+
+   #60: these now ALIAS the DS semantic tokens (DS → code) instead of carrying
+   hand-maintained values. The former cool-slate values are replaced by the DS's
+   warm surfaces. The 4-level per-depth well tint collapses onto the DS's two
+   sunken surfaces (depth 0 → --surface-sunken, deeper → --surface-sunken-2) —
+   flagged to the design agent in design-handoff/msg. */
 @theme {
-  /* a GROUP is recessed: the well tint darkens one step per nesting depth */
-  --surface-well-1: #eef2f6;
-  --surface-well-2: #e7ecf2;
-  --surface-well-3: #dfe6ee;
-  --surface-well-4: #d8e0ea;
+  /* a GROUP is recessed: depth 0 sinks one step, deeper nesting the second */
+  --surface-well-1: var(--surface-sunken);
+  --surface-well-2: var(--surface-sunken-2);
+  --surface-well-3: var(--surface-sunken-2);
+  --surface-well-4: var(--surface-sunken-2);
 
   /* an OPEN well's hairline edge, and the SHUT group's stronger one */
-  --border-well: rgba(51, 65, 85, 0.16);
-  --border-well-strong: rgba(51, 65, 85, 0.30);
+  --border-well: var(--border-rule);
+  --border-well-strong: var(--border-strong);
 
   /* elevation: an open container sinks, a shut one (a single stop) lifts */
-  --sink-well: inset 0 1px 3px rgba(30, 41, 59, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-  --lift-node: 0 1px 2px rgba(30, 41, 59, 0.10), 0 6px 14px -10px rgba(30, 41, 59, 0.35);
+  --sink-well: var(--sink-1);
+  --lift-node: var(--lift-1);
 
-  /* a translucent-white panel lifted over a recessed well — the ACTIVE version
-     box's surface (#15). Neutral, not hue: containment stays depth, not blue. */
-  --surface-inset: rgba(255, 255, 255, 0.6);
+  /* a translucent panel lifted over a recessed well — the ACTIVE version box's
+     surface (#15). Neutral, not hue: containment stays depth, not blue. */
+  --surface-inset: var(--surface-veil);
 }
 
 /* Expand/collapse in the map view relayouts every box; animating the transform

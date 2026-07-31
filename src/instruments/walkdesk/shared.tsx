@@ -4,29 +4,27 @@
 // no state. The document-pane stand-in that lived here died at graduation:
 // the Studio has the real KnowledgePanel.
 
-import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
+import { byId, domainOf } from '../../corpus/graph'
+import { NodeChip as DsNodeChip, type DomainCode } from '@/ds'
 import type { RouteEntry } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
-/** a corpus node as a small chip — dot in its domain colour, title, hover-lit */
+/** a corpus node as a small chip — the DS NodeChip primitive (#62), wired to
+ *  the walk desk's hover bus. The wrapper owns the bus binding and the
+ *  `data-node` hook; the DS primitive owns the presentation and the `lit`
+ *  hover-correspondence ring. Resolving id → title/domain is app logic and
+ *  stays here.
+ *
+ *  NB the DS primitive renders at --fs-body (13px); the old hand-rolled chip
+ *  was 10.5px (--asbuilt-fs-label) to fit the narrow projected-route rail. That
+ *  rail (FringeRail) is currently unmounted, so the size change is invisible —
+ *  but if it returns, the chip will be chunkier and may want a compact variant.
+ *  Flagged to design in msg 0008. */
 export function NodeChip({ id, sync, dim, note }: { id: string; sync: HoverBinding; dim?: boolean; note?: string }) {
   const n = byId.get(id)!
   return (
-    <span
-      {...sync.bind(id)}
-      data-node={id}
-      title={note ?? n.title}
-      className={[
-        // max-w-full + a truncating label: the chip is nowrap by nature, and the
-        // projected-route RAIL is narrow. Clipping the tail beats a horizontal
-        // scrollbar; the full title is still in the tooltip.
-        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10.5px] whitespace-nowrap max-w-full overflow-hidden',
-        dim ? 'border-slate-200 bg-white/60 text-slate-400' : 'border-slate-200 bg-white text-slate-600',
-        sync.lit(id) ? 'ring-2 ring-sky-300' : '',
-      ].join(' ')}
-    >
-      <span className="w-1.5 h-1.5 rounded-full inline-block shrink-0" style={{ background: DOMAIN_COLOR[domainOf(id)] }} />
-      <span className="truncate">{n.title}</span>
+    <span {...sync.bind(id)} data-node={id} style={{ display: 'inline-flex', maxWidth: '100%' }}>
+      <DsNodeChip title={n.title} domain={domainOf(id) as DomainCode} dim={dim} lit={sync.lit(id)} note={note} />
     </span>
   )
 }
