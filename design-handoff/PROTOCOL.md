@@ -1,39 +1,30 @@
 # Handoff to the design agent
 
 A design agent works on this product's visual system inside a Claude Design
-project. It is not reachable by a function call, so files are the whole
-conversation. This folder is our side of it.
+project (**KnowledgeNetwork Design System**). It is not reachable by a function
+call, so files are the whole conversation. This folder is our side of it.
 
-> **2026-07-29 — under revision.** The local pull-only mirror at
-> `skills/knowledge-network-studio-design/` was removed (issue #44). The
-> **KnowledgeNetwork Design System** Claude Design project is now the source of
-> truth, and code adopts it via the `/design-sync` workflow rather than a mirror
-> pull. The mirror-based mechanics below — the "arrives here as … mirror pull"
-> row, the `SYNC.md` references, and the spacing coupling `tokens.test.ts` used
-> to guard — are historical until the design-overhaul session rewrites this
-> contract. The **message protocol** (§What we write, §When to write, §Delivery)
-> is still current; the **mirror** is gone.
+The design system is now the **source of truth for style**. Code adopts it
+through the `/design-sync` workflow — read the project's tokens and components,
+write back component-by-component through an approved plan, never a wholesale
+replace. This is issue #57 (roadmap #58).
 
 ## Who can write where
 
 | | this repo | the design project |
 | --- | --- | --- |
-| **Claude Code** | read + write | read any file; write only through an approved plan |
+| **Claude Code** | read + write | read any file; write only through an approved `/design-sync` plan |
 | **design agent** | read (any pushed ref, and a mounted working tree) | read + write |
 
-Both agents can read both places. Only the repo is closed to one of them. So the
-rule is **each agent writes only in its own home, and both read both**. No file
-is ever authored twice, which is why there is no merge to resolve and no file to
-carry by hand.
+Both agents read both places; only the repo is closed to one of them. Each agent
+writes only in its own home, and both read both — so no file is ever authored
+twice, and there is no merge to resolve.
 
-| Written by | Lives in | Arrives here as |
-| --- | --- | --- |
-| Claude Code | `design-handoff/` | — it is already here |
-| design agent | `design/` inside the Claude Design project | `skills/knowledge-network-studio-design/design/`, on the next mirror pull |
-
-`skills/knowledge-network-studio-design/` is a pull-only mirror — see its
-`SYNC.md`. Do not hand-edit anything under it; the next pull overwrites it. That
-is the reason our side lives at the repo root instead.
+`/design-sync` is how code reaches the project: `list_files` / `get_file` to read
+the current tokens and components, then `finalize_plan` + `write_files` to push a
+reviewed change. There is no local mirror any more — the pull-only
+`skills/knowledge-network-studio-design/` folder and its `SYNC.md` were removed
+with #44. Do not reintroduce a mirror; read the project directly.
 
 ## What we write
 
@@ -60,8 +51,9 @@ needs: decision | answer | implementation | none
 ---
 ```
 
-`needs:` is the only field that creates an obligation. Nothing in the mirror is
-an instruction unless it arrived as a message marked `needs: implementation`.
+`needs:` is the only field that creates an obligation. Nothing the design agent
+authors is an instruction to us unless it arrived as a message marked
+`needs: implementation`.
 
 ## When to write
 
@@ -81,17 +73,19 @@ claims a sha, say which paths are dirty on top of it.
 ## Delivery
 
 Committing and pushing is enough: they read the repo. If something is urgent
-before a push, a file can be written straight into the design project instead —
-that needs a plan the user approves, so ask rather than assume.
+before a push, a file can be written straight into the design project through a
+`/design-sync` plan the user approves — so ask rather than assume.
 
 ## The coupling that must not drift
 
-`skills/knowledge-network-studio-design/tokens/spacing.css` `--road-*` are the
-same numbers as the `const`s in `src/instruments/walkdesk/AuthorRoad.tsx`
-(`NODEW`, `AGAP`, `PAD`, `HEAD`, `BAR_ONE_LINE_W`, …) plus `RAIL_W` from
-`RailroadView.tsx`. The road's layout is measure-free arithmetic, so those
-numbers *are* the layout — a token that disagrees is a wrong drawing of a right
-screen.
+The design project's `tokens/spacing.css` `--road-*` block records the same
+numbers as the `const`s in `src/instruments/walkdesk/AuthorRoad.tsx` (`NODEW`,
+`AGAP`, `PAD`, `HEAD`, `MARGIN`, …) plus `RAIL_W` from `RailroadView.tsx`. The
+road's layout is measure-free arithmetic, so those numbers *are* the layout — a
+token that disagrees is a wrong drawing of a right screen.
 
-Documented coupling drifts; tested coupling does not. `npm run verify` runs
-typecheck, lint and vitest, so this can be an assertion rather than a promise.
+Documented coupling drifts; tested coupling does not. The old `tokens.test.ts`
+value-for-value parity guard was removed with #44. Its discipline comes back as
+the design system's own **adherence lint** (`_adherence.oxlintrc.json`), wired
+into `npm run verify` — see #61. Until that lands, this coupling is documented,
+not enforced; treat it as a promise to keep by hand.
