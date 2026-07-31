@@ -32,7 +32,11 @@
     "ported": {
       "src/ds/graph/NodeChip.tsx": { "from": "components/graph/NodeChip.jsx", "contract": "components/graph/NodeChip.d.ts", "syncedAt": "2026-07-30", "deviations": ["dropped the jsx's undocumented `wrap` prop (absent from d.ts + adherence allowlist)"] },
       "src/ds/graph/DomainDot.tsx": { "from": "components/graph/DomainDot.jsx", "contract": "components/graph/DomainDot.d.ts", "syncedAt": "2026-07-30", "deviations": [] },
-      "src/ds/graph/EdgeLegend.tsx": { "from": "components/graph/EdgeLegend.jsx", "contract": "components/graph/EdgeLegend.d.ts", "syncedAt": "2026-07-30", "deviations": [] }
+      "src/ds/graph/EdgeLegend.tsx": { "from": "components/graph/EdgeLegend.jsx", "contract": "components/graph/EdgeLegend.d.ts", "syncedAt": "2026-07-30", "deviations": [] },
+      "src/ds/nav/TreeRow.tsx": { "from": "components/nav/TreeRow.jsx", "contract": "components/nav/TreeRow.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)"] },
+      "src/ds/nav/TrailChip.tsx": { "from": "components/nav/TrailChip.jsx", "contract": "components/nav/TrailChip.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map"] },
+      "src/ds/nav/StepDot.tsx": { "from": "components/nav/StepDot.jsx", "contract": "components/nav/StepDot.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/nav/WalkCard.tsx": { "from": "components/nav/WalkCard.jsx", "contract": "components/nav/WalkCard.d.ts", "syncedAt": "2026-07-31", "deviations": [] }
     }
   }
 }

@@ -5,6 +5,12 @@
 // renders whatever root it's given — re-rooting itself is CockpitView's job
 // (the AUTO-RE-ROOT invariant and ZOOM both just change the treeRootId prop).
 //
+// The row itself is the DS TreeRow (presentation: indent, domain dot,
+// disclosure caret, current highlight, link count). This file owns everything
+// the DS row deliberately doesn't model: the recursion (TreeNode), the drag
+// source onto the road (#24), the data-node-id hook the screenshot driver
+// reads, and the single/double-click disambiguation below.
+//
 // A container row answers to both single-click (SELECT) and double-click
 // (ZOOM), and the browser fires click, click, dblclick for every real
 // double-click — so a naive pair of handlers would SELECT twice (polluting
@@ -14,7 +20,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { byId, childrenOf, domainOf, DOMAIN_COLOR, ROOT_ID } from '../corpus/graph'
+import { TreeRow } from '@/ds'
+import type { DomainCode } from '@/ds'
+
+import { byId, childrenOf, domainOf, ROOT_ID } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
 import { depth2Expanded } from '../model/nav'
 import type { Bus } from '../studio/bus'
@@ -55,7 +64,7 @@ export default function TreePanel({ bus }: { bus: Bus }) {
           <div className="px-3 py-2 text-[11px] text-slate-400">no children — this is a leaf</div>
         ) : (
           rootChildren.map((c) => (
-            <TreeRow
+            <TreeNode
               key={c.id}
               id={c.id}
               depth={0}
@@ -72,7 +81,7 @@ export default function TreePanel({ bus }: { bus: Bus }) {
   )
 }
 
-function TreeRow({
+function TreeNode({
   id,
   depth,
   expanded,
@@ -94,10 +103,11 @@ function TreeRow({
   const isOpen = expanded.has(id)
   const kids = isContainer ? childrenOf.get(id) ?? [] : []
   const linkCount = edgesTouching(id).length // nonzero only at the topic level
-  const isCurrent = id === currentId
   const pendingSelect = useRef<number | null>(null)
 
-  const handleClick = () => {
+  // SELECT, held one tick so a second click can cancel it into a ZOOM. Leaves
+  // have no ZOOM, so they select immediately.
+  const handleSelect = () => {
     if (!isContainer) {
       onSelect(id)
       return
@@ -109,7 +119,7 @@ function TreeRow({
     }, 220)
   }
 
-  const handleDoubleClick = () => {
+  const handleZoom = () => {
     if (!isContainer) return
     if (pendingSelect.current !== null) {
       window.clearTimeout(pendingSelect.current)
@@ -120,44 +130,30 @@ function TreeRow({
 
   return (
     <div>
-      <div
-        className={[
-          'flex items-center gap-1.5 pr-2 py-1 cursor-pointer text-[11px]',
-          isCurrent ? 'bg-amber-50' : 'hover:bg-slate-50',
-        ].join(' ')}
-        style={{ paddingLeft: 10 + depth * 16 }}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        data-node-id={id}
-        // #24 — every Tree row is a drag source onto the road (same `pal:<id>`
-        // the palette and map speak). No selection gate here: the Tree doesn't
-        // pan, so there's no gesture to protect — any row drags, container or
-        // leaf. A native drag suppresses the click, so it never fights the
-        // single/double-click select/zoom below.
-        draggable
-        onDragStart={(e) => e.dataTransfer.setData(DT, 'pal:' + id)}
-      >
-        {isContainer ? (
-          <button
-            onClick={(ev) => {
-              ev.stopPropagation()
-              toggle(id)
-            }}
-            className="w-3.5 text-slate-400 hover:text-slate-600 shrink-0"
-          >
-            {isOpen ? '▾' : '▸'}
-          </button>
-        ) : (
-          <span className="w-3.5 shrink-0" />
-        )}
-        <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: DOMAIN_COLOR[domainOf(id)] }} />
-        <span className={['truncate', isCurrent ? 'font-bold text-slate-800' : 'text-slate-600'].join(' ')}>{n.title}</span>
-        {linkCount > 0 && <span className="text-slate-400 shrink-0">⤳ {linkCount}</span>}
+      {/* #24 — every Tree row is a drag source onto the road (same `pal:<id>`
+          the palette and map speak). No selection gate here: the Tree doesn't
+          pan, so there's no gesture to protect — any row drags, container or
+          leaf. A native drag suppresses the click, so it never fights the
+          single/double-click select/zoom on the DS row. data-node-id + the
+          caret button inside are what the screenshot driver locates. */}
+      <div data-node-id={id} draggable onDragStart={(e) => e.dataTransfer.setData(DT, 'pal:' + id)}>
+        <TreeRow
+          title={n.title}
+          domain={domainOf(id) as DomainCode}
+          depth={depth}
+          container={isContainer}
+          expanded={isOpen}
+          current={id === currentId}
+          linkCount={linkCount}
+          onSelect={handleSelect}
+          onToggle={() => toggle(id)}
+          onZoom={handleZoom}
+        />
       </div>
       {isContainer &&
         isOpen &&
         kids.map((k) => (
-          <TreeRow
+          <TreeNode
             key={k.id}
             id={k.id}
             depth={depth + 1}

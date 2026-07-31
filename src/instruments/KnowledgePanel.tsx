@@ -15,6 +15,8 @@
 // walks.ts) — nodes above the topic level (domains, modules) and below it
 // (deep layers) just show the document, which is honest: that IS all they have.
 
+import { WalkCard } from '@/ds'
+
 import { byId, domainOf, DOMAIN_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { WALKS } from '../corpus/walks'
@@ -53,16 +55,12 @@ export default function KnowledgePanel({ bus }: { bus: Bus }) {
         ) : (
           <div className="flex flex-col gap-1">
             {throughWalks.map(({ walk, idx }) => (
-              <button
+              <WalkCard
                 key={walk.id}
+                title={walk.title}
+                meta={`stop ${idx + 1} of ${walk.stops.length} — ${walk.stops[idx].note}`}
                 onClick={() => onActivateWalkAtStop(walk.id, idx)}
-                className="text-left px-2 py-1.5 rounded border border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-[11.5px]"
-              >
-                <div className="font-semibold text-amber-800">{walk.title}</div>
-                <div className="text-slate-500">
-                  stop {idx + 1} of {walk.stops.length} — {walk.stops[idx].note}
-                </div>
-              </button>
+              />
             ))}
           </div>
         )}
