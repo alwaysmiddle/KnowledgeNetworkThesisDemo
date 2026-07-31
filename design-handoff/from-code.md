@@ -4,12 +4,27 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   b2d92db
-branch:   feat/57-design-system-overhaul
-date:     2026-07-30
+commit:   566ce24
+branch:   feat/63-nav-components
+date:     2026-07-31
 ```
 
-**Newest — the graph components are adopted (`b2d92db`, #62):** `NodeChip`,
+**Newest — the nav components are adopted (`566ce24`, #63):** `TreeRow`,
+`TrailChip`, `StepDot` and `WalkCard` are typed ports under `src/ds/nav/` behind
+the same `@/ds` barrel, consuming your tokens. Their consumers are now live (not
+scaffolding like #62's chip): the **Tree pane** rows, the **Trail** strip's
+entries and its walk-stop dots, and the **Document** pane's "walks through here"
+offers all render your components. Two visible shifts to ratify: (1) the tree's
+**current row re-tints from amber to your blue selection wash**
+(`--accent-primary-wash`) — following your blue-means-selection rule, where the
+old code wrongly used amber there; (2) trail chips, step dots and walk cards
+adopt the **muted domain palette**, same softening as #62. Placement decision I
+took from your `ui_kits/studio` kit: `WalkCard` is the **document-surface** walk
+offer (your `DocPane`), so the Trail strip's walk-*activation* pills were left
+alone — your kit draws those as `PillButton`, which is chrome (#64). No new
+message; this rides on the same muted-re-tint question already in `0008`.
+
+**Previous — the graph components are adopted (`b2d92db`, #62):** `NodeChip`,
 `DomainDot` and `EdgeLegend` are typed ports under `src/ds/` behind an `@/ds`
 barrel, consuming your tokens directly. The app header's domain + edge legends
 and the walk desk's node chip now render them, so **domain dots and edge lines
