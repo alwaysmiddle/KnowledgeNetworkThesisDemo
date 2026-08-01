@@ -41,7 +41,16 @@
       "src/ds/doc/SectionLabel.tsx": { "from": "components/doc/SectionLabel.jsx", "contract": "components/doc/SectionLabel.d.ts", "syncedAt": "2026-07-31", "deviations": ["ports the jsx's `action` slot, which the thinner .d.ts omits (jsx + ui_kits/studio are the real contract)"] },
       "src/ds/sidebar/PresetButton.tsx": { "from": "components/sidebar/PresetButton.jsx", "contract": "components/sidebar/PresetButton.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
       "src/ds/sidebar/InstrumentRow.tsx": { "from": "components/sidebar/InstrumentRow.jsx", "contract": "components/sidebar/InstrumentRow.d.ts", "syncedAt": "2026-07-31", "deviations": ["consumer drops the old flat-list composition-order index (the DS row has no such slot)"] },
-      "src/ds/sidebar/BinMark.tsx": { "from": "components/sidebar/BinMark.jsx", "contract": "components/sidebar/BinMark.d.ts", "syncedAt": "2026-07-31", "deviations": [] }
+      "src/ds/sidebar/BinMark.tsx": { "from": "components/sidebar/BinMark.jsx", "contract": "components/sidebar/BinMark.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/PillButton.tsx": { "from": "components/chrome/PillButton.jsx", "contract": "components/chrome/PillButton.d.ts", "syncedAt": "2026-07-31", "deviations": ["dropped the jsx's undocumented `onMouseDown` prop (absent from d.ts + adherence allowlist)"] },
+      "src/ds/chrome/CountBadge.tsx": { "from": "components/chrome/CountBadge.jsx", "contract": "components/chrome/CountBadge.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/PaneHeader.tsx": { "from": "components/chrome/PaneHeader.jsx", "contract": "components/chrome/PaneHeader.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/Toolbar.tsx": { "from": "components/chrome/Toolbar.jsx", "contract": "components/chrome/Toolbar.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/AppHeader.tsx": { "from": "components/chrome/AppHeader.jsx", "contract": "components/chrome/AppHeader.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)"] }
+    },
+    "deferred": {
+      "components/chrome/LeafMark.jsx": "Masks a binary asset (assets/leaf.png); has no consumer in #64 slice 3 (only Toolbar's optional `motif`). Porting needs the PNG vendored + a `base` path wired — its own unit of work. Revisit when a consumer (#55 Application Toolbar) wants the brand motif.",
+      "components/chrome/PaneDock": "Listed in issue #64's prose but has NO file in the DS project — nothing to port."
     }
   }
 }

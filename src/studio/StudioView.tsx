@@ -16,10 +16,10 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { EDGE_TOKEN, InstrumentRow, PresetButton, SectionLabel } from '@/ds'
-import type { EdgeKind } from '@/ds'
+import { AppHeader, CountBadge, EDGE_TOKEN, InstrumentRow, PaneHeader, PillButton, PresetButton, SectionLabel } from '@/ds'
+import type { DomainCode, EdgeKind } from '@/ds'
 
-import { byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
+import { byId, domainOf } from '../corpus/graph'
 import { useStudioBus } from './bus'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
@@ -90,17 +90,10 @@ export default function StudioView() {
       className={`flex-col min-w-0 min-h-0 bg-white ${extra}`}
       style={{ display: on ? 'flex' : 'none', ...style }}
     >
-      <header className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
-        <span className="font-bold text-slate-700 truncate">{inst.label}</span>
-        <span className="flex-1" />
-        <button
-          onClick={() => toggle(inst.id as InstrumentId)}
-          title="remove from composition"
-          className="px-1.5 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-        >
-          ✕
-        </button>
-      </header>
+      {/* the pane's hat is the DS PaneHeader. "bar" keeps the current filled title
+          row; the "legend" variant that straddles the border needs the pane to be
+          a rounded, fully-bordered box, so it is deferred. */}
+      <PaneHeader title={inst.label} variant="bar" onClose={() => toggle(inst.id as InstrumentId)} />
       {/* a strip with no declared height sizes itself to its content */}
       <div className={inst.slot === 'strip' && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}>{inst.render(bus)}</div>
     </section>
@@ -135,46 +128,45 @@ export default function StudioView() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      <div
-        aria-label="studio-header"
-        className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-slate-200 bg-white text-[11.5px]"
-      >
-        <span className="font-bold text-slate-800 text-[12px]">Studio</span>
-        <span className="text-slate-400">instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus</span>
-        <span className="flex-1" />
-        <span data-focus={bus.focus ?? ''} className="flex items-center gap-1.5">
-          {bus.focus ? (
-            <>
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: DOMAIN_COLOR[domainOf(bus.focus)] }} />
-              <span className="font-medium text-slate-700">{byId.get(bus.focus)!.title}</span>
-            </>
-          ) : (
-            <span className="text-slate-400">no focus</span>
-          )}
-        </span>
-        <button
-          aria-label="studio-teach"
-          onClick={bus.teach}
-          disabled={!canTeach}
-          title="generate a depends_on curriculum ending at the focused node and walk it"
-          className={[
-            'px-2 py-0.5 rounded border font-medium',
-            canTeach ? 'border-amber-400 text-amber-700 hover:bg-amber-50' : 'border-slate-200 text-slate-300 cursor-not-allowed',
-          ].join(' ')}
+      {/* The header renders from the DS AppHeader; session controls are DS
+          PillButtons and the live counts are DS CountBadges. AppHeader owns the
+          VISIBLE focus (dot + title). The machine-readable focus hook the shot
+          driver reads — data-focus (the id) plus the title as innerText — is not
+          something the DS component carries, so the consumer keeps a hidden
+          readout twin beside it. See #74: AppHeader has no focus test-hook. */}
+      <div aria-label="studio-header" style={{ flexShrink: 0, position: 'relative' }}>
+        <AppHeader
+          product="Studio"
+          corpusLine="instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus"
+          focus={bus.focus ? { title: byId.get(bus.focus)!.title, domain: domainOf(bus.focus) as DomainCode } : null}
         >
-          ★ teach me this
-        </button>
-        {bus.cycleNote && <span className="text-[10px] text-slate-400">contains a cycle — order approximate</span>}
-        <span aria-label="studio-visited" className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-          {bus.visited.size} visited
+          {/* the wrapper is only the driver's anchor; the pill itself owns the
+              disabled state, so the driver reads isDisabled() on the inner button */}
+          <span aria-label="studio-teach" style={{ display: 'inline-flex' }}>
+            <PillButton
+              tone="walk"
+              glyph="★"
+              disabled={!canTeach}
+              onClick={bus.teach}
+              title="generate a depends_on curriculum ending at the focused node and walk it"
+            >
+              teach me this
+            </PillButton>
+          </span>
+          {bus.cycleNote && <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--text-3)' }}>contains a cycle — order approximate</span>}
+          <span aria-label="studio-visited">
+            <CountBadge value={bus.visited.size} label="visited" />
+          </span>
+          <span aria-label="studio-route">
+            <CountBadge value={bus.route.length} label="route" />
+          </span>
+          <PillButton onClick={bus.clearRoute}>clear route</PillButton>
+          <PillButton onClick={bus.reset}>reset session</PillButton>
+        </AppHeader>
+        {/* hidden readout twin: the shot driver reads focus id + title from here */}
+        <span data-focus={bus.focus ?? ''} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>
+          {bus.focus ? byId.get(bus.focus)!.title : ''}
         </span>
-        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{bus.route.length} route</span>
-        <button onClick={bus.clearRoute} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
-          clear route
-        </button>
-        <button onClick={bus.reset} className="px-2 py-0.5 rounded border border-slate-300 hover:bg-slate-100">
-          reset session
-        </button>
       </div>
 
       <div className="flex-1 min-h-0 flex">
