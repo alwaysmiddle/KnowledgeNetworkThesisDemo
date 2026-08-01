@@ -20,6 +20,7 @@ import { AppHeader, CountBadge, EDGE_TOKEN, InstrumentRow, PaneHeader, PillButto
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
+import { AppToolbar } from './AppToolbar'
 import { useStudioBus } from './bus'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
@@ -168,6 +169,9 @@ export default function StudioView() {
           {bus.focus ? byId.get(bus.focus)!.title : ''}
         </span>
       </div>
+
+      {/* #55: app-level operations, pinned directly under the app header */}
+      <AppToolbar />
 
       <div className="flex-1 min-h-0 flex">
         <aside aria-label="studio-sidebar" className="w-52 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-auto">
