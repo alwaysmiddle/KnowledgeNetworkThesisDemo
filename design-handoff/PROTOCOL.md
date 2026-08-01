@@ -1,80 +1,58 @@
 # Handoff to the design agent
 
 A design agent works on this product's visual system inside a Claude Design
-project (**KnowledgeNetwork Design System**). It is not reachable by a function
-call, so files are the whole conversation. This folder is our side of it.
+project (**KnowledgeNetwork Design System**). It is the **source of truth for
+style**; code adopts it through `/design-sync`, component by component, never a
+wholesale replace. This is issue #57 (roadmap #58).
 
-The design system is now the **source of truth for style**. Code adopts it
-through the `/design-sync` workflow — read the project's tokens and components,
-write back component-by-component through an approved plan, never a wholesale
-replace. This is issue #57 (roadmap #58).
+This file is the contract for how code and that agent exchange work. As of **#75**
+the code→design channel is **GitHub issues**, not the `design-handoff/msg/NNNN`
+files and `from-code.md` that used to live beside this one — those are retired
+(recoverable from git history). The move is a concurrency fix: three checkouts
+of this repo run side by side, and both hand-minted message numbers and a single
+overwrite-in-place status file collide across them. GitHub mints the number and
+holds one store outside every checkout.
 
-## Who can write where
+## Who writes where
 
 | | this repo | the design project |
 | --- | --- | --- |
 | **Claude Code** | read + write | read any file; write only through an approved `/design-sync` plan |
-| **design agent** | read (any pushed ref, and a mounted working tree) | read + write |
+| **design agent** | read (pushed refs, a mounted tree, **and this repo's issues**) | read + write |
 
-Both agents read both places; only the repo is closed to one of them. Each agent
-writes only in its own home, and both read both — so no file is ever authored
+Each agent writes only in its own home; both read both. No file is authored
 twice, and there is no merge to resolve.
 
-`/design-sync` is how code reaches the project: `list_files` / `get_file` to read
-the current tokens and components, then `finalize_plan` + `write_files` to push a
-reviewed change. There is no local mirror any more — the pull-only
-`skills/knowledge-network-studio-design/` folder and its `SYNC.md` were removed
-with #44. Do not reintroduce a mirror; read the project directly.
+## code → design: GitHub issues
 
-## What we write
+- **One issue per message or topic.** GitHub mints the number — no hand-minted
+  sequence to collide across checkouts. A correction is a **new issue that names
+  the old one**, never a silent rewrite; status never goes inside the message.
+- **Port divergences** — where a vendored DS port (`src/ds/**`) differs from the
+  DS source (a contract gap, a re-tint, a dropped affordance) — go to the
+  standing **drift-log #74**, one comment per divergence, mirrored terse in
+  `src/ds/PROVENANCE.json`.
+- **Studies, decisions, questions** — each its own issue. Attachments (a
+  wireframe jpg) attach to the issue.
+- **Code state / diff base:** cite the **real commit sha** in the issue or PR.
+  The design agent's GitHub tools hand it a *tree* hash, not a usable commit sha,
+  so name the sha explicitly whenever a diff base matters. This is the job the
+  old `from-code.md` did; naming a sha in an issue avoids its wart (a status file
+  must name a sha, but committing it mints a new one, so the name was always one
+  commit stale).
+- **`needs:`** is the only field that creates an obligation — state it in the
+  issue body (`needs: decision | answer | implementation | none`). Nothing the
+  design agent authors is an instruction to us unless it arrived marked
+  `needs: implementation`.
 
-| Path | Mutable | Holds |
-| --- | --- | --- |
-| `design-handoff/from-code.md` | yes — overwrite in place | the current state of the code: commit sha, what landed, what has gone stale, which of their messages are answered |
-| `design-handoff/msg/NNNN-slug.md` | no — immutable once written | one message, one file |
+## design → code: unchanged
 
-Message numbering is a single sequence shared with the design agent. A collision
-is harmless (`0007-a`, `0007-b`) and better than renumbering. Never edit a
-message after writing it — a correction is a new message that names the old id.
-Status belongs in `from-code.md`, never inside a message.
-
-Front matter is required:
-
-```yaml
----
-id: 0004
-from: code
-to: design
-date: 2026-07-28
-subject: one line
-needs: decision | answer | implementation | none
----
-```
-
-`needs:` is the only field that creates an obligation. Nothing the design agent
-authors is an instruction to us unless it arrived as a message marked
-`needs: implementation`.
-
-## When to write
-
-After a commit that changes `src/instruments/` or anything the design system
-cites, rewrite `from-code.md`. Two fields earn their keep:
-
-- **the commit sha**, from `git rev-parse HEAD`. The design agent's GitHub tools
-  hand it a *tree* hash, which looks like a sha and cannot be used as a diff
-  base. Without a real sha it re-reads every file to find what moved.
-- **what went stale.** The design system is extracted from source, so a rename
-  or a moved constant silently invalidates a specimen card and nothing announces
-  it. One line here saves a full re-read.
-
-Uncommitted work is invisible to them — they read pushed refs. If `from-code.md`
-claims a sha, say which paths are dirty on top of it.
-
-## Delivery
-
-Committing and pushing is enough: they read the repo. If something is urgent
-before a push, a file can be written straight into the design project through a
-`/design-sync` plan the user approves — so ask rather than assume.
+The design agent **cannot write this repo**. It authors in its Design System
+project; code reads that through `/design-sync` (`list_files` / `get_file` to
+read the current tokens and components, then `finalize_plan` + `write_files` to
+push a reviewed change). There is no local mirror — read the project directly.
+Whether the agent can also **comment on our issues** is the open question in #75;
+until it answers, its replies reach us through the project exactly as before.
 
 ## The coupling that must not drift
 

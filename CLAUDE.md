@@ -42,10 +42,15 @@ A design agent works on the visual system in a Claude Design project and cannot
 write to this repo. `design-handoff/` is our side of that conversation; read
 `design-handoff/PROTOCOL.md` once — it is short, and it is the whole contract.
 
-The two habits it asks for: after a commit that touches `src/instruments/`,
-rewrite `design-handoff/from-code.md` with a real `git rev-parse HEAD` and
-anything that just made the design system stale; and reply to their messages as
-a new numbered file under `design-handoff/msg/`, never by editing theirs.
+Replies to the design agent go out as **GitHub issues**, not files — as of #75
+the old `design-handoff/msg/NNNN` files and `from-code.md` are retired (three
+side-by-side checkouts made hand-minted numbers and one overwrite-in-place status
+file collide). A **port divergence** — a `src/ds/**` port differing from the DS
+source — is a comment on the standing drift-log **#74**; a study, decision, or
+question is its own issue; cite the **real commit sha** in the issue when a diff
+base matters. The design agent reads issues with its GitHub tools and still
+replies through its own project, which we read via `/design-sync`.
+`design-handoff/PROTOCOL.md` is the whole contract — read it once.
 
 ## This repo's role
 
