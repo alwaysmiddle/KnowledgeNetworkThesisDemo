@@ -56,6 +56,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
+import { SectionLabel } from '@/ds'
+
 import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
 import type { GEdge } from '../corpus/graph'
 import { colorOf, fillOf } from '../model/color'
@@ -1105,7 +1107,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           so out loud rather than collapsing the frame to blank. */}
       {mode === 'wheel' ? (
         <div aria-label="children-contained" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
-          <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Contained ({containedKids.length})</div>
+          <SectionLabel count={containedKids.length}>contained</SectionLabel>
           {containedKids.length === 0 ? (
             <div className="text-[11px] text-slate-400">no children — {node.title} is a leaf</div>
           ) : (
@@ -1141,16 +1143,19 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
         </div>
       ) : !anchorTopic ? (
         <div aria-label="children-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
-          <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">
-            Relationships ({regionStar ? regionStar.edges.length : 0})
-            {regionStar && regionStar.nodes.length > 0 && (
-              <span className="font-normal text-slate-400">
-                {' '}
-                — {regionStar.nodes.length} {extMode === 'summary' ? 'area' : 'topic'}
-                {regionStar.nodes.length === 1 ? '' : 's'}
-              </span>
-            )}
-          </div>
+          <SectionLabel
+            count={regionStar ? regionStar.edges.length : 0}
+            action={
+              regionStar && regionStar.nodes.length > 0 ? (
+                <span style={{ fontWeight: 'var(--fw-regular)', color: 'var(--text-2)' }}>
+                  {regionStar.nodes.length} {extMode === 'summary' ? 'area' : 'topic'}
+                  {regionStar.nodes.length === 1 ? '' : 's'}
+                </span>
+              ) : undefined
+            }
+          >
+            relationships
+          </SectionLabel>
           {!regionStar || regionStar.nodes.length === 0 ? (
             <>
               <div className="text-[11px] text-slate-400">no relationships to display</div>
@@ -1203,7 +1208,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
         </div>
       ) : viaTopic ? (
         <div aria-label="children-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
-          <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Relationships (0)</div>
+          <SectionLabel count={0}>relationships</SectionLabel>
           <div className="text-[11px] text-slate-400">no relationships to display</div>
           <div className="text-[10.5px] text-slate-400 italic mt-0.5">
             relations live at the topic grain — see {byId.get(viaTopic)!.title}
@@ -1211,7 +1216,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
         </div>
       ) : (
         <div aria-label="children-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
-          <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Relationships ({rels.length})</div>
+          <SectionLabel count={rels.length}>relationships</SectionLabel>
           {rels.length === 0 ? (
             <div className="text-[11px] text-slate-400">no relationships to display</div>
           ) : (

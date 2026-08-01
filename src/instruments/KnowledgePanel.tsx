@@ -15,9 +15,10 @@
 // walks.ts) — nodes above the topic level (domains, modules) and below it
 // (deep layers) just show the document, which is honest: that IS all they have.
 
-import { WalkCard } from '@/ds'
+import { DocHeader, SectionLabel, WalkCard } from '@/ds'
+import type { DomainCode } from '@/ds'
 
-import { byId, domainOf, DOMAIN_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
+import { byId, domainOf, pathTo, ROOT_ID } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
 import { WALKS } from '../corpus/walks'
 import type { Bus } from '../studio/bus'
@@ -30,7 +31,6 @@ export default function KnowledgePanel({ bus }: { bus: Bus }) {
   const ancestry = pathTo(currentId)
     .map((id) => byId.get(id)!.title)
     .join(' / ')
-  const color = DOMAIN_COLOR[domainOf(currentId)] ?? '#475569'
   const throughWalks = WALKS.flatMap((w) => {
     const idx = w.stops.findIndex((s) => s.id === currentId)
     return idx >= 0 ? [{ walk: w, idx }] : []
@@ -38,18 +38,12 @@ export default function KnowledgePanel({ bus }: { bus: Bus }) {
 
   return (
     <div className="h-full overflow-auto bg-white" aria-label="knowledge-panel">
-      <div className="px-4 pt-3 pb-2 border-b border-slate-100">
-        <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{n.topic ? 'topic' : n.kind}</div>
-        <div className="text-[15px] font-bold" style={{ color }}>
-          {n.title}
-        </div>
-        <div className="text-[10.5px] text-slate-400 mt-0.5">{ancestry}</div>
-      </div>
+      <DocHeader kind={n.topic ? 'topic' : n.kind} title={n.title} domain={domainOf(currentId) as DomainCode} ancestry={ancestry} />
 
       <div className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100">{DOC_BODY[currentId]}</div>
 
       <div className="px-4 py-3">
-        <div className="text-[10.5px] font-bold text-slate-500 mb-1.5">Walks through here ({throughWalks.length})</div>
+        <SectionLabel count={throughWalks.length}>walks through here</SectionLabel>
         {throughWalks.length === 0 ? (
           <div className="text-[11px] text-slate-400">no authored walk stops here</div>
         ) : (

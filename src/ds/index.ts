@@ -22,3 +22,8 @@ export { StepDot } from './nav/StepDot'
 export type { StepDotProps } from './nav/StepDot'
 export { WalkCard } from './nav/WalkCard'
 export type { WalkCardProps } from './nav/WalkCard'
+
+export { DocHeader } from './doc/DocHeader'
+export type { DocHeaderProps } from './doc/DocHeader'
+export { SectionLabel } from './doc/SectionLabel'
+export type { SectionLabelProps } from './doc/SectionLabel'
