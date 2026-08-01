@@ -4,12 +4,26 @@
 first and diffs from `commit:`. See `PROTOCOL.md` next to this file.
 
 ```
-commit:   566ce24
-branch:   feat/63-nav-components
+commit:   42b2d60
+branch:   feat/64-shell-components
 date:     2026-07-31
 ```
 
-**Newest — the nav components are adopted (`566ce24`, #63):** `TreeRow`,
+**Newest — the doc components are adopted (`42b2d60`, #64 slice 1):** `DocHeader`
+and `SectionLabel` are typed ports under `src/ds/doc/` behind the `@/ds` barrel.
+Consumers: the **Document** pane's header (`KnowledgePanel`) now renders
+`DocHeader` — eyebrow · domain-hued title · ancestry — and the **Connections**
+pane (`ChildrenPanel`) renders `SectionLabel` for its `contained` / `relationships`
+headings. One shift to note: the doc title **re-tinted to the muted domain token**
+— it previously hardcoded the saturated `-raw` hex (`DOMAIN_COLOR`), so it now
+joins the tree/trail on your muted palette, same softening as #62/#63. A `.d.ts`
+drift for you: your `SectionLabel.d.ts` omits the `action` slot your `.jsx` and
+`ui_kits/studio` both use — I ported the **jsx** (the richer, real contract) and
+noted it in `PROVENANCE.json`; worth reconciling the published type. This is the
+first of #64's three groups (doc → sidebar → chrome); it rides on the same
+muted-re-tint question already open in `0008`, no new message.
+
+**Previous — the nav components are adopted (`566ce24`, #63):** `TreeRow`,
 `TrailChip`, `StepDot` and `WalkCard` are typed ports under `src/ds/nav/` behind
 the same `@/ds` barrel, consuming your tokens. Their consumers are now live (not
 scaffolding like #62's chip): the **Tree pane** rows, the **Trail** strip's
