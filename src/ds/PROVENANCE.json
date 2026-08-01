@@ -38,7 +38,10 @@
       "src/ds/nav/StepDot.tsx": { "from": "components/nav/StepDot.jsx", "contract": "components/nav/StepDot.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
       "src/ds/nav/WalkCard.tsx": { "from": "components/nav/WalkCard.jsx", "contract": "components/nav/WalkCard.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
       "src/ds/doc/DocHeader.tsx": { "from": "components/doc/DocHeader.jsx", "contract": "components/doc/DocHeader.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map"] },
-      "src/ds/doc/SectionLabel.tsx": { "from": "components/doc/SectionLabel.jsx", "contract": "components/doc/SectionLabel.d.ts", "syncedAt": "2026-07-31", "deviations": ["ports the jsx's `action` slot, which the thinner .d.ts omits (jsx + ui_kits/studio are the real contract)"] }
+      "src/ds/doc/SectionLabel.tsx": { "from": "components/doc/SectionLabel.jsx", "contract": "components/doc/SectionLabel.d.ts", "syncedAt": "2026-07-31", "deviations": ["ports the jsx's `action` slot, which the thinner .d.ts omits (jsx + ui_kits/studio are the real contract)"] },
+      "src/ds/sidebar/PresetButton.tsx": { "from": "components/sidebar/PresetButton.jsx", "contract": "components/sidebar/PresetButton.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/sidebar/InstrumentRow.tsx": { "from": "components/sidebar/InstrumentRow.jsx", "contract": "components/sidebar/InstrumentRow.d.ts", "syncedAt": "2026-07-31", "deviations": ["consumer drops the old flat-list composition-order index (the DS row has no such slot)"] },
+      "src/ds/sidebar/BinMark.tsx": { "from": "components/sidebar/BinMark.jsx", "contract": "components/sidebar/BinMark.d.ts", "syncedAt": "2026-07-31", "deviations": [] }
     }
   }
 }

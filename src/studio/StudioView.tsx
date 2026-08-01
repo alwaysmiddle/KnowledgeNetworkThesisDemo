@@ -16,7 +16,10 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR } from '../corpus/graph'
+import { EDGE_TOKEN, InstrumentRow, PresetButton, SectionLabel } from '@/ds'
+import type { EdgeKind } from '@/ds'
+
+import { byId, domainOf, DOMAIN_COLOR } from '../corpus/graph'
 import { useStudioBus } from './bus'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
@@ -177,52 +180,30 @@ export default function StudioView() {
       <div className="flex-1 min-h-0 flex">
         <aside aria-label="studio-sidebar" className="w-52 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-auto">
           <div className="p-2 border-b border-slate-100">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Presets</div>
+            <SectionLabel>presets</SectionLabel>
             <div className="flex flex-col gap-1">
               {PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  aria-label={`studio-preset-${p.id}`}
-                  title={p.hint}
-                  onClick={() => applyPreset(p)}
-                  className={[
-                    'text-left px-2 py-1 rounded border text-[11px]',
-                    presetId === p.id
-                      ? 'border-amber-400 bg-amber-50 font-semibold text-amber-800'
-                      : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-600',
-                  ].join(' ')}
-                >
-                  {p.label}
-                </button>
+                <div key={p.id} aria-label={`studio-preset-${p.id}`}>
+                  <PresetButton label={p.label} hint={p.hint} active={presetId === p.id} onClick={() => applyPreset(p)} />
+                </div>
               ))}
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1.5">
-              {presetId ? PRESETS.find((p) => p.id === presetId)!.hint : 'custom composition'}
             </div>
           </div>
 
           <div className="p-2 flex-1 overflow-auto">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Instruments</div>
+            <SectionLabel>instruments</SectionLabel>
             <div className="flex flex-col gap-0.5">
               {INSTRUMENTS.map((inst) => {
-                const idx = onScreen.indexOf(inst.id as InstrumentId)
-                const on = idx >= 0
                 const lensType = lensTypeOf(inst.id)
                 return (
-                  <button
-                    key={inst.id}
-                    aria-label={`studio-inst-${inst.id}`}
-                    onClick={() => toggle(inst.id as InstrumentId)}
-                    className={[
-                      'flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-left',
-                      on ? 'bg-slate-100 text-slate-800 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                    ].join(' ')}
-                  >
-                    <span className="w-3 text-center shrink-0">{on ? '●' : '○'}</span>
-                    {lensType && <span className="w-2 h-2 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[lensType] }} />}
-                    <span className="truncate flex-1">{inst.label}</span>
-                    {on && <span className="text-slate-400 shrink-0">{idx + 1}</span>}
-                  </button>
+                  <div key={inst.id} aria-label={`studio-inst-${inst.id}`}>
+                    <InstrumentRow
+                      label={inst.label}
+                      on={onScreen.includes(inst.id as InstrumentId)}
+                      swatch={lensType ? EDGE_TOKEN[lensType as EdgeKind] : undefined}
+                      onClick={() => toggle(inst.id as InstrumentId)}
+                    />
+                  </div>
                 )
               })}
             </div>
