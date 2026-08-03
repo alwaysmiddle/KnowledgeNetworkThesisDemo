@@ -137,7 +137,7 @@ export default function StudioView() {
           readout twin beside it. See #74: AppHeader has no focus test-hook. */}
       <div aria-label="studio-header" style={{ flexShrink: 0, position: 'relative' }}>
         <AppHeader
-          product="Studio"
+          product="thesis-demo"
           corpusLine="instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus"
           focus={bus.focus ? { title: byId.get(bus.focus)!.title, domain: domainOf(bus.focus) as DomainCode } : null}
         >
