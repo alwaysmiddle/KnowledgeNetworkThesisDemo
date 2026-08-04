@@ -17,3 +17,13 @@ export const DOMAIN_TOKEN: Record<DomainCode, string> = {
   sec: 'var(--domain-sec)',
   se: 'var(--domain-se)',
 }
+
+/** edge kind → its muted DS colour token (the same muted palette the EdgeLegend
+ *  renders — used where a caller passes an edge colour INTO a DS component, e.g.
+ *  a lens row's swatch) */
+export const EDGE_TOKEN: Record<EdgeKind, string> = {
+  depends_on: 'var(--edge-depends-on)',
+  uses: 'var(--edge-uses)',
+  see_also: 'var(--edge-see-also)',
+  implemented_with: 'var(--edge-implemented-with)',
+}

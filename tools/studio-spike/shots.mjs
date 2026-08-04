@@ -319,12 +319,12 @@ await page.screenshot({ path: `${OUT}/07-teaching-unfold.png` })
 console.log('07-teaching-unfold.png taken')
 
 // ── 8. teach me this ────────────────────────────────────────────────────────
-const teachBtn = page.locator('[aria-label="studio-teach"]')
+const teachBtn = page.locator('[aria-label="studio-teach"] button')
 console.log('teach button disabled? =', await teachBtn.isDisabled(), '(expect false — focus is a leaf)')
 await teachBtn.click()
 await page.waitForTimeout(400)
 
-const routeBadgeAtScenario8 = await page.locator('text=/\\d+ route/').innerText()
+const routeBadgeAtScenario8 = await page.locator('[aria-label="studio-route"]').innerText()
 const routeLen = parseInt(routeBadgeAtScenario8, 10)
 console.log('route badge =', routeBadgeAtScenario8, '(expect >= 2)')
 if (!(routeLen >= 2)) fail(`expected route length >= 2 after teach, got "${routeBadgeAtScenario8}"`)
@@ -375,7 +375,7 @@ const unfoldNodeCountAfterRoundtrip = await unfoldPane.locator('circle[data-node
 console.log('unfold pane circle[data-node] after roundtrip =', unfoldNodeCountAfterRoundtrip, '(expect', unfoldNodeCountAtScenario7, '— unchanged)')
 if (unfoldNodeCountAfterRoundtrip !== unfoldNodeCountAtScenario7) fail(`expected unfold node count unchanged at ${unfoldNodeCountAtScenario7}, got ${unfoldNodeCountAfterRoundtrip}`)
 
-const routeBadgeAfterRoundtrip = await page.locator('text=/\\d+ route/').innerText()
+const routeBadgeAfterRoundtrip = await page.locator('[aria-label="studio-route"]').innerText()
 console.log('route badge after roundtrip =', routeBadgeAfterRoundtrip, '(expect', routeBadgeAtScenario8, '— unchanged)')
 if (routeBadgeAfterRoundtrip !== routeBadgeAtScenario8) fail(`expected route badge unchanged at "${routeBadgeAtScenario8}", got "${routeBadgeAfterRoundtrip}"`)
 
@@ -441,7 +441,7 @@ const deepFocus = await focusReadout.getAttribute('data-focus')
 console.log('focus after level-8 click =', deepFocus)
 if (deepFocus !== L8) fail(`expected focus ${L8}, got ${deepFocus}`)
 
-const teachDisabledDeep = await page.locator('[aria-label="studio-teach"]').isDisabled()
+const teachDisabledDeep = await page.locator('[aria-label="studio-teach"] button').isDisabled()
 const lensEmptyState = await page
   .locator('[data-lens="depends_on"]')
   .getByText('lenses read topics — typed links live at the topic level')

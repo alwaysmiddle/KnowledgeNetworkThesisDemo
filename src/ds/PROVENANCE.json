@@ -28,7 +28,7 @@
     "vendoredInto": "src/ds/",
     "verbatim": false,
     "kind": "port",
-    "note": "Typed .tsx ports of the DS .jsx sources (NOT byte-identical — jsx→tsx adaptation). The prop contract each is ported against is the DS .d.ts, machine-enforced by _adherence.oxlintrc.json (ported into ESLint at #61). Drift-check a port by re-reading its `from` source and comparing behaviour.",
+    "note": "Typed .tsx ports of the DS .jsx sources (NOT byte-identical — jsx→tsx adaptation). The prop contract each is ported against is the DS .d.ts. The DS `_adherence` config (raw hex / px / non-token font bans) is the REFERENCE SPEC only — it lives in the DS project, is not vendored here, and oxlint was declined (#65); #61 authored those bans as native ESLint `no-restricted-syntax` rules in eslint.config.js, SCOPED to token-clean files (src/App.tsx, src/studio/StudioView.tsx, src/studio/AppToolbar.tsx) with src/ds/** exempt, and grows per migrated file — it is NOT yet a repo-wide error. Drift-check a port by re-reading its `from` source and comparing behaviour.",
     "ported": {
       "src/ds/graph/NodeChip.tsx": { "from": "components/graph/NodeChip.jsx", "contract": "components/graph/NodeChip.d.ts", "syncedAt": "2026-07-30", "deviations": ["dropped the jsx's undocumented `wrap` prop (absent from d.ts + adherence allowlist)"] },
       "src/ds/graph/DomainDot.tsx": { "from": "components/graph/DomainDot.jsx", "contract": "components/graph/DomainDot.d.ts", "syncedAt": "2026-07-30", "deviations": [] },
@@ -36,7 +36,21 @@
       "src/ds/nav/TreeRow.tsx": { "from": "components/nav/TreeRow.jsx", "contract": "components/nav/TreeRow.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)"] },
       "src/ds/nav/TrailChip.tsx": { "from": "components/nav/TrailChip.jsx", "contract": "components/nav/TrailChip.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map"] },
       "src/ds/nav/StepDot.tsx": { "from": "components/nav/StepDot.jsx", "contract": "components/nav/StepDot.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
-      "src/ds/nav/WalkCard.tsx": { "from": "components/nav/WalkCard.jsx", "contract": "components/nav/WalkCard.d.ts", "syncedAt": "2026-07-31", "deviations": [] }
+      "src/ds/nav/WalkCard.tsx": { "from": "components/nav/WalkCard.jsx", "contract": "components/nav/WalkCard.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/doc/DocHeader.tsx": { "from": "components/doc/DocHeader.jsx", "contract": "components/doc/DocHeader.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map"] },
+      "src/ds/doc/SectionLabel.tsx": { "from": "components/doc/SectionLabel.jsx", "contract": "components/doc/SectionLabel.d.ts", "syncedAt": "2026-07-31", "deviations": ["ports the jsx's `action` slot, which the thinner .d.ts omits (jsx + ui_kits/studio are the real contract)"] },
+      "src/ds/sidebar/PresetButton.tsx": { "from": "components/sidebar/PresetButton.jsx", "contract": "components/sidebar/PresetButton.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/sidebar/InstrumentRow.tsx": { "from": "components/sidebar/InstrumentRow.jsx", "contract": "components/sidebar/InstrumentRow.d.ts", "syncedAt": "2026-07-31", "deviations": ["consumer drops the old flat-list composition-order index (the DS row has no such slot)"] },
+      "src/ds/sidebar/BinMark.tsx": { "from": "components/sidebar/BinMark.jsx", "contract": "components/sidebar/BinMark.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/PillButton.tsx": { "from": "components/chrome/PillButton.jsx", "contract": "components/chrome/PillButton.d.ts", "syncedAt": "2026-07-31", "deviations": ["dropped the jsx's undocumented `onMouseDown` prop (absent from d.ts + adherence allowlist)"] },
+      "src/ds/chrome/CountBadge.tsx": { "from": "components/chrome/CountBadge.jsx", "contract": "components/chrome/CountBadge.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/PaneHeader.tsx": { "from": "components/chrome/PaneHeader.jsx", "contract": "components/chrome/PaneHeader.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/Toolbar.tsx": { "from": "components/chrome/Toolbar.jsx", "contract": "components/chrome/Toolbar.d.ts", "syncedAt": "2026-07-31", "deviations": [] },
+      "src/ds/chrome/AppHeader.tsx": { "from": "components/chrome/AppHeader.jsx", "contract": "components/chrome/AppHeader.d.ts", "syncedAt": "2026-07-31", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)"] }
+    },
+    "deferred": {
+      "components/chrome/LeafMark.jsx": "Masks a binary asset (assets/leaf.png); has no consumer in #64 slice 3 (only Toolbar's optional `motif`). Porting needs the PNG vendored + a `base` path wired — its own unit of work. Revisit when a consumer (#55 Application Toolbar) wants the brand motif.",
+      "components/chrome/PaneDock": "Listed in issue #64's prose but has NO file in the DS project — nothing to port."
     }
   }
 }

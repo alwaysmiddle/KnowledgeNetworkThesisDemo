@@ -22,4 +22,42 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+
+  // #61 — DS-adherence ratchet. The Design System is the source of truth for
+  // style; app code consumes its tokens as var(--…), never raw values. These
+  // bans are the machine enforcement of that rule, authored as native ESLint
+  // (oxlint was declined — #65 — every rule here is stock esquery). The DS's
+  // `_adherence` config is the reference SPEC; it is not vendored or run here.
+  //
+  // It is NOT repo-wide: ~84 raw hex + ~216 px still live in the un-migrated
+  // alt-visualizations (#69) and the walkdesk, so a global `eslint .` ban can't
+  // pass yet. Instead the ban is SCOPED to files already token-clean and grows
+  // one entry at a time as each surface is migrated. `src/ds/**` primitives are
+  // deliberately absent — design values legitimately live in the DS ports.
+  {
+    files: ['src/App.tsx', 'src/studio/StudioView.tsx', 'src/studio/AppToolbar.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/#[0-9a-fA-F]{3,8}\\b/]',
+          message: 'raw hex colour — consume a DS --color token via var(--…), not a literal (#61 adherence).',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}\\b/]',
+          message: 'raw hex colour in a template — consume a DS --color token via var(--…) (#61 adherence).',
+        },
+        {
+          // catches a hard-coded `10px`, but NOT a computed `${n}px` (its static
+          // chunk is just "px" — no digit — so a legitimate arithmetic width passes)
+          selector: 'Literal[value=/\\b\\d+px\\b/]',
+          message: 'raw px — use a DS spacing/size token or the Tailwind scale, not a px literal (#61 adherence).',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/\\b\\d+px\\b/]',
+          message: 'raw px in a template — use a DS spacing/size token or the Tailwind scale (#61 adherence).',
+        },
+      ],
+    },
+  },
 ])
