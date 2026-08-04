@@ -28,7 +28,7 @@
     "vendoredInto": "src/ds/",
     "verbatim": false,
     "kind": "port",
-    "note": "Typed .tsx ports of the DS .jsx sources (NOT byte-identical — jsx→tsx adaptation). The prop contract each is ported against is the DS .d.ts, machine-enforced by _adherence.oxlintrc.json (ported into ESLint at #61). Drift-check a port by re-reading its `from` source and comparing behaviour.",
+    "note": "Typed .tsx ports of the DS .jsx sources (NOT byte-identical — jsx→tsx adaptation). The prop contract each is ported against is the DS .d.ts. The DS `_adherence` config (raw hex / px / non-token font bans) is the REFERENCE SPEC only — it lives in the DS project, is not vendored here, and oxlint was declined (#65); #61 authored those bans as native ESLint `no-restricted-syntax` rules in eslint.config.js, SCOPED to token-clean files (src/App.tsx, src/studio/StudioView.tsx, src/studio/AppToolbar.tsx) with src/ds/** exempt, and grows per migrated file — it is NOT yet a repo-wide error. Drift-check a port by re-reading its `from` source and comparing behaviour.",
     "ported": {
       "src/ds/graph/NodeChip.tsx": { "from": "components/graph/NodeChip.jsx", "contract": "components/graph/NodeChip.d.ts", "syncedAt": "2026-07-30", "deviations": ["dropped the jsx's undocumented `wrap` prop (absent from d.ts + adherence allowlist)"] },
       "src/ds/graph/DomainDot.tsx": { "from": "components/graph/DomainDot.jsx", "contract": "components/graph/DomainDot.d.ts", "syncedAt": "2026-07-30", "deviations": [] },

@@ -5,15 +5,19 @@
    the source of truth for style — see src/tokens/README.md. These declare the
    :root variables the app consumes; do not hand-edit the vendored files.
 
-   Only the DEFINITION files are imported here. base.css (the reset that applies
-   the tokens to body/*) and fonts.css (the webfont loader) are vendored but held
-   for the chrome/global adoption step (#64), so this step re-tints only the road
-   wells, not the whole app. */
+   #64 slice 5: the whole closure is now imported. The five DEFINITION files
+   declare the :root variables; fonts.css loads the webfonts those variables name
+   (Quicksand / Nunito / JetBrains Mono); base.css is the reset that applies the
+   tokens to body/* — font, colour, background, links, selection, focus ring and
+   scrollbars — so the DS look reaches the whole app, not only the road wells.
+   base.css is imported LAST because it consumes the vars the others define. */
 @import "./tokens/colors.css";
 @import "./tokens/elevation.css";
 @import "./tokens/spacing.css";
 @import "./tokens/typography.css";
 @import "./tokens/motion.css";
+@import "./tokens/fonts.css";
+@import "./tokens/base.css";
 
 /* ── Containment-grammar surfaces ────────────────────────────────────────────
    The road consumes these as var(--…) in AuthorRoad.tsx inline styles, so they
