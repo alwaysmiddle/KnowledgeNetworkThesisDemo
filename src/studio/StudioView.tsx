@@ -88,15 +88,38 @@ export default function StudioView() {
       key={inst.id}
       aria-label={`studio-pane-${inst.id}`}
       data-slot={on ? 'on' : 'benched'}
-      className={`flex-col min-w-0 min-h-0 bg-white ${extra}`}
-      style={{ display: on ? 'flex' : 'none', ...style }}
+      className={`flex-col min-w-0 min-h-0 border ${extra}`}
+      style={{
+        display: on ? 'flex' : 'none',
+        position: 'relative',
+        // #77: each pane is a bordered, rounded box floating on the canopy desk —
+        // the frame the legend title straddles. Fill is --surface-paper (a pane),
+        // distinct from the --surface-raised cards that sit INSIDE it. The 1px
+        // width comes from Tailwind's `border` utility (DS-adherence forbids a raw
+        // px literal); only the token colour is set here. overflow stays visible
+        // so the title's top half, which floats ABOVE this top border, is not
+        // clipped; the content div below clips its own corners.
+        borderColor: 'var(--border-rule)',
+        borderStyle: 'solid',
+        background: 'var(--surface-paper)',
+        borderRadius: 'var(--radius-lg)',
+        ...style,
+      }}
     >
-      {/* the pane's hat is the DS PaneHeader. "bar" keeps the current filled title
-          row; the "legend" variant that straddles the border needs the pane to be
-          a rounded, fully-bordered box, so it is deferred. */}
-      <PaneHeader title={inst.label} variant="bar" onClose={() => toggle(inst.id as InstrumentId)} />
-      {/* a strip with no declared height sizes itself to its content */}
-      <div className={inst.slot === 'strip' && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}>{inst.render(bus)}</div>
+      {/* #77: the pane's hat is the DS PaneHeader "legend" variant — the title
+          sits ON this box's top hairline and masks it against the desk
+          (--surface-canopy), so the frame reads as interrupted by the label
+          rather than as a filled bar. legendBg MUST equal the desk color behind
+          the pane for the mask to blend. */}
+      <PaneHeader title={inst.label} variant="legend" legendBg="var(--surface-canopy)" onClose={() => toggle(inst.id as InstrumentId)} />
+      {/* content clips to the box's lower corners; a strip with no declared height
+          sizes itself to its content */}
+      <div
+        className={inst.slot === 'strip' && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}
+        style={{ overflow: 'hidden', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}
+      >
+        {inst.render(bus)}
+      </div>
     </section>
   )
 
@@ -206,16 +229,20 @@ export default function StudioView() {
           </div>
         </aside>
 
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 min-h-0 flex">
+        {/* #77: the pane area is the canopy DESK. Panes are bordered boxes with a
+            gap between them, so the desk shows through and each legend title has
+            room to float on it. p-4 keeps the top row's straddling title clear of
+            the toolbar; gap-4 separates columns, stacks, and the strip row. */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4 p-4" style={{ background: 'var(--surface-canopy)' }}>
+          <div className="flex-1 min-h-0 flex gap-4">
             {columnSlots.map(({ order, members }) =>
               members.length === 1 ? (
-                pane(members[0], true, { order, ...widthOf(members[0]) }, 'border-r border-slate-200')
+                pane(members[0], true, { order, ...widthOf(members[0]) }, '')
               ) : (
                 <div
                   key={members.map((m) => m.id).join('+')}
                   aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
-                  className="flex flex-col min-w-0 min-h-0 border-r border-slate-200"
+                  className="flex flex-col min-w-0 min-h-0 gap-4"
                   style={{ order, ...widthOf(members[0]) }}
                 >
                   {members.map((m) =>
@@ -225,7 +252,7 @@ export default function StudioView() {
                       // stackGrow:false sizes the pane to its content and hands the
                       // slack to its stack-mates; the default takes an even share.
                       { flex: m.stackGrow === false ? '0 0 auto' : '1 1 0%' },
-                      'border-b border-slate-200 last:border-b-0',
+                      '',
                     ),
                   )}
                 </div>
@@ -238,7 +265,7 @@ export default function StudioView() {
               i,
               onScreen.includes(i.id as InstrumentId),
               { order: onScreen.indexOf(i.id as InstrumentId), height: i.height ? `${i.height}px` : undefined },
-              'w-full border-t border-slate-200',
+              'w-full',
             ),
           )}
         </div>
