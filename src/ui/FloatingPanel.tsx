@@ -5,8 +5,13 @@
 // only knows about a rect, a host box, and its children.
 //
 // The shell is deliberately thin: every pixel of arithmetic lives in
-// ./floatingPanel (pure, unit-tested). Here we only translate pointer motion
+// ./floatingPanelRect (pure, unit-tested). Here we only translate pointer motion
 // into deltas, hand them to drag()/resize(), and paint the result.
+//
+// The core is named floatingPanelRect (not floatingPanel) on purpose: a
+// `floatingPanel.ts` next to `FloatingPanel.tsx` collides on a case-insensitive
+// filesystem, and `@/ui/FloatingPanel` would resolve `.ts` before `.tsx` and
+// import the core instead of this component. Distinct names avoid that.
 //
 // HOST CONTRACT: mount this inside an element with `position: relative`. The
 // panel positions itself absolutely against that offsetParent, and reads its
@@ -15,8 +20,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { drag, loadRect, resize, saveRect } from './floatingPanel'
-import type { Bounds, Rect, ResizeEdge, SizeLimits } from './floatingPanel'
+import { drag, loadRect, resize, saveRect } from './floatingPanelRect'
+import type { Bounds, Rect, ResizeEdge, SizeLimits } from './floatingPanelRect'
 
 export interface FloatingPanelProps {
   /** persistence key — the panel's size+position is stored under this id */

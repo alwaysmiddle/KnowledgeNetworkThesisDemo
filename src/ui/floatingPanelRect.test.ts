@@ -5,8 +5,8 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { clampInside, drag, loadRect, resize, saveRect } from './floatingPanel'
-import type { Bounds, Rect, SizeLimits } from './floatingPanel'
+import { clampInside, drag, loadRect, resize, saveRect } from './floatingPanelRect'
+import type { Bounds, Rect, SizeLimits } from './floatingPanelRect'
 
 const HOST: Bounds = { w: 100, h: 100 }
 const LIM: SizeLimits = { minW: 10, minH: 10 }
