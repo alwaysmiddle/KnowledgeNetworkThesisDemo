@@ -8,15 +8,15 @@
     "hasNativeVersion": false,
     "accessedVia": "/design-sync (DesignSync tool)"
   },
-  "syncedAt": "2026-07-30",
+  "syncedAt": "2026-08-05",
   "tokens": {
     "vendoredInto": "src/tokens/",
     "verbatim": true,
-    "note": "Byte-identical copies of the DS tokens/*.css. These hashes ARE the DS token-file fingerprints; a mismatch on re-hash means the DS changed. base.css + fonts.css are vendored but not yet imported (held for #64).",
+    "note": "Byte-identical copies of the DS tokens/*.css. These hashes ARE the DS token-file fingerprints; a mismatch on re-hash means the DS changed. base.css + fonts.css are vendored but not yet imported (held for #64). 2026-08-05 re-sync: colors.css adopted a contrast pass (--border-hair 0.09->0.13, --border-rule 0.15->0.20, --text-2 bark-600->bark-700, --text-3 bark-400->bark-500); the other six token files re-hashed CLEAN against these fingerprints.",
     "hashAlgo": "sha256",
     "files": {
       "base.css": "1f7dc386d41b51151d63f31708ad6969619a3b9beeb2aad2a87d172768541f5c",
-      "colors.css": "5613b65a5cb84f677d3897d6d868cd56e804edb85cdcfd7912b9e5e1d3513f57",
+      "colors.css": "89d70a85916073ba8141431a71be05ece43cf75a0c67c590f1d3d1ebbf980a27",
       "elevation.css": "e24f882e85f082bf09374231fd17be261584a093bda4cb9a26736f8ef33a2cd5",
       "fonts.css": "14e22b8683c96397919dc8b99e7d34fe0050fadb30019a7c802a4698d8db3bcf",
       "motion.css": "a45296468f1f3649ecce810d01b3118b2cb3f4e5eb0eb6cb43bf329fe534c6eb",
