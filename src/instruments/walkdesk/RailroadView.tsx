@@ -28,6 +28,7 @@ import AuthorRoad from './AuthorRoad'
 import { redoDraft, undoDraft, useAuthorDraft, useRoad } from './authordraft'
 import { resolveRoad } from './mockwalk'
 import WalkPreview from './WalkPreview'
+import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
 
@@ -132,6 +133,11 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             withOptionals={withOptionals}
           />
         </div>
+
+        {/* The floating toolbox (#54) rides ON the road: absolute inside this
+            relative host, after the road so it paints above it, before the
+            preview so reading the walk (z-20) covers it. */}
+        <WalkToolbox state={state} />
 
         {/* clicking the faded road dismisses the preview */}
         {previewOpen && <div className="absolute inset-0 z-10" onClick={() => setPreviewOpen(false)} />}
