@@ -1,7 +1,27 @@
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
+
+/** THE selection bullet, drawn rather than typed for the same reason as the
+ *  disclosure caret: ● and ○ are wildly different weights in the same face, sit
+ *  off the text baseline, and rescale with the font. This is an 8px disc — filled
+ *  --accent-primary when ON, an inset 1.5px --text-3 ring when benched — matching
+ *  DomainDot's diameter so a list can carry both marks in one column without them
+ *  arguing. It is a state light: not a checkbox (no third state), not a radio
+ *  (rows are independent). */
+export function bulletStyle(on?: boolean): CSSProperties {
+  return {
+    width: 8,
+    height: 8,
+    flexShrink: 0,
+    borderRadius: 'var(--radius-pill)',
+    background: on ? 'var(--accent-primary)' : 'transparent',
+    boxShadow: on ? 'none' : 'inset 0 0 0 1.5px var(--text-3)',
+    transition: 'var(--transition-wash)',
+  }
+}
 
 /** One instrument in the palette: toggles its pane on or off the composition.
- *  ● on screen / ○ benched. Typed port of the DS InstrumentRow.jsx.
+ *  Filled bullet on screen / ring benched. Typed port of the DS InstrumentRow.jsx.
  *
  *  Note: the DS row carries no composition-order index — the earlier flat list's
  *  per-row number is not part of this contract (order is read from the pane
@@ -48,7 +68,9 @@ export function InstrumentRow({ label, on, swatch, disabled, onClick }: Instrume
         opacity: disabled ? 'var(--opacity-disabled)' : 1,
       }}
     >
-      <span style={{ width: 12, textAlign: 'center', flexShrink: 0, color: on ? 'var(--accent-primary)' : 'var(--text-3)' }}>{on ? '●' : '○'}</span>
+      <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+        <span style={bulletStyle(on)} />
+      </span>
       {swatch ? <span style={{ width: 8, height: 8, borderRadius: 3, background: swatch, flexShrink: 0 }} /> : null}
       <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </button>

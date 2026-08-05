@@ -31,7 +31,7 @@ export function PresetButton({ label, hint, active, onClick, onDelete }: PresetB
           textAlign: 'left',
           padding: onDelete ? '8px 34px 8px 12px' : '8px 12px',
           borderRadius: 'var(--radius-md)',
-          border: '1px solid ' + (active ? 'var(--moss-300)' : hot ? 'var(--border-rule)' : 'var(--border-hair)'),
+          border: '1px solid ' + (active ? 'var(--moss-300)' : 'var(--border-rule)'),
           background: active ? 'var(--accent-primary-wash)' : hot ? 'var(--surface-hover)' : 'transparent',
           cursor: 'pointer',
           transition: 'var(--transition-wash)',

@@ -35,7 +35,7 @@ export function NodeChip({ title, domain, dim, lit, note, onClick }: NodeChipPro
         border: '1px solid ' + (dim ? 'var(--border-hair)' : 'var(--border-rule)'),
         background: dim ? 'transparent' : 'var(--surface-raised)',
         color: dim ? 'var(--text-3)' : 'var(--text-1)',
-        boxShadow: lit ? 'var(--ring-linked)' : dim ? 'none' : 'var(--lift-1)',
+        boxShadow: lit ? 'var(--ring-linked), var(--lift-1)' : dim ? 'none' : 'var(--lift-1)',
         fontFamily: 'var(--font-ui)',
         fontSize: 'var(--fs-body)',
         fontWeight: 'var(--fw-semibold)',

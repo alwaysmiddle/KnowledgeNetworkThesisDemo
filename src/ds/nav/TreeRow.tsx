@@ -1,7 +1,27 @@
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 
 import type { DomainCode } from '../graph/vocab'
 import { DOMAIN_TOKEN } from '../graph/vocab'
+
+/** The disclosure mark, drawn rather than set: two 1.5px strokes meeting at a
+ *  right angle, rotated −45° closed and +45° open. Font chevrons and triangles
+ *  both failed here — a fill out-inks the labels, and every hollow or angle-quote
+ *  glyph is too small and too oddly proportioned at 15px to read as a shape.
+ *  Exported because the instrument palette (InstrumentGroup) is a containment
+ *  list too and reuses this exact mark — the system draws nesting one way. */
+export function caretStyle(open?: boolean): CSSProperties {
+  return {
+    width: 6,
+    height: 6,
+    boxSizing: 'border-box',
+    borderRight: '1.5px solid currentColor',
+    borderBottom: '1.5px solid currentColor',
+    borderRadius: 1,
+    transform: open ? 'rotate(45deg) translate(-1px, -1px)' : 'rotate(-45deg) translate(-1px, 1px)',
+    transition: 'transform var(--dur-hover) var(--ease-soft)',
+  }
+}
 
 /** One indented row of the containment tree — the literal list reading of the
  *  corpus. Single click selects, double click re-roots; a container draws the
@@ -77,11 +97,10 @@ export function TreeRow({
             background: 'transparent',
             color: 'var(--text-3)',
             cursor: 'pointer',
-            fontSize: 14,
             lineHeight: 1,
           }}
         >
-          {expanded ? '▾' : '▸'}
+          <span style={caretStyle(expanded)} />
         </button>
       ) : (
         <span style={{ width: 16, flexShrink: 0 }} />
