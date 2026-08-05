@@ -259,6 +259,14 @@ export interface AuthorState {
   /** palette insert: at the caret if the drop set one, else after a single
    * selected block, else at the end of the plan */
   insertNode(node: string, at?: Path): void
+  /** start over: replace the whole draft with one empty slot to bind. Undoable —
+   * it goes through the same commit path as any edit, so Ctrl+Z brings the old
+   * plan back. The toolbox "new walk" button (#54). */
+  newWalk(): void
+  /** insert a fresh unbound slot after the single selection (or at the end when
+   * nothing is selected), for the user to bind next. The toolbox "selection
+   * node" button (#54) — the keyboard-free twin of a palette drop. */
+  addSelectionNode(): void
   /** move an existing block to a new position (drag) */
   moveBlock(from: Path, to: Path): void
   /** wrap the selected run into a plain group — one variant holding the run. A
@@ -295,6 +303,9 @@ export interface AuthorState {
   relabelVariant(key: string, idx: number, label: string): void
   canGroup: boolean
   canOptional: boolean
+  /** every selected block is ALREADY optional — the "make optional" toggle's
+   * on-state, so the toolbox button reads as pressed when it would un-flip. */
+  optionalActive: boolean
   canIndent: boolean
   canDelete: boolean
   /** step the stops tree back / forward through edit history (#34) */
@@ -349,6 +360,12 @@ export function useAuthorDraft(): AuthorState {
     insertNode: (node, at) => {
       const stop: Stop = { node, variants: [] }
       const target = at ?? (single ? [...single.slice(0, -1), single[single.length - 1] + 1] : [stops.length])
+      commit(insertAt(stops, target, stop))
+    },
+    newWalk: () => commit([{ node: '', unset: true, variants: [] }]),
+    addSelectionNode: () => {
+      const stop: Stop = { node: '', unset: true, variants: [] }
+      const target = single ? [...single.slice(0, -1), single[single.length - 1] + 1] : [stops.length]
       commit(insertAt(stops, target, stop))
     },
     moveBlock: (from, to) => {
@@ -440,6 +457,7 @@ export function useAuthorDraft(): AuthorState {
     },
     canGroup: !!run,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
+    optionalActive: selected.size > 0 && selectedStops.every((s) => s !== undefined && s.optional === true),
     canIndent: !!prevSibling && isBox(prevSibling),
     canDelete: selected.size > 0,
     undo: undoDraft,
