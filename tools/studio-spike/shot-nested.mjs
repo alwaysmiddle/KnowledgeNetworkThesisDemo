@@ -1,0 +1,95 @@
+// Verification for the Walk Editor nested-node / subgroup fixes (#72), on the
+// railroad under the Plan preset. The draft SEED already paints the states these
+// bugs live in — a fork (seed-sec, 2 versions), a plain group (seed-net), an
+// optional leaf (web-sockets-apis), and plain leaves — so no authoring is needed
+// to reach them; the Plan preset mount is enough.
+//
+// Same server-owning idiom as shots.mjs beside this file. Most of #72 is visual
+// (arrowhead size, button/counter proportion, jiggle, wrap, selection outline) —
+// the screenshots carry those. Two are asserted here:
+//   #5 arrowhead — the road marker shrank from 7 to 5.
+//   #9 optional-active — selecting the optional leaf presses the toolbar's
+//      Optional button (aria-pressed=true); selecting a required leaf releases it.
+import { createRequire } from 'node:module'
+import { spawn } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
+
+const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const OUT = REPO + '/tools/studio-spike/out'
+const PORT = 5200
+mkdirSync(OUT, { recursive: true })
+
+const require = createRequire(REPO + '/package.json')
+const { chromium } = require('playwright-core')
+
+const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
+  cwd: REPO,
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
+let viteOut = ''
+await new Promise((res, rej) => {
+  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
+  const watch = (d) => {
+    viteOut += String(d)
+    if (viteOut.includes('localhost:')) {
+      clearTimeout(t)
+      res()
+    }
+  }
+  vite.stdout.on('data', watch)
+  vite.stderr.on('data', watch)
+  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
+})
+
+const errors = []
+const browser = await chromium.launch({ channel: 'msedge', headless: true })
+const page = await browser.newPage({ viewport: { width: 1750, height: 950 } })
+page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
+page.on('console', (m) => {
+  if (m.type() === 'error') errors.push(`console: ${m.text()}`)
+})
+const fail = (msg) => {
+  errors.push(`ASSERT FAIL: ${msg}`)
+  console.log('FAIL:', msg)
+}
+
+await page.goto(`http://localhost:${PORT}/`)
+await page.waitForTimeout(600)
+await page.locator('[aria-label="studio-preset-plan"]').click()
+await page.waitForTimeout(500)
+
+if (!(await page.locator('[data-railroad]').isVisible())) fail('railroad not visible under Plan')
+await page.screenshot({ path: `${OUT}/nested-01-initial.png` })
+console.log('nested-01-initial.png taken (fork + group + optional leaf)')
+
+// ── #5 arrowhead shrank ────────────────────────────────────────────────────
+const headW = await page.locator('#wt-road-head').getAttribute('markerWidth')
+console.log('road arrowhead markerWidth =', headW, '(expect 5, was 7)')
+if (headW !== '5') fail(`expected arrowhead markerWidth 5, got ${headW}`)
+
+// ── #9 optional-active toggles with the selection ──────────────────────────
+const optBtn = page.locator('[data-fly-opt]')
+
+// the optional leaf (web-sockets-apis, optional in the seed). Click to select it.
+await page.locator('[data-node="web-sockets-apis"]').first().click()
+await page.waitForTimeout(200)
+const pressedOnOptional = await optBtn.getAttribute('aria-pressed')
+console.log('Optional button aria-pressed with optional leaf selected =', pressedOnOptional, '(expect true)')
+if (pressedOnOptional !== 'true') fail(`expected Optional pressed on an optional leaf, got ${pressedOnOptional}`)
+await page.screenshot({ path: `${OUT}/nested-02-optional-selected.png` })
+console.log('nested-02-optional-selected.png taken (amber-active Optional + selection outline)')
+
+// a required leaf (the closing app-authentication-authorization leaf) releases it.
+await page.locator('[data-node="app-authentication-authorization"]').first().click()
+await page.waitForTimeout(200)
+const pressedOnRequired = await optBtn.getAttribute('aria-pressed')
+console.log('Optional button aria-pressed with required leaf selected =', pressedOnRequired, '(expect false)')
+if (pressedOnRequired !== 'false') fail(`expected Optional released on a required leaf, got ${pressedOnRequired}`)
+
+await browser.close()
+vite.kill()
+if (errors.length) {
+  console.log('ERRORS:\n' + errors.join('\n'))
+  process.exit(1)
+}
+console.log('DONE — all assertions passed')

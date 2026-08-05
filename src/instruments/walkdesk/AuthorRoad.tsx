@@ -40,6 +40,17 @@ import type { HoverBinding } from '../../studio/bus'
 
 const NODEW = 150
 const NODEH = 34
+// a leaf title used to `truncate` at NODEW; it now WRAPS and the node grows to
+// fit, but only up to these bounds so one long title can't balloon the board (#72)
+const NODE_MAXW = 220
+const NODE_MAXH = 66
+const LEAF_LINE_H = 13 // added height per wrapped title line past the first
+const CHAR_W = 6 // rough advance of the 10.5px semibold title, for wrap estimation
+const LEAF_CHROME_W = 40 // outline number + horizontal padding around the title
+// the selection cue: an OUTLINE, not a ring — it survives the inline box-shadow
+// on pills/cards, and its offset sits OUTSIDE a node's thick coloured border, so
+// selection stays legible where a 1px ring was lost against the border (#72 #10)
+const SEL_OUTLINE = 'outline outline-2 outline-offset-1 outline-blue-500'
 const AGAP = 26 // vertical space between siblings — the arrow lives here
 const PAD = 10
 const HEAD = 24 // container header (title) row — 24 fits 20px chrome with 2px either side (0005 D-coupling)
@@ -156,6 +167,14 @@ function layoutRoad(
   // lay the columns side by side. A plain group shows its single column; a fork
   // shows every variant the visibility bar hasn't hidden (0005 D5).
   // visibleVariantIdxs decides which variants are shown.
+  // a bound leaf's box: wide enough for a short title on one line, growing (and
+  // wrapping) toward NODE_MAXW / NODE_MAXH for a long one, then clamped (#72 #8).
+  const leafSize = (title: string): { w: number; h: number } => {
+    const w = Math.min(NODE_MAXW, Math.max(NODEW, title.length * CHAR_W + LEAF_CHROME_W))
+    const perLine = Math.max(1, Math.floor((w - LEAF_CHROME_W) / CHAR_W))
+    const lines = Math.max(1, Math.ceil(title.length / perLine))
+    return { w, h: Math.min(NODE_MAXH, NODEH + (lines - 1) * LEAF_LINE_H) }
+  }
   const columnsOf = (s: Stop): Col[] =>
     visibleVariantIdxs(s, hidden).map((k) => {
       const kids = s.variants[k].steps.map(measure)
@@ -164,10 +183,19 @@ function layoutRoad(
       return { w, h }
     })
   const measure = (s: Stop): { w: number; h: number; cols?: Col[] } => {
-    if (isLeaf(s) || collapsed.has(s.key!)) return { w: NODEW, h: NODEH }
+    if (isLeaf(s) || collapsed.has(s.key!)) {
+      // a bound leaf wraps and grows within bounds; an unset slot and a collapsed
+      // pill keep the fixed pill size (#72 #8)
+      if (isLeaf(s) && !s.unset) return leafSize(byId.get(s.node)?.title ?? '')
+      return { w: NODEW, h: NODEH }
+    }
     const cols = columnsOf(s)
     const colsW = cols.reduce((acc, c) => acc + c.w, 0) + (cols.length - 1) * COLGAP
-    const innerW = Math.max(NODEW, colsW)
+    // factor the container's own TITLE into its width, so switching to a NARROW
+    // variant no longer collapses the card below its title (#72 #3). Capped so a
+    // long title only widens the card so far; wide children can still exceed it.
+    const titleW = Math.min(300, (s.title?.length ?? 0) * CHAR_W + 64)
+    const innerW = Math.max(NODEW, colsW, titleW)
     const bodyH = Math.max(...cols.map((c) => c.h))
     return { w: innerW + 2 * PAD, h: bodyTop(s) + bodyH + PAD + visBarH(), cols }
   }
@@ -461,7 +489,12 @@ export default function AuthorRoad({
     const s = pl.stop
     const key = pathKey(pl.path)
     const count = kind === 'leaf' ? 0 : s.variants[chosenIdx(s, choices)]?.steps.length ?? 0
-    const btn = 'shrink-0 grid place-items-center w-4 h-4 rounded text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition-colors'
+    // #72 #6: the control glyphs were w-4 (16px) — bigger than the 14px counter
+    // beside them. Drop to w-3.5 so counter + minimise + ✕ read as one size row.
+    // #72 #7: the hover is per-button now — grey for minimise, ROSE for the ✕, so
+    // an ✕ hovers the same red whether it deletes a node, ungroups, or drops a
+    // version (was: container ✕ fell back to grey, inconsistent with the rest).
+    const ctl = 'shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-slate-400 transition-colors'
     return (
       <span
         data-browserbar={key}
@@ -475,7 +508,7 @@ export default function AuthorRoad({
           <span
             title={`${count} inside`}
             aria-label={`${count} items inside`}
-            className="shrink-0 grid place-items-center min-w-[16px] h-4 px-1 rounded-full border border-slate-300 text-slate-500 text-[8.5px] font-bold tabular-nums leading-none"
+            className="shrink-0 grid place-items-center min-w-[15px] h-3.5 px-1 rounded-full border border-slate-300 text-slate-500 text-[8px] font-bold tabular-nums leading-none"
           >
             {count}
           </span>
@@ -489,7 +522,7 @@ export default function AuthorRoad({
             }}
             title={kind === 'closed' ? 'maximise' : 'minimise'}
             aria-label={kind === 'closed' ? 'maximise' : 'minimise'}
-            className={btn}
+            className={[ctl, 'hover:bg-slate-200/80 hover:text-slate-700'].join(' ')}
           >
             {kind === 'closed' ? '▢' : '—'}
           </button>
@@ -503,7 +536,7 @@ export default function AuthorRoad({
           }}
           title={kind === 'leaf' ? 'delete this node' : 'ungroup — lift its steps out (use the toolbar ✕ Delete to remove the whole group)'}
           aria-label={kind === 'leaf' ? 'delete' : 'ungroup'}
-          className={[btn, kind === 'leaf' ? 'hover:bg-rose-100 hover:text-rose-600' : ''].join(' ')}
+          className={[ctl, 'hover:bg-rose-100 hover:text-rose-600'].join(' ')}
         >
           ✕
         </button>
@@ -596,9 +629,17 @@ export default function AuthorRoad({
         <button
           data-fly-opt
           disabled={!state.canOptional}
+          aria-pressed={state.optionalActive}
           onClick={state.toggleOptionalSelection}
-          title="toggle optional"
-          className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 bg-slate-50 disabled:opacity-30 hover:bg-slate-100"
+          title={state.optionalActive ? 'optional — click to make required' : 'toggle optional'}
+          className={[
+            'text-[11px] px-2 py-1 rounded border disabled:opacity-30',
+            // pressed when the whole selection is already optional — amber ties it
+            // to the optional/road convention (see the railroad's optionals toggle)
+            state.optionalActive
+              ? 'border-amber-400 text-amber-700 bg-amber-100 hover:bg-amber-200'
+              : 'border-slate-300 text-slate-600 bg-slate-50 hover:bg-slate-100',
+          ].join(' ')}
         >
           ◇ Optional
         </button>
@@ -621,10 +662,10 @@ export default function AuthorRoad({
         <div ref={boardRef} className="relative mx-auto my-2 select-none" style={{ width: W, height: H }}>
           <svg className="absolute inset-0 pointer-events-none z-10" width={W} height={H}>
             <defs>
-              <marker id="wt-road-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <marker id="wt-road-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706" />
               </marker>
-              <marker id="wt-road-ghost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker id="wt-road-ghost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
               </marker>
             </defs>
@@ -664,7 +705,7 @@ export default function AuthorRoad({
                       'absolute z-20 rounded-full border-2 border-dashed border-slate-300 bg-slate-50 px-2 flex items-center cursor-grab',
                       'transition-[left,top,width,height] duration-200 ease-out',
                       dim,
-                      isSelected ? 'ring-1 ring-blue-500' : '',
+                      isSelected ? SEL_OUTLINE : '',
                     ].join(' ')}
                     style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
                   >
@@ -711,7 +752,7 @@ export default function AuthorRoad({
                     // arrow leading into it — no separate bypass rail, no ◇ badge.
                     s.optional ? 'border-dashed' : '',
                     dim,
-                    isSelected ? 'ring-1 ring-blue-500' : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
+                    isSelected ? SEL_OUTLINE : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: color }}
                 >
@@ -721,8 +762,10 @@ export default function AuthorRoad({
                   <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
                     {pl.outline}.
                   </span>
-                  {/* a leaf (unnested node) centres its title (#15) */}
-                  <span className="flex-1 text-center truncate">{byId.get(s.node)!.title}</span>
+                  {/* a leaf (unnested node) centres its title (#15). #72 #8: it
+                      WRAPS now instead of truncating — the node grew to fit in
+                      measure()/leafSize, bounded by NODE_MAXW/NODE_MAXH. */}
+                  <span className="flex-1 text-center whitespace-normal break-words leading-tight">{byId.get(s.node)!.title}</span>
                   {/* #15: a leaf's close (delete) button, top-right, on hover/select */}
                   {browserBar(pl, 'leaf', isSelected)}
                 </div>
@@ -763,12 +806,14 @@ export default function AuthorRoad({
                     'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
                     // hover-lift owns the transition (layout + the ~500ms scale/shadow):
                     // a shut group is self-contained, so the scale is clean here.
-                    'hover-lift',
+                    // #72 #2: gated to top-level so a nested shut group doesn't add
+                    // its own lift as the cursor sweeps across the parent.
+                    pl.path.length === 1 ? 'hover-lift' : '',
                     // an optional container wears a DASHED edge too (see the leaf) —
                     // border + inbound arrow are the optionality signal now.
                     s.optional ? 'border-dashed' : '',
                     dim,
-                    isSelected ? 'ring-1 ring-blue-500' : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
+                    isSelected ? SEL_OUTLINE : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
                   ].join(' ')}
                   style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)' }}
                 >
@@ -841,7 +886,17 @@ export default function AuthorRoad({
                 // shadow so the whole card floats off the board — a floating
                 // recessed panel, superseding D1's "an open well casts nothing".
                 // hover-lift scales it to 1.05 on hover like every group node.
-                className={['group absolute rounded-2xl border cursor-pointer hover-lift', s.optional ? 'border-dashed' : '', dim].join(' ')}
+                className={[
+                  'group absolute rounded-2xl border cursor-pointer',
+                  // #72 #2: only a TOP-LEVEL card lifts; a nested one is part of its
+                  // parent, so hovering into it no longer fires a second lift.
+                  pl.path.length === 1 ? 'hover-lift' : '',
+                  s.optional ? 'border-dashed' : '',
+                  // #72 #10: the whole card carries the selection outline now, not
+                  // just its header — a nested card reads as selected end to end.
+                  isSelected ? SEL_OUTLINE : '',
+                  dim,
+                ].join(' ')}
                 style={{
                   left: pl.x,
                   top: pl.y,
@@ -855,7 +910,7 @@ export default function AuthorRoad({
                 <div
                   {...gestures(pl)}
                   data-rhead={s.key}
-                  className={['flex items-center gap-1 px-2 cursor-grab rounded-t-2xl', isSelected ? 'ring-1 ring-blue-500' : ''].join(' ')}
+                  className="flex items-center gap-1 px-2 cursor-grab rounded-t-2xl"
                   style={{ height: HEAD }}
                 >
                   {/* #15: the group's outline number, left of its title */}
@@ -1019,11 +1074,13 @@ export default function AuthorRoad({
                             className={['flex-1 min-w-0 bg-transparent text-[10px] outline-none text-ellipsis placeholder:text-slate-500', k === chosen ? 'font-bold text-slate-700' : 'text-slate-500'].join(' ')}
                           />
                           {/* item counter for THIS version — its own real-step
-                              count in a round unfilled circle (#15). */}
+                              count in a round unfilled circle (#15). #72 #4: it now
+                              hides with the ✕ (both opacity-0 until the header is
+                              hovered), so a resting version shows just its ● + name. */}
                           <span
                             aria-label={`${vcount} items inside`}
                             title={`${vcount} inside`}
-                            className="shrink-0 grid place-items-center min-w-[15px] h-3.5 px-0.5 rounded-full border border-slate-300 text-slate-500 text-[8px] font-bold tabular-nums leading-none"
+                            className="shrink-0 grid place-items-center min-w-[15px] h-3.5 px-0.5 rounded-full border border-slate-300 text-slate-500 text-[8px] font-bold tabular-nums leading-none opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             {vcount}
                           </span>
@@ -1040,7 +1097,7 @@ export default function AuthorRoad({
                               else setConfirmVar({ path: pl.path, idx: k, n: real.length })
                             }}
                             title="delete this version"
-                            className="shrink-0 grid place-items-center w-4 h-4 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 text-[9px] leading-none text-slate-400 hover:text-rose-600 hover:bg-rose-100"
+                            className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 text-[9px] leading-none text-slate-400 hover:text-rose-600 hover:bg-rose-100"
                           >
                             ✕
                           </button>
