@@ -1,10 +1,15 @@
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 
 /** Every instrument pane wears the same hat: just its title, sitting ON the
  *  pane's own hairline border like a legend — the border is the frame and the
  *  title is part of it. A pane carries NO subtitle or description line.
- *  `variant="bar"` is the older filled title row. Typed port of the DS
- *  PaneHeader.jsx (contract: PaneHeader.d.ts). */
+ *  `variant="bar"` is the older filled title row.
+ *
+ *  The ✕ keeps the scrollbar's manners: absent while the pane is at rest,
+ *  present the moment the pointer (or the keyboard) is inside it, so a dormant
+ *  pane wears an unbroken border rather than a hole where a control used to be.
+ *  Typed port of the DS PaneHeader.jsx (contract: PaneHeader.d.ts). */
 export interface PaneHeaderProps {
   /** lower case, one or two words: "tree", "document", "palette" */
   title: string
@@ -21,6 +26,35 @@ export interface PaneHeaderProps {
 }
 
 export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend', legendBg = 'var(--surface-canopy)' }: PaneHeaderProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [live, setLive] = useState(false)
+  useEffect(() => {
+    const pane = rootRef.current?.parentElement
+    if (!pane) return
+    let t: ReturnType<typeof setTimeout>
+    // same grace period as the scrollbar, read from the script that owns it (when
+    // present), so the ✕ and the bar recede together rather than on two clocks
+    const LEAVE = (window as { PKT_SB?: { LEAVE?: number } }).PKT_SB?.LEAVE ?? 500
+    const on = () => {
+      clearTimeout(t)
+      setLive(true)
+    }
+    const off = () => {
+      clearTimeout(t)
+      t = setTimeout(() => setLive(false), LEAVE)
+    }
+    pane.addEventListener('pointerenter', on)
+    pane.addEventListener('pointerleave', off)
+    pane.addEventListener('focusin', on)
+    pane.addEventListener('focusout', off)
+    return () => {
+      clearTimeout(t)
+      pane.removeEventListener('pointerenter', on)
+      pane.removeEventListener('pointerleave', off)
+      pane.removeEventListener('focusin', on)
+      pane.removeEventListener('focusout', off)
+    }
+  }, [])
   const iconStyle = (over: CSSProperties, box: number): CSSProperties => ({
     ...over,
     width: box,
@@ -36,7 +70,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
     boxSizing: 'border-box',
     transition: 'var(--transition-wash)',
     lineHeight: 1,
-    fontSize: box === 20 ? 12 : 13,
+    fontSize: box === 18 ? 10 : 13,
   })
   const hoverOn = (e: MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.style.background = 'var(--surface-hover)'
@@ -58,7 +92,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
     const cut: CSSProperties = { position: 'absolute', left: 0, right: 0, top: 'calc(50% - 1px)', height: 2, background: legendBg, zIndex: 0 }
     const over: CSSProperties = { position: 'relative', zIndex: 1 }
     return (
-      <div style={{ position: 'relative', flexShrink: 0, height: 11 }}>
+      <div ref={rootRef} style={{ position: 'relative', flexShrink: 0, height: 11 }}>
         <div
           style={{
             position: 'absolute',
@@ -99,9 +133,19 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
             </span>
           ) : null}
           {onClose ? (
-            <span style={{ position: 'relative', padding: '0 3px', pointerEvents: 'auto', flexShrink: 0, display: 'inline-flex' }}>
-              <span style={cut} />
-              <button type="button" onClick={onClose} title="remove from composition" style={iconStyle(over, 20)} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+            <span
+              style={{
+                position: 'relative',
+                padding: '0 1px 0 5px',
+                flexShrink: 0,
+                display: 'inline-flex',
+                opacity: live ? 1 : 0,
+                pointerEvents: live ? 'auto' : 'none',
+                transition: 'opacity var(--dur-hover) var(--ease-soft)',
+              }}
+            >
+              <span style={{ ...cut, left: 4 }} />
+              <button type="button" onClick={onClose} title="close" tabIndex={live ? 0 : -1} style={iconStyle(over, 18)} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
                 {'✕'}
               </button>
             </span>
@@ -141,7 +185,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
       <span style={{ flex: 1 }} />
       {actions}
       {onClose ? (
-        <button type="button" onClick={onClose} title="remove from composition" style={iconStyle({}, 24)} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+        <button type="button" onClick={onClose} title="close" style={iconStyle({}, 24)} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
           {'✕'}
         </button>
       ) : null}

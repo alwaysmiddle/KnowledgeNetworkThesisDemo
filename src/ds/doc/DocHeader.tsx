@@ -39,7 +39,7 @@ export function DocHeader({ kind, title, domain, ancestry }: DocHeaderProps) {
           letterSpacing: 'var(--ls-display)',
           lineHeight: 'var(--lh-tight)',
           marginTop: 3,
-          color: DOMAIN_TOKEN[domain],
+          color: DOMAIN_TOKEN[domain] || 'var(--text-1)',
         }}
       >
         {title}

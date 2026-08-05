@@ -23,6 +23,21 @@ export default defineConfig([
     },
   },
 
+  // DS ports mirror the Design System's own module shape, and several DS
+  // components ship a colocated style helper beside the component — caretStyle in
+  // TreeRow, bulletStyle in InstrumentRow, FamilyColumn in InstrumentGroup — that
+  // a sibling imports by name (InstrumentGroup pulls caretStyle from TreeRow so
+  // the palette and the tree draw nesting one way). react-refresh/only-export-
+  // components would force us to split those helpers into separate files and
+  // diverge from the DS structure for a dev-only HMR nicety. Relax it for the DS
+  // ports, the same way #61's raw-value bans are deliberately absent here.
+  {
+    files: ['src/ds/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+
   // #61 — DS-adherence ratchet. The Design System is the source of truth for
   // style; app code consumes its tokens as var(--…), never raw values. These
   // bans are the machine enforcement of that rule, authored as native ESLint

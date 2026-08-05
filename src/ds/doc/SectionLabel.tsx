@@ -30,7 +30,7 @@ export function SectionLabel({ children, count, action }: SectionLabelProps) {
     >
       <span>{children}</span>
       {count != null ? (
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontWeight: 'var(--fw-regular)', fontVariantNumeric: 'var(--tnum)' }}>{count}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontWeight: 'var(--fw-medium)', fontVariantNumeric: 'var(--tnum)' }}>{count}</span>
       ) : null}
       {action ? (
         <>
