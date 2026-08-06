@@ -1,6 +1,8 @@
 // FloatingPanel (#76) — a reusable overlay that a pane can host: draggable by
-// its handle, resizable from any edge/corner, optionally auto-hiding, and
-// remembering its size+position across reloads. It bakes in NO walk-specific
+// its legend title OR a bottom move-grip, resizable from any edge/corner,
+// optionally auto-hiding, and remembering its size+position across reloads. Its
+// title rides in the top border as a legend, like every Studio pane. It bakes in
+// NO walk-specific
 // assumptions; the Walk Editor Toolbox (#54) is its first consumer but the panel
 // only knows about a rect, a host box, and its children.
 //
@@ -163,7 +165,24 @@ export function FloatingPanel({
     opacity: visible ? 1 : 0,
     pointerEvents: visible ? 'auto' : 'none',
     transition: 'opacity 160ms ease',
+    // NB: no overflow:hidden here — the legend title straddles the top border and
+    // would be clipped by it. The scroll body below clips its own content instead.
   }
+
+  // The title masks the panel's own top border where it sits, so the frame reads
+  // as INTERRUPTED rather than as a filled bar — the same legend treatment every
+  // Studio pane wears (DS PaneHeader "legend"). The mask is the panel's own fill
+  // colour, and the twin grip at the bottom repeats it on the lower border.
+  const cut: CSSProperties = { position: 'absolute', left: 0, right: 0, top: 'calc(50% - 1px)', height: 2, background: 'var(--surface-raised)', zIndex: 0 }
+  const over: CSSProperties = { position: 'relative', zIndex: 1 }
+  // a small drawn four-way move arrow (DS direction: load-bearing marks are drawn
+  // geometry, not glyphs) — currentColor so it inherits the grip's text colour.
+  const moveIcon = (
+    <svg viewBox="0 0 12 12" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 1.2v9.6M1.2 6h9.6" />
+      <path d="M6 1.2 4.7 2.7M6 1.2 7.3 2.7M6 10.8 4.7 9.3M6 10.8 7.3 9.3M1.2 6 2.7 4.7M1.2 6 2.7 7.3M10.8 6 9.3 4.7M10.8 6 9.3 7.3" />
+    </svg>
+  )
 
   return (
     <div
@@ -171,28 +190,43 @@ export function FloatingPanel({
       role="dialog"
       aria-label={title ?? 'panel'}
       aria-hidden={!visible}
-      className="flex flex-col min-w-0 min-h-0 overflow-hidden select-none"
+      className="flex flex-col min-w-0 min-h-0 select-none"
       style={frame}
     >
-      {/* drag handle — the whole header moves the panel. The 4px edge strips
-          below sit on top of it, so grabbing the very top edge resizes instead. */}
-      <div
-        aria-label="floating-panel-handle"
-        onPointerDown={(e) => beginGesture(e, 'move')}
-        className="shrink-0 flex items-center px-2 h-6 cursor-move"
-        style={{
-          background: 'var(--surface-sunken)',
-          borderBottom: '1px solid var(--border-rule)',
-          color: 'var(--text-2)',
-          fontSize: 'var(--fs-micro)',
-          fontFamily: 'var(--font-ui)',
-        }}
-      >
-        {title}
+      {/* the title sits ON the top border like a legend AND is the primary drag
+          handle (#54): grabbing the title moves the panel. It carries a higher
+          z-index than the 4px top resize strip beneath it, so the title moves and
+          the bare border resizes — two affordances on one edge. */}
+      <div style={{ position: 'relative', flexShrink: 0, height: 11 }}>
+        <div
+          aria-label="floating-panel-handle"
+          onPointerDown={(e) => beginGesture(e, 'move')}
+          style={{ position: 'absolute', top: 0, left: 16, zIndex: 2, transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', cursor: 'move' }}
+        >
+          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', padding: '0 8px' }}>
+            <span style={cut} />
+            <span style={{ ...over, transform: 'translateY(-1px)', fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
+              {title}
+            </span>
+          </span>
+        </div>
       </div>
 
-      {/* body — the consumer's content (a DS Toolbar, buttons, …) */}
+      {/* body — the consumer's content (a DS Toolbar, buttons, …); it owns the
+          clip so the frame can stay overflow-visible for the straddling title. */}
       <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+
+      {/* the SECOND drag affordance the spec names (#54): a move grip straddling
+          the bottom-centre border, a twin of the title notch. z-index over the
+          's' resize strip so the centre moves and the flanks still resize. */}
+      <div
+        aria-label="floating-panel-move"
+        title="drag to move"
+        onPointerDown={(e) => beginGesture(e, 'move')}
+        style={{ position: 'absolute', left: '50%', bottom: 0, zIndex: 3, transform: 'translate(-50%, 50%)', display: 'grid', placeItems: 'center', width: 18, height: 14, borderRadius: 'var(--radius-pill)', background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', color: 'var(--text-3)', cursor: 'move' }}
+      >
+        {moveIcon}
+      </div>
 
       {/* grab zones, corners last so they win their overlap with the edges */}
       {[...EDGES, ...CORNERS].map(({ edge, cls }) => (
