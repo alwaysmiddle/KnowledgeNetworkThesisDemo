@@ -288,8 +288,8 @@ export interface AuthorState {
   dropVariant(path: Path, idx: number): void
   /** lift variant `idx` out of the fork at `forkPath` into its OWN group,
    * inserted at `to` — extract + relocate in one gesture (drag a tab out). The
-   * fork keeps the rest (down to one → a plain group); the route's label becomes
-   * the new group's title. */
+   * fork keeps the rest (down to one → a plain group); the lifted version keeps
+   * its label AS the new group's version, and the group inherits the fork's title. */
   extractVariant(forkPath: Path, idx: number, to: Path): void
   /** bind a corpus node to an unset placeholder leaf at `path` */
   bindNode(path: Path, node: string): void
@@ -419,7 +419,11 @@ export function useAuthorDraft(): AuthorState {
       if (to.length >= forkPath.length && forkPath.every((v, k) => v === to[k])) return
       const vr = s.variants[idx]
       if (!vr) return
-      const lifted: Stop = { key: `draft-${seq.box++}`, title: vr.label || s.title, variants: [{ label: '', steps: vr.steps }] }
+      // Since #70 the open card shows the VERSION label, not the stage title, so
+      // the lifted version keeps its name AS a version; the new group inherits the
+      // fork's stage title. Two separate fields, carried through separately —
+      // pre-#70 this folded the label into the title, which now reads as "v1".
+      const lifted: Stop = { key: `draft-${seq.box++}`, title: s.title, variants: [{ label: vr.label, steps: vr.steps }] }
       const remaining = s.variants.filter((_, k) => k !== idx)
       // the fork stays in place and only loses a variant, so every sibling index
       // before `to` is unchanged — no adjustAfterRemoval needed.

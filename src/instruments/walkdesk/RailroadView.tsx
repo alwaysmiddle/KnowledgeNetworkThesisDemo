@@ -25,8 +25,8 @@
 import { useEffect, useState } from 'react'
 
 import AuthorRoad from './AuthorRoad'
-import { redoDraft, undoDraft, useAuthorDraft, useRoad } from './authordraft'
-import { resolveRoad } from './mockwalk'
+import { parsePath, redoDraft, stopAt, undoDraft, useAuthorDraft, useRoad } from './authordraft'
+import { chosenIdx, isFork, resolveRoad } from './mockwalk'
 import WalkPreview from './WalkPreview'
 import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
@@ -65,6 +65,22 @@ export default function RailroadView({ bus }: { bus: Bus }) {
   }, [])
 
   const resolved = resolveRoad(state.stops, choices, withOptionals)
+
+  // #70 retired the drag-a-version-tab-out gesture that used to feed
+  // extractVariant. Until it finds a real home in the UI, the Toolbox carries
+  // it: with a single FORK selected, lift its ACTIVE version into its own group,
+  // inserted right after the fork. `choices` (the road's view of "active") lives
+  // here, not in the draft, so the pick is resolved here and handed down ready.
+  const selPath = state.selected.size === 1 ? parsePath([...state.selected][0]) : null
+  const selStop = selPath ? stopAt(state.stops, selPath) : undefined
+  const canExtract = !!selPath && !!selStop && isFork(selStop)
+  const extractActive = () => {
+    if (!selPath || !selStop || !isFork(selStop)) return
+    const idx = chosenIdx(selStop, choices)
+    const after = [...selPath.slice(0, -1), selPath[selPath.length - 1] + 1]
+    state.extractVariant(selPath, idx, after)
+    pickBranch(selStop.key!, 0) // the trimmed container falls back to its first version
+  }
 
   return (
     <div data-railroad className="h-full flex flex-col bg-slate-50/50">
@@ -137,7 +153,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
         {/* The floating toolbox (#54) rides ON the road: absolute inside this
             relative host, after the road so it paints above it, before the
             preview so reading the walk (z-20) covers it. */}
-        <WalkToolbox state={state} />
+        <WalkToolbox state={state} canExtract={canExtract} onExtract={extractActive} />
 
         {/* clicking the faded road dismisses the preview */}
         {previewOpen && <div className="absolute inset-0 z-10" onClick={() => setPreviewOpen(false)} />}

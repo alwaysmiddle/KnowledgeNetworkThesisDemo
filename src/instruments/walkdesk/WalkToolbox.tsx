@@ -1,7 +1,13 @@
-// The Walk Editor Toolbox (#54) — a floating tray of the four authoring actions
+// The Walk Editor Toolbox (#54) — a floating tray of the authoring actions
 // that don't belong to any one node: start a walk, drop a node, group a run,
-// mark it optional. It is the visible, keyboard-free twin of the road's shortcuts
-// and its sticky selection strip.
+// mark it optional, and (temporarily, #70) extract a version. It is the visible,
+// keyboard-free twin of the road's shortcuts and its sticky selection strip.
+//
+// The ⏏ EXTRACT button is a stopgap home (#70): retiring the comparator columns
+// removed the drag-a-version-tab-out gesture that fed extractVariant, so the
+// capability rides here until it earns a real place in the card UI. It needs the
+// ACTIVE version, which is the road's `choices` — resolved in RailroadView and
+// passed down as onExtract/canExtract, so this tray stays choices-free.
 //
 // Every bit of panel BEHAVIOUR — drag by the title or the bottom move-grip,
 // resize from any edge, fade when the pointer leaves the road or goes idle,
@@ -24,11 +30,19 @@ import type { AuthorState } from './authordraft'
  *  road's own sticky selection strip (AuthorRoad, `sticky top-0 z-40`, ~30px),
  *  so the toolbox's legend title clears it instead of hiding under it. The strip
  *  is sticky, so it owns the top ~30px at every scroll offset; 40 sits clear. */
-const DEFAULT_RECT = { x: 8, y: 40, w: 152, h: 116 }
+const DEFAULT_RECT = { x: 8, y: 40, w: 152, h: 150 }
 
-export default function WalkToolbox({ state }: { state: AuthorState }) {
+export default function WalkToolbox({
+  state,
+  canExtract,
+  onExtract,
+}: {
+  state: AuthorState
+  canExtract: boolean
+  onExtract(): void
+}) {
   return (
-    <FloatingPanel id="walk-toolbox" title="Toolbox" defaultRect={DEFAULT_RECT} minWidth={132} minHeight={92} autoHide>
+    <FloatingPanel id="walk-toolbox" title="Toolbox" defaultRect={DEFAULT_RECT} minWidth={132} minHeight={120} autoHide>
       <div
         style={{
           display: 'grid',
@@ -48,6 +62,15 @@ export default function WalkToolbox({ state }: { state: AuthorState }) {
           selected={state.optionalActive}
           disabled={!state.canOptional}
           onClick={state.toggleOptionalSelection}
+        />
+        {/* #70 stopgap: lift the selected fork's active version into its own
+            group. Enabled only when a single fork is selected. */}
+        <PillButton
+          size="sm"
+          glyph="⏏"
+          title="extract the active version into its own group"
+          disabled={!canExtract}
+          onClick={onExtract}
         />
       </div>
     </FloatingPanel>
