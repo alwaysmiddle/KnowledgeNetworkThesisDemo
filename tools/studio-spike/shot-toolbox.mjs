@@ -6,7 +6,7 @@
 // dev servers die on this machine), msedge headless, collect pageerror/console
 // errors, exit nonzero on any. What this driver provokes:
 //   1. MOUNT — switch to the Plan preset; the railroad pane appears and the
-//      toolbox (a FloatingPanel, role=dialog aria-label="toolbox") rides on it
+//      toolbox (a FloatingPanel, role=dialog aria-label="Toolbox") rides on it
 //      with exactly four buttons carrying their alt-tag titles.
 //   2. ADD A NODE — clicking "add a node" inserts one fresh slot on the road
 //      (a [data-node] under [data-road-root]); the leaf count goes up by one.
@@ -74,7 +74,7 @@ const roadBox = await page.locator('[data-road-root]').boundingBox()
 if (roadBox) await page.mouse.move(roadBox.x + roadBox.width / 2, roadBox.y + roadBox.height / 2)
 await page.waitForTimeout(150)
 
-const toolbox = page.locator('[role="dialog"][aria-label="toolbox"]')
+const toolbox = page.locator('[role="dialog"][aria-label="Toolbox"]')
 if (!(await toolbox.isVisible())) fail('toolbox panel not visible on the road')
 
 const buttons = toolbox.locator('button')
