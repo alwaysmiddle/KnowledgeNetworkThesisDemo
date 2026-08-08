@@ -9,7 +9,7 @@
 //
 // An open card shows the stage `title` in its header row with the browser bar,
 // and the VERSION COMBOBOX in a second row below: a green ✔ tick, the active
-// version's label (double-click it to rename in place), and a ▼ that drops a
+// version's label (click it to rename in place), and a ▼ that drops a
 // menu. Versions are listed first (grey; selected one bold-green with ✔);
 // "Create new version…" (italic) is at the bottom of the menu. A per-row ✕
 // deletes a version, asking first if it carries real steps (#33). Creating
@@ -287,7 +287,7 @@ function VersionMenu({
                 onDelete(k)
               }}
               title="delete this version"
-              className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded opacity-0 group-hover/vrow:opacity-100 text-[9px] leading-none text-slate-400 hover:text-rose-600 hover:bg-rose-100"
+              className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-[9px] leading-none text-rose-400 hover:text-rose-600 hover:bg-rose-100"
             >
               ✕
             </button>
@@ -337,6 +337,12 @@ export default function AuthorRoad({
   // which container's version LABEL is open for editing — the combobox rename box
   // (#70). Opened by clicking the combobox label, or when a new version is created.
   const [editKey, setEditKey] = useState<string | null>(null)
+  // which container's stage TITLE is open for inline editing — Row 1 of the open
+  // card header (#86 single-click-for-all-fields).
+  const [titleEditKey, setTitleEditKey] = useState<string | null>(null)
+  // which container is showing the "cannot ungroup — N versions" refusal note (#86)
+  const [refuseKey, setRefuseKey] = useState<string | null>(null)
+  const refuseTimer = useRef<number | null>(null)
   // which container's version DROPDOWN is open (the combobox ▼), or null. One at a
   // time; a board click or an outside click closes it.
   const [menuKey, setMenuKey] = useState<string | null>(null)
@@ -361,6 +367,16 @@ export default function AuthorRoad({
     setMenuKey(null)
     setEditKey(s.key!)
   }
+  // show the ungroup-refused note and auto-dismiss after 2.5 s (#86)
+  const showRefuse = (key: string) => {
+    if (refuseTimer.current !== null) clearTimeout(refuseTimer.current)
+    setRefuseKey(key)
+    refuseTimer.current = window.setTimeout(() => {
+      setRefuseKey(null)
+      refuseTimer.current = null
+    }, 2500)
+  }
+
   // delete one version — asks first if it carries real (bound) steps (#33)
   const deleteVersion = (path: Path, s: Stop, k: number) => {
     const real = s.variants[k].steps.filter((st) => !(isLeaf(st) && st.unset))
@@ -382,6 +398,14 @@ export default function AuthorRoad({
     window.addEventListener('pointerdown', onDown)
     return () => window.removeEventListener('pointerdown', onDown)
   }, [menuKey])
+
+  // dismiss the ungroup-refusal note on any pointer-down (#86)
+  useEffect(() => {
+    if (refuseKey === null) return
+    const onDown = () => setRefuseKey(null)
+    window.addEventListener('pointerdown', onDown)
+    return () => window.removeEventListener('pointerdown', onDown)
+  }, [refuseKey])
 
   const { items, arrows, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals)
 
@@ -523,6 +547,7 @@ export default function AuthorRoad({
           onClick={(e) => {
             e.stopPropagation()
             if (kind === 'leaf') state.deleteAt(pl.path)
+            else if (s.variants.length > 1) showRefuse(s.key!)
             else state.promote(pl.path, chosenIdx(s, choices))
           }}
           title={kind === 'leaf' ? 'delete this node' : 'ungroup — lift its steps out (use the toolbar ✕ Delete to remove the whole group)'}
@@ -544,7 +569,7 @@ export default function AuthorRoad({
     marqueeDragRef.current = false
     if (e.button !== 0 || !boardRef.current) return
     // only empty canvas starts a marquee — not a node, control, tab, or overlay
-    if ((e.target as HTMLElement).closest('[data-rnode],[data-rhead],[data-rstage],[data-rstage-closed],[data-fly],[data-varconfirm],[data-vmenu],[data-vcombo],[data-rbody],button,input,select')) return
+    if ((e.target as HTMLElement).closest('[data-rnode],[data-rhead],[data-rstage],[data-rstage-closed],[data-fly],[data-varconfirm],[data-varrefuse],[data-vmenu],[data-vcombo],[data-rbody],button,input,select')) return
     const { x, y } = boardPoint(e)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     setMarquee({ x0: x, y0: y, x1: x, y1: y })
@@ -850,7 +875,7 @@ export default function AuthorRoad({
                 }}
                 // #15: minimise is the browser-bar button now — no double-click to
                 // collapse. (A collapsed pill still double-clicks to expand.)
-                title="double-click the version name to rename · ▼ to switch versions · drag to move"
+                title="click the title or version name to rename · ▼ to switch versions · drag to move"
                 // Elevation grammar (0005 D1): an OPEN container is RECESSED — a
                 // well sunk into the board, not a green-tinted card. Its surface
                 // darkens one step per nesting depth (wellFill) and it carries the
@@ -888,17 +913,43 @@ export default function AuthorRoad({
                   data-rhead={s.key}
                   className="cursor-grab rounded-t-2xl px-2"
                 >
-                  {/* Row 1: outline number + stage title + browser bar (#70 design) */}
+                  {/* Row 1: outline number + stage title + browser bar (#70, #86 single-click retitle) */}
                   <div className="flex items-center gap-1" style={{ height: HEAD_TITLE }}>
                     <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
                       {pl.outline}.
                     </span>
-                    <span className="flex-1 min-w-0 truncate text-[10.5px] font-bold text-slate-700">
-                      {s.title}
-                    </span>
-                    {browserBar(pl, 'open', isSelected || editing)}
+                    {titleEditKey === s.key ? (
+                      <input
+                        data-rtitle={s.key}
+                        autoFocus
+                        value={s.title ?? ''}
+                        placeholder="name this stage"
+                        onChange={(e) => state.retitle(s.key!, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={() => setTitleEditKey(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === 'Escape') setTitleEditKey(null)
+                        }}
+                        className="flex-1 min-w-0 text-[10.5px] font-bold text-slate-700 bg-white border-b border-slate-400 outline-none px-0.5 rounded-sm placeholder:text-slate-400"
+                      />
+                    ) : (
+                      <span
+                        data-rstitle={s.key}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMenuKey(null)
+                          setEditKey(null)
+                          setTitleEditKey(s.key!)
+                        }}
+                        title="click to rename this stage"
+                        className="flex-1 min-w-0 truncate text-[10.5px] font-bold text-slate-700 cursor-text hover:text-slate-900"
+                      >
+                        {s.title}
+                      </span>
+                    )}
+                    {browserBar(pl, 'open', isSelected || editing || titleEditKey === s.key)}
                   </div>
-                  {/* Row 2: version combobox — double-click label to rename, ▼ to switch (#70) */}
+                  {/* Row 2: version combobox — click label to rename, ▼ to switch (#70, #86) */}
                   <div data-vcombo={s.key} className="flex items-center gap-1" style={{ height: HEAD_COMBO }}>
                     <span className="shrink-0 text-green-600 text-[11px] leading-none" aria-hidden>
                       ✔
@@ -921,12 +972,13 @@ export default function AuthorRoad({
                     ) : (
                       <span
                         data-vlabel={s.key}
-                        onDoubleClick={(e) => {
+                        onClick={(e) => {
                           e.stopPropagation()
                           setMenuKey(null)
+                          setTitleEditKey(null)
                           setEditKey(s.key!)
                         }}
-                        title="double-click to rename this version"
+                        title="click to rename this version"
                         className="flex-1 min-w-0 truncate text-[10.5px] font-bold text-slate-700 cursor-text hover:text-slate-900"
                       >
                         {label}
@@ -938,6 +990,7 @@ export default function AuthorRoad({
                       onClick={(e) => {
                         e.stopPropagation()
                         setEditKey(null)
+                        setTitleEditKey(null)
                         setMenuKey(menuOpen ? null : s.key!)
                       }}
                       title="show all versions"
@@ -1096,6 +1149,24 @@ export default function AuthorRoad({
                   >
                     Cancel
                   </button>
+                </div>
+              )
+            })()}
+
+          {/* ungroup-refused note (#86) — shown when ✕ is clicked on a multi-version
+              container; auto-dismisses after 2.5 s or on any next pointer-down. */}
+          {refuseKey !== null &&
+            (() => {
+              const card = items.find((pl) => pl.stop.key === refuseKey)
+              if (!card) return null
+              const n = card.stop.variants.length
+              return (
+                <div
+                  data-varrefuse
+                  className="absolute z-50 px-2 py-1.5 rounded-lg border border-slate-200 bg-white shadow-md text-[10px] text-slate-600 max-w-[220px]"
+                  style={{ left: Math.max(4, Math.min(card.x, W - 224)), top: card.y + headH() + 4 }}
+                >
+                  cannot ungroup — {n} versions live here; delete all but one first
                 </div>
               )
             })()}
