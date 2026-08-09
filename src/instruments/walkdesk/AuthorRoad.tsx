@@ -461,10 +461,10 @@ export default function AuthorRoad({
     setShortcutHint(null)
   }
 
-  /** Windows-style select: a plain click takes just this block, shift adds. */
+  /** Plain click selects one block; Shift/Ctrl/Cmd toggles membership. */
   const selectOn = (pl: Placed) => (e: ReactMouseEvent) => {
     e.stopPropagation()
-    if (e.shiftKey) state.toggleSelect(pl.path)
+    if (e.shiftKey || e.ctrlKey || e.metaKey) state.toggleSelect(pl.path)
     else state.selectPaths([pl.path])
   }
 
