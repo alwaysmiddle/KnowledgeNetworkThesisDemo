@@ -6,8 +6,12 @@
 // the tokens they consume are vendored in src/tokens/ (#60). This barrel grows
 // per migration step: graph now (#62), nav (#63), chrome/doc/sidebar (#64).
 
+export { NodeArrow } from './graph/NodeArrow'
+export type { NodeArrowProps } from './graph/NodeArrow'
 export { NodeChip } from './graph/NodeChip'
 export type { NodeChipProps } from './graph/NodeChip'
+export { NodeChain } from './graph/NodeChain'
+export type { NodeChainProps } from './graph/NodeChain'
 export { DomainDot } from './graph/DomainDot'
 export type { DomainDotProps } from './graph/DomainDot'
 export { EdgeLegend, EdgeDash } from './graph/EdgeLegend'
@@ -48,3 +52,6 @@ export { Toolbar } from './chrome/Toolbar'
 export type { ToolbarProps, ToolbarItemSpec } from './chrome/Toolbar'
 export { AppHeader } from './chrome/AppHeader'
 export type { AppHeaderProps } from './chrome/AppHeader'
+
+export { VersionedGroup } from './group/VersionedGroup'
+export type { VersionedGroupProps, GroupVersion } from './group/VersionedGroup'

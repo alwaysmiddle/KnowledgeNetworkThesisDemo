@@ -54,10 +54,8 @@
   --road-node-h: 34px;       /* NODEH */
   --road-gap: 26px;          /* AGAP — the arrow lives in this gap */
   --road-pad: 10px;          /* PAD */
-  --road-head-h: 28px;       /* HEAD */
+  --road-head-h: 72px;       /* headH() = HEAD_TITLE(28) + HEAD_DESC(20) + HEAD_COMBO(24) — three-row open card header (#70 #86) */
   --road-margin: 16px;       /* MARGIN */
-  --road-question-h: 18px;   /* QUESTION_H */
-  --road-tab-h: 22px;        /* TAB_H */
   --road-empty-body-h: 30px; /* EMPTY_BODY_H */
   --road-slot-h: 18px;       /* SLOTH */
   --road-sel-pad: 7px;       /* SELPAD */

@@ -298,6 +298,8 @@ export interface AuthorState {
   /** Tab — move the single selected block into the container right above it */
   indentSelection(): void
   retitle(key: string, title: string): void
+  /** set the free-text description under the title of an open container (#86) */
+  redesc(key: string, desc: string): void
   /** append a variant to the container — turns a plain group into a fork */
   addVariant(key: string): void
   relabelVariant(key: string, idx: number, label: string): void
@@ -450,6 +452,9 @@ export function useAuthorDraft(): AuthorState {
     },
     retitle: (key, title) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, title })), 'title:' + key)
+    },
+    redesc: (key, desc) => {
+      commitStops(mapBox(stops, key, (s) => ({ ...s, description: desc })), 'desc:' + key)
     },
     addVariant: (key) => {
       // empty label → the version box + namecard show the default vN name

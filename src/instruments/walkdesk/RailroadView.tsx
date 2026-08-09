@@ -83,21 +83,19 @@ export default function RailroadView({ bus }: { bus: Bus }) {
   }
 
   return (
-    <div data-railroad className="h-full flex flex-col bg-slate-50/50">
-      <div className="shrink-0 px-2 py-1.5 border-b border-slate-100">
-        <div className="text-[10px] font-bold text-slate-500 leading-tight">
+    <div data-railroad className="h-full flex flex-col" style={{ background: 'var(--surface-canopy)' }}>
+      <div className="shrink-0 px-2 py-1.5 border-b border-[var(--border-hair)]">
+        <div className="text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
           railroad — the road can fork and rejoin; ● picks the branch
         </div>
         <div className="mt-1 flex items-center gap-1">
           <button
             data-opt-toggle
             onClick={() => setWithOptionals(!withOptionals)}
-            className={[
-              'text-[10px] px-1.5 py-0.5 rounded border',
-              withOptionals
-                ? 'border-slate-300 text-slate-600 bg-white hover:bg-slate-50'
-                : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100',
-            ].join(' ')}
+            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border"
+            style={withOptionals
+              ? { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-raised)' }
+              : { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }}
           >
             ◇ optionals: {withOptionals ? 'on the road' : 'bypassed'}
           </button>
@@ -105,7 +103,8 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             data-read-walk
             onClick={() => setPreviewOpen(true)}
             title="read the resolved walk as chapters"
-            className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 text-slate-600 bg-white hover:bg-slate-50"
+            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
+            style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
           >
             ▶ read the walk
           </button>
@@ -115,7 +114,8 @@ export default function RailroadView({ bus }: { bus: Bus }) {
               disabled={!state.canUndo}
               onClick={state.undo}
               title="undo (Ctrl/Cmd+Z)"
-              className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-30"
+              className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] disabled:opacity-30"
+              style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
             >
               ↶ undo
             </button>
@@ -124,7 +124,8 @@ export default function RailroadView({ bus }: { bus: Bus }) {
               disabled={!state.canRedo}
               onClick={state.redo}
               title="redo (Ctrl/Cmd+Shift+Z)"
-              className="text-[10px] px-1.5 py-0.5 rounded border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-30"
+              className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] disabled:opacity-30"
+              style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
             >
               ↷ redo
             </button>
@@ -160,20 +161,24 @@ export default function RailroadView({ bus }: { bus: Bus }) {
 
         <div
           data-walk-preview
-          className="absolute inset-y-0 right-0 z-20 flex flex-col bg-white border-l border-slate-200 shadow-xl transition-transform ease-out"
+          className="absolute inset-y-0 right-0 z-20 flex flex-col border-l transition-transform ease-out"
           style={{
+            background: 'var(--surface-paper)',
+            borderColor: 'var(--border-rule)',
+            boxShadow: 'var(--lift-3)',
             width: PREVIEW_W,
             transform: previewOpen ? 'translateX(0)' : `translateX(${PREVIEW_W}px)`,
             transitionDuration: previewOpen ? '280ms' : '200ms',
           }}
         >
-          <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-slate-100">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">the walk</span>
+          <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-[var(--border-hair)]">
+            <span className="text-[var(--fs-caption)] font-bold uppercase tracking-wide" style={{ color: 'var(--text-3)', letterSpacing: 'var(--ls-caps)' }}>the walk</span>
             <button
               data-preview-close
               onClick={() => setPreviewOpen(false)}
               title="back to the road"
-              className="text-[13px] leading-none text-slate-400 hover:text-slate-700"
+              className="text-[var(--fs-body)] leading-none"
+              style={{ color: 'var(--text-3)' }}
             >
               ✕
             </button>

@@ -75,39 +75,13 @@
 .drill-enter-left  { animation: drill-left 280ms ease-out; }
 .drill-enter-right { animation: drill-right 280ms ease-out; }
 
-/* A group node LIFTS toward the viewer on hover — a slow ~500ms scale to 1.02
-   that reads like a card floating up off the board. This replaces the old
-   keyframe jiggle, which SHOOK (a fast wobble) and retriggered on every card as
-   the cursor swept across the stacked, board-level node siblings — that sweep
-   was the disorienting part. A smooth scale plays only on the one node under the
-   cursor and settles back over ~500ms, so a sweep is a gentle rise-and-settle,
-   not a shake. The scale is kept small (1.02, was 1.05 — #72) so the grow does
-   not push a card into the arrows or its neighbours. Only TOP-LEVEL containers
-   carry this class (AuthorRoad gates it on path depth); a nested container is
-   part of its parent, so hovering into it no longer re-triggers a second lift.
-
-   The class OWNS the node's whole transition (layout position + transform +
-   shadow, one declaration). It has to: a second `transition` rule does not ADD
-   to the Tailwind relayout transition, it RESETS it — so the layout props are
-   re-listed here rather than left to a `transition-[left,top,width,height]`
-   utility that this rule would clobber.
-
-   NOTE no z-index bump on hover: an open group card's step chips are board-level
-   SIBLINGS at z-20, and the card's z-index:auto normally sits below them so they
-   paint on top. Raising the hovered card above z-20 would lift its opaque well
-   over those chips and hide them. The ≈2% grow overlaps neighbours by only a
-   pixel or so (the 26px inter-node gap absorbs it), so the bump isn't needed. */
+/* A group node owns its layout-relayout transition — position, size. The class
+   exists so a second `transition` declaration on the node does not clobber the
+   Tailwind relayout utilities. Scale on hover was removed (it retriggered as the
+   cursor swept across board-level siblings, creating an unintended wave). */
 .hover-lift {
   transition:
-    left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out,
-    transform 500ms ease, box-shadow 500ms ease;
-}
-.hover-lift:hover { transform: scale(1.02); }
-@media (prefers-reduced-motion: reduce) {
-  .hover-lift {
-    transition: left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
-  }
-  .hover-lift:hover { transform: none; }
+    left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
 }
 
 /* The version namecard track can overflow when a card is narrower than its

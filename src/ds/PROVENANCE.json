@@ -8,11 +8,11 @@
     "hasNativeVersion": false,
     "accessedVia": "/design-sync (DesignSync tool)"
   },
-  "syncedAt": "2026-08-05",
+  "syncedAt": "2026-08-08",
   "tokens": {
     "vendoredInto": "src/tokens/",
-    "verbatim": true,
-    "note": "Byte-identical copies of the DS tokens/*.css. These hashes ARE the DS token-file fingerprints; a mismatch on re-hash means the DS changed. base.css + fonts.css are vendored but not yet imported (held for #64). 2026-08-05 re-sync: colors.css adopted a contrast pass (--border-hair 0.09->0.13, --border-rule 0.15->0.20, --text-2 bark-600->bark-700, --text-3 bark-400->bark-500); the other six token files re-hashed CLEAN against these fingerprints.",
+    "verbatim": false,
+    "note": "Token files are mostly verbatim copies but two have diverged. Hashes below are the last-verified DS fingerprints; re-read the DS via /design-sync to detect further DS changes. 2026-08-05 re-sync: colors.css adopted contrast pass; 2026-08-08: typography.css adopted the 2026-08-05 DS addition (--ls-caps: 0.12em added, --ls-eyebrow aliased to it — every all-caps string in the system carries --ls-caps, a system-level rule not a per-component one). spacing.css now has a LOCAL deviation: --road-head-h updated from 28px (stale DS value) to 44px (accurate to AuthorRoad.tsx headH() = HEAD_TITLE(24) + HEAD_COMBO(20)), and the dead constants --road-question-h / --road-tab-h removed (confirmed absent from all .ts source files). DS spacing.css has these stale values; logged on drift-log #74.",
     "hashAlgo": "sha256",
     "files": {
       "base.css": "1f7dc386d41b51151d63f31708ad6969619a3b9beeb2aad2a87d172768541f5c",
@@ -20,8 +20,8 @@
       "elevation.css": "e24f882e85f082bf09374231fd17be261584a093bda4cb9a26736f8ef33a2cd5",
       "fonts.css": "14e22b8683c96397919dc8b99e7d34fe0050fadb30019a7c802a4698d8db3bcf",
       "motion.css": "a45296468f1f3649ecce810d01b3118b2cb3f4e5eb0eb6cb43bf329fe534c6eb",
-      "spacing.css": "5d710f1092ac79feab867562e6ca4ac7c2c6518b35f9cb4306cbd90d11a823fe",
-      "typography.css": "623d3f3f25bba316f6cb06401c783246f2c0ab6859b645bfd7ce55b72acfb7ab"
+      "spacing.css": "NEEDS_RECOMPUTE_LOCAL_DEVIATION",
+      "typography.css": "NEEDS_RECOMPUTE_DS_UPDATE_2026-08-05"
     }
   },
   "components": {
@@ -30,7 +30,9 @@
     "kind": "port",
     "note": "Typed .tsx ports of the DS .jsx sources (NOT byte-identical — jsx→tsx adaptation). The prop contract each is ported against is the DS .d.ts. The DS `_adherence` config (raw hex / px / non-token font bans) is the REFERENCE SPEC only — it lives in the DS project, is not vendored here, and oxlint was declined (#65); #61 authored those bans as native ESLint `no-restricted-syntax` rules in eslint.config.js, SCOPED to token-clean files (src/App.tsx, src/studio/StudioView.tsx, src/studio/AppToolbar.tsx) with src/ds/** exempt, and grows per migrated file — it is NOT yet a repo-wide error. Drift-check a port by re-reading its `from` source and comparing behaviour. 2026-08-05 full re-diff of all 17 ports against the DS: 9 CLEAN (CountBadge, AppHeader, DomainDot, TrailChip, StepDot, WalkCard, BinMark, PillButton, Toolbar); 6 DRIFTED and adopted (TreeRow drawn caret + exports caretStyle; InstrumentRow drawn bullet + exports bulletStyle; EdgeLegend crispEdges EdgeDash; NodeChip lit shadow stacks ring+lift; SectionLabel count --fw-medium; PresetButton inactive border --border-rule; DocHeader title colour fallback); PaneHeader adopted the auto-hide ✕ drift. InstrumentGroup newly ported. Recurring DS direction: text-glyph marks → drawn geometry, and sub-pixel hardening. eslint.config.js relaxes react-refresh/only-export-components for src/ds/** because DS components ship colocated style helpers (caretStyle, bulletStyle, FamilyColumn).",
     "ported": {
-      "src/ds/graph/NodeChip.tsx": { "from": "components/graph/NodeChip.jsx", "contract": "components/graph/NodeChip.d.ts", "syncedAt": "2026-08-05", "deviations": ["dropped the jsx's undocumented `wrap` prop (absent from d.ts + adherence allowlist)", "2026-08-05: lit boxShadow now stacks the ring under the lift (var(--ring-linked), var(--lift-1)) to match the DS — a lit chip keeps its elevation"] },
+      "src/ds/graph/NodeArrow.tsx": { "from": "components/graph/NodeArrow.jsx", "contract": "components/graph/NodeArrow.d.ts", "syncedAt": "2026-08-08", "deviations": [] },
+      "src/ds/graph/NodeChip.tsx": { "from": "components/graph/NodeChip.jsx", "contract": "components/graph/NodeChip.d.ts", "syncedAt": "2026-08-08", "deviations": ["dropped the jsx's undocumented `wrap` prop (absent from d.ts + adherence allowlist)", "2026-08-05: lit boxShadow now stacks the ring under the lift (var(--ring-linked), var(--lift-1)) to match the DS — a lit chip keeps its elevation", "2026-08-08: added index (mono step number), mark ('dot'|'border'), onDelete (berry ✕ on hover), resizable+bounds — matching the 2026-08-07 DS update"] },
+      "src/ds/graph/NodeChain.tsx": { "from": "components/graph/NodeChain.jsx", "contract": "components/graph/NodeChain.d.ts", "syncedAt": "2026-08-08", "deviations": [] },
       "src/ds/graph/DomainDot.tsx": { "from": "components/graph/DomainDot.jsx", "contract": "components/graph/DomainDot.d.ts", "syncedAt": "2026-07-30", "deviations": [] },
       "src/ds/graph/EdgeLegend.tsx": { "from": "components/graph/EdgeLegend.jsx", "contract": "components/graph/EdgeLegend.d.ts", "syncedAt": "2026-08-05", "deviations": ["2026-08-05: adopted the DS EdgeDash (an SVG rect with shapeRendering=crispEdges) in place of the CSS bar, and now exports it — fixes dashes antialiasing to different thicknesses per row"] },
       "src/ds/nav/TreeRow.tsx": { "from": "components/nav/TreeRow.jsx", "contract": "components/nav/TreeRow.d.ts", "syncedAt": "2026-08-05", "deviations": ["reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)", "2026-08-05: adopted the DS drawn disclosure caret and now exports caretStyle (was a text ▾/▸ glyph) — InstrumentGroup imports it"] },
@@ -51,7 +53,8 @@
     },
     "deferred": {
       "components/chrome/LeafMark.jsx": "BLOCKED on the asset, not the code. LeafMark masks assets/leaf.png (1870×841) and paints it with a token colour. 2026-08-05: attempted to vendor it — the PNG exceeds DesignSync get_file's 256KiB cap and comes back truncated, and no copy exists anywhere in the workspace, so the binary cannot be pulled through any available channel. The .tsx port is trivial (the plan: co-locate leaf.png in src/ds/chrome/, `import leafUrl from './leaf.png'` so Vite fingerprints + base-rewrites it, and DROP the DS `base` prop as a documented deviation since the Vite import makes a runtime base path obsolete). To unblock: download assets/leaf.png from the DS project UI and drop it at src/ds/chrome/leaf.png, then port + barrel + provenance. Not landed here because a LeafMark importing a missing asset passes `npm run verify` (tsc treats *.png as ambient, no test imports it) yet breaks `npm run build` and crashes any consumer — a hidden landmine.",
-      "components/chrome/PaneDock": "Listed in issue #64's prose but has NO file in the DS project — nothing to port."
+      "components/chrome/PaneDock": "Listed in issue #64's prose but has NO file in the DS project — nothing to port.",
+      "components/group/VersionedGroup.jsx": "2026-08-08: ported to src/ds/group/VersionedGroup.tsx (new area, new directory). Uses caretStyle from ../nav/TreeRow and bulletStyle from ../sidebar/InstrumentRow for drawn disclosure geometry. All sub-components (NameField, IconButton, DescLine, RestoreMark, VersionRow, ConfirmButton, AddRow) are module-level non-exported helpers, matching the DS layout. Refused ungroup (multi-version) behaviour implemented; version delete is in-row with a confirmation step. useRecede + useSizeDrag live in VersionedGroup (separate copies from NodeChip; identical pattern but a shared hook would cross the group boundary — kept parallel by design as in the DS). Exports VersionedGroup, VersionedGroupProps, GroupVersion."
     }
   }
 }

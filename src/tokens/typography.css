@@ -40,7 +40,11 @@
   --fw-heavy: 800; /* @kind font */
 
   --ls-display: -0.015em; /* @kind other */
-  --ls-eyebrow: 0.08em; /* @kind other */
+  /* Every all-caps string in the system carries --ls-caps — via tags, eyebrows,
+     toolbar group labels, axis labels. Caps at default tracking read as a solid
+     block at 11-12px; this is a rule, not a per-component choice. */
+  --ls-caps: 0.12em; /* @kind other */
+  --ls-eyebrow: var(--ls-caps); /* @kind other */
   --ls-normal: 0; /* @kind other */
 
   --tnum: tabular-nums; /* @kind other */

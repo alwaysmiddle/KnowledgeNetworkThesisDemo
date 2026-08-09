@@ -1,0 +1,622 @@
+import React, { useState, useRef, useEffect } from 'react'
+import type { CSSProperties } from 'react'
+import { caretStyle } from '../nav/TreeRow'
+import { bulletStyle } from '../sidebar/InstrumentRow'
+import { NodeChain } from '../graph/NodeChain'
+
+/** A nested subgroup that holds several versions of itself, exactly one of which
+ *  is on screen. Port of DS components/group/VersionedGroup.jsx.
+ *
+ *  Four rows: the group's name with its tally and fold control, the group's one
+ *  description, the version picker, then the contents chained by arrows.
+ *  Open = recessed well (--surface-sunken + --sink-1). Folded = raised node at
+ *  --lift-2, well tint stacked behind. No domain dot — contents can span domains. */
+
+export interface GroupVersion {
+  id: string
+  /** the version's own name — authored text, verbatim. Wraps to two lines */
+  name: string
+  /** a short designation, e.g. "v2" — mono, tabular. Normally omitted */
+  label?: string
+}
+
+export interface VersionedGroupProps {
+  title: string
+  index?: string
+  numberSteps?: boolean
+  onReorderNodes?: (from: number, to: number) => void
+  maxWidth?: number | string
+  bodyMaxHeight?: number | string
+  menuMaxHeight?: number | string
+  foldedMinWidth?: number | string
+  resizable?: boolean
+  minWidth?: number
+  resizeMaxWidth?: number
+  minBodyHeight?: number
+  movable?: boolean
+  onMove?: (offset: { x: number; y: number }) => void
+  onResize?: (size: { width: number | null; height: number | null }) => void
+  description?: string
+  emptyLabel?: string
+  descPlaceholder?: string
+  versions: GroupVersion[]
+  activeId?: string
+  count?: number
+  countLabel?: string
+  folded?: boolean
+  defaultFolded?: boolean
+  addLabel?: string
+  defaultOpen?: boolean
+  onRetitle?: (title: string) => void
+  onDescribe?: (description: string) => void
+  onSelect?: (id: string) => void
+  onRename?: (id: string, name: string) => void
+  onAddVersion?: () => void
+  onDeleteVersion?: (id: string) => void
+  ungroupBlockedLabel?: string
+  confirmDelete?: boolean
+  onToggleFold?: (folded: boolean) => void
+  onClose?: (spill: { versionId: string; count: number }) => void
+  children?: React.ReactNode
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+function NameField({ value, onCommit, onCancel, size, weight, family, placeholder }: {
+  value: string; onCommit: (v: string) => void; onCancel: () => void
+  size?: string; weight?: string; family?: string; placeholder?: string
+}) {
+  const ref = useRef<HTMLInputElement | null>(null)
+  const [draft, setDraft] = useState(value)
+  useEffect(() => { const el = ref.current; if (el) { el.focus(); el.select() } }, [])
+  return (
+    <input ref={ref} value={draft} spellCheck={false}
+      onChange={(e) => setDraft(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') onCommit(draft.trim())
+        if (e.key === 'Escape') onCancel()
+      }}
+      onBlur={() => onCommit(draft.trim())}
+      placeholder={placeholder}
+      style={{
+        flex: 1, minWidth: 0, padding: '2px 6px', margin: '-2px 0',
+        borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-strong)',
+        background: 'var(--surface-raised)', color: 'var(--text-1)',
+        fontFamily: family || 'var(--font-ui)', fontSize: size || 'var(--fs-body)',
+        fontWeight: weight || 'var(--fw-medium)',
+        cursor: 'text', userSelect: 'text', WebkitUserSelect: 'text',
+        outline: 'none', boxShadow: 'var(--ring-focus)',
+      }} />
+  )
+}
+
+function IconButton({ label, glyph, size = 12, onClick, reachable = true }: {
+  label: string; glyph: React.ReactNode; size?: number
+  onClick?: () => void; reachable?: boolean
+}) {
+  const [hot, setHot] = useState(false)
+  return (
+    <button type="button" title={label} aria-label={label}
+      tabIndex={reachable ? 0 : -1}
+      onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
+      onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      style={{
+        width: 18, height: 18, flexShrink: 0, display: 'grid', placeItems: 'center', padding: 0,
+        boxSizing: 'border-box',
+        borderRadius: 'var(--radius-pill)', border: '1px solid ' + (hot ? 'var(--border-rule)' : 'transparent'),
+        background: hot ? 'var(--surface-hover)' : 'transparent',
+        color: hot ? 'var(--text-1)' : 'var(--text-2)',
+        fontFamily: 'var(--font-ui)', fontSize: size, lineHeight: 1,
+        cursor: 'pointer', transition: 'var(--transition-wash)',
+      }}>{glyph}</button>
+  )
+}
+
+function checkStyle(): CSSProperties {
+  return {
+    width: 9, height: 5, boxSizing: 'border-box',
+    borderLeft: '1.75px solid currentColor', borderBottom: '1.75px solid currentColor',
+    transform: 'rotate(-45deg) translate(0, -1px)',
+  }
+}
+
+function RestoreMark() {
+  return (
+    <span style={{ position: 'relative', width: 10, height: 10, display: 'block' }}>
+      <span style={{ position: 'absolute', top: 0, right: 0, width: 7, height: 7, boxSizing: 'border-box', borderTop: '1.25px solid currentColor', borderRight: '1.25px solid currentColor', borderTopRightRadius: 1.5 }} />
+      <span style={{ position: 'absolute', bottom: 0, left: 0, width: 7, height: 7, boxSizing: 'border-box', border: '1.25px solid currentColor', borderRadius: 1.5 }} />
+    </span>
+  )
+}
+
+function DescLine({ text, placeholder, indent, onCommit }: {
+  text?: string; placeholder?: string; indent?: number; onCommit?: (v: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  if (!onCommit && !text) return null
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px' }}>
+        <NameField value={text || ''} size="var(--fs-caption)"
+          onCommit={(v) => { setEditing(false); if (v !== (text || '') && onCommit) onCommit(v) }}
+          onCancel={() => setEditing(false)} />
+      </div>
+    )
+  }
+  return (
+    <div data-grab="" style={{ display: 'block', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px', cursor: 'inherit' }}>
+      <span title={onCommit ? 'click to edit' : undefined}
+        onClick={(e) => { e.stopPropagation(); if (onCommit) setEditing(true) }}
+        style={{
+          display: 'inline-block', maxWidth: '100%',
+          fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
+          lineHeight: 'var(--lh-snug)', color: text ? 'var(--text-2)' : 'var(--text-3)',
+          fontStyle: text ? 'normal' : 'italic', cursor: onCommit ? 'text' : 'inherit',
+        }}>{text || placeholder}</span>
+    </div>
+  )
+}
+
+function ConfirmButton({ label, danger, onClick }: { label: string; danger?: boolean; onClick?: () => void }) {
+  const [hot, setHot] = useState(false)
+  return (
+    <button type="button" onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
+      onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      style={{
+        flexShrink: 0, padding: '3px 9px', borderRadius: 'var(--radius-sm)', boxSizing: 'border-box',
+        border: '1px solid ' + (hot ? (danger ? 'var(--state-danger)' : 'var(--border-rule)') : 'transparent'),
+        background: hot ? (danger ? 'var(--berry-100)' : 'var(--surface-hover)') : 'transparent',
+        color: danger ? 'var(--berry-600)' : 'var(--text-2)',
+        fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
+        fontWeight: danger ? 'var(--fw-semibold)' : 'var(--fw-medium)',
+        cursor: 'pointer', transition: 'var(--transition-wash)',
+      }}>{label}</button>
+  )
+}
+
+function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
+  const [hot, setHot] = useState(false)
+  return (
+    <button type="button" onClick={onClick}
+      onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 'var(--space-15)', width: '100%',
+        minHeight: 'var(--hit-min)', padding: '4px 8px', textAlign: 'left', boxSizing: 'border-box',
+        borderRadius: 'var(--radius-sm)', border: '1px solid ' + (hot ? 'var(--border-rule)' : 'transparent'),
+        background: hot ? 'var(--surface-hover-raised)' : 'transparent',
+        color: hot ? 'var(--text-1)' : 'var(--text-2)',
+        fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-medium)',
+        fontStyle: 'italic', cursor: 'pointer', transition: 'var(--transition-wash)',
+      }}>
+      <span aria-hidden="true" style={{ width: 12, flexShrink: 0, display: 'grid', placeItems: 'center', fontSize: 13, lineHeight: 1, fontStyle: 'normal' }}>+</span>
+      {label}
+    </button>
+  )
+}
+
+function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
+  version: GroupVersion; on: boolean; onPick: () => void
+  onDelete?: () => void; confirming?: boolean; onCancel?: () => void
+}) {
+  const [hot, setHot] = useState(false)
+  const timer = useRef<number | null>(null)
+  useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current) }, [])
+  const show = () => { if (timer.current !== null) clearTimeout(timer.current); setHot(true) }
+  const hide = () => {
+    if (timer.current !== null) clearTimeout(timer.current)
+    const LEAVE = ((window as unknown as { PKT_SB?: { LEAVE: number } }).PKT_SB?.LEAVE) ?? 500
+    timer.current = window.setTimeout(() => setHot(false), LEAVE)
+  }
+  return (
+    <div style={{ position: 'relative', display: 'flex' }}
+      onMouseEnter={show} onMouseLeave={hide}
+      onFocus={show} onBlur={hide}>
+      {confirming ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-15)', width: '100%',
+          minHeight: 'var(--hit-min)', padding: '4px 6px 4px 8px', boxSizing: 'border-box',
+          borderRadius: 'var(--radius-sm)', background: 'var(--state-danger-wash)',
+          fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-2)',
+        }}>
+          <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>delete this version?</span>
+          <ConfirmButton label="keep" onClick={onCancel} />
+          <ConfirmButton label="delete" danger onClick={onDelete} />
+        </div>
+      ) : (
+        <>
+          <button type="button" role="option" aria-selected={on} onClick={onPick}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-15)', width: '100%',
+              minHeight: 'var(--hit-min)', padding: '4px 8px', textAlign: 'left', boxSizing: 'border-box',
+              borderRadius: 'var(--radius-sm)', border: '1px solid ' + (hot ? 'var(--border-rule)' : 'transparent'),
+              background: hot ? 'var(--surface-hover-raised)' : 'transparent',
+              fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)',
+              fontWeight: on ? 'var(--fw-semibold)' : 'var(--fw-medium)',
+              color: on ? 'var(--accent-primary-ink)' : 'var(--text-1)',
+              cursor: 'pointer', transition: 'var(--transition-wash)',
+            }}>
+            <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0, color: 'var(--accent-primary-ink)' }}>
+              {on ? <span style={checkStyle()} /> : <span style={bulletStyle(false)} />}
+            </span>
+            {version.label ? (
+              <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: on ? 'var(--accent-primary-ink)' : 'var(--text-2)' }}>{version.label}</span>
+            ) : null}
+            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{version.name}</span>
+          </button>
+          {onDelete ? (
+            <button type="button" title="delete this version" aria-label="delete this version"
+              tabIndex={hot ? 0 : -1}
+              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--state-danger-wash)'; e.currentTarget.style.borderColor = 'var(--state-danger)'; e.currentTarget.style.color = 'var(--berry-600)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--state-danger)' }}
+              style={{
+                position: 'absolute', top: 5, right: 5, width: 18, height: 18, padding: 0,
+                display: 'grid', placeItems: 'center', boxSizing: 'border-box',
+                borderRadius: 'var(--radius-pill)', border: '1px solid transparent', background: 'transparent',
+                color: 'var(--state-danger)', fontFamily: 'var(--font-ui)', fontSize: 10, lineHeight: 1,
+                cursor: 'pointer', opacity: hot ? 1 : 0, pointerEvents: hot ? 'auto' : 'none',
+                transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
+              }}>{'✕'}</button>
+          ) : null}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function VersionedGroup({
+  title = 'untitled', index, description, versions = [], activeId,
+  folded, defaultFolded = false, count, addLabel = 'add new version', defaultOpen = false,
+  descPlaceholder = 'enter description',
+  emptyLabel = 'no nodes in this version — drag one in', numberSteps = true, countLabel = 'nodes',
+  onReorderNodes,
+  maxWidth = 300, bodyMaxHeight = 260, menuMaxHeight = 240, foldedMinWidth = 190,
+  resizable = true, minWidth = 200, resizeMaxWidth = 680, minBodyHeight = 72, onResize,
+  movable = true, onMove, onDeleteVersion, ungroupBlockedLabel, confirmDelete = true,
+  onRetitle, onDescribe, onSelect, onRename, onAddVersion, onToggleFold, onClose, children,
+}: VersionedGroupProps) {
+  const [open, setOpen] = useState(defaultOpen)
+  const [editing, setEditing] = useState<'title' | 'version' | null>(null)
+  const [ownFold, setOwnFold] = useState(defaultFolded)
+  const [hot, setHot] = useState<string | null>(null)
+  const [size, setSize] = useState<{ w: number | null; h: number | null } | null>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [carrying, setCarrying] = useState(false)
+  const shell = useRef<HTMLDivElement | null>(null)
+  const body = useRef<HTMLDivElement | null>(null)
+  const [live, setLive] = useState(false)
+  const [narrow, setNarrow] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  const isFolded = folded === undefined ? ownFold : folded
+  const active = versions.find((v) => v.id === activeId) || versions[0] || { id: null as unknown as string, name: 'untitled' }
+  const kids = React.Children.toArray(children).filter(React.isValidElement) as React.ReactElement[]
+  const tally = count === undefined ? kids.length : count
+
+  useEffect(() => {
+    const el = shell.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((entries) => {
+      const box = entries[0] && entries[0].contentRect
+      if (box) setNarrow(box.width < 250)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = shell.current
+    if (!el) return
+    let t: number | undefined
+    const LEAVE = ((window as unknown as { PKT_SB?: { LEAVE: number } }).PKT_SB?.LEAVE) ?? 500
+    const on = () => { clearTimeout(t); setLive(true) }
+    const off = () => { clearTimeout(t); t = window.setTimeout(() => setLive(false), LEAVE) }
+    el.addEventListener('pointerenter', on); el.addEventListener('pointerleave', off)
+    el.addEventListener('focusin', on); el.addEventListener('focusout', off)
+    return () => {
+      clearTimeout(t)
+      el.removeEventListener('pointerenter', on); el.removeEventListener('pointerleave', off)
+      el.removeEventListener('focusin', on); el.removeEventListener('focusout', off)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => { if (shell.current && !shell.current.contains(e.target as Node)) { setOpen(false); setConfirming(null) } }
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); setConfirming(null) } }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key) }
+  }, [open])
+
+  const fold = () => {
+    setOpen(false)
+    if (folded === undefined) setOwnFold((f) => !f)
+    if (onToggleFold) onToggleFold(!isFolded)
+  }
+
+  const askUngroup = () => {
+    if (versions.length > 1) {
+      setRefusal(ungroupBlockedLabel || ('cannot ungroup — ' + versions.length + ' versions live here; delete all but one first'))
+      return
+    }
+    if (onClose) onClose({ versionId: active.id, count: kids.length })
+  }
+
+  useEffect(() => {
+    if (!refusal) return
+    const t = window.setTimeout(() => setRefusal(null), 4500)
+    const away = () => setRefusal(null)
+    document.addEventListener('pointerdown', away, true)
+    return () => { clearTimeout(t); document.removeEventListener('pointerdown', away, true) }
+  }, [refusal])
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation()
+
+  const startDrag = (axis: 'x' | 'y' | 'both') => (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    const box = shell.current && shell.current.getBoundingClientRect()
+    if (!box) return
+    const bodyBox = body.current && body.current.getBoundingClientRect()
+    const from = { x: e.clientX, y: e.clientY, w: box.width, h: (size && size.h) || (bodyBox && Math.round(bodyBox.height)) || (bodyMaxHeight as number) }
+    const node = e.currentTarget as HTMLElement
+    let last = { w: (size && size.w) || Math.round(box.width), h: from.h }
+    try { node.setPointerCapture(e.pointerId) } catch { /* older pointer impls */ }
+    const move = (ev: PointerEvent) => {
+      const w = axis === 'y' ? last.w : Math.round(Math.max(minWidth, Math.min(resizeMaxWidth, from.w + (ev.clientX - from.x))))
+      const h = axis === 'x' ? last.h : Math.round(Math.max(minBodyHeight, from.h + (ev.clientY - from.y)))
+      last = { w, h }
+      setSize(last)
+    }
+    const up = () => {
+      node.removeEventListener('pointermove', move)
+      node.removeEventListener('pointerup', up)
+      node.removeEventListener('pointercancel', up)
+      if (onResize) onResize({ width: last.w, height: last.h })
+    }
+    node.addEventListener('pointermove', move)
+    node.addEventListener('pointerup', up)
+    node.addEventListener('pointercancel', up)
+  }
+
+  const resetAxis = (axis: 'x' | 'y' | 'both') => (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    setSize((s) => {
+      if (!s) return null
+      const next = { w: axis === 'y' ? s.w : null, h: axis === 'x' ? s.h : null }
+      const cleared = !next.w && !next.h ? null : next
+      if (onResize) onResize({ width: next.w, height: next.h })
+      return cleared
+    })
+  }
+
+  const startMove = (e: React.PointerEvent) => {
+    if (!movable || e.button !== 0) return
+    const el = e.target as HTMLElement
+    if (!(el && el.hasAttribute && el.hasAttribute('data-grab'))) return
+    e.preventDefault()
+    const from = { x: e.clientX, y: e.clientY, ox: (pos && pos.x) || 0, oy: (pos && pos.y) || 0 }
+    const node = e.currentTarget as HTMLElement
+    let last = { x: from.ox, y: from.oy }
+    setCarrying(true)
+    try { node.setPointerCapture(e.pointerId) } catch { /* older pointer impls */ }
+    const move = (ev: PointerEvent) => {
+      last = { x: Math.round(from.ox + (ev.clientX - from.x)), y: Math.round(from.oy + (ev.clientY - from.y)) }
+      setPos(last)
+    }
+    const up = () => {
+      node.removeEventListener('pointermove', move)
+      node.removeEventListener('pointerup', up)
+      node.removeEventListener('pointercancel', up)
+      setCarrying(false)
+      if (onMove) onMove(last)
+    }
+    node.addEventListener('pointermove', move)
+    node.addEventListener('pointerup', up)
+    node.addEventListener('pointercancel', up)
+  }
+
+  const edge = (side: 'right' | 'bottom' | 'corner') => {
+    const common: CSSProperties = { position: 'absolute', zIndex: 2, background: 'transparent', touchAction: 'none' }
+    if (side === 'right') return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('x')} onDoubleClick={resetAxis('x')} style={{ ...common, top: 14, bottom: 14, right: -3, width: 8, cursor: 'ew-resize' }} />
+    if (side === 'bottom') return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('y')} onDoubleClick={resetAxis('y')} style={{ ...common, left: 14, right: 14, bottom: -3, height: 8, cursor: 'ns-resize' }} />
+    return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('both')} onDoubleClick={resetAxis('both')} style={{ ...common, right: -3, bottom: -3, width: 16, height: 16, cursor: 'nwse-resize' }} />
+  }
+
+  const word = tally === 1 ? String(countLabel).replace(/s$/, '') : countLabel
+  const tallyLine = (
+    <span title={tally + ' ' + word + ' inside this version'} style={{
+      flexShrink: 0, display: 'inline-block', fontFamily: 'var(--font-ui)',
+      fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)',
+      fontWeight: 'var(--fw-regular)',
+    }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-medium)' }}>{tally}</span>
+      {' ' + word}
+    </span>
+  )
+
+  const headRow = (
+    <div data-grab="" style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-15)', minHeight: 22 }}>
+      {index ? (
+        <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)', fontWeight: 'var(--fw-medium)', marginRight: -2, lineHeight: 'var(--lh-snug)' }}>{index}</span>
+      ) : null}
+      {editing === 'title' ? (
+        <NameField value={title} family="var(--font-display)" weight="var(--fw-bold)"
+          onCommit={(v) => { setEditing(null); if (v && v !== title && onRetitle) onRetitle(v) }}
+          onCancel={() => setEditing(null)} />
+      ) : (
+        <span data-grab="" style={{ flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2 }}>
+          <span title={title} onClick={(e) => { stop(e); setEditing('title') }}
+            style={{
+              width: 'fit-content',
+              maxWidth: '100%', lineHeight: 'var(--lh-snug)',
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical', WebkitLineClamp: isFolded ? 3 : 2,
+              whiteSpace: 'normal', overflowWrap: 'anywhere',
+              overflow: 'hidden',
+              fontFamily: 'var(--font-display)', fontSize: 'var(--fs-body)',
+              fontWeight: 'var(--fw-bold)', color: 'var(--text-1)', cursor: 'text',
+            }}>{title}</span>
+        </span>
+      )}
+      <span style={{ flex: 1 }} />
+      {narrow ? null : tallyLine}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, height: 18, alignSelf: 'flex-start', marginTop: -1 }}>
+        <span style={{
+          display: 'flex', alignItems: 'center', gap: 1,
+          opacity: live || open ? 1 : 0, pointerEvents: live || open ? 'auto' : 'none',
+          transition: 'opacity var(--dur-fade) var(--ease-soft)',
+        }}>
+          <IconButton label={isFolded ? 'maximize' : 'minimize'} glyph={isFolded ? <RestoreMark /> : '–'} onClick={fold} reachable={live || open} />
+          {onClose ? <IconButton label="ungroup nodes" glyph={'✕'} size={10} onClick={askUngroup} reachable={live || open} /> : null}
+        </span>
+      </span>
+    </div>
+  )
+
+  const picker = (
+    <div style={{ position: 'relative' }}>
+      <div
+        role="button" tabIndex={0}
+        onClick={() => { if (!editing) setOpen((o) => !o) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o) } }}
+        onMouseEnter={() => setHot('picker')} onMouseLeave={() => setHot(null)}
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: 'var(--space-15)', minHeight: 'var(--hit-min)',
+          padding: '5px 6px 5px 7px', borderRadius: 'var(--radius-sm)', boxSizing: 'border-box',
+          border: '1px solid ' + (hot === 'picker' && !editing ? 'var(--border-rule)' : 'transparent'),
+          background: hot === 'picker' && !editing ? 'var(--surface-sunken-2)' : 'transparent',
+          cursor: editing ? 'default' : 'pointer', transition: 'var(--transition-wash)',
+        }}>
+        <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0, height: 18, color: 'var(--accent-primary-ink)' }}>
+          <span style={checkStyle()} />
+        </span>
+        {active.label ? (
+          <span style={{ flexShrink: 0, lineHeight: '18px', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: 'var(--accent-primary-ink)', fontWeight: 'var(--fw-medium)' }}>{active.label}</span>
+        ) : null}
+        {editing === 'version' ? (
+          <NameField value={active.name} weight="var(--fw-semibold)"
+            onCommit={(v) => { setEditing(null); if (v && v !== active.name && onRename) onRename(active.id, v) }}
+            onCancel={() => setEditing(null)} />
+        ) : (
+          <span style={{ flex: 1, minWidth: 0, display: 'block', cursor: 'inherit' }}>
+            <span title={active.name} onClick={(e) => { stop(e); setOpen(false); setEditing('version') }}
+              style={{
+                width: 'fit-content',
+                maxWidth: '100%', display: '-webkit-box', WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 2, overflow: 'hidden', whiteSpace: 'normal',
+                overflowWrap: 'anywhere', lineHeight: 'var(--lh-snug)',
+                fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)',
+                fontWeight: 'var(--fw-semibold)', color: 'var(--accent-primary-ink)', cursor: 'text',
+              }}>{active.name}</span>
+          </span>
+        )}
+        <span style={{ width: 16, height: 16, flexShrink: 0, display: 'grid', placeItems: 'center', marginTop: 1, color: open ? 'var(--text-2)' : 'var(--text-3)', transition: 'color var(--dur-hover) var(--ease-soft)' }}>
+          <span style={caretStyle(open)} />
+        </span>
+      </div>
+      {open ? (
+        <div role="listbox" style={{
+          position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, zIndex: 30,
+          maxHeight: menuMaxHeight, overflowY: 'auto', overflowX: 'hidden',
+          padding: 'var(--space-1)', borderRadius: 'var(--radius-md)',
+          background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', boxShadow: 'var(--lift-2)',
+        }}>
+          {versions.map((v) => (
+            <VersionRow key={v.id} version={v} on={v.id === active.id}
+              onPick={() => { setOpen(false); if (onSelect) onSelect(v.id) }}
+              confirming={confirming === v.id}
+              onCancel={() => setConfirming(null)}
+              onDelete={onDeleteVersion && versions.length > 1 ? () => {
+                if (confirmDelete && confirming !== v.id) { setConfirming(v.id); return }
+                setConfirming(null)
+                onDeleteVersion(v.id)
+              } : undefined} />
+          ))}
+          <div style={{ height: 1, background: 'var(--border-hair)', margin: '4px 6px' }} />
+          <AddRow label={addLabel} onClick={() => { setOpen(false); if (onAddVersion) onAddVersion(); setEditing('version') }} />
+        </div>
+      ) : null}
+    </div>
+  )
+
+  return (
+    <div ref={shell} style={{
+      position: 'relative',
+      width: size && size.w ? size.w : undefined,
+      maxWidth: size && size.w ? undefined : maxWidth,
+      minWidth: isFolded ? foldedMinWidth : undefined,
+      paddingRight: isFolded ? 6 : undefined,
+      paddingBottom: isFolded ? 7 : undefined,
+      transform: pos ? 'translate(' + pos.x + 'px, ' + pos.y + 'px)' : undefined,
+      zIndex: carrying ? 40 : undefined,
+    }}>
+      {isFolded ? (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: '7px 0 0 7px', borderRadius: 'var(--radius-lg)', background: 'var(--surface-sunken-2)', zIndex: 0 }} />
+      ) : null}
+      <div data-grab="" onPointerDown={startMove} style={{
+        position: 'relative', zIndex: 1, borderRadius: 'var(--radius-lg)', boxSizing: 'border-box',
+        padding: isFolded ? '8px 9px 9px' : 'var(--space-2) var(--space-2) var(--space-3)',
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
+        background: isFolded ? 'var(--surface-raised)' : 'var(--surface-sunken)',
+        border: '1px solid ' + (isFolded ? 'var(--border-rule)' : 'transparent'),
+        boxShadow: carrying ? 'var(--lift-drag)' : isFolded ? 'var(--lift-2)' : 'var(--sink-1)',
+        cursor: movable ? 'move' : 'inherit',
+        userSelect: 'none', WebkitUserSelect: 'none',
+        transition: carrying ? 'none' : 'var(--transition-wash)',
+      }}>
+        {refusal ? (
+          <div role="status" style={{
+            position: 'absolute', top: 28, right: 8, zIndex: 45, maxWidth: 216,
+            padding: '8px 11px', borderRadius: 'var(--radius-md)',
+            background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',
+            boxShadow: 'var(--lift-2)', fontFamily: 'var(--font-ui)',
+            fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)',
+          }}>{refusal}</div>
+        ) : null}
+        {resizable ? edge('right') : null}
+        {isFolded || !resizable ? null : edge('bottom')}
+        {isFolded || !resizable ? null : edge('corner')}
+        <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{headRow}</div>
+        {narrow ? <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{tallyLine}</div> : null}
+        {isFolded ? null : (
+          <DescLine text={description} placeholder={descPlaceholder}
+            onCommit={onDescribe ? (v) => onDescribe(v) : undefined} />
+        )}
+        {isFolded ? null : picker}
+        {isFolded ? null : (
+          <div ref={body} data-grab="" style={{
+            marginLeft: 13, paddingLeft: 10, borderLeft: '1.5px solid var(--bark-300)',
+            display: 'flex', flexDirection: 'column',
+            ...(size && size.h ? { height: size.h, minHeight: 0 } : { maxHeight: bodyMaxHeight }),
+            overflowY: 'auto', overflowX: 'hidden',
+          }}>
+            {kids.length === 0 ? (
+              <div data-grab="" style={{
+                flex: size && size.h ? 1 : '0 0 auto', minHeight: 0,
+                marginTop: 'var(--space-15)', marginRight: 'var(--space-1)',
+                display: 'grid', placeItems: 'center',
+                padding: '11px 12px', borderRadius: 'var(--radius-md)',
+                border: '1.5px dashed var(--border-dashed)', background: 'transparent',
+                fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
+                lineHeight: 'var(--lh-snug)', color: 'var(--text-3)', textAlign: 'center',
+              }}>{emptyLabel}</div>
+            ) : (
+              <div data-grab="" style={{ paddingTop: 'var(--space-15)', paddingRight: 'var(--space-1)' }}>
+                <NodeChain number={numberSteps && !!index} prefix={index} onReorder={onReorderNodes}>
+                  {kids}
+                </NodeChain>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

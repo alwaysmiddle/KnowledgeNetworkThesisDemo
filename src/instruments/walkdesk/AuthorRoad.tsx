@@ -45,17 +45,18 @@ const NODEH = 34
 // fit, but only up to these bounds so one long title can't balloon the board (#72)
 const NODE_MAXW = 220
 const NODE_MAXH = 66
-const LEAF_LINE_H = 13 // added height per wrapped title line past the first
-const CHAR_W = 6 // rough advance of the 10.5px semibold title, for wrap estimation
+const LEAF_LINE_H = 16 // added height per wrapped title line past the first (13px × ~1.2 lh)
+const CHAR_W = 8 // rough advance of the 13px (--fs-body) semibold Nunito title, for wrap estimation
 const LEAF_CHROME_W = 40 // outline number + horizontal padding around the title
 // the selection cue: an OUTLINE, not a ring — it survives the inline box-shadow
 // on pills/cards, and its offset sits OUTSIDE a node's thick coloured border, so
 // selection stays legible where a 1px ring was lost against the border (#72 #10)
-const SEL_OUTLINE = 'outline outline-2 outline-offset-1 outline-blue-500'
+const SEL_OUTLINE = 'outline outline-2 outline-offset-1 outline-[var(--state-selected)]'
 const AGAP = 26 // vertical space between siblings — the arrow lives here
 const PAD = 10
-const HEAD_TITLE = 24 // stage title + browser-bar row on an open card (0005 D-coupling)
-const HEAD_COMBO = 20 // version combobox row below the title (#70 design)
+const HEAD_TITLE = 28 // stage title + browser-bar row on an open card (0005 D-coupling)
+const HEAD_DESC = 20  // optional DescLine row — present only when description is set (#86)
+const HEAD_COMBO = 24 // version combobox row below the title (#70 design)
 const MARGIN = 16
 const EMPTY_BODY_H = 30 // drop zone height when the active version has no steps
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
@@ -79,8 +80,8 @@ const BAR_ROW_H = 26
 // inline as var(--…). Nothing to keep in sync by hand.
 const wellFill = (depth: number): string => `var(--surface-well-${Math.min(depth + 1, 4)})`
 
-/** the rows a container reserves above its body: title row + version combobox row (#70) */
-const headH = (): number => HEAD_TITLE + HEAD_COMBO
+/** the rows a container reserves above its body: title + DescLine + version combobox (#70 #86) */
+const headH = (): number => HEAD_TITLE + HEAD_DESC + HEAD_COMBO
 /** the y-offset from a card's top to where its single column of steps begins */
 const bodyTop = (): number => headH() + PAD
 
@@ -169,8 +170,8 @@ function layoutRoad(
     // minimum width so the card never collapses below its own header (#72 #3 / #70).
     const chosen = chosenIdx(s, choices)
     const label = s.variants[chosen]?.label || `v${chosen + 1}`
-    const stageTitleW = Math.min(300, (s.title?.length ?? 0) * CHAR_W + 70)
-    const comboW = Math.min(300, label.length * CHAR_W + 60)
+    const stageTitleW = Math.min(300, (s.title?.length ?? 0) * CHAR_W + 80)
+    const comboW = Math.min(300, label.length * CHAR_W + 70)
     const titleW = Math.max(stageTitleW, comboW)
     const innerW = Math.max(NODEW, body.w, titleW)
     return { w: innerW + 2 * PAD, h: bodyTop() + body.h + PAD, body }
@@ -255,8 +256,8 @@ function VersionMenu({
       data-vmenu={stop.key}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
-      className="absolute z-50 min-w-[140px] max-w-[240px] py-1 rounded-lg border border-slate-300 bg-white shadow-lg text-[10px]"
-      style={{ left: x, top: y }}
+      className="absolute z-50 min-w-[140px] max-w-[240px] py-1 rounded-lg border text-[var(--fs-caption)]"
+      style={{ left: x, top: y, borderColor: 'var(--border-rule)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-2)' }}
     >
       {stop.variants.map((vr, k) => {
         const active = k === chosen
@@ -264,18 +265,18 @@ function VersionMenu({
           <div
             key={k}
             data-vrow={`${stop.key}.${k}`}
-            className="group/vrow flex items-center gap-1 pl-1.5 pr-1 hover:bg-slate-100"
+            className="group/vrow flex items-center gap-1 pl-1.5 pr-1 hover:bg-[var(--surface-hover)]"
           >
-            {/* tick — GREEN, only on the selected version (issue #70: the tick
-                alone signifies selection, so the row need not also be highlighted) */}
-            <span className={['shrink-0 w-3 text-center text-green-600 leading-none', active ? '' : 'invisible'].join(' ')}>✔</span>
+            {/* tick — MOSS, only on the selected version (#70: tick alone = selection) */}
+            <span className={['shrink-0 w-3 text-center leading-none', active ? '' : 'invisible'].join(' ')} style={{ color: 'var(--accent-primary)' }}>✔</span>
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.stopPropagation()
                 onPick(k)
               }}
-              className={['flex-1 min-w-0 text-left truncate py-1', active ? 'font-bold text-green-700' : 'text-slate-600'].join(' ')}
+              className="flex-1 min-w-0 text-left truncate py-1"
+              style={active ? { fontWeight: 'var(--fw-bold)', color: 'var(--accent-primary-ink)' } : { color: 'var(--text-2)' }}
             >
               {vr.label || `v${k + 1}`}
             </button>
@@ -287,14 +288,15 @@ function VersionMenu({
                 onDelete(k)
               }}
               title="delete this version"
-              className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-[9px] leading-none text-rose-400 hover:text-rose-600 hover:bg-rose-100"
+              className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-[var(--fs-micro)] leading-none hover:bg-[var(--state-danger-wash)]"
+              style={{ color: 'var(--state-danger)' }}
             >
               ✕
             </button>
           </div>
         )
       })}
-      <div className="my-1 border-t border-slate-100" />
+      <div className="my-1 border-t border-[var(--border-hair)]" />
       {/* create a new version — italic, at the bottom of the list (#70 design) */}
       <button
         data-vcreate={stop.key}
@@ -303,7 +305,8 @@ function VersionMenu({
           e.stopPropagation()
           onCreate()
         }}
-        className="w-full flex items-center gap-1 px-2 py-1 italic text-slate-500 hover:bg-slate-100"
+        className="w-full flex items-center gap-1 px-2 py-1 italic hover:bg-[var(--surface-hover)]"
+        style={{ color: 'var(--text-3)' }}
       >
         + Create new version…
       </button>
@@ -340,6 +343,8 @@ export default function AuthorRoad({
   // which container's stage TITLE is open for inline editing — Row 1 of the open
   // card header (#86 single-click-for-all-fields).
   const [titleEditKey, setTitleEditKey] = useState<string | null>(null)
+  // which container's DESCRIPTION is open for editing — optional DescLine row (#86)
+  const [descEditKey, setDescEditKey] = useState<string | null>(null)
   // which container is showing the "cannot ungroup — N versions" refusal note (#86)
   const [refuseKey, setRefuseKey] = useState<string | null>(null)
   const refuseTimer = useRef<number | null>(null)
@@ -504,12 +509,7 @@ export default function AuthorRoad({
     const s = pl.stop
     const key = pathKey(pl.path)
     const count = kind === 'leaf' ? 0 : s.variants[chosenIdx(s, choices)]?.steps.length ?? 0
-    // #72 #6: the control glyphs were w-4 (16px) — bigger than the 14px counter
-    // beside them. Drop to w-3.5 so counter + minimise + ✕ read as one size row.
-    // #72 #7: the hover is per-button now — grey for minimise, ROSE for the ✕, so
-    // an ✕ hovers the same red whether it deletes a node, ungroups, or drops a
-    // version (was: container ✕ fell back to grey, inconsistent with the rest).
-    const ctl = 'shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-slate-400 transition-colors'
+    const ctl = 'shrink-0 grid place-items-center w-3.5 h-3.5 rounded transition-colors'
     return (
       <span
         data-browserbar={key}
@@ -523,7 +523,8 @@ export default function AuthorRoad({
           <span
             title={`${count} inside`}
             aria-label={`${count} items inside`}
-            className="shrink-0 grid place-items-center min-w-[15px] h-3.5 px-1 rounded-full border border-slate-300 text-slate-500 text-[8px] font-bold tabular-nums leading-none"
+            className="shrink-0 grid place-items-center min-w-[15px] h-3.5 px-1 rounded-full border text-[var(--fs-micro)] font-bold tabular-nums leading-none"
+            style={{ borderColor: 'var(--border-rule)', color: 'var(--text-3)' }}
           >
             {count}
           </span>
@@ -537,7 +538,8 @@ export default function AuthorRoad({
             }}
             title={kind === 'closed' ? 'maximise' : 'minimise'}
             aria-label={kind === 'closed' ? 'maximise' : 'minimise'}
-            className={[ctl, 'hover:bg-slate-200/80 hover:text-slate-700'].join(' ')}
+            className={[ctl, 'hover:bg-[var(--surface-hover)] hover:text-[var(--text-1)]'].join(' ')}
+            style={{ color: 'var(--text-3)' }}
           >
             {kind === 'closed' ? '▢' : '—'}
           </button>
@@ -552,7 +554,8 @@ export default function AuthorRoad({
           }}
           title={kind === 'leaf' ? 'delete this node' : 'ungroup — lift its steps out (use the toolbar ✕ Delete to remove the whole group)'}
           aria-label={kind === 'leaf' ? 'delete' : 'ungroup'}
-          className={[ctl, 'hover:bg-rose-100 hover:text-rose-600'].join(' ')}
+          className={[ctl, 'hover:bg-[var(--state-danger-wash)] hover:text-[var(--state-danger)]'].join(' ')}
+          style={{ color: 'var(--state-danger)' }}
         >
           ✕
         </button>
@@ -616,10 +619,10 @@ export default function AuthorRoad({
       <div
         data-fly
         data-seltools
-        className="sticky top-0 z-40 flex items-center gap-1 px-2 border-b border-slate-200 bg-white/95 backdrop-blur-sm"
-        style={{ minHeight: BAR_ROW_H + 8 }}
+        className="sticky top-0 z-40 flex items-center gap-1 px-2 border-b border-[var(--border-hair)] backdrop-blur-sm"
+        style={{ minHeight: BAR_ROW_H + 8, background: 'var(--surface-veil)' }}
       >
-        <span className="text-[10px] font-semibold text-blue-600 px-1 select-none tabular-nums">
+        <span className="text-[var(--fs-caption)] font-semibold px-1 select-none tabular-nums" style={{ color: 'var(--state-selected)' }}>
           {state.selected.size > 0 ? `${state.selected.size} selected` : 'no selection'}
         </span>
         <span className="relative flex" onMouseEnter={() => hintOn('group')} onMouseLeave={hintOff}>
@@ -628,61 +631,53 @@ export default function AuthorRoad({
             disabled={!state.canGroup}
             onClick={state.groupSelection}
             title="group into stage"
-            className="text-[11px] px-2 py-1 rounded border border-green-400 text-green-700 bg-green-50 disabled:opacity-30 hover:bg-green-100"
+            className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--accent-primary)] bg-[var(--accent-primary-wash)] disabled:opacity-30 hover:bg-[var(--moss-100)]"
+            style={{ color: 'var(--accent-primary-ink)' }}
           >
             ⊞ Group
           </button>
           {shortcutHint === 'group' && (
-            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 whitespace-nowrap rounded bg-slate-800 text-white text-[9px] font-semibold px-1.5 py-0.5 shadow pointer-events-none">
+            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 whitespace-nowrap rounded text-[var(--fs-micro)] font-semibold px-1.5 py-0.5 shadow pointer-events-none" style={{ background: 'var(--bark-800)', color: 'var(--text-inverse)' }}>
               G
             </span>
           )}
         </span>
-        {/* No Ungroup toolbar button: ungroup is the per-node ✕ now (it lifts a
-            container's active version out in place). The ⑂ Version button is also
-            gone — adding a version lives on the ⊕ namecard at the end of every
-            container's bottom bar, next to the version chips it grows. */}
         <button
           data-fly-opt
           disabled={!state.canOptional}
           aria-pressed={state.optionalActive}
           onClick={state.toggleOptionalSelection}
           title={state.optionalActive ? 'optional — click to make required' : 'toggle optional'}
-          className={[
-            'text-[11px] px-2 py-1 rounded border disabled:opacity-30',
-            // pressed when the whole selection is already optional — amber ties it
-            // to the optional/road convention (see the railroad's optionals toggle)
-            state.optionalActive
-              ? 'border-amber-400 text-amber-700 bg-amber-100 hover:bg-amber-200'
-              : 'border-slate-300 text-slate-600 bg-slate-50 hover:bg-slate-100',
-          ].join(' ')}
+          className="text-[var(--fs-body)] px-2 py-1 rounded border disabled:opacity-30"
+          style={state.optionalActive
+            ? { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
+            : { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-canopy)' }}
         >
           ◇ Optional
         </button>
-        {/* delete (#33) — direct, no popover: a container takes everything inside
-            it (undoable). The per-node ✕ is the keep-the-steps (ungroup) arm. */}
         <button
           data-fly-del
           disabled={!state.canDelete}
           onClick={state.deleteSelection}
           title="delete — a group takes everything inside it (undoable)"
-          className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 disabled:opacity-30 hover:bg-slate-100"
+          className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--border-rule)] disabled:opacity-30 hover:bg-[var(--surface-hover)]"
+          style={{ color: 'var(--text-2)' }}
         >
           ✕ Delete
         </button>
       </div>
 
       {state.stops.length === 0 ? (
-        <div className="text-[11px] text-slate-400 p-3">drop a node from the palette to start the plan</div>
+        <div className="text-[var(--fs-body)] p-3" style={{ color: 'var(--text-3)' }}>drop a node from the palette to start the plan</div>
       ) : (
         <div ref={boardRef} className="relative mx-auto my-2 select-none" style={{ width: W, height: H }}>
           <svg className="absolute inset-0 pointer-events-none z-10" width={W} height={H}>
             <defs>
               <marker id="wt-road-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706" />
+                <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--acorn-600)' }} />
               </marker>
               <marker id="wt-road-ghost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+                <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--text-3)' }} />
               </marker>
             </defs>
             {arrows.map((a, i) => (
@@ -693,7 +688,7 @@ export default function AuthorRoad({
                 y1={a.y1}
                 x2={a.x2}
                 y2={a.y2}
-                stroke={a.live ? '#d97706' : '#94a3b8'}
+                style={{ stroke: a.live ? 'var(--acorn-600)' : 'var(--text-3)' }}
                 strokeWidth={a.live ? 2.5 : 1.5}
                 strokeDasharray={a.optional ? '5 4' : a.live ? undefined : '4 3'}
                 markerEnd={a.live ? 'url(#wt-road-head)' : 'url(#wt-road-ghost)'}
@@ -718,12 +713,12 @@ export default function AuthorRoad({
                     data-node=""
                     data-runset={1}
                     className={[
-                      'absolute z-20 rounded-full border-2 border-dashed border-slate-300 bg-slate-50 px-2 flex items-center cursor-grab',
+                      'absolute z-20 rounded-full border-2 border-dashed px-2 flex items-center cursor-grab',
                       'transition-[left,top,width,height] duration-200 ease-out',
                       dim,
                       isSelected ? SEL_OUTLINE : '',
                     ].join(' ')}
-                    style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
+                    style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: 'var(--border-dashed)', background: 'var(--surface-canopy)' }}
                   >
                     <select
                       data-rpicknode={key}
@@ -733,7 +728,7 @@ export default function AuthorRoad({
                         e.stopPropagation()
                         if (e.target.value) state.bindNode(pl.path, e.target.value)
                       }}
-                      className="w-full bg-transparent text-[10px] text-slate-500 outline-none cursor-pointer"
+                      className="w-full bg-transparent text-[var(--fs-caption)] outline-none cursor-pointer" style={{ color: 'var(--text-3)' }}
                     >
                       <option value="">pick a node ▾</option>
                       {topicIds.map((id) => (
@@ -755,27 +750,22 @@ export default function AuthorRoad({
                   data-node={s.node}
                   data-ropt={s.optional ? 1 : undefined}
                   className={[
-                    // D1/D3 (0005): a leaf is the quietest thing on the road —
-                    // flat white, one 2px domain border, NEUTRAL ink. Domain now
-                    // lives in the border (and the rail dot) only; --domain-sec
-                    // #eda100 failed contrast as 10.5px text. It lifts (--lift-node,
-                    // ~shadow-md) only while grabbed; at rest it casts no shadow.
-                    'group absolute z-20 rounded-full border-2 bg-white px-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-700 cursor-grab active:shadow-md',
+                    'group absolute z-20 rounded-full border px-3 flex items-center gap-1.5 text-[var(--fs-body)] font-semibold cursor-grab',
                     'transition-[left,top,width,height] duration-200 ease-out',
-                    // an OPTIONAL stop now wears a DASHED border, superseding 0005's
-                    // D10 (which drew it exactly like any other): the user's call is
-                    // that optionality reads off the node's own edge plus the dashed
-                    // arrow leading into it — no separate bypass rail, no ◇ badge.
                     s.optional ? 'border-dashed' : '',
                     dim,
-                    isSelected ? SEL_OUTLINE : sync.lit(s.node) ? 'ring-2 ring-sky-300' : '',
+                    isSelected ? SEL_OUTLINE : '',
                   ].join(' ')}
-                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: color }}
+                  style={{
+                    left: pl.x, top: pl.y, width: pl.w, height: pl.h,
+                    borderWidth: 'var(--stroke-rule)',
+                    borderColor: color,
+                    color: 'var(--text-1)',
+                    background: 'var(--surface-raised)',
+                    boxShadow: !isSelected && sync.lit(s.node) ? 'var(--ring-linked)' : undefined,
+                  }}
                 >
-                  {/* #15: hierarchical outline number, left of the title with a
-                      trailing dot. Replaced the amber walk-order badge — the walk
-                      sequence lives in the right-pane preview now. */}
-                  <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
+                  <span data-rord={pl.outline} className="shrink-0 text-[var(--fs-micro)] font-bold tabular-nums" style={{ color: 'var(--text-3)' }}>
                     {pl.outline}.
                   </span>
                   {/* a leaf (unnested node) centres its title (#15). #72 #8: it
@@ -803,7 +793,7 @@ export default function AuthorRoad({
               // never steals the double-click — and they ride the same relayout
               // transition as the pill so the stack moves as one.
               const plate = 'absolute rounded-full border pointer-events-none transition-[left,top,width,height] duration-200 ease-out'
-              const plateStyle = { width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', zIndex: 20 }
+              const plateStyle = { width: pl.w, height: pl.h, background: 'var(--surface-raised)', borderColor: 'var(--border-well-strong)', zIndex: 20 }
               return [
                 <div key={`${key}-p2`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 5, top: pl.y + 5 }} />,
                 <div key={`${key}-p1`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 2.5, top: pl.y + 2.5 }} />,
@@ -817,29 +807,17 @@ export default function AuthorRoad({
                   }}
                   title="double-click to open"
                   className={[
-                    // neutral white, raised, a stronger neutral edge than an open
-                    // well's — depth + the stack say "group", not green.
-                    'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[10.5px] font-bold text-slate-700 cursor-grab',
-                    // hover-lift owns the transition (layout + the ~500ms scale/shadow):
-                    // a shut group is self-contained, so the scale is clean here.
-                    // #72 #2: gated to top-level so a nested shut group doesn't add
-                    // its own lift as the cursor sweeps across the parent.
+                    'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[var(--fs-body)] font-bold cursor-grab',
                     pl.path.length === 1 ? 'hover-lift' : '',
-                    // an optional container wears a DASHED edge too (see the leaf) —
-                    // border + inbound arrow are the optionality signal now.
                     s.optional ? 'border-dashed' : '',
                     dim,
-                    isSelected ? SEL_OUTLINE : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-green-500' : 'hover:bg-slate-50',
+                    isSelected ? SEL_OUTLINE : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-[var(--accent-primary)]' : 'hover:bg-[var(--surface-hover-raised)]',
                   ].join(' ')}
-                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: '#fff', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)' }}
+                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: 'var(--surface-raised)', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)', color: 'var(--text-1)' }}
                 >
-                  <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
+                  <span data-rord={pl.outline} className="shrink-0 text-[var(--fs-micro)] font-bold tabular-nums" style={{ color: 'var(--text-3)' }}>
                     {pl.outline}.
                   </span>
-                  {/* #15: a minimized node shows ONLY its number, title, and the
-                      hover browser bar (counter · maximise · close). The old
-                      inline "· vN" active-version label and the visitCount number
-                      were dropped — they read as clutter next to the counter. */}
                   <span className="truncate">{s.title}</span>
                   {browserBar(pl, 'closed', isSelected)}
                 </div>,
@@ -888,7 +866,7 @@ export default function AuthorRoad({
                 // recessed panel, superseding D1's "an open well casts nothing".
                 // hover-lift scales it to 1.05 on hover like every group node.
                 className={[
-                  'group absolute rounded-2xl border cursor-pointer',
+                  'group absolute z-[5] rounded-2xl border cursor-pointer',
                   // #72 #2: only a TOP-LEVEL card lifts; a nested one is part of its
                   // parent, so hovering into it no longer fires a second lift.
                   pl.path.length === 1 ? 'hover-lift' : '',
@@ -915,7 +893,7 @@ export default function AuthorRoad({
                 >
                   {/* Row 1: outline number + stage title + browser bar (#70, #86 single-click retitle) */}
                   <div className="flex items-center gap-1" style={{ height: HEAD_TITLE }}>
-                    <span data-rord={pl.outline} className="shrink-0 text-[9px] font-bold text-slate-400 tabular-nums">
+                    <span data-rord={pl.outline} className="shrink-0 text-[var(--fs-micro)] font-bold tabular-nums" style={{ color: 'var(--text-3)' }}>
                       {pl.outline}.
                     </span>
                     {titleEditKey === s.key ? (
@@ -930,7 +908,8 @@ export default function AuthorRoad({
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === 'Escape') setTitleEditKey(null)
                         }}
-                        className="flex-1 min-w-0 text-[10.5px] font-bold text-slate-700 bg-white border-b border-slate-400 outline-none px-0.5 rounded-sm placeholder:text-slate-400"
+                        className="flex-1 min-w-0 text-[var(--fs-body)] font-bold outline-none px-0.5 rounded-sm"
+                        style={{ color: 'var(--text-1)', background: 'var(--surface-raised)', borderBottom: '1px solid var(--border-strong)' }}
                       />
                     ) : (
                       <span
@@ -942,16 +921,50 @@ export default function AuthorRoad({
                           setTitleEditKey(s.key!)
                         }}
                         title="click to rename this stage"
-                        className="flex-1 min-w-0 truncate text-[10.5px] font-bold text-slate-700 cursor-text hover:text-slate-900"
+                        className="flex-1 min-w-0 truncate text-[var(--fs-body)] font-bold cursor-text"
+                        style={{ color: 'var(--text-1)' }}
                       >
                         {s.title}
                       </span>
                     )}
                     {browserBar(pl, 'open', isSelected || editing || titleEditKey === s.key)}
                   </div>
+                  {/* Row 1.5: DescLine — a short caption beneath the title, always present (#86).
+                      headH() accounts for HEAD_DESC so the body is pushed down correctly. */}
+                  <div style={{ height: HEAD_DESC }} className="flex items-center px-0.5">
+                    {descEditKey === s.key ? (
+                      <input
+                        data-rdesc={s.key}
+                        autoFocus
+                        value={s.description ?? ''}
+                        placeholder="describe this stage…"
+                        onChange={(e) => state.redesc(s.key!, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={() => setDescEditKey(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === 'Escape') setDescEditKey(null)
+                        }}
+                        className="flex-1 min-w-0 text-[var(--fs-caption)] outline-none px-0.5 rounded-sm"
+                        style={{ color: 'var(--text-2)', background: 'var(--surface-raised)', borderBottom: '1px solid var(--border-strong)' }}
+                      />
+                    ) : (
+                      <span
+                        data-rdesc={s.key}
+                        onClick={(e) => { e.stopPropagation(); setDescEditKey(s.key!) }}
+                        title="click to add a description"
+                        className={[
+                          'flex-1 min-w-0 truncate text-[var(--fs-caption)] cursor-text transition-opacity duration-100',
+                          s.description ? '' : 'opacity-0 group-hover:opacity-100',
+                        ].join(' ')}
+                        style={{ color: s.description ? 'var(--text-2)' : 'var(--text-3)' }}
+                      >
+                        {s.description || 'description…'}
+                      </span>
+                    )}
+                  </div>
                   {/* Row 2: version combobox — click label to rename, ▼ to switch (#70, #86) */}
                   <div data-vcombo={s.key} className="flex items-center gap-1" style={{ height: HEAD_COMBO }}>
-                    <span className="shrink-0 text-green-600 text-[11px] leading-none" aria-hidden>
+                    <span className="shrink-0 text-[var(--fs-body)] leading-none" style={{ color: 'var(--accent-primary)' }} aria-hidden>
                       ✔
                     </span>
                     {editing ? (
@@ -967,7 +980,8 @@ export default function AuthorRoad({
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === 'Escape') setEditKey(null)
                         }}
-                        className="flex-1 min-w-0 text-[10.5px] font-bold text-slate-700 bg-white border-b border-slate-400 outline-none px-0.5 rounded-sm placeholder:text-slate-400"
+                        className="flex-1 min-w-0 text-[var(--fs-body)] font-bold outline-none px-0.5 rounded-sm"
+                        style={{ color: 'var(--text-1)', background: 'var(--surface-raised)', borderBottom: '1px solid var(--border-strong)' }}
                       />
                     ) : (
                       <span
@@ -979,7 +993,8 @@ export default function AuthorRoad({
                           setEditKey(s.key!)
                         }}
                         title="click to rename this version"
-                        className="flex-1 min-w-0 truncate text-[10.5px] font-bold text-slate-700 cursor-text hover:text-slate-900"
+                        className="flex-1 min-w-0 truncate text-[var(--fs-body)] font-bold cursor-text"
+                        style={{ color: 'var(--text-1)' }}
                       >
                         {label}
                       </span>
@@ -996,7 +1011,8 @@ export default function AuthorRoad({
                       title="show all versions"
                       aria-label="show all versions"
                       aria-expanded={menuOpen}
-                      className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 text-[8px] leading-none"
+                      className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-[var(--fs-micro)] leading-none hover:bg-[var(--surface-hover)] hover:text-[var(--text-1)]"
+                      style={{ color: 'var(--text-3)' }}
                     >
                       ▼
                     </button>
@@ -1017,8 +1033,8 @@ export default function AuthorRoad({
                       setMark(null)
                       handleDrop(e, [...pl.path, chosen, 0], state)
                     }}
-                    className="absolute z-30 rounded-lg border-2 border-dashed border-slate-300 bg-white/60 flex items-center justify-center text-[9.5px] text-slate-400"
-                    style={{ left: bodyLeft, top: bodyTop(), width: body.w, height: EMPTY_BODY_H }}
+                    className="absolute z-30 rounded-lg border-2 border-dashed flex items-center justify-center text-[var(--fs-micro)]"
+                    style={{ left: bodyLeft, top: bodyTop(), width: body.w, height: EMPTY_BODY_H, borderColor: 'var(--border-dashed)', background: 'var(--surface-veil)', color: 'var(--text-3)' }}
                   >
                     drop steps here
                   </div>
@@ -1049,7 +1065,7 @@ export default function AuthorRoad({
               style={{ left: sl.x, top: sl.y - SLOTH / 2, width: sl.w, height: SLOTH }}
             >
               {hotSlot === i && (
-                <div data-rmark className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded bg-amber-500 pointer-events-none" />
+                <div data-rmark className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded pointer-events-none" style={{ background: 'var(--acorn-500)' }} />
               )}
             </div>
           ))}
@@ -1062,8 +1078,8 @@ export default function AuthorRoad({
                 <div
                   key="mark"
                   data-rmark
-                  className="absolute z-30 h-[3px] rounded bg-amber-500 pointer-events-none"
-                  style={{ left: pl.x, top: mark.band === 'before' ? pl.y - 6 : pl.y + pl.h + 3, width: pl.w }}
+                  className="absolute z-30 h-[3px] rounded pointer-events-none"
+                  style={{ left: pl.x, top: mark.band === 'before' ? pl.y - 6 : pl.y + pl.h + 3, width: pl.w, background: 'var(--acorn-500)' }}
                 />
               ))}
 
@@ -1071,12 +1087,14 @@ export default function AuthorRoad({
           {marquee && (
             <div
               data-marquee
-              className="absolute z-40 border border-blue-400 bg-blue-400/10 pointer-events-none"
+              className="absolute z-40 border pointer-events-none"
               style={{
                 left: Math.min(marquee.x0, marquee.x1),
                 top: Math.min(marquee.y0, marquee.y1),
                 width: Math.abs(marquee.x1 - marquee.x0),
                 height: Math.abs(marquee.y1 - marquee.y0),
+                borderColor: 'var(--state-selected)',
+                background: 'var(--state-selected-wash)',
               }}
             />
           )}
@@ -1085,8 +1103,8 @@ export default function AuthorRoad({
           {selBox && (
             <div
               data-selbox
-              className="absolute z-30 rounded-lg border border-blue-400 pointer-events-none transition-all duration-200 ease-out"
-              style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h }}
+              className="absolute z-30 rounded-lg border pointer-events-none transition-all duration-200 ease-out"
+              style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h, borderColor: 'var(--state-selected)' }}
             />
           )}
 
@@ -1126,10 +1144,10 @@ export default function AuthorRoad({
               return (
                 <div
                   data-varconfirm
-                  className="absolute z-50 flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-300 bg-white shadow-lg text-[10px]"
-                  style={{ left: Math.max(4, Math.min(card.x, W - 200)), top: card.y + bodyTop() + 2 }}
+                  className="absolute z-50 flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[var(--fs-caption)]"
+                  style={{ left: Math.max(4, Math.min(card.x, W - 200)), top: card.y + bodyTop() + 2, borderColor: 'var(--border-rule)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-2)' }}
                 >
-                  <span className="text-slate-600">
+                  <span style={{ color: 'var(--text-2)' }}>
                     Delete version + {confirmVar.n} step{confirmVar.n > 1 ? 's' : ''}?
                   </span>
                   <button
@@ -1138,14 +1156,16 @@ export default function AuthorRoad({
                       state.dropVariant(confirmVar.path, confirmVar.idx)
                       setConfirmVar(null)
                     }}
-                    className="px-1.5 py-0.5 rounded text-white bg-rose-600 hover:bg-rose-700"
+                    className="px-1.5 py-0.5 rounded"
+                    style={{ color: 'var(--text-inverse)', background: 'var(--state-danger)' }}
                   >
                     Delete
                   </button>
                   <button
                     data-varconfirm-no
                     onClick={() => setConfirmVar(null)}
-                    className="px-1.5 py-0.5 rounded text-slate-600 hover:bg-slate-100"
+                    className="px-1.5 py-0.5 rounded hover:bg-[var(--surface-hover)]"
+                    style={{ color: 'var(--text-2)' }}
                   >
                     Cancel
                   </button>
@@ -1163,8 +1183,8 @@ export default function AuthorRoad({
               return (
                 <div
                   data-varrefuse
-                  className="absolute z-50 px-2 py-1.5 rounded-lg border border-slate-200 bg-white shadow-md text-[10px] text-slate-600 max-w-[220px]"
-                  style={{ left: Math.max(4, Math.min(card.x, W - 224)), top: card.y + headH() + 4 }}
+                  className="absolute z-50 px-2 py-1.5 rounded-lg border text-[var(--fs-caption)] max-w-[220px]"
+                  style={{ left: Math.max(4, Math.min(card.x, W - 224)), top: card.y + headH() + 4, borderColor: 'var(--border-hair)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-1)', color: 'var(--text-2)' }}
                 >
                   cannot ungroup — {n} versions live here; delete all but one first
                 </div>
