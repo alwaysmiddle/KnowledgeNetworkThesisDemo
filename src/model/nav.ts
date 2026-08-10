@@ -7,7 +7,7 @@
 import { byId, childrenOf, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 
-export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk' | 'graph' | 'nav'
+export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk' | 'graph' | 'nav' | 'desk'
 
 /** Fixed edge-type order, derived once from graph.ts's own declaration order
  * so the plex's rings and the knowledge panel's grouped list always agree. */

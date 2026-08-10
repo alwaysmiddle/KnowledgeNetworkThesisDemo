@@ -23,6 +23,7 @@ const VIA_TAG: Record<TrailVia, string> = {
   walk: 'WLK',
   graph: 'GPH',
   nav: 'NAV',
+  desk: 'DSK',
 }
 
 export default function TrailStrip({ bus }: { bus: Bus }) {

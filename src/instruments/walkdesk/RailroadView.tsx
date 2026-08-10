@@ -22,11 +22,11 @@
 // singleton is the right shape. Everything downstream still receives
 // resolveRoad()'s linear walk; publishing it on bus.route is #14.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import AuthorRoad from './AuthorRoad'
 import { parsePath, redoDraft, stopAt, undoDraft, useAuthorDraft, useRoad } from './authordraft'
-import { chosenIdx, isFork, resolveRoad } from './mockwalk'
+import { chosenIdx, isFork, leafIds, resolveRoad } from './mockwalk'
 import WalkPreview from './WalkPreview'
 import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
@@ -64,7 +64,18 @@ export default function RailroadView({ bus }: { bus: Bus }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const resolved = resolveRoad(state.stops, choices, withOptionals)
+  const resolved = useMemo(
+    () => resolveRoad(state.stops, choices, withOptionals),
+    [state.stops, choices, withOptionals],
+  )
+
+  // publish the desk's resolved walk on the bus route so the Map and
+  // Connections instruments can highlight it (#14). bus.setRoute/clearRoute are
+  // recreated each render, so we key the effect on the data sources directly.
+  useEffect(() => {
+    bus.setRoute(leafIds(resolved))
+    return () => bus.clearRoute()
+  }, [state.stops, choices, withOptionals]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // #70 retired the drag-a-version-tab-out gesture that used to feed
   // extractVariant. Until it finds a real home in the UI, the Toolbox carries
@@ -148,6 +159,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             choices={choices}
             pickBranch={pickBranch}
             withOptionals={withOptionals}
+            onLeafFocus={(id) => bus.setFocus(id, 'desk')}
           />
         </div>
 

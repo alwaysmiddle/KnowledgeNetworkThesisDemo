@@ -320,12 +320,14 @@ export default function AuthorRoad({
   choices,
   pickBranch,
   withOptionals,
+  onLeafFocus,
 }: {
   state: AuthorState
   sync: HoverBinding
   choices: Record<string, number>
   pickBranch(key: string, idx: number): void
   withOptionals: boolean
+  onLeafFocus?: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [mark, setMark] = useState<Mark>(null)
@@ -461,11 +463,15 @@ export default function AuthorRoad({
     setShortcutHint(null)
   }
 
-  /** Plain click selects one block; Shift/Ctrl/Cmd toggles membership. */
+  /** Plain click selects one block; Shift/Ctrl/Cmd toggles membership.
+   * A plain click on a leaf also drives the doc pane (#14). */
   const selectOn = (pl: Placed) => (e: ReactMouseEvent) => {
     e.stopPropagation()
     if (e.shiftKey || e.ctrlKey || e.metaKey) state.toggleSelect(pl.path)
-    else state.selectPaths([pl.path])
+    else {
+      state.selectPaths([pl.path])
+      if (isLeaf(pl.stop) && onLeafFocus) onLeafFocus(pl.stop.node)
+    }
   }
 
   /** the block gestures every node shares — leaf pill, card header, closed pill */
