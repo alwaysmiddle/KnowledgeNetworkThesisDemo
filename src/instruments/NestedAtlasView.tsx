@@ -411,6 +411,29 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
     }
   }
 
+  // ── ROUTE PATH (#26) — ordered walk positions for the current map level ──────
+  // For each stop in bus.route, roll up to the visible ancestor at `level` using
+  // the same pathTo(id)[level + 1] idiom the match pins use. `seen` tracks the
+  // 1-based step of each stop's first appearance so revisits can be distinguished
+  // from primary visits and drawn with a ↺ badge instead of a numbered circle.
+  const routeVis = useMemo(() => {
+    if (bus.route.length === 0) return []
+    const seen = new Map<string, number>() // visId → 1-based step of first occurrence
+    const out: Array<{ visId: string; c: XY; step: number; revisit: boolean }> = []
+    for (let i = 0; i < bus.route.length; i++) {
+      const id = bus.route[i]
+      const visId = pathTo(id)[level + 1]
+      if (!visId) continue
+      const ft = flightTargetOf(visId)
+      if (!ft || ft.tier !== level) continue
+      const step = i + 1
+      const revisit = seen.has(visId)
+      if (!revisit) seen.set(visId, step)
+      out.push({ visId, c: ft.c, step, revisit })
+    }
+    return out
+  }, [bus.route, level])
+
   // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
   // zoom — so a name's line breaks are decided once per level, not per frame
   const labelFit = useMemo(() => {
@@ -878,6 +901,60 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
                   </text>
                 </g>
               ))}
+            </g>
+          )}
+
+          {/* ── ROUTE PATH (#26): the walk's resolved order drawn over the territory.
+              White-cased amber polyline connects stops in sequence; step-number
+              circles match the road's badges. Deep stops roll up to their visible
+              ancestor at the current level. Revisits draw a ↺ badge near the
+              original circle rather than a second dot. pointer-events none so the
+              path never intercepts clicks meant for the cell fills below. ──── */}
+          {routeVis.length > 0 && (
+            <g data-routepath data-step-count={bus.route.length} pointerEvents="none">
+              {(() => {
+                // collapse consecutive entries at the same position — the polyline
+                // should not stutter on stops that share a visible ancestor
+                const pts: XY[] = []
+                let prev: string | null = null
+                for (const s of routeVis) {
+                  if (s.visId !== prev) { pts.push(s.c); prev = s.visId }
+                }
+                if (pts.length < 2) return null
+                const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+                return (
+                  <>
+                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(3.5)} strokeOpacity={0.85} strokeLinejoin="round" strokeLinecap="round" />
+                    <path d={d} fill="none" stroke="#f59e0b" strokeWidth={px(2)} strokeOpacity={0.92} strokeLinejoin="round" strokeLinecap="round" />
+                  </>
+                )
+              })()}
+              {routeVis.map((s, idx) => {
+                if (s.revisit) {
+                  // offset the ↺ badge away from the primary circle in the
+                  // direction the walk arrived from — or diagonally if that
+                  // direction is zero (adjacent collapse to the same ancestor)
+                  const prev = idx > 0 ? routeVis[idx - 1] : null
+                  const dx = prev ? s.c.x - prev.c.x : 0
+                  const dy = prev ? s.c.y - prev.c.y : 0
+                  const len = Math.hypot(dx, dy) || 1
+                  const scale = px(18)
+                  const ox = dx !== 0 || dy !== 0 ? (dx / len) * scale : scale
+                  const oy = dx !== 0 || dy !== 0 ? (dy / len) * scale : -scale
+                  return (
+                    <g key={`rv-${s.visId}-${idx}`} transform={`translate(${s.c.x + ox} ${s.c.y + oy})`}>
+                      <circle r={px(7.5)} fill="#fffbeb" stroke="#f59e0b" strokeWidth={px(1.5)} strokeDasharray={`${px(3)} ${px(1.5)}`} />
+                      <text textAnchor="middle" y={px(3)} fontSize={px(8.5)} fontWeight={700} fill="#d97706" style={{ userSelect: 'none' }}>↺{s.step}</text>
+                    </g>
+                  )
+                }
+                return (
+                  <g key={`rs-${s.visId}-${idx}`} data-routestop={s.visId} data-step={s.step} transform={`translate(${s.c.x} ${s.c.y})`}>
+                    <circle r={px(10)} fill="#ffffff" stroke="#f59e0b" strokeWidth={px(2.2)} />
+                    <text textAnchor="middle" y={px(3.5)} fontSize={px(10.5)} fontWeight={800} fill="#d97706" style={{ userSelect: 'none' }}>{s.step}</text>
+                  </g>
+                )
+              })}
             </g>
           )}
 
