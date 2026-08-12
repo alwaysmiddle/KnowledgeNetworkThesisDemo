@@ -1,0 +1,237 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   KnowledgeNetwork Design System — TAILWIND THEME (v4, CSS-first)
+   Generated from the design system project. DO NOT EDIT BY HAND.
+
+   This file is the *utility surface*: it turns every token into a real Tailwind
+   class so no rule in the app ever needs an arbitrary value again.
+   `bg-canopy`, `text-ink-2`, `rounded-lg`, `shadow-lift-1`, `text-body`,
+   `font-display`, `border-hair`, `ease-soft` — all generated from here.
+
+   Values are restated as literals rather than `var()` references on purpose:
+   Tailwind v4's `@theme` namespaces (--color-*, --font-*, --text-*, --radius-*,
+   --shadow-*, --ease-*) collide by name with several of the design system's own
+   token names, and a var pointing at itself is circular. Both this file and
+   kn-tokens.css are generated from the same source in the same pass, so they
+   cannot drift — but that also means neither is safe to hand-edit.
+
+   Load order in the app's entry CSS:
+       @import "tailwindcss";
+       @import "./kn/kn-tokens.css";      <- runtime vars: var(--moss-500) etc
+       @import "./kn/kn-theme.css";       <- this file: the utility surface
+       @import "./kn/kn-base.css";        <- element defaults, scrollbars
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* ══ Fonts ═══════════════════════════════════════════════════════════════ */
+  --font-display: "Quicksand", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ══ Type scale — the P.Kt ramp. This is what new work uses. ═══════════════ */
+  --text-micro: 11px;        /* step numbers, via tags, glyph marks */
+  --text-caption: 12px;      /* eyebrows, meta lines, section labels */
+  --text-body: 13px;         /* THE workhorse: rows, chips, buttons */
+  --text-title: 15px;        /* pane titles, card titles */
+  --text-head: 18px;         /* document title */
+  --text-display: 28px;      /* screen headline */
+  --text-display-lg: 44px;   /* the one big number / the brand line */
+
+  /* as-built sizes the app renders TODAY. Present so the migration is a
+     find-and-replace, not a guess — they are not a target. Anything a person
+     reads rather than glances at should end up at text-body or larger. */
+  --text-ab-micro: 9px;
+  --text-ab-meta: 9.5px;
+  --text-ab-caption: 10px;
+  --text-ab-label: 10.5px;
+  --text-ab-body: 11px;
+  --text-ab-pane: 12px;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+
+  --tracking-display: -0.015em;
+  /* every all-caps string carries tracking-caps; eyebrow is its alias */
+  --tracking-caps: 0.12em;
+  --tracking-eyebrow: var(--tracking-caps);
+
+  /* ══ Colour · chrome ramps ════════════════════════════════════════════════ */
+  --color-bark-50: #faf8f4;
+  --color-bark-100: #f2eee6;
+  --color-bark-200: #e6e0d4;
+  --color-bark-300: #d3cabb;
+  --color-bark-400: #b0a693;
+  --color-bark-500: #8a8071;
+  --color-bark-600: #6b6255;
+  --color-bark-700: #4e483e;
+  --color-bark-800: #35312a;
+  --color-bark-900: #23201b;
+
+  --color-moss-50: #f0f5ee;
+  --color-moss-100: #dfe9da;
+  --color-moss-200: #c2d6ba;
+  --color-moss-300: #9dbd93;
+  --color-moss-400: #74a068;
+  --color-moss-500: #558148;
+  --color-moss-600: #416838;
+  --color-moss-700: #33512d;
+  --color-moss-800: #263c22;
+
+  --color-acorn-50: #fbf4e8;
+  --color-acorn-100: #f5e6cb;
+  --color-acorn-200: #eccfa0;
+  --color-acorn-300: #ddb26e;
+  --color-acorn-400: #cb9441;
+  --color-acorn-500: #b47a2b;
+  --color-acorn-600: #94611f;
+
+  --color-pond-50: #eef3f7;
+  --color-pond-100: #dae7ef;
+  --color-pond-200: #bcd3e3;
+  --color-pond-300: #99bcd5;
+  --color-pond-400: #6f9dbd;
+  --color-pond-500: #4f80a2;
+  --color-pond-600: #3d6884;
+
+  --color-berry-50: #fbf0ee;
+  --color-berry-100: #f5dcd8;
+  --color-berry-500: #b4574a;
+  --color-berry-600: #99453a;
+
+  /* ══ Colour · data · domain identity ══════════════════════════════════════
+     A colour here is a claim about what a node IS. Never use a domain hue as
+     chrome, and never use a chrome accent to mean a domain. */
+  --color-domain-sys: #4a8a3c;
+  --color-domain-math: #6b5ca8;
+  --color-domain-cs: #3f7bb0;
+  --color-domain-net: #3d9199;
+  --color-domain-sec: #c08a2e;
+  --color-domain-se: #4aa583;
+
+  /* the raw authored hex from src/corpus/graph.ts — only for pixel-matching
+     the current build. New work uses the naturalised values above. */
+  --color-domain-sys-raw: #008300;
+  --color-domain-math-raw: #4a3aa7;
+  --color-domain-cs-raw: #2a78d6;
+  --color-domain-net-raw: #0891b2;
+  --color-domain-sec-raw: #eda100;
+  --color-domain-se-raw: #1baf7a;
+
+  /* ══ Colour · data · edge kinds ═══════════════════════════════════════════ */
+  --color-edge-depends-on: #ada291;
+  --color-edge-uses: #cf7043;
+  --color-edge-see-also: #c37fa0;
+  --color-edge-implemented-with: #b0524a;
+  --color-edge-mixed: #8a8071;
+
+  --color-edge-depends-on-raw: #94a3b8;
+  --color-edge-uses-raw: #eb6834;
+  --color-edge-see-also-raw: #e87ba4;
+  --color-edge-implemented-with-raw: #e34948;
+  --color-edge-mixed-raw: #64748b;
+
+  /* ══ Colour · surfaces ════════════════════════════════════════════════════
+     Containment reads as depth: canopy is the desk, paper is a pane, raised is
+     a card or node, sunken is a well. */
+  --color-canopy: #f2eee6;
+  --color-paper: #fdfcfa;
+  --color-raised: #ffffff;
+  --color-sunken: #eae4d9;
+  --color-sunken-2: #e2dbcd;
+  --color-hover: rgba(53, 49, 42, 0.04);
+  --color-hover-raised: #faf8f4;   /* a wash can't tint white — swap the face */
+  --color-press: rgba(53, 49, 42, 0.07);
+  --color-veil: rgba(253, 252, 250, 0.72);
+
+  /* ══ Colour · borders ═════════════════════════════════════════════════════ */
+  --color-hair: rgba(53, 49, 42, 0.17);    /* divisions inside a pane */
+  --color-rule: rgba(53, 49, 42, 0.25);    /* pane and card edges */
+  --color-frame: #b0a693;                  /* a pane's own frame */
+  --color-border-strong: rgba(53, 49, 42, 0.28);
+  --color-border-dashed: #d3cabb;          /* dashed ALWAYS means conditional */
+
+  /* ══ Colour · ink ═════════════════════════════════════════════════════════ */
+  --color-ink-1: #35312a;
+  --color-ink-2: #4e483e;
+  --color-ink-3: #8a8071;
+  --color-ink-inverse: #fdfcfa;
+  --color-ink-accent: #33512d;
+  --color-ink-walk: #94611f;
+
+  /* ══ Colour · state ═══════════════════════════════════════════════════════ */
+  --color-primary: #558148;
+  --color-primary-ink: #33512d;
+  --color-primary-wash: #f0f5ee;
+  --color-walk: #b47a2b;
+  --color-walk-wash: #fbf4e8;
+  --color-selected: #4f80a2;
+  --color-selected-wash: #eef3f7;
+  --color-linked: #99bcd5;         /* cross-pane hover correspondence only */
+  --color-danger: #b4574a;
+  --color-danger-wash: #fbf0ee;
+  --color-optional: #ddb26e;
+
+  /* ══ Radii — the brand is ROUND. Nothing in a P.Kt UI is square. ══════════ */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* ══ Spacing — 4px grid plus a 6px half-step ══════════════════════════════
+     The default Tailwind scale already covers 4/8/12/16/20/24/32/40/48
+     (p-1 … p-12). These two add the off-grid steps the round shapes need. */
+  --spacing-05: 2px;
+  --spacing-15: 6px;
+
+  /* ══ Elevation — shadows are WARM, cast in bark, never blue-grey ══════════ */
+  --shadow-lift-1: 0 1px 2px rgba(53, 49, 42, 0.06), 0 4px 10px -6px rgba(53, 49, 42, 0.18);
+  --shadow-lift-2: 0 1px 2px rgba(53, 49, 42, 0.07), 0 10px 20px -12px rgba(53, 49, 42, 0.28);
+  --shadow-lift-3: 0 2px 4px rgba(53, 49, 42, 0.08), 0 20px 36px -16px rgba(53, 49, 42, 0.34);
+  --shadow-lift-drag: 0 3px 6px rgba(53, 49, 42, 0.10), 0 26px 44px -18px rgba(53, 49, 42, 0.40);
+
+  --inset-shadow-sink-1: inset 0 1px 3px rgba(53, 49, 42, 0.10), inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  --inset-shadow-sink-2: inset 0 2px 5px rgba(53, 49, 42, 0.13), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+
+  /* rings — one ring per meaning, never stacked. A ring over an element's own
+     lift is not stacking; that combination is correct for `lit`. */
+  --shadow-ring-selected: 0 0 0 2px #4f80a2;
+  --shadow-ring-linked: 0 0 0 1.5px #99bcd5;
+  --shadow-ring-primary: 0 0 0 2px #558148;
+  --shadow-ring-walk: 0 0 0 2px #b47a2b;
+  --shadow-ring-danger: 0 0 0 2px #b4574a;
+  --shadow-ring-focus: 0 0 0 3px rgba(79, 128, 162, 0.32);
+
+  /* ══ Motion — a relayout should be legible, not a teleport. ═══════════════
+     Nothing bounces, nothing springs, nothing overshoots. Never animate colour. */
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --animate-drill-down: drill-down 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --animate-drill-up: drill-up 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --animate-drill-left: drill-left 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --animate-drill-right: drill-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Durations are NOT in a Tailwind theme namespace that generates utilities
+   reliably across v4 minors, so reference the token directly:
+       duration-[var(--dur-tap)]        90ms   press feedback
+       duration-[var(--dur-hover)]     140ms   washes, borders, shadows
+       duration-[var(--dur-trace)]     180ms   edge traces
+       duration-[var(--dur-move)]      200ms   a block changing position
+       duration-[var(--dur-fade)]      250ms
+       duration-[var(--dur-enter)]     280ms   something arriving
+       duration-[var(--dur-relayout)]  300ms   nodes visibly making room
+
+   Layout constants are likewise token references, not utilities — they are
+   measurements, not a scale:
+       w-[var(--sidebar-w)]  h-[var(--pane-header-h)]  w-[var(--rail-w)]
+       w-[var(--road-node-w)]  gap-[var(--road-gap)]
+   The --road-* values are LIVE layout constants shared with
+   src/instruments/walkdesk/AuthorRoad.tsx. Change one here, change it there. */

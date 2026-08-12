@@ -17,6 +17,22 @@
 @import "./tokens/typography.css";
 @import "./tokens/motion.css";
 @import "./tokens/fonts.css";
+/* The DS's Tailwind utility surface (#93). This is NOT a token definition file:
+   the five files above declare the :root vars the app consumes as var(--…), and
+   this turns the same values into real utility classes (bg-canopy, text-ink-2,
+   shadow-lift-1, text-body, font-display, border-hair, ease-soft) so new work
+   stops reaching for arbitrary values.
+
+   It is ADDITIVE as installed. The radii it declares are the ones the app is
+   already on: spacing.css sets --radius-* on :root AFTER `@import "tailwindcss"`,
+   so rounded-lg has resolved to 20px (not Tailwind's 8px) since the token closure
+   landed in #64 slice 5. Verified in the browser, not assumed — rounded-sm 10px,
+   rounded-md 14px, rounded-lg 20px, both before and after this import. So there
+   is no radius change to brace for here; that one already happened.
+
+   #96's Studio shell is deliberately NOT adopted with this — the app frame and
+   left rail stay slate for now. */
+@import "./tokens/kn-theme.css";
 @import "./tokens/base.css";
 
 /* ── Containment-grammar surfaces ────────────────────────────────────────────

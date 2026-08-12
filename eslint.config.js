@@ -38,6 +38,17 @@ export default defineConfig([
     },
   },
 
+  // Spike harness entry points (tools/*-spike/**) mount a throwaway page for one
+  // driver to photograph, so the components they declare live in the entry file
+  // by design — there is nothing to import them. react-refresh's rule is about
+  // HMR in the app; these pages are screenshotted and thrown away.
+  {
+    files: ['tools/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+
   // #61 — DS-adherence ratchet. The Design System is the source of truth for
   // style; app code consumes its tokens as var(--…), never raw values. These
   // bans are the machine enforcement of that rule, authored as native ESLint

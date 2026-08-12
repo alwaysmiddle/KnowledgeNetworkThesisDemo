@@ -19,7 +19,7 @@
 
   /* rings — one ring per meaning, never stacked */
   --ring-selected: 0 0 0 2px var(--state-selected);
-  --ring-linked: 0 0 0 2px var(--state-linked);
+  --ring-linked: 0 0 0 1.5px var(--state-linked);  /* softest ring — correspondence, not commitment */
   --ring-primary: 0 0 0 2px var(--accent-primary);
   --ring-walk: 0 0 0 2px var(--accent-walk);
   --ring-danger: 0 0 0 2px var(--state-danger);
