@@ -94,6 +94,25 @@ function Case({ label, note, children }: { label: string; note: string; children
 
 const versions = [{ id: '0', name: 'just the handshake', label: 'v1' }]
 
+/** CALIBRATION for the road's foldSize() estimator.
+ *
+ *  layoutRoad places every box before anything renders, so hosting the folded
+ *  component means PREDICTING its height — the same problem headRows() solved for
+ *  the open card's head, and solved the same way: measure the real thing across a
+ *  spread of titles, then fit a line to it. Deriving it from the CSS is not good
+ *  enough here, because the head row is `alignItems: baseline` and its height is
+ *  set by baseline alignment rather than by the tallest child.
+ *
+ *  Each row renders at the road's own width with `narrow`, which is the
+ *  configuration the road hosts. The driver reads these boxes back. */
+const CALIBRATE = [
+  'IP',
+  'DNS & Naming',
+  'Secure the channel',
+  'Authentication & Authorization',
+  'Everything the browser does before the first byte comes back',
+]
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <div style={{ padding: 28, display: 'flex', gap: 30, alignItems: 'flex-start', background: 'var(--surface-canopy)', minHeight: '100vh' }}>
@@ -114,6 +133,19 @@ createRoot(document.getElementById('root')!).render(
           versions={versions} activeId="0" resizable={false} movable={false} narrow
           width={NODEW} foldedMinWidth={NODEW} />
       </Case>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 210 }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>calibrate</div>
+        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-2)', minHeight: 48 }}>
+          The folded box at the road's own width, over a spread of title lengths — what foldSize() has to predict.
+        </div>
+        {CALIBRATE.map((t, i) => (
+          <div key={i} data-cal={i} data-cal-title={t}>
+            <VersionedGroup folded title={t} index={String(i + 1)} count={i + 1} countLabel="steps"
+              versions={versions} activeId="0" resizable={false} movable={false} narrow
+              width={NODEW} foldedMinWidth={NODEW} />
+          </div>
+        ))}
+      </div>
     </div>
   </StrictMode>,
 )
