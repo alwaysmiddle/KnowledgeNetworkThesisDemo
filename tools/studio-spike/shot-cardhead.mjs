@@ -117,6 +117,60 @@ await page.waitForTimeout(250)
 await page.screenshot({ path: `${OUT}/cardhead-04-hover.png` })
 console.log('cardhead-04-hover.png taken (DescLine placeholder + controls on hover)')
 
+// ── the CLOSED card — the folded drawing, in context (#91) ─────────────────
+// The open card's head is settled; the closed card is the open question. A road
+// stop that is a folded CONTAINER has to read as "several stops, put away" and
+// not as one leaf pill, and the only place that can be judged is here, among
+// the leaves it sits between. These shots are the evidence on #91 for whether
+// the DS's own folded drawing can replace this one.
+await page.locator('[data-rstage="seed-sec"]').hover({ position: { x: 60, y: 12 } })
+await page.waitForTimeout(150)
+await page.locator('[data-rstage="seed-sec"] [aria-label="minimise"]').click()
+await page.waitForTimeout(400)
+const shut = page.locator('[data-rstage-closed="seed-sec"]')
+if (!(await shut.isVisible())) fail('minimise did not produce a closed pill for seed-sec')
+await page.screenshot({ path: `${OUT}/cardhead-05-closed-board.png` })
+console.log('cardhead-05-closed-board.png taken (seed-sec folded, among the leaf stops)')
+
+// the fold and its two peek plates, cropped — the plates are siblings of the
+// pill, not children, so the clip is taken off the board with a margin
+const pillBox = await shut.boundingBox()
+await page.screenshot({
+  path: `${OUT}/cardhead-06-closed-crop.png`,
+  clip: { x: pillBox.x - 42, y: pillBox.y - 34, width: pillBox.width + 84, height: pillBox.height + 68 },
+})
+console.log('cardhead-06-closed-crop.png taken (the fold close up — pill + peek plates)')
+
+// the plates must stay decorative: two of them, aria-hidden, and untouchable, so
+// the peeking corner can never swallow the double-click that reopens the card
+const plates = await page.evaluate(() => {
+  const pill = document.querySelector('[data-rstage-closed="seed-sec"]')
+  if (!pill) return null
+  const near = [...pill.parentElement.children].filter(
+    (el) => el !== pill && el.getAttribute('aria-hidden') === 'true' && el.style.pointerEvents !== '',
+  )
+  const decorative = [...pill.parentElement.children].filter((el) => {
+    if (el === pill || el.getAttribute('aria-hidden') !== 'true') return false
+    const r = el.getBoundingClientRect(), p = pill.getBoundingClientRect()
+    return Math.abs(r.width - p.width) < 2 && r.left > p.left - 1 && r.left < p.left + 12
+  })
+  return {
+    count: decorative.length,
+    inert: decorative.every((el) => getComputedStyle(el).pointerEvents === 'none'),
+    offsets: decorative.map((el) => Math.round(el.getBoundingClientRect().left - pill.getBoundingClientRect().left)),
+    unused: near.length,
+  }
+})
+console.log('peek plates =', JSON.stringify(plates), '(expect count 2, inert true, offsets [5,2] or [2,5])')
+if (!plates || plates.count !== 2) fail(`expected 2 decorative peek plates behind the fold (ADR-0005 D2), got ${plates && plates.count}`)
+else if (!plates.inert) fail('a peek plate is not pointer-events:none — its corner can steal the double-click that reopens the card')
+
+// double-click the pill reopens it — the gesture the plates must not block
+await shut.dblclick()
+await page.waitForTimeout(400)
+if (!(await page.locator('[data-rstage="seed-sec"]').isVisible())) fail('double-clicking the closed pill did not reopen the card')
+console.log('closed pill reopens on double-click')
+
 await browser.close()
 vite.kill()
 if (errors.length) {
