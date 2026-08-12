@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 import { caretStyle } from '../nav/TreeRow'
 import { bulletStyle } from '../sidebar/InstrumentRow'
@@ -36,6 +37,27 @@ export interface VersionedGroupProps {
   movable?: boolean
   onMove?: (offset: { x: number; y: number }) => void
   onResize?: (size: { width: number | null; height: number | null }) => void
+  /** CONTROLLED SIZE, read like `folded`: omit and the group keeps whatever the
+   *  user dragged it to; pass these and the caller's numbers win. The drag itself
+   *  always runs on own state and `onResize` reports on pointer-up; at rest the
+   *  prop is authoritative. `null` on an axis hands it back to automatic */
+  width?: number | null
+  bodyHeight?: number | null
+  /** CONTROLLED POSITION, pairing with `onMove` on the same terms as `width` */
+  offset?: { x: number; y: number } | null
+  /** the tally drops to its own line below ~250px. Left undefined the group
+   *  measures itself; pass this and the ResizeObserver is never installed */
+  narrow?: boolean
+  /** where to render the version menu. **Defaults to `document.body`** — the shell
+   *  is position:relative + z-index:1 (the folded peek stacks behind it), so every
+   *  group is a stacking context and an in-card listbox can never paint over
+   *  anything outside its own card. Rendered out, the list is fixed and measured
+   *  from the picker's rect: it opens where you clicked, matches the picker's
+   *  width, and flips above when the viewport has no room below. Pass another node
+   *  to send it elsewhere (it must be outside any transformed ancestor, or fixed
+   *  resolves against that ancestor rather than the viewport); pass `null` for the
+   *  old in-card behaviour, correct only when the group is topmost on screen */
+  menuPortal?: Element | null
   description?: string
   emptyLabel?: string
   descPlaceholder?: string
@@ -115,7 +137,11 @@ function IconButton({ label, glyph, size = 12, onClick, reachable = true }: {
   )
 }
 
-function checkStyle(): CSSProperties {
+/** The tick, drawn rather than set — two strokes of a rotated corner. Exported
+ *  for the same reason caretStyle is: the Railroad's container head is this same
+ *  version picker laid out by its own engine, and the system draws a tick one
+ *  way. (Upstream still keeps it private — see the drift log.) */
+export function checkStyle(): CSSProperties {
   return {
     width: 9, height: 5, boxSizing: 'border-box',
     borderLeft: '1.75px solid currentColor', borderBottom: '1.75px solid currentColor',
@@ -277,6 +303,7 @@ export function VersionedGroup({
   onReorderNodes,
   maxWidth = 300, bodyMaxHeight = 260, menuMaxHeight = 240, foldedMinWidth = 190,
   resizable = true, minWidth = 200, resizeMaxWidth = 680, minBodyHeight = 72, onResize,
+  width, bodyHeight, offset, narrow, menuPortal,
   movable = true, onMove, onDeleteVersion, ungroupBlockedLabel, confirmDelete = true,
   onRetitle, onDescribe, onSelect, onRename, onAddVersion, onToggleFold, onClose, children,
 }: VersionedGroupProps) {
@@ -284,31 +311,48 @@ export function VersionedGroup({
   const [editing, setEditing] = useState<'title' | 'version' | null>(null)
   const [ownFold, setOwnFold] = useState(defaultFolded)
   const [hot, setHot] = useState<string | null>(null)
-  const [size, setSize] = useState<{ w: number | null; h: number | null } | null>(null)
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [ownSize, setOwnSize] = useState<{ w: number | null; h: number | null } | null>(null)
+  const [ownPos, setOwnPos] = useState<{ x: number; y: number } | null>(null)
   const [carrying, setCarrying] = useState(false)
+  const [sizing, setSizing] = useState(false)
   const shell = useRef<HTMLDivElement | null>(null)
   const body = useRef<HTMLDivElement | null>(null)
+  const pickerRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [anchor, setAnchor] = useState<{ left: number; width: number; up: boolean; top?: number; bottom?: number } | null>(null)
   const [live, setLive] = useState(false)
-  const [narrow, setNarrow] = useState(false)
+  const [ownNarrow, setOwnNarrow] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
 
   const isFolded = folded === undefined ? ownFold : folded
+  /* CONTROLLED POSITION AND SIZE, read exactly like `folded` above: no prop, own
+     state; prop, the caller's number. The DRAG always runs on own state — routing
+     every pointermove out to a caller and back is what makes a controlled drag
+     lag — so `carrying` and `sizing` hand the gesture back to the component for
+     its duration. At rest the prop is authoritative: a caller that ignores the
+     pointer-up report gets the snap-back a controlled input gives. */
+  const at = offset === undefined || carrying ? ownPos : offset
+  const curW = width === undefined || sizing ? (ownSize && ownSize.w) || null : width
+  const curH = bodyHeight === undefined || sizing ? (ownSize && ownSize.h) || null : bodyHeight
+  const isNarrow = narrow === undefined ? ownNarrow : narrow
   const active = versions.find((v) => v.id === activeId) || versions[0] || { id: null as unknown as string, name: 'untitled' }
   const kids = React.Children.toArray(children).filter(React.isValidElement) as React.ReactElement[]
   const tally = count === undefined ? kids.length : count
 
   useEffect(() => {
     const el = shell.current
+    /* told, never measured: a caller that predicts this head's height before it
+       renders cannot also be waiting on it to measure itself */
+    if (narrow !== undefined) return
     if (!el || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver((entries) => {
       const box = entries[0] && entries[0].contentRect
-      if (box) setNarrow(box.width < 250)
+      if (box) setOwnNarrow(box.width < 250)
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [narrow])
 
   useEffect(() => {
     const el = shell.current
@@ -328,7 +372,13 @@ export function VersionedGroup({
 
   useEffect(() => {
     if (!open) return
-    const away = (e: MouseEvent) => { if (shell.current && !shell.current.contains(e.target as Node)) { setOpen(false); setConfirming(null) } }
+    const away = (e: MouseEvent) => {
+      if (shell.current && shell.current.contains(e.target as Node)) return
+      /* a portaled menu is not inside the shell, so the shell test alone would
+         close it on mousedown and unmount the row before its click landed */
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return
+      setOpen(false); setConfirming(null)
+    }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); setConfirming(null) } }
     document.addEventListener('mousedown', away)
     document.addEventListener('keydown', key)
@@ -359,25 +409,86 @@ export function VersionedGroup({
 
   const stop = (e: React.MouseEvent) => e.stopPropagation()
 
+  /* THE MENU LEAVES THE CARD BY DEFAULT. The shell below is position:relative +
+     z-index:1 — a stacking context — so the in-card listbox's z-index only ranks
+     against the group's own children: it can never paint over anything outside the
+     card. Two groups near each other slice an open menu; no board, no z-index and
+     no drag transform are needed, and spacing the cards apart does not help, since
+     what overlaps the neighbour is the MENU hanging menuMaxHeight below the card's
+     own edge. No number fixes it from in here, because the trap is a context rather
+     than a value.
+
+     So the list renders into document.body unless told otherwise. A DEFAULT rather
+     than a prop to remember, because the bug is in every layout this component has
+     ever been rendered in — an opt-in would leave every existing call site broken. */
+  const portalTarget = menuPortal === null ? null
+    : menuPortal || (typeof document !== 'undefined' ? document.body : null)
+  useEffect(() => {
+    if (!open || !portalTarget) return
+    const place = () => {
+      const el = pickerRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const room = window.innerHeight - r.bottom - 8
+      const cap = typeof menuMaxHeight === 'number' ? menuMaxHeight : 240
+      /* flip above the picker when the list would run off the bottom — in the card
+         the well's own scroll absorbed that, and at viewport level nothing does */
+      const up = room < Math.min(cap, 160) && r.top > room
+      const next = {
+        left: Math.round(r.left), width: Math.round(r.width), up,
+        top: up ? undefined : Math.round(r.bottom + 3),
+        bottom: up ? Math.round(window.innerHeight - r.top + 3) : undefined,
+      }
+      /* same rect, same object: place() runs from an observer and from three event
+         sources, and a fresh object every time would re-render on every scroll tick */
+      setAnchor((prev) => (prev && prev.left === next.left && prev.width === next.width
+        && prev.top === next.top && prev.bottom === next.bottom && prev.up === next.up) ? prev : next)
+    }
+    place()
+    /* the first measurement lands while the card is still sizing — the group's own
+       width is settling in the same commit that opens the menu — so it is taken
+       again after paint. Without this the menu opens ~16px wide of the picker and
+       stays there until something incidentally re-measures it. */
+    const raf = requestAnimationFrame(place)
+    /* and the picker keeps moving after that: this group resizes and is carried
+       around, both of which change the rect with no scroll and no window resize */
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null
+    if (ro && pickerRef.current) ro.observe(pickerRef.current)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      cancelAnimationFrame(raf)
+      if (ro) ro.disconnect()
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open, portalTarget, menuMaxHeight, at, curW, curH, isNarrow])
+  const portaled = !!(portalTarget && anchor)
+
   const startDrag = (axis: 'x' | 'y' | 'both') => (e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation()
     const box = shell.current && shell.current.getBoundingClientRect()
     if (!box) return
     const bodyBox = body.current && body.current.getBoundingClientRect()
-    const from = { x: e.clientX, y: e.clientY, w: box.width, h: (size && size.h) || (bodyBox && Math.round(bodyBox.height)) || (bodyMaxHeight as number) }
+    const from = { x: e.clientX, y: e.clientY, w: box.width, h: curH || (bodyBox && Math.round(bodyBox.height)) || (bodyMaxHeight as number) }
     const node = e.currentTarget as HTMLElement
-    let last = { w: (size && size.w) || Math.round(box.width), h: from.h }
+    let last = { w: curW || Math.round(box.width), h: from.h }
+    /* seed own state from what is on screen NOW, so a controlled group does not
+       flash back to automatic between pointerdown and the first move */
+    setSizing(true)
+    setOwnSize(last)
     try { node.setPointerCapture(e.pointerId) } catch { /* older pointer impls */ }
     const move = (ev: PointerEvent) => {
       const w = axis === 'y' ? last.w : Math.round(Math.max(minWidth, Math.min(resizeMaxWidth, from.w + (ev.clientX - from.x))))
       const h = axis === 'x' ? last.h : Math.round(Math.max(minBodyHeight, from.h + (ev.clientY - from.y)))
       last = { w, h }
-      setSize(last)
+      setOwnSize(last)
     }
     const up = () => {
       node.removeEventListener('pointermove', move)
       node.removeEventListener('pointerup', up)
       node.removeEventListener('pointercancel', up)
+      setSizing(false)
       if (onResize) onResize({ width: last.w, height: last.h })
     }
     node.addEventListener('pointermove', move)
@@ -387,13 +498,10 @@ export function VersionedGroup({
 
   const resetAxis = (axis: 'x' | 'y' | 'both') => (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation()
-    setSize((s) => {
-      if (!s) return null
-      const next = { w: axis === 'y' ? s.w : null, h: axis === 'x' ? s.h : null }
-      const cleared = !next.w && !next.h ? null : next
-      if (onResize) onResize({ width: next.w, height: next.h })
-      return cleared
-    })
+    if (!curW && !curH) return
+    const next = { w: axis === 'y' ? curW : null, h: axis === 'x' ? curH : null }
+    setOwnSize(!next.w && !next.h ? null : next)
+    if (onResize) onResize({ width: next.w, height: next.h })
   }
 
   const startMove = (e: React.PointerEvent) => {
@@ -401,14 +509,14 @@ export function VersionedGroup({
     const el = e.target as HTMLElement
     if (!(el && el.hasAttribute && el.hasAttribute('data-grab'))) return
     e.preventDefault()
-    const from = { x: e.clientX, y: e.clientY, ox: (pos && pos.x) || 0, oy: (pos && pos.y) || 0 }
+    const from = { x: e.clientX, y: e.clientY, ox: (at && at.x) || 0, oy: (at && at.y) || 0 }
     const node = e.currentTarget as HTMLElement
     let last = { x: from.ox, y: from.oy }
     setCarrying(true)
     try { node.setPointerCapture(e.pointerId) } catch { /* older pointer impls */ }
     const move = (ev: PointerEvent) => {
       last = { x: Math.round(from.ox + (ev.clientX - from.x)), y: Math.round(from.oy + (ev.clientY - from.y)) }
-      setPos(last)
+      setOwnPos(last)
     }
     const up = () => {
       node.removeEventListener('pointermove', move)
@@ -466,7 +574,7 @@ export function VersionedGroup({
         </span>
       )}
       <span style={{ flex: 1 }} />
-      {narrow ? null : tallyLine}
+      {isNarrow ? null : tallyLine}
       <span style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, height: 18, alignSelf: 'flex-start', marginTop: -1 }}>
         <span style={{
           display: 'flex', alignItems: 'center', gap: 1,
@@ -480,9 +588,47 @@ export function VersionedGroup({
     </div>
   )
 
+  const menuList = (
+    <div role="listbox" ref={menuRef} style={{
+      /* the menu is exactly as wide as the picker it hangs off. In-card it is
+         absolutely positioned against the picker row; portaled it is fixed at the
+         picker's own rect, above every card (zIndex 60), flipping up when the
+         viewport runs out below. */
+      ...(portaled && anchor ? {
+        position: 'fixed' as const, left: anchor.left, width: anchor.width,
+        top: anchor.up ? undefined : anchor.top, bottom: anchor.up ? anchor.bottom : undefined,
+        zIndex: 60,
+      } : {
+        position: 'absolute' as const, top: 'calc(100% + 3px)', left: 0, right: 0, zIndex: 30,
+      }),
+      maxHeight: menuMaxHeight, overflowY: 'auto', overflowX: 'hidden',
+      /* the width is the picker's own, so the padding and border have to come out of
+         it rather than sit outside it — in the card `left:0; right:0` resolved against
+         the containing block and box-sizing never came into it */
+      boxSizing: 'border-box',
+      padding: 'var(--space-1)', borderRadius: 'var(--radius-md)',
+      background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', boxShadow: 'var(--lift-2)',
+    }}>
+      {versions.map((v) => (
+        <VersionRow key={v.id} version={v} on={v.id === active.id}
+          onPick={() => { setOpen(false); if (onSelect) onSelect(v.id) }}
+          confirming={confirming === v.id}
+          onCancel={() => setConfirming(null)}
+          onDelete={onDeleteVersion && versions.length > 1 ? () => {
+            if (confirmDelete && confirming !== v.id) { setConfirming(v.id); return }
+            setConfirming(null)
+            onDeleteVersion(v.id)
+          } : undefined} />
+      ))}
+      <div style={{ height: 1, background: 'var(--border-hair)', margin: '4px 6px' }} />
+      <AddRow label={addLabel} onClick={() => { setOpen(false); if (onAddVersion) onAddVersion(); setEditing('version') }} />
+    </div>
+  )
+
   const picker = (
     <div style={{ position: 'relative' }}>
       <div
+        ref={pickerRef}
         role="button" tabIndex={0}
         onClick={() => { if (!editing) setOpen((o) => !o) }}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o) } }}
@@ -521,40 +667,19 @@ export function VersionedGroup({
           <span style={caretStyle(open)} />
         </span>
       </div>
-      {open ? (
-        <div role="listbox" style={{
-          position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, zIndex: 30,
-          maxHeight: menuMaxHeight, overflowY: 'auto', overflowX: 'hidden',
-          padding: 'var(--space-1)', borderRadius: 'var(--radius-md)',
-          background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', boxShadow: 'var(--lift-2)',
-        }}>
-          {versions.map((v) => (
-            <VersionRow key={v.id} version={v} on={v.id === active.id}
-              onPick={() => { setOpen(false); if (onSelect) onSelect(v.id) }}
-              confirming={confirming === v.id}
-              onCancel={() => setConfirming(null)}
-              onDelete={onDeleteVersion && versions.length > 1 ? () => {
-                if (confirmDelete && confirming !== v.id) { setConfirming(v.id); return }
-                setConfirming(null)
-                onDeleteVersion(v.id)
-              } : undefined} />
-          ))}
-          <div style={{ height: 1, background: 'var(--border-hair)', margin: '4px 6px' }} />
-          <AddRow label={addLabel} onClick={() => { setOpen(false); if (onAddVersion) onAddVersion(); setEditing('version') }} />
-        </div>
-      ) : null}
+      {open ? (portalTarget ? createPortal(menuList, portalTarget) : menuList) : null}
     </div>
   )
 
   return (
     <div ref={shell} style={{
       position: 'relative',
-      width: size && size.w ? size.w : undefined,
-      maxWidth: size && size.w ? undefined : maxWidth,
+      width: curW || undefined,
+      maxWidth: curW ? undefined : maxWidth,
       minWidth: isFolded ? foldedMinWidth : undefined,
       paddingRight: isFolded ? 6 : undefined,
       paddingBottom: isFolded ? 7 : undefined,
-      transform: pos ? 'translate(' + pos.x + 'px, ' + pos.y + 'px)' : undefined,
+      transform: at ? 'translate(' + at.x + 'px, ' + at.y + 'px)' : undefined,
       zIndex: carrying ? 40 : undefined,
     }}>
       {isFolded ? (
@@ -584,7 +709,7 @@ export function VersionedGroup({
         {isFolded || !resizable ? null : edge('bottom')}
         {isFolded || !resizable ? null : edge('corner')}
         <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{headRow}</div>
-        {narrow ? <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{tallyLine}</div> : null}
+        {isNarrow ? <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{tallyLine}</div> : null}
         {isFolded ? null : (
           <DescLine text={description} placeholder={descPlaceholder}
             onCommit={onDescribe ? (v) => onDescribe(v) : undefined} />
@@ -594,12 +719,12 @@ export function VersionedGroup({
           <div ref={body} data-grab="" style={{
             marginLeft: 13, paddingLeft: 10, borderLeft: '1.5px solid var(--bark-300)',
             display: 'flex', flexDirection: 'column',
-            ...(size && size.h ? { height: size.h, minHeight: 0 } : { maxHeight: bodyMaxHeight }),
+            ...(curH ? { height: curH, minHeight: 0 } : { maxHeight: bodyMaxHeight }),
             overflowY: 'auto', overflowX: 'hidden',
           }}>
             {kids.length === 0 ? (
               <div data-grab="" style={{
-                flex: size && size.h ? 1 : '0 0 auto', minHeight: 0,
+                flex: curH ? 1 : '0 0 auto', minHeight: 0,
                 marginTop: 'var(--space-15)', marginRight: 'var(--space-1)',
                 display: 'grid', placeItems: 'center',
                 padding: '11px 12px', borderRadius: 'var(--radius-md)',
