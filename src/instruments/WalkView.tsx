@@ -13,7 +13,10 @@
 
 import { useEffect, useRef } from 'react'
 
-import { byId, domainIds, domainOf, DOMAIN_COLOR, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import { byId, domainIds, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
+import { DomainDot } from '../ds/graph/DomainDot'
+import { DOMAIN_TOKEN } from '../ds/graph/vocab'
+import { domainCodeOf } from '../model/domaincode'
 import type { Bus } from '../studio/bus'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, HUB_IDS } from '../model/flat'
@@ -82,7 +85,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
                 key={id}
                 onClick={() => setRoute([id])}
                 className="px-2.5 py-1 rounded-lg border-2 text-[12px] font-semibold bg-white hover:bg-amber-50"
-                style={{ borderColor: DOMAIN_COLOR[domainOf(id)], color: DOMAIN_COLOR[domainOf(id)] }}
+                style={{ borderColor: DOMAIN_TOKEN[domainCodeOf(id)], color: DOMAIN_TOKEN[domainCodeOf(id)] }}
               >
                 {byId.get(id)!.title}
                 <span className="text-slate-400 font-normal ml-1.5">{degreeOf.get(id)} links</span>
@@ -93,7 +96,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
           <div className="grid grid-cols-6 gap-4">
             {domainIds.map((d) => (
               <div key={d}>
-                <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_COLOR[d] }}>
+                <div className="text-[11px] font-bold mb-1.5" style={{ color: DOMAIN_TOKEN[domainCodeOf(d)] }}>
                   {byId.get(d)!.title}
                 </div>
                 <div className="flex flex-col gap-1">
@@ -146,8 +149,11 @@ export default function WalkView({ bus }: { bus: Bus }) {
                   ].join(' ')}
                 >
                   <div className="text-[10px] font-bold text-amber-600">step {i + 1}</div>
-                  <div className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: DOMAIN_COLOR[domainOf(stepId)] }}>
-                    <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: DOMAIN_COLOR[domainOf(stepId)] }} />
+                  {/* #97: the dot is the DS DomainDot now. Its ink moves with it —
+                      a muted dot beside a saturated title reads as a bug, not as
+                      two decisions. Both are DOMAIN_TOKEN. */}
+                  <div className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: DOMAIN_TOKEN[domainCodeOf(stepId)] }}>
+                    <DomainDot domain={domainCodeOf(stepId)} size={8} />
                     {byId.get(stepId)!.title}
                   </div>
                 </button>
@@ -172,7 +178,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
                         ].join(' ')}
                       >
                         {typeChips(c.types)}
-                        <span className="truncate" style={{ color: DOMAIN_COLOR[domainOf(c.target)] }}>
+                        <span className="truncate" style={{ color: DOMAIN_TOKEN[domainCodeOf(c.target)] }}>
                           {byId.get(c.target)!.title}
                         </span>
                         <span className="flex-1" />

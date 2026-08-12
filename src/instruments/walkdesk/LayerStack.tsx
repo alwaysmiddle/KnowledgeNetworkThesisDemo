@@ -6,7 +6,9 @@
 // It reads the RESOLVED road like every presentation view: forks never
 // reach it, skipped optionals are already gone.
 
-import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
+import { byId } from '../../corpus/graph'
+import { DomainDot } from '../../ds/graph/DomainDot'
+import { domainCodeOf } from '../../model/domaincode'
 import { columnsFor } from './columns'
 import { isBox, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
@@ -101,9 +103,16 @@ export default function LayerStack({
                     {...sync.bind(s.node)}
                     onClick={() => pick(t, s)}
                     title={byId.get(s.node)!.title}
-                    className={['absolute w-3 h-3 rounded-full border-2 border-white', sync.lit(s.node) ? 'ring-2 ring-sky-400 scale-150' : ''].join(' ')}
-                    style={{ left, top: 51, background: DOMAIN_COLOR[domainOf(s.node)] }}
-                  />
+                    className={['absolute grid place-items-center', sync.lit(s.node) ? 'ring-2 ring-sky-400 rounded-full scale-150' : ''].join(' ')}
+                    style={{ left, top: 51 }}
+                  >
+                    {/* #97: was a 12px button whose own `border-2 border-white`
+                        made the paper halo by eating 4px of the dot. DomainDot
+                        draws that halo OUTSIDE as a box-shadow ring, so an 8px
+                        dot + 2px ring comes to the same 12px — same footprint on
+                        the plane, one less place that knows how a domain looks. */}
+                    <DomainDot domain={domainCodeOf(s.node)} size={8} ring />
+                  </button>
                 )
               })}
             </div>
