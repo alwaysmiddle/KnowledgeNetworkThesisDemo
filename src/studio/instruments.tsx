@@ -17,6 +17,7 @@ import { EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { EDGE_TYPES } from '../model/nav'
 import type { Bus } from './bus'
+import type { Family } from './families'
 
 import ChildrenPanel from '../instruments/ChildrenPanel'
 import ContourView from '../instruments/ContourView'
@@ -38,6 +39,10 @@ import WalkView from '../instruments/WalkView'
 export interface Instrument {
   id: string
   label: string
+  /** which family the sidebar files it under. The palette groups by this, so
+   * every instrument must name one — a new view without a family would silently
+   * vanish from the list rather than land in a catch-all. */
+  family: Family
   /** columns flow left to right; strips pin to the bottom of the stack */
   slot: 'column' | 'strip'
   /** default flex weight (a preset may override it); { fixed } pins a pixel
@@ -65,12 +70,14 @@ const VIEWS = [
   {
     id: 'nested',
     label: 'Map',
+    family: 'maps',
     slot: 'column',
     render: (bus) => <NestedAtlasView bus={bus} />,
   },
   {
     id: 'walk',
     label: 'Walk',
+    family: 'walks',
     slot: 'strip',
     height: 240,
     render: (bus) => <WalkView bus={bus} />,
@@ -82,6 +89,7 @@ const VIEWS = [
     // its supply. Nothing was lost in the split — every job it did is a pane.
     id: 'palette',
     label: 'Walk·Palette',
+    family: 'walks',
     slot: 'column',
     // a search pane hugs its content: empty, it is just the box; searching, it
     // grows to a capped, scrollable list. Either way the document below it takes
@@ -95,6 +103,7 @@ const VIEWS = [
     // with the palette through authordraft.ts's stores.
     id: 'railroad',
     label: 'Railroad',
+    family: 'walks',
     slot: 'column',
     render: (bus) => <RailroadView bus={bus} />,
   },
@@ -104,6 +113,7 @@ const VIEWS = [
     // — see walkdesk/presented.ts, and #14 for the wire.
     id: 'walkcolumns',
     label: 'Walk·Columns',
+    family: 'walks',
     slot: 'column',
     render: (bus) => <WalkColumnsView bus={bus} />,
   },
@@ -113,6 +123,7 @@ const VIEWS = [
     // would only add empty board (LayerStack.STACK_W).
     id: 'walkstack',
     label: 'Walk·Stack',
+    family: 'walks',
     slot: 'column',
     flex: { fixed: 372 },
     render: (bus) => <WalkStackView bus={bus} />,
@@ -120,30 +131,35 @@ const VIEWS = [
   {
     id: 'unfold',
     label: 'Unfold',
+    family: 'maps',
     slot: 'column',
     render: () => <UnfoldView />,
   },
   {
     id: 'unfoldg',
     label: 'Unfold·Graph',
+    family: 'maps',
     slot: 'column',
     render: (bus) => <UnfoldGraphView bus={bus} />,
   },
   {
     id: 'contours',
     label: 'Contours',
+    family: 'maps',
     slot: 'column',
     render: () => <ContourView />,
   },
   {
     id: 'evoc',
     label: 'EVoC',
+    family: 'maps',
     slot: 'column',
     render: () => <EvocView />,
   },
   {
     id: 'tree',
     label: 'Tree',
+    family: 'reading',
     slot: 'column',
     flex: { fixed: 240 },
     render: (bus) => <TreePanel bus={bus} />,
@@ -151,6 +167,7 @@ const VIEWS = [
   {
     id: 'children',
     label: 'Connections',
+    family: 'reading',
     slot: 'column',
     render: (bus) => (
       <div className="h-full overflow-hidden bg-white">
@@ -161,12 +178,14 @@ const VIEWS = [
   {
     id: 'doc',
     label: 'Document',
+    family: 'reading',
     slot: 'column',
     render: (bus) => <KnowledgePanel bus={bus} />,
   },
   {
     id: 'plex',
     label: 'Plex',
+    family: 'reading',
     slot: 'column',
     render: (bus) => (
       <div className="h-full overflow-auto bg-white px-2 py-1">
@@ -177,6 +196,7 @@ const VIEWS = [
   {
     id: 'trail',
     label: 'Trail',
+    family: 'walks',
     slot: 'strip',
     render: (bus) => <TrailStrip bus={bus} />,
   },
@@ -191,7 +211,11 @@ const VIEWS = [
 // means it lands in InstrumentId for free too.
 const LENSES: Instrument[] = EDGE_TYPES.map((t) => ({
   id: `lens-${t}`,
-  label: `Lens: ${EDGE_LABEL[t]}`,
+  // the "Lens: " prefix retired with #97: the family heading above these rows
+  // already says `lenses`, so the prefix was the group's name repeated four
+  // times, eating the label column that FamilyColumn sizes.
+  label: EDGE_LABEL[t],
+  family: 'lenses',
   slot: 'column',
   render: (bus: Bus) => <LensPane bus={bus} type={t} />,
 }))
