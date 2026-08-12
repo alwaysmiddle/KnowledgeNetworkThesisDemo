@@ -139,31 +139,64 @@ await page.screenshot({
   path: `${OUT}/cardhead-06-closed-crop.png`,
   clip: { x: pillBox.x - 42, y: pillBox.y - 34, width: pillBox.width + 84, height: pillBox.height + 68 },
 })
-console.log('cardhead-06-closed-crop.png taken (the fold close up — pill + peek plates)')
+console.log('cardhead-06-closed-crop.png taken (the fold close up — the hosted DS card)')
 
-// the plates must stay decorative: two of them, aria-hidden, and untouchable, so
-// the peeking corner can never swallow the double-click that reopens the card
-const plates = await page.evaluate(() => {
-  const pill = document.querySelector('[data-rstage-closed="seed-sec"]')
-  if (!pill) return null
-  const near = [...pill.parentElement.children].filter(
-    (el) => el !== pill && el.getAttribute('aria-hidden') === 'true' && el.style.pointerEvents !== '',
-  )
-  const decorative = [...pill.parentElement.children].filter((el) => {
-    if (el === pill || el.getAttribute('aria-hidden') !== 'true') return false
-    const r = el.getBoundingClientRect(), p = pill.getBoundingClientRect()
-    return Math.abs(r.width - p.width) < 2 && r.left > p.left - 1 && r.left < p.left + 12
-  })
+// ── the reservation, which is the whole risk of hosting the component ──────
+// Since #91 the closed card IS the DS VersionedGroup, folded. layoutRoad still
+// places it before it renders, so foldSize() has to predict its height — and an
+// under-reservation is the one failure that matters, because the steps below a
+// fold are board-level siblings positioned from the reserved number, not flowed
+// after it. Reserved must be >= rendered, and close enough that the slack is not
+// a visible gap.
+const reservation = await page.evaluate(() => {
+  const card = document.querySelector('[data-rstage-closed="seed-sec"]')
+  if (!card) return null
+  const group = card.firstElementChild
   return {
-    count: decorative.length,
-    inert: decorative.every((el) => getComputedStyle(el).pointerEvents === 'none'),
-    offsets: decorative.map((el) => Math.round(el.getBoundingClientRect().left - pill.getBoundingClientRect().left)),
-    unused: near.length,
+    reserved: Math.round(parseFloat(card.style.height) * 100) / 100,
+    rendered: group ? Math.round(group.getBoundingClientRect().height * 100) / 100 : null,
+    width: Math.round(card.getBoundingClientRect().width),
+    hostsComponent: !!(group && group.querySelector('[data-grab]')),
   }
 })
-console.log('peek plates =', JSON.stringify(plates), '(expect count 2, inert true, offsets [5,2] or [2,5])')
-if (!plates || plates.count !== 2) fail(`expected 2 decorative peek plates behind the fold (ADR-0005 D2), got ${plates && plates.count}`)
-else if (!plates.inert) fail('a peek plate is not pointer-events:none — its corner can steal the double-click that reopens the card')
+console.log('closed-card reservation =', JSON.stringify(reservation))
+if (!reservation || !reservation.hostsComponent) fail('the closed card is not hosting the DS VersionedGroup')
+else if (reservation.rendered > reservation.reserved) fail(`foldSize() UNDER-reserved: reserved ${reservation.reserved}px, the folded card rendered ${reservation.rendered}px — the steps below it will be overlapped`)
+else if (reservation.reserved - reservation.rendered > 2) fail(`foldSize() over-reserved by ${(reservation.reserved - reservation.rendered).toFixed(2)}px — a visible gap under the fold`)
+
+// The fold's own plate — the DS's single well-tinted silhouette, which replaced
+// the road's two peek plates when the component was hosted (#91).
+//
+// The road's plates carried `pointer-events: none` because they were BOARD-LEVEL
+// SIBLINGS of the pill: an event landing on one would never bubble to the card,
+// so the peeking corner really could swallow the double-click. The DS's plate is
+// a CHILD of the card, so bubbling covers it and the guard is unnecessary — do
+// not assert pointer-events here, assert the thing the guard was protecting.
+const plate = await page.evaluate(() => {
+  const card = document.querySelector('[data-rstage-closed="seed-sec"]')
+  const shell = card && card.firstElementChild
+  if (!shell) return null
+  const hidden = [...shell.children].filter((el) => el.getAttribute('aria-hidden') === 'true')
+  return { count: hidden.length }
+})
+console.log('fold plate =', JSON.stringify(plate), '(expect count 1)')
+if (!plate || plate.count !== 1) fail(`expected the DS's single well-tinted plate behind the fold, got ${plate && plate.count}`)
+
+// the peeking corner still reopens the card — the real guarantee, tested where
+// it actually bites: the bottom-right strip, which is plate and not face
+const shutBox = await shut.boundingBox()
+await page.mouse.dblclick(shutBox.x + shutBox.width - 3, shutBox.y + shutBox.height - 3)
+await page.waitForTimeout(400)
+if (!(await page.locator('[data-rstage="seed-sec"]').isVisible())) fail('double-clicking the plate corner did not reopen the card — the peek is swallowing the gesture')
+else console.log('the plate corner reopens the card (bubbling covers it — it is a child, not a sibling)')
+await page.locator('[data-rstage="seed-sec"] [aria-label="minimise"]').click()
+await page.waitForTimeout(400)
+
+// the tally is what now carries the plural reading the two peek plates used to
+// (#100): a fold must say how much is inside it
+const shutTally = await page.locator('[data-rstage-closed="seed-sec"]').innerText()
+console.log('closed card text =', JSON.stringify(shutTally))
+if (!/\d+\s+steps?/.test(shutTally)) fail(`the fold does not state its own contents — expected an "N steps" tally, got ${JSON.stringify(shutTally)}`)
 
 // double-click the pill reopens it — the gesture the plates must not block
 await shut.dblclick()

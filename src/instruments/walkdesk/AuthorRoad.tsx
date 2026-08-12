@@ -33,7 +33,7 @@ import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, Pointe
 import { byId, domainOf, DOMAIN_COLOR, topicIds } from '../../corpus/graph'
 // the head's tick and caret come from the DS itself rather than being redrawn
 // here — the system draws a tick and a disclosure one way (#91)
-import { checkStyle } from '../../ds/group/VersionedGroup'
+import { checkStyle, VersionedGroup } from '../../ds/group/VersionedGroup'
 import { caretStyle } from '../../ds/nav/TreeRow'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
@@ -74,6 +74,30 @@ const PICK_LINE_H = 17.55 // one wrapped line of the --fs-body version name at -
 const PICK_PAD_H = 12   // the picker's own vertical padding + its 1px border, both sides
 const PICK_CHROME_W = 66 // tick + version code + caret, either side of the version name
 const HEAD_MAX_LINES = 2 // the DS clamps the title and the version name at two lines
+// ── the CLOSED container card, since #91 ────────────────────────────────────
+// A shut container hosts the real DS VersionedGroup in its folded state instead
+// of drawing its own pill. That is only possible because a closed card has no
+// visible children — the wall that keeps the OPEN card drawing its own head
+// (steps are board-level siblings, not `children`) simply does not apply here.
+//
+// It costs the road its measure-free assumption that a fold is pill-sized, so
+// the folded box has to be PREDICTED, exactly as headRows() predicts the open
+// head. These numbers are not read off the DS stylesheet — the fold's head row
+// is `alignItems: baseline`, so its height comes from baseline alignment rather
+// than from the tallest child, and deriving it was guesswork. They are MEASURED,
+// by rendering the real component across a spread of title lengths:
+// `node tools/studio-spike/shot-foldab.mjs` prints the fit it reproduces
+// (1 line 70.84, 2 lines 83.94, 3 lines 101.48 at road width).
+const FOLD_CHROME = 44.85 // everything that is not the title row: the 7px peek
+// margin under the shell, the face's two 1px borders, its 8/9px padding, the
+// --space-1 gap, and the 14.85px tally line narrow mode drops below the title
+const FOLD_ROW_MIN = 26 // the head row at ONE line. NOT the DS's minHeight of 22
+const FOLD_LINE_H = 17.55 // one wrapped title line — --fs-body at --lh-snug
+const FOLD_BASELINE_SLACK = 4 // descent under the last line once the title wraps
+const FOLD_MAX_LINES = 3 // a FOLDED title clamps at three lines (an open one, two)
+const FOLD_TITLE_W = 96 // the DS title span's own minWidth. At road width the
+// title wraps against THIS, not against the card — which is why one estimator
+// covers every closed card without knowing the card's width
 const MARGIN = 16
 const EMPTY_BODY_H = 30 // drop zone height when the active version has no steps
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
@@ -129,6 +153,19 @@ const headRows = (title: string, versionName: string, description: string, inner
 }
 const headSize = (title: string, versionName: string, description: string, innerW: number): number =>
   headRows(title, versionName, description, innerW).total
+
+/** the box a COLLAPSED container reserves — the DS folded card, predicted. Width
+ *  stays NODEW so a fold still lines up with the leaf stops above and below it;
+ *  only the height moves, and it moves a long way (a one-line fold is 71px where
+ *  the old pill was 34). Ceiled, so the reservation is never a sub-pixel short of
+ *  what renders — the overlap assertion in shot-cardhead.mjs is what catches the
+ *  other direction. */
+const foldSize = (title: string): { w: number; h: number } => {
+  const perLine = Math.max(1, Math.floor(FOLD_TITLE_W / CHAR_W))
+  const lines = Math.min(FOLD_MAX_LINES, Math.max(1, Math.ceil(title.length / perLine)))
+  const rowH = lines <= 1 ? FOLD_ROW_MIN : lines * FOLD_LINE_H + FOLD_BASELINE_SLACK
+  return { w: NODEW, h: Math.ceil(FOLD_CHROME + rowH) }
+}
 /** the y-offset from a card's top to where its single column of steps begins */
 const bodyTop = (headH: number): number => headH + PAD
 
@@ -211,10 +248,11 @@ function layoutRoad(
   }
   const measure = (s: Stop): { w: number; h: number; body?: Col; headH?: number } => {
     if (isLeaf(s) || collapsed.has(s.key!)) {
-      // a bound leaf wraps and grows within bounds; an unset slot and a collapsed
-      // pill keep the fixed pill size (#72 #8)
-      if (isLeaf(s) && !s.unset) return leafSize(byId.get(s.node)?.title ?? '')
-      return { w: NODEW, h: NODEH }
+      // a bound leaf wraps and grows within bounds (#72 #8); an unset slot keeps
+      // the fixed pill size; a COLLAPSED CONTAINER is the DS folded card now, so
+      // it reserves that card's predicted height rather than a pill's (#91)
+      if (isLeaf(s)) return s.unset ? { w: NODEW, h: NODEH } : leafSize(byId.get(s.node)?.title ?? '')
+      return foldSize(s.title ?? '')
     }
     const body = bodyColOf(s)
     // factor both the stage title row and the version picker into the card's
@@ -841,50 +879,95 @@ export default function AuthorRoad({
               )
             }
 
-            // a container — collapsed to a pill
+            // a container — COLLAPSED, and since #91 this is the real DS
+            // VersionedGroup in its folded state rather than a drawing of one.
+            // A closed card has no visible children, so the wall that keeps the
+            // OPEN card mirroring the DS head by hand — steps are board-level
+            // siblings, not `children` — does not apply here, and the whole
+            // component can be hosted.
+            //
+            // The road keeps everything that is BEHAVIOUR and hands over
+            // everything that is DRAWING. The wrapper owns position, the relayout
+            // transition, drag (`gestures`), selection, hover-dim, the outline
+            // number's hook and double-click-to-open; the component owns the
+            // fold's picture, its title, its tally and its two controls.
+            //
+            // What this gives up, plainly: the two peek plates of ADR-0005 D2.
+            // The DS stacks a single well-tinted plate behind its fold, per its
+            // own elevation.css rule ("a folded group -> raised again, with the
+            // well tint stacked behind it"), and two pill silhouettes behind a
+            // rounded-lg card is not a drawing anyone chose. The plural reading
+            // those plates carried now rides on the tally instead, in words. That
+            // trade is the subject of #100 and was made deliberately — see #91.
             if (collapsed.has(s.key!)) {
-              // D1 (0005): a SHUT group is the only persistently-RAISED thing on
-              // the road — it behaves as one stop, so it lifts (--lift-node). The
-              // open well is recessed too but, since the shadow pass, also casts an
-              // outer drop shadow (see the open card). A shut group is a self-
-              // contained pill (no floating step children), so it takes the
-              // hover-lift scale cleanly.
-              // D2 (0005): behind the pill, two stacked silhouettes peek out
-              // down-right (within --road-hatch = 6px) so a fold reads as a FOLDED
-              // STACK, not a leaf, without opening it. The plates are decorative —
-              // no gestures, no data, pointer-events-none so the peeking corner
-              // never steals the double-click — and they ride the same relayout
-              // transition as the pill so the stack moves as one.
-              const plate = 'absolute rounded-full border pointer-events-none transition-[left,top,width,height] duration-200 ease-out'
-              const plateStyle = { width: pl.w, height: pl.h, background: 'var(--surface-raised)', borderColor: 'var(--border-well-strong)', zIndex: 20 }
-              return [
-                <div key={`${key}-p2`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 5, top: pl.y + 5 }} />,
-                <div key={`${key}-p1`} aria-hidden className={[plate, dim].join(' ')} style={{ ...plateStyle, left: pl.x + 2.5, top: pl.y + 2.5 }} />,
+              // D1 (0005) still holds and is now the DS's own rule too: a SHUT
+              // group is the only persistently-RAISED thing on the road, and the
+              // component draws that itself (--lift-2 over a well-tinted plate).
+              // It is self-contained — no floating step children — so it still
+              // takes the hover-lift scale cleanly.
+              const shutSteps = chosenSteps(s, choices)
+              const shutChosen = chosenIdx(s, choices)
+              return (
                 <div
                   key={key}
                   {...gestures(pl)}
                   data-rstage-closed={s.key}
+                  data-rord={pl.outline}
                   onDoubleClick={(e) => {
                     e.stopPropagation()
                     toggle(s.key!)
                   }}
                   title="double-click to open"
                   className={[
-                    'group absolute z-20 rounded-full border px-2.5 flex items-center gap-1.5 text-[var(--fs-body)] font-bold cursor-grab',
+                    'group absolute z-20 cursor-grab',
+                    'transition-[left,top,width,height] duration-200 ease-out',
                     pl.path.length === 1 ? 'hover-lift' : '',
-                    s.optional ? 'border-dashed' : '',
                     dim,
-                    isSelected ? SEL_OUTLINE : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-[var(--accent-primary)]' : 'hover:bg-[var(--surface-hover-raised)]',
+                    isSelected ? SEL_OUTLINE : mark?.key === key && mark.band === 'inside' ? 'ring-2 ring-[var(--accent-primary)] rounded-[var(--radius-lg)]' : '',
                   ].join(' ')}
-                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, background: 'var(--surface-raised)', borderColor: 'var(--border-well-strong)', boxShadow: 'var(--lift-node)', color: 'var(--text-1)' }}
+                  style={{
+                    left: pl.x, top: pl.y, width: pl.w, height: pl.h,
+                    // dashed ALWAYS means conditional. The DS card owns its own
+                    // border, so optionality rides OUTSIDE it as an offset dashed
+                    // outline rather than restyling the component's edge. It
+                    // yields to selection, which wants the same outline and is
+                    // the more urgent of the two signals.
+                    ...(s.optional && !isSelected
+                      ? { outline: '1.5px dashed var(--border-dashed)', outlineOffset: '2px', borderRadius: 'var(--radius-lg)' }
+                      : {}),
+                  }}
                 >
-                  <span data-rord={pl.outline} className="shrink-0 text-[var(--fs-micro)] font-bold tabular-nums" style={{ color: 'var(--text-3)' }}>
-                    {pl.outline}.
-                  </span>
-                  <span className="truncate">{s.title}</span>
-                  {browserBar(pl, 'closed', isSelected)}
-                </div>,
-              ]
+                  <VersionedGroup
+                    folded
+                    title={s.title ?? ''}
+                    index={pl.outline}
+                    description={s.description ?? ''}
+                    count={shutSteps.length}
+                    countLabel="steps"
+                    versions={s.variants.map((v, i) => ({ id: String(i), name: v.label || VERSION_UNNAMED, label: versionCode(i) }))}
+                    activeId={String(shutChosen)}
+                    // TOLD, never measured: `narrow` uninstalls the component's
+                    // ResizeObserver, which is what lets foldSize() predict this
+                    // box before it renders. `width` pins it to the leaf column so
+                    // a fold still lines up with the stops above and below it.
+                    narrow
+                    width={NODEW}
+                    foldedMinWidth={NODEW}
+                    // both gestures belong to the road: dragging a stop is the
+                    // board's job, and a fold has no resize handle to offer
+                    movable={false}
+                    resizable={false}
+                    // the #15 gesture set, now drawn by the DS: its RestoreMark
+                    // maximises, and its ✕ ungroups — including the refusal when
+                    // more than one version lives here, which askUngroup already
+                    // implements exactly as the road did by hand. Both stay ops on
+                    // `authordraft`, so undo/redo holds.
+                    onToggleFold={() => toggle(s.key!)}
+                    onClose={() => state.promote(pl.path, shutChosen)}
+                    ungroupBlockedLabel={`cannot ungroup — ${s.variants.length} versions live here; delete all but one first`}
+                  />
+                </div>
+              )
             }
 
             // a container — the OPEN card (#70). ONE version showing: the active

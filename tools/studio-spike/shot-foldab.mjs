@@ -34,7 +34,7 @@ await new Promise((res, rej) => {
 
 const errors = []
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
-const page = await browser.newPage({ viewport: { width: 1240, height: 640 }, deviceScaleFactor: 2 })
+const page = await browser.newPage({ viewport: { width: 1480, height: 900 }, deviceScaleFactor: 2 })
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`) })
 
@@ -63,6 +63,34 @@ const boxes = await page.evaluate(() => {
 })
 console.log('fold boxes (what layoutRoad would reserve):', JSON.stringify(boxes))
 console.log('  road pill is 150x34 + a 6px peek margin — the baseline every leaf shares')
+
+// ── calibration for the road's foldSize() ──────────────────────────────────
+// What layoutRoad has to predict, over a spread of title lengths at the road's
+// own width. `lines` is what the title's clamp actually resolved to, read off
+// the rendered box rather than assumed, so the fit is against reality.
+const cal = await page.evaluate(() => {
+  return [...document.querySelectorAll('[data-cal]')].map((el) => {
+    const shell = el.firstElementChild
+    const face = shell.querySelector('[data-grab]')
+    const title = el.querySelector('span[title]')
+    const cs = title ? getComputedStyle(title) : null
+    const lh = cs ? parseFloat(cs.lineHeight) : 0
+    return {
+      title: el.getAttribute('data-cal-title'),
+      chars: el.getAttribute('data-cal-title').length,
+      h: Math.round(el.getBoundingClientRect().height * 100) / 100,
+      faceH: face ? Math.round(face.getBoundingClientRect().height * 100) / 100 : null,
+      titleH: title ? Math.round(title.getBoundingClientRect().height * 100) / 100 : null,
+      lineH: Math.round(lh * 100) / 100,
+      lines: title && lh ? Math.round(title.getBoundingClientRect().height / lh) : null,
+    }
+  })
+})
+console.log('\nfoldSize() calibration @ width 150, narrow, folded:')
+for (const c of cal) console.log(`  ${String(c.chars).padStart(3)}ch  lines=${c.lines}  titleH=${c.titleH}  faceH=${c.faceH}  TOTAL=${c.h}   "${c.title}"`)
+const byLines = new Map()
+for (const c of cal) if (!byLines.has(c.lines)) byLines.set(c.lines, c.h)
+console.log('  height by title lines:', JSON.stringify([...byLines.entries()].sort((a, b) => a[0] - b[0])))
 
 await browser.close()
 vite.kill()
