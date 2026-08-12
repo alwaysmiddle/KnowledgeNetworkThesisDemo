@@ -31,6 +31,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import { byId, domainOf, DOMAIN_COLOR, topicIds } from '../../corpus/graph'
+// the head's tick and caret come from the DS itself rather than being redrawn
+// here — the system draws a tick and a disclosure one way (#91)
+import { checkStyle } from '../../ds/group/VersionedGroup'
+import { caretStyle } from '../../ds/nav/TreeRow'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
@@ -54,9 +58,22 @@ const LEAF_CHROME_W = 40 // outline number + horizontal padding around the title
 const SEL_OUTLINE = 'outline outline-2 outline-offset-1 outline-[var(--state-selected)]'
 const AGAP = 26 // vertical space between siblings — the arrow lives here
 const PAD = 10
-const HEAD_TITLE = 28 // stage title + browser-bar row on an open card (0005 D-coupling)
-const HEAD_DESC = 20  // optional DescLine row — present only when description is set (#86)
-const HEAD_COMBO = 24 // version combobox row below the title (#70 design)
+// The open card's head is the DS VersionedGroup head (#91): outline · title ·
+// tally · controls, then the DescLine, then the version picker. Its rows WRAP
+// like the DS one, so its height is no longer a constant — see headSize().
+const HEAD_TOP = 6      // the card's own breathing room above the title row
+const HEAD_ROW_MIN = 22 // the DS head row's floor, so a one-line title still breathes
+const HEAD_LINE_H = 17.55 // one wrapped line of an --fs-body title: 13px at --lh-snug 1.35
+const HEAD_DESC = 20    // the DescLine row at one line — its floor, not its height
+const DESC_LINE_H = 16.2 // one wrapped line of --fs-caption description: 12px at --lh-snug
+const HEAD_GAP = 4      // --space-1, between the three head rows
+const HEAD_ORD_W = 26   // the outline number and its gap, off the title's width
+const HEAD_BAR_W = 82   // the tally + minimise + ✕ cluster on the title row's right
+const PICK_MIN_H = 28   // --hit-min: the picker is a click target before it is a label
+const PICK_LINE_H = 17.55 // one wrapped line of the --fs-body version name at --lh-snug
+const PICK_PAD_H = 12   // the picker's own vertical padding + its 1px border, both sides
+const PICK_CHROME_W = 66 // tick + version code + caret, either side of the version name
+const HEAD_MAX_LINES = 2 // the DS clamps the title and the version name at two lines
 const MARGIN = 16
 const EMPTY_BODY_H = 30 // drop zone height when the active version has no steps
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
@@ -80,10 +97,40 @@ const BAR_ROW_H = 26
 // inline as var(--…). Nothing to keep in sync by hand.
 const wellFill = (depth: number): string => `var(--surface-well-${Math.min(depth + 1, 4)})`
 
-/** the rows a container reserves above its body: title + DescLine + version combobox (#70 #86) */
-const headH = (): number => HEAD_TITLE + HEAD_DESC + HEAD_COMBO
+/** The DS picker names a version twice: a short mono CODE for its position, and
+ *  a written NAME. Our model carries only `label`, so the label is the name and
+ *  the code is positional. An unnamed version still shows the placeholder, and
+ *  the placeholder still takes room — so measure() and the head read it here,
+ *  from one place, or the head would wrap against a width nobody reserved. */
+const VERSION_UNNAMED = 'name this version'
+const versionCode = (chosen: number): string => `v${chosen + 1}`
+const versionName = (s: Stop, chosen: number): string => s.variants[chosen]?.label || VERSION_UNNAMED
+
+/** how many lines `text` wraps to in `avail` px, clamped — the leafSize() trick
+ *  (estimate the wrap, never measure it) applied to the head's two clamped
+ *  fields. It has to be an estimate: layoutRoad places every box BEFORE anything
+ *  renders, so there is no DOM to ask. */
+const wrapLines = (text: string, avail: number): number => {
+  const perLine = Math.max(1, Math.floor(avail / CHAR_W))
+  return Math.min(HEAD_MAX_LINES, Math.max(1, Math.ceil(text.length / perLine)))
+}
+
+/** the rows a container reserves above its body: title + DescLine + version
+ *  picker (#70 #86 #91). Variable now that all three wrap — `innerW` is the
+ *  card's content width, which measure() already knows by the time it asks.
+ *  The RENDER pass calls this too, with the same inputs, and gives each row the
+ *  height it returns. That is the whole contract: one function decides, so a
+ *  head can never draw taller than the space layoutRoad reserved for it. */
+const headRows = (title: string, versionName: string, description: string, innerW: number) => {
+  const titleH = Math.max(HEAD_ROW_MIN, wrapLines(title, innerW - HEAD_ORD_W - HEAD_BAR_W) * HEAD_LINE_H)
+  const descH = Math.max(HEAD_DESC, wrapLines(description, innerW) * DESC_LINE_H)
+  const pickH = Math.max(PICK_MIN_H, PICK_PAD_H + wrapLines(versionName, innerW - PICK_CHROME_W) * PICK_LINE_H)
+  return { titleH, descH, pickH, total: HEAD_TOP + titleH + HEAD_GAP + descH + HEAD_GAP + pickH }
+}
+const headSize = (title: string, versionName: string, description: string, innerW: number): number =>
+  headRows(title, versionName, description, innerW).total
 /** the y-offset from a card's top to where its single column of steps begins */
-const bodyTop = (): number => headH() + PAD
+const bodyTop = (headH: number): number => headH + PAD
 
 type Mark = { key: string; band: Band } | null
 
@@ -112,6 +159,10 @@ interface Placed {
   /** an expanded container's single column box — the active version's steps. The
    * render pass reads it to size the empty-column drop zone and centre the column. */
   body?: Col
+  /** an expanded container's head height, as headSize() predicted it. Carried so
+   * the render pass offsets the body by the SAME number the layout used — the
+   * head wraps now, so neither side can re-derive it from a constant. */
+  headH?: number
 }
 interface Arrow {
   x1: number
@@ -158,7 +209,7 @@ function layoutRoad(
     const h = kids.length ? kids.reduce((acc, c) => acc + c.h, 0) + (kids.length - 1) * AGAP : EMPTY_BODY_H
     return { w, h }
   }
-  const measure = (s: Stop): { w: number; h: number; body?: Col } => {
+  const measure = (s: Stop): { w: number; h: number; body?: Col; headH?: number } => {
     if (isLeaf(s) || collapsed.has(s.key!)) {
       // a bound leaf wraps and grows within bounds; an unset slot and a collapsed
       // pill keep the fixed pill size (#72 #8)
@@ -166,15 +217,17 @@ function layoutRoad(
       return { w: NODEW, h: NODEH }
     }
     const body = bodyColOf(s)
-    // factor both the stage title row and the version combobox into the card's
+    // factor both the stage title row and the version picker into the card's
     // minimum width so the card never collapses below its own header (#72 #3 / #70).
+    // Width first, THEN height: the head's fields wrap against the width, so this
+    // order is what keeps headSize() an answer rather than a circular question.
     const chosen = chosenIdx(s, choices)
-    const label = s.variants[chosen]?.label || `v${chosen + 1}`
-    const stageTitleW = Math.min(300, (s.title?.length ?? 0) * CHAR_W + 80)
-    const comboW = Math.min(300, label.length * CHAR_W + 70)
-    const titleW = Math.max(stageTitleW, comboW)
-    const innerW = Math.max(NODEW, body.w, titleW)
-    return { w: innerW + 2 * PAD, h: bodyTop() + body.h + PAD, body }
+    const name = versionName(s, chosen)
+    const stageTitleW = Math.min(300, (s.title?.length ?? 0) * CHAR_W + HEAD_ORD_W + HEAD_BAR_W)
+    const comboW = Math.min(300, name.length * CHAR_W + PICK_CHROME_W)
+    const innerW = Math.max(NODEW, body.w, stageTitleW, comboW)
+    const headH = headSize(s.title ?? '', name, s.description ?? '', innerW)
+    return { w: innerW + 2 * PAD, h: bodyTop(headH) + body.h + PAD, body, headH }
   }
 
   const items: Placed[] = []
@@ -205,14 +258,15 @@ function layoutRoad(
         items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth })
       } else {
         const body = m.body!
-        items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth, body })
+        const headH = m.headH!
+        items.push({ path: p, stop: s, x, y, w, h, outline, onRoad, skipped, depth, body, headH })
         // lay the ACTIVE version's steps as ONE column, centred under the card. It
         // is the road (live arrows, order numbers) when the container itself is on
         // the road. The other versions aren't drawn at all now (#70) — switching
         // versions swaps which steps this column holds.
         const chosen = chosenIdx(s, choices)
         const steps = s.variants[chosen].steps
-        if (steps.length) placeList(steps, [...p, chosen], centerX, y + bodyTop(), onRoad && !skipped, depth + 1, outline)
+        if (steps.length) placeList(steps, [...p, chosen], centerX, y + bodyTop(headH), onRoad && !skipped, depth + 1, outline)
       }
       prevBottom = y + h
       prevSkipped = skipped
@@ -524,8 +578,11 @@ export default function AuthorRoad({
         onDoubleClick={(e) => e.stopPropagation()}
         className={['shrink-0 flex items-center gap-0.5 pl-0.5 transition-opacity duration-150', shown ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'].join(' ')}
       >
-        {kind !== 'leaf' && (
-          // item counter: active-version step count in a round unfilled circle (#15)
+        {kind === 'closed' && (
+          // item counter: active-version step count in a round unfilled circle (#15).
+          // CLOSED pills only since #91 — an open card carries the DS tally line
+          // ("3 steps") in its head instead, which is always visible rather than
+          // fading in on hover, and there is room there for the word.
           <span
             title={`${count} inside`}
             aria-label={`${count} items inside`}
@@ -839,10 +896,14 @@ export default function AuthorRoad({
             const menuOpen = menuKey === s.key
             const chosen = chosenIdx(s, choices)
             const steps = chosenSteps(s, choices)
-            const label = s.variants[chosen]?.label || `v${chosen + 1}`
+            const code = versionCode(chosen)
+            const name = s.variants[chosen]?.label ?? ''
             // the active version's column, centred under the card (mirrors layoutRoad)
             const body = pl.body ?? { w: NODEW, h: EMPTY_BODY_H }
             const bodyLeft = (pl.w - body.w) / 2
+            // the same call layoutRoad made, so every row draws at the height it
+            // was measured at — see headRows()
+            const rows = headRows(s.title ?? '', versionName(s, chosen), s.description ?? '', pl.w - 2 * PAD)
             return (
               <div
                 key={key}
@@ -895,12 +956,27 @@ export default function AuthorRoad({
                 <div
                   {...gestures(pl)}
                   data-rhead={s.key}
-                  className="cursor-grab rounded-t-2xl px-2"
+                  className="cursor-grab rounded-t-2xl flex flex-col"
+                  style={{ paddingLeft: PAD, paddingRight: PAD, paddingTop: HEAD_TOP, gap: HEAD_GAP }}
                 >
-                  {/* Row 1: outline number + stage title + browser bar (#70, #86 single-click retitle) */}
-                  <div className="flex items-center gap-1" style={{ height: HEAD_TITLE }}>
-                    <span data-rord={pl.outline} className="shrink-0 text-[var(--fs-micro)] font-bold tabular-nums" style={{ color: 'var(--text-3)' }}>
-                      {pl.outline}.
+                  {/* Row 1 — the DS head row (#91): outline · title (wraps to two
+                      lines) · tally · controls. Baseline-aligned like the DS, with
+                      the control cluster pinned to the top so a two-line title
+                      doesn't drag the buttons down with it. */}
+                  <div className="flex gap-1.5" style={{ height: rows.titleH, alignItems: 'baseline' }}>
+                    <span
+                      data-rord={pl.outline}
+                      className="shrink-0"
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 'var(--fs-caption)',
+                        fontVariantNumeric: 'var(--tnum)',
+                        fontWeight: 'var(--fw-medium)',
+                        lineHeight: 'var(--lh-snug)',
+                        color: 'var(--text-2)',
+                      }}
+                    >
+                      {pl.outline}
                     </span>
                     {titleEditKey === s.key ? (
                       <input
@@ -927,17 +1003,52 @@ export default function AuthorRoad({
                           setTitleEditKey(s.key!)
                         }}
                         title="click to rename this stage"
-                        className="flex-1 min-w-0 truncate text-[var(--fs-body)] font-bold cursor-text"
-                        style={{ color: 'var(--text-1)' }}
+                        className="min-w-0 cursor-text"
+                        style={{
+                          flex: '1 1 auto',
+                          display: '-webkit-box',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: HEAD_MAX_LINES,
+                          overflow: 'hidden',
+                          overflowWrap: 'anywhere',
+                          whiteSpace: 'normal',
+                          lineHeight: 'var(--lh-snug)',
+                          fontFamily: 'var(--font-display)',
+                          fontSize: 'var(--fs-body)',
+                          fontWeight: 'var(--fw-bold)',
+                          color: 'var(--text-1)',
+                        }}
                       >
                         {s.title}
                       </span>
                     )}
-                    {browserBar(pl, 'open', isSelected || editing || titleEditKey === s.key)}
+                    {/* the DS tally line — always readable, where our count pill
+                        used to fade in on hover. The number is mono so a column
+                        of cards lines its digits up. */}
+                    <span
+                      data-rtally={s.key}
+                      title={`${steps.length} inside this version`}
+                      className="shrink-0 self-start"
+                      style={{
+                        fontFamily: 'var(--font-ui)',
+                        fontSize: 'var(--fs-micro)',
+                        lineHeight: 'var(--lh-snug)',
+                        color: 'var(--text-3)',
+                      }}
+                    >
+                      <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-medium)' }}>
+                        {steps.length}
+                      </span>
+                      {steps.length === 1 ? ' step' : ' steps'}
+                    </span>
+                    <span className="shrink-0 self-start flex items-center">
+                      {browserBar(pl, 'open', isSelected || editing || titleEditKey === s.key)}
+                    </span>
                   </div>
                   {/* Row 1.5: DescLine — a short caption beneath the title, always present (#86).
-                      headH() accounts for HEAD_DESC so the body is pushed down correctly. */}
-                  <div style={{ height: HEAD_DESC }} className="flex items-center px-0.5">
+                      It wraps to two lines like the DS DescLine, and headRows()
+                      reserved exactly this height for it. */}
+                  <div style={{ height: rows.descH }} className="flex items-start">
                     {descEditKey === s.key ? (
                       <input
                         data-rdesc={s.key}
@@ -959,26 +1070,84 @@ export default function AuthorRoad({
                         onClick={(e) => { e.stopPropagation(); setDescEditKey(s.key!) }}
                         title="click to add a description"
                         className={[
-                          'flex-1 min-w-0 truncate text-[var(--fs-caption)] cursor-text transition-opacity duration-100',
+                          'min-w-0 cursor-text transition-opacity duration-100',
+                          // DS shows its placeholder always; a board of nested cards
+                          // would then repeat "describe this stage…" on every one, so
+                          // the empty state still waits for hover here (#86).
                           s.description ? '' : 'opacity-0 group-hover:opacity-100',
                         ].join(' ')}
-                        style={{ color: s.description ? 'var(--text-2)' : 'var(--text-3)' }}
+                        style={{
+                          flex: '1 1 auto',
+                          display: '-webkit-box',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: HEAD_MAX_LINES,
+                          overflow: 'hidden',
+                          overflowWrap: 'anywhere',
+                          whiteSpace: 'normal',
+                          fontFamily: 'var(--font-ui)',
+                          fontSize: 'var(--fs-caption)',
+                          lineHeight: 'var(--lh-snug)',
+                          fontStyle: s.description ? 'normal' : 'italic',
+                          color: s.description ? 'var(--text-2)' : 'var(--text-3)',
+                        }}
                       >
-                        {s.description || 'description…'}
+                        {s.description || 'describe this stage…'}
                       </span>
                     )}
                   </div>
-                  {/* Row 2: version combobox — click label to rename, ▼ to switch (#70, #86) */}
-                  <div data-vcombo={s.key} className="flex items-center gap-1" style={{ height: HEAD_COMBO }}>
-                    <span className="shrink-0 text-[var(--fs-body)] leading-none" style={{ color: 'var(--accent-primary)' }} aria-hidden>
-                      ✔
+                  {/* Row 2 — the DS version picker (#91). The whole row is the
+                      control: click it to drop the menu, click the NAME to rename.
+                      It names the version twice, as the DS does — a mono code for
+                      where it sits, a written name for what it is. The tick and the
+                      caret are the DS's drawn marks, not glyphs. */}
+                  <div
+                    data-vcombo={s.key}
+                    role="button"
+                    tabIndex={0}
+                    title="show all versions"
+                    aria-label="show all versions"
+                    aria-expanded={menuOpen}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (editing) return
+                      setEditKey(null)
+                      setTitleEditKey(null)
+                      setMenuKey(menuOpen ? null : s.key!)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return
+                      e.preventDefault()
+                      setMenuKey(menuOpen ? null : s.key!)
+                    }}
+                    className="flex gap-1.5 rounded-md border border-transparent cursor-pointer transition-colors duration-100 hover:border-[var(--border-rule)] hover:bg-[var(--surface-sunken-2)]"
+                    style={{ height: rows.pickH, alignItems: 'flex-start', padding: '5px 6px 5px 7px' }}
+                  >
+                    <span
+                      aria-hidden
+                      className="shrink-0 grid place-items-center"
+                      style={{ width: 12, height: 18, color: 'var(--accent-primary-ink)' }}
+                    >
+                      <span style={checkStyle()} />
+                    </span>
+                    <span
+                      className="shrink-0"
+                      style={{
+                        lineHeight: '18px',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 'var(--fs-micro)',
+                        fontVariantNumeric: 'var(--tnum)',
+                        fontWeight: 'var(--fw-medium)',
+                        color: 'var(--accent-primary-ink)',
+                      }}
+                    >
+                      {code}
                     </span>
                     {editing ? (
                       <input
                         data-vrename={s.key}
                         autoFocus
                         value={s.variants[chosen]?.label ?? ''}
-                        placeholder={`v${chosen + 1}`}
+                        placeholder={VERSION_UNNAMED}
                         onChange={(e) => state.relabelVariant(s.key!, chosen, e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={(e) => e.stopPropagation()}
@@ -986,8 +1155,15 @@ export default function AuthorRoad({
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === 'Escape') setEditKey(null)
                         }}
-                        className="flex-1 min-w-0 text-[var(--fs-body)] font-bold outline-none px-0.5 rounded-sm"
-                        style={{ color: 'var(--text-1)', background: 'var(--surface-raised)', borderBottom: '1px solid var(--border-strong)' }}
+                        className="flex-1 min-w-0 outline-none px-0.5 rounded-sm"
+                        style={{
+                          fontSize: 'var(--fs-body)',
+                          fontWeight: 'var(--fw-semibold)',
+                          lineHeight: '18px',
+                          color: 'var(--accent-primary-ink)',
+                          background: 'var(--surface-raised)',
+                          borderBottom: '1px solid var(--border-strong)',
+                        }}
                       />
                     ) : (
                       <span
@@ -999,29 +1175,33 @@ export default function AuthorRoad({
                           setEditKey(s.key!)
                         }}
                         title="click to rename this version"
-                        className="flex-1 min-w-0 truncate text-[var(--fs-body)] font-bold cursor-text"
-                        style={{ color: 'var(--text-1)' }}
+                        className="min-w-0 cursor-text"
+                        style={{
+                          flex: '1 1 auto',
+                          display: '-webkit-box',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: HEAD_MAX_LINES,
+                          overflow: 'hidden',
+                          overflowWrap: 'anywhere',
+                          whiteSpace: 'normal',
+                          lineHeight: 'var(--lh-snug)',
+                          fontSize: 'var(--fs-body)',
+                          fontWeight: 'var(--fw-semibold)',
+                          fontStyle: name ? 'normal' : 'italic',
+                          color: name ? 'var(--accent-primary-ink)' : 'var(--text-3)',
+                        }}
                       >
-                        {label}
+                        {name || VERSION_UNNAMED}
                       </span>
                     )}
-                    <button
+                    <span
                       data-varrow={s.key}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setEditKey(null)
-                        setTitleEditKey(null)
-                        setMenuKey(menuOpen ? null : s.key!)
-                      }}
-                      title="show all versions"
-                      aria-label="show all versions"
-                      aria-expanded={menuOpen}
-                      className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded text-[var(--fs-micro)] leading-none hover:bg-[var(--surface-hover)] hover:text-[var(--text-1)]"
-                      style={{ color: 'var(--text-3)' }}
+                      aria-hidden
+                      className="shrink-0 grid place-items-center"
+                      style={{ width: 16, height: 16, marginTop: 1, color: menuOpen ? 'var(--text-2)' : 'var(--text-3)' }}
                     >
-                      ▼
-                    </button>
+                      <span style={caretStyle(menuOpen)} />
+                    </span>
                   </div>
                 </div>
 
@@ -1040,7 +1220,7 @@ export default function AuthorRoad({
                       handleDrop(e, [...pl.path, chosen, 0], state)
                     }}
                     className="absolute z-30 rounded-lg border-2 border-dashed flex items-center justify-center text-[var(--fs-micro)]"
-                    style={{ left: bodyLeft, top: bodyTop(), width: body.w, height: EMPTY_BODY_H, borderColor: 'var(--border-dashed)', background: 'var(--surface-veil)', color: 'var(--text-3)' }}
+                    style={{ left: bodyLeft, top: bodyTop(pl.headH ?? 0), width: body.w, height: EMPTY_BODY_H, borderColor: 'var(--border-dashed)', background: 'var(--surface-veil)', color: 'var(--text-3)' }}
                   >
                     drop steps here
                   </div>
@@ -1130,7 +1310,7 @@ export default function AuthorRoad({
                   stop={card.stop}
                   chosen={chosenIdx(card.stop, choices)}
                   x={card.x + PAD}
-                  y={card.y + headH()}
+                  y={card.y + (card.headH ?? NODEH)}
                   onPick={(k) => {
                     pickBranch(menuKey, k)
                     setMenuKey(null)
@@ -1151,7 +1331,7 @@ export default function AuthorRoad({
                 <div
                   data-varconfirm
                   className="absolute z-50 flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[var(--fs-caption)]"
-                  style={{ left: Math.max(4, Math.min(card.x, W - 200)), top: card.y + bodyTop() + 2, borderColor: 'var(--border-rule)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-2)' }}
+                  style={{ left: Math.max(4, Math.min(card.x, W - 200)), top: card.y + bodyTop(card.headH ?? NODEH) + 2, borderColor: 'var(--border-rule)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-2)' }}
                 >
                   <span style={{ color: 'var(--text-2)' }}>
                     Delete version + {confirmVar.n} step{confirmVar.n > 1 ? 's' : ''}?
@@ -1190,7 +1370,7 @@ export default function AuthorRoad({
                 <div
                   data-varrefuse
                   className="absolute z-50 px-2 py-1.5 rounded-lg border text-[var(--fs-caption)] max-w-[220px]"
-                  style={{ left: Math.max(4, Math.min(card.x, W - 224)), top: card.y + headH() + 4, borderColor: 'var(--border-hair)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-1)', color: 'var(--text-2)' }}
+                  style={{ left: Math.max(4, Math.min(card.x, W - 224)), top: card.y + (card.headH ?? NODEH) + 4, borderColor: 'var(--border-hair)', background: 'var(--surface-paper)', boxShadow: 'var(--lift-1)', color: 'var(--text-2)' }}
                 >
                   cannot ungroup — {n} versions live here; delete all but one first
                 </div>
