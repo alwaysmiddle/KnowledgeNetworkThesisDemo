@@ -28,10 +28,13 @@ export interface PillButtonProps {
   selected?: boolean
   title?: string
   onClick?: () => void
+  /** e.g. preventDefault so a toolbar press does not steal focus from the field
+   *  the action applies to */
+  onMouseDown?: React.MouseEventHandler<HTMLButtonElement>
   children?: ReactNode
 }
 
-export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selected, onClick, title, children }: PillButtonProps) {
+export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selected, onClick, onMouseDown, title, children }: PillButtonProps) {
   const t = TONES[tone] ?? TONES.quiet
   const [hot, setHot] = useState(false)
   const pad = size === 'sm' ? '3px 9px' : '6px 13px'
@@ -41,6 +44,7 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
       title={title}
       disabled={disabled}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       onMouseEnter={() => setHot(true)}
       onMouseLeave={() => setHot(false)}
       style={{

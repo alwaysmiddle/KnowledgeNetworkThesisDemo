@@ -105,8 +105,8 @@
   --surface-veil: rgba(253, 252, 250, 0.72);  /* the only translucency */
 
   /* ── Borders ────────────────────────────────────────────────────────── */
-  --border-hair: rgba(53, 49, 42, 0.13);   /* divisions inside a pane */
-  --border-rule: rgba(53, 49, 42, 0.20);   /* pane and card edges */
+  --border-hair: rgba(53, 49, 42, 0.17);   /* divisions inside a pane */
+  --border-rule: rgba(53, 49, 42, 0.25);   /* pane and card edges */
   --border-frame: var(--bark-400);         /* a PANE's own frame — visible on purpose */
   --border-strong: rgba(53, 49, 42, 0.28); /* a thing you can act on */
   --border-dashed: var(--bark-300);        /* dashed ALWAYS means conditional */

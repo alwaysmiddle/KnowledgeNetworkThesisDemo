@@ -6,8 +6,7 @@ import { DOMAIN_TOKEN } from './vocab'
  *  Port of DS components/graph/NodeChip.jsx.
  *
  *  Deviations from DS source:
- *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source)
- *  - Drops the undocumented `wrap` prop (absent from NodeChip.d.ts) */
+ *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source) */
 
 export interface NodeChipProps {
   title: string
@@ -25,6 +24,9 @@ export interface NodeChipProps {
   lit?: boolean
   /** tooltip; the stop's note when there is one */
   note?: string
+  /** the title wraps (break-word, no clamp) instead of truncating; the chip squares
+   *  to --radius-md and top-aligns its furniture so a two-line name reads down */
+  wrap?: boolean
   onClick?: () => void
   /** drag the chip's right edge, bottom edge or corner to size it; double-click an edge
    *  gives that dimension back to automatic. Default true */
@@ -94,7 +96,7 @@ function useSizeDrag(ref: React.RefObject<HTMLSpanElement | null>, bounds: SizeB
 }
 
 export function NodeChip({
-  title, index, domain, mark = 'dot', dim, lit, note, onClick, onDelete,
+  title, index, domain, mark = 'dot', dim, lit, note, wrap, onClick, onDelete,
   resizable = true, minWidth = 120, maxWidth = 520, minHeight = 28, maxHeight = 320,
 }: NodeChipProps) {
   const hue = DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)'
@@ -123,13 +125,15 @@ export function NodeChip({
       style={{
         boxSizing: 'border-box',
         position: 'relative', display: 'inline-flex', gap: 6,
-        alignItems: 'center',
+        /* a hand-set height centres its content: the extra room is deliberate, and
+           text pinned to the top of it looks like a layout accident instead */
+        alignItems: size && size.h ? 'center' : (wrap ? 'flex-start' : 'center'),
         width: (size && size.w) || undefined, height: (size && size.h) || undefined,
         minWidth: 'min-content', minHeight: 'fit-content',
         maxWidth: size && size.w ? 'none' : '100%',
         userSelect: 'none', WebkitUserSelect: 'none',
-        padding: bordered ? '3px 12px' : '4px 11px 4px 9px',
-        borderRadius: 'var(--radius-pill)',
+        padding: bordered ? (wrap ? '4px 11px' : '3px 12px') : '4px 11px 4px 9px',
+        borderRadius: wrap ? 'var(--radius-md)' : 'var(--radius-pill)',
         border: bordered
           ? 'var(--stroke-rule) solid ' + (dim ? 'var(--border-hair)' : hue)
           : '1px solid ' + (dim ? 'var(--border-hair)' : 'var(--border-rule)'),
@@ -137,24 +141,30 @@ export function NodeChip({
         color: dim ? 'var(--text-3)' : 'var(--text-1)',
         boxShadow: lit ? 'var(--ring-linked), var(--lift-1)' : dim ? 'none' : 'var(--lift-1)',
         fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)',
-        whiteSpace: 'nowrap', overflow: 'hidden',
+        lineHeight: wrap ? 'var(--lh-snug)' : undefined,
+        whiteSpace: wrap ? 'normal' : 'nowrap', overflow: 'hidden',
         cursor: onClick ? 'pointer' : 'inherit',
         opacity: dim ? 'var(--opacity-off-path)' : 1, transition: 'var(--transition-wash)',
       }}
     >
       {bordered ? null : (
-        <span style={{ width: 7, height: 7, borderRadius: 'var(--radius-pill)', flexShrink: 0, background: hue }} />
+        <span style={{ width: 7, height: 7, borderRadius: 'var(--radius-pill)', flexShrink: 0, background: hue, marginTop: wrap ? 6 : 0 }} />
       )}
       {index ? (
         <span style={{
           flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)',
           fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-regular)',
-          color: 'var(--text-3)', opacity: dim ? 0.8 : 1,
+          color: 'var(--text-3)', marginTop: wrap ? 1 : 0, opacity: dim ? 0.8 : 1,
         }}>{index}</span>
       ) : null}
+      {/* 'break-word', not 'anywhere': anywhere breaks mid-word at the first
+          opportunity, which on a narrow chip left single letters sitting against
+          the border. Word boundaries first; only split a word that cannot fit. */}
       <span style={{
         minWidth: 0, flex: onDelete ? 1 : '0 1 auto',
-        overflow: 'hidden', textOverflow: 'ellipsis',
+        overflow: 'hidden',
+        overflowWrap: wrap ? 'break-word' : undefined, wordBreak: wrap ? 'normal' : undefined,
+        textOverflow: wrap ? 'clip' : 'ellipsis',
         paddingRight: onDelete ? 4 : 0,
       }}>{title}</span>
       {resizable ? (
@@ -182,7 +192,7 @@ export function NodeChip({
             borderRadius: 'var(--radius-pill)', border: '1px solid transparent', background: 'transparent',
             color: 'var(--state-danger)', fontFamily: 'var(--font-ui)', fontSize: 10, lineHeight: 1,
             cursor: 'pointer', opacity: hot ? 1 : 0, pointerEvents: hot ? 'auto' : 'none',
-            alignSelf: 'center',
+            alignSelf: wrap ? 'flex-start' : 'center', marginTop: wrap ? 1 : 0,
             transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
           }}>{'✕'}</button>
       ) : null}
