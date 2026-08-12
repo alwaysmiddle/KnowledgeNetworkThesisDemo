@@ -16,12 +16,14 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, EDGE_TOKEN, InstrumentRow, PaneHeader, PillButton, PresetButton, SectionLabel } from '@/ds'
+import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, PaneHeader, PillButton, PresetButton, SectionLabel } from '@/ds'
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
 import { AppToolbar } from './AppToolbar'
 import { useStudioBus } from './bus'
+import { FAMILIES } from './families'
+import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
 
@@ -40,6 +42,13 @@ export default function StudioView() {
   const [mounted, setMounted] = useState<Set<InstrumentId>>(() => new Set(flattenSlots(PRESETS[0].active)))
   const [presetId, setPresetId] = useState<Preset['id'] | null>(PRESETS[0].id)
   const [flexMap, setFlexMap] = useState<Partial<Record<InstrumentId, number>>>(PRESETS[0].flex ?? {})
+  // every family starts OPEN: the sidebar is how you reach an instrument, and a
+  // palette that hides its contents on first paint is a worse list than the flat
+  // one it replaced. Folding is there for when you know what you want.
+  const [openFamilies, setOpenFamilies] = useState<Family[]>([...FAMILIES])
+  // measured once over ALL family names and given to every group, so the counts
+  // form one column instead of each group orphaning its own number
+  const familyColumn = FamilyColumn([...FAMILIES])
 
   const onScreen = flattenSlots(active)
 
@@ -211,18 +220,39 @@ export default function StudioView() {
 
           <div className="p-2 flex-1 overflow-auto">
             <SectionLabel>instruments</SectionLabel>
+            {/* #97: the flat INSTRUMENTS.map is now the DS InstrumentGroup, one
+                family per group. FamilyColumn is measured ONCE over every family
+                name and handed to all of them, so the on-screen counts land on a
+                single x instead of each group orphaning its own number. A group
+                reports how many of its members are on screen, so a folded family
+                still says something. */}
             <div className="flex flex-col gap-0.5">
-              {INSTRUMENTS.map((inst) => {
-                const lensType = lensTypeOf(inst.id)
+              {FAMILIES.map((fam) => {
+                const members = INSTRUMENTS.filter((i) => i.family === fam)
+                if (members.length === 0) return null
                 return (
-                  <div key={inst.id} aria-label={`studio-inst-${inst.id}`}>
-                    <InstrumentRow
-                      label={inst.label}
-                      on={onScreen.includes(inst.id as InstrumentId)}
-                      swatch={lensType ? EDGE_TOKEN[lensType as EdgeKind] : undefined}
-                      onClick={() => toggle(inst.id as InstrumentId)}
-                    />
-                  </div>
+                  <InstrumentGroup
+                    key={fam}
+                    label={fam}
+                    labelWidth={familyColumn}
+                    open={openFamilies.includes(fam)}
+                    onToggle={() => setOpenFamilies((f) => (f.includes(fam) ? f.filter((x) => x !== fam) : [...f, fam]))}
+                    count={members.filter((i) => onScreen.includes(i.id as InstrumentId)).length}
+                  >
+                    {members.map((inst) => {
+                      const lensType = lensTypeOf(inst.id)
+                      return (
+                        <div key={inst.id} aria-label={`studio-inst-${inst.id}`}>
+                          <InstrumentRow
+                            label={inst.label}
+                            on={onScreen.includes(inst.id as InstrumentId)}
+                            swatch={lensType ? EDGE_TOKEN[lensType as EdgeKind] : undefined}
+                            onClick={() => toggle(inst.id as InstrumentId)}
+                          />
+                        </div>
+                      )
+                    })}
+                  </InstrumentGroup>
                 )
               })}
             </div>
