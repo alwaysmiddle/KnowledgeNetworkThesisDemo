@@ -25,7 +25,9 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, nodes, pathTo } from '../../corpus/graph'
+import { byId, nodes, pathTo } from '../../corpus/graph'
+import { DomainDot } from '../../ds/graph/DomainDot'
+import { domainCodeOf } from '../../model/domaincode'
 import type { AuthorState } from './authordraft'
 import { DT } from './authordnd'
 import type { HoverBinding } from '../../studio/bus'
@@ -250,10 +252,12 @@ export default function Palette({
                         : 'hover:bg-slate-50',
                   ].join(' ')}
                 >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full inline-block shrink-0 mt-1"
-                    style={{ background: DOMAIN_COLOR[domainOf(id)] }}
-                  />
+                  {/* #97: the DS DomainDot. It sizes itself, so the wrapper keeps
+                      only the optical nudge that lines the dot up with the first
+                      line of a two-line hit. */}
+                  <span className="mt-1 inline-flex shrink-0">
+                    <DomainDot domain={domainCodeOf(id)} size={6} />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[11px] leading-tight text-slate-800 truncate">{n.title}</span>
                     {crumb && <span className="block text-[9px] leading-tight text-slate-400 truncate">{crumb}</span>}
