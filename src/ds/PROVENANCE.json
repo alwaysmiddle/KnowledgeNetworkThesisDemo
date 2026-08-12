@@ -26,6 +26,16 @@
       "typography.css": "b519debc149e58529528a055a48b2fcf8a234b6b1e8c59570e7fb9415eb3085e"
     }
   },
+  "tailwindTheme": {
+    "vendoredInto": "src/tokens/kn-theme.css",
+    "from": "export/tailwind/kn-theme.css",
+    "syncedAt": "2026-08-12",
+    "verbatim": true,
+    "hash": "2481808de79c93fe3a85a2296938e3ab4141f6c56e5dee11b3279b760125545f",
+    "hashRecipe": "same as tokens.hashRecipe — sha256 of the bytes with CRLF normalized to LF. Taken from the DS file, not from our copy",
+    "note": "The DS's Tailwind v4 utility surface (#93), kept OUT of tokens.files on purpose: those seven are the token definitions the app consumes as var(--…), this is a generated @theme block that turns the same values into utility classes. Imported from src/index.css after the five definition files and before base.css. INSTALLED AS ADDITIVE: the standing warning was that it overrides Tailwind's --radius-* namespace and takes rounded-lg from 8px to 20px app-wide, but that change had ALREADY happened and nobody had noticed — spacing.css declares --radius-* on :root after `@import \"tailwindcss\"`, so it has been overriding Tailwind's defaults since the closure landed in #64 slice 5. Measured in the browser before and after this import: rounded-sm 10px, rounded-md 14px, rounded-lg 20px, unchanged either way. So kn-theme.css adds utilities (bg-canopy, text-ink-2, shadow-lift-1, text-body, font-display, border-hair, ease-soft, the drill-* animations) and moves no pixels. Nothing in the app consumes them yet; they are there so new work stops reaching for arbitrary values. #96's Studio shell is deliberately NOT adopted alongside it — the app frame and left rail stay slate until that is decided on its own.",
+    "notVendored": ["export/tailwind/kn-theme.v3.js — the Tailwind v3 config form of the same theme; this app is on v4", "export/tokens/kn-base.css and export/tokens/kn-tokens.css — the single-file bundles of what src/tokens/*.css already carries file-by-file"]
+  },
   "assets": {
     "vendoredInto": "src/ds/assets/",
     "verbatim": true,
