@@ -18,7 +18,29 @@ a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
 ::selection { background: var(--pond-100); }
 :focus-visible { outline: none; box-shadow: var(--ring-focus); border-radius: var(--radius-sm); }
 
-/* Scrollbars are a single soft bar: no arrows, no track, no bezel, no outline.
+/* ── Scrollbars ───────────────────────────────────────────────────────────
+   Three states, driven by assets/scrollbars.js (which sets data-sb):
+
+     rest  bar hidden — the pane is quiet until you are in it
+     on    pointer or focus in the pane — a 4px bar, no wash, no arrows
+     near  pointer in the gutter — 7px, and a wash and arrows appear
+
+   The bar keeps ONE colour throughout. Only its width, the wash behind it, and
+   the arrows change — the bar itself never darkens under the cursor.
+
+   It also keeps ONE edge: the outer inset is 2px in both states, so the bar
+   grows INWARD from a fixed right edge (a fixed bottom edge when horizontal)
+   rather than fattening about its centre. Nothing appears to move sideways.
+
+   The 12px gutter is reserved in ALL states and the arrow buttons always hold
+   their 12px square, so nothing reflows and the bar never jumps as it grows.
+   Only paint changes between states.
+
+   The buttons are pinned to the ends of the GUTTER, not the track — track
+   margins put a gap between the arrow and the wash instead of moving the arrow.
+   So a rounded pane keeps its scroller clear of the corner with a bottom inset
+   on the scrolling element itself (see ui_kits/studio), never with a margin here.
+
    NOTE: in Chromium, specifying `scrollbar-width`/`scrollbar-color` switches the
    element to the NATIVE themed scrollbar and makes it ignore every
    ::-webkit-scrollbar rule below — which is how the arrow buttons come back on
@@ -26,19 +48,63 @@ a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
    ::-webkit-scrollbar support (Firefox), and Chromium/Safari get the pseudos. */
 @supports not selector(::-webkit-scrollbar) {
   * { scrollbar-width: thin; scrollbar-color: var(--bark-300) transparent; }
+  [data-sb-js] * { scrollbar-color: transparent transparent; }
+  [data-sb-js] [data-sb="on"] { scrollbar-color: var(--bark-300) transparent; }
+  [data-sb-js] [data-sb="near"] { scrollbar-color: var(--bark-300) var(--surface-hover); }
 }
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 12px; height: 12px; background: transparent; }
 ::-webkit-scrollbar-track { background: transparent; border: none; box-shadow: none; }
-::-webkit-scrollbar-thumb { background: var(--bark-300); border-radius: var(--radius-pill); border: 2px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: var(--bark-400); background-clip: content-box; }
-::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; }
-::-webkit-scrollbar-button:single-button, ::-webkit-scrollbar-button:double-button,
-::-webkit-scrollbar-button:start:decrement, ::-webkit-scrollbar-button:end:increment,
-::-webkit-scrollbar-button:vertical:start, ::-webkit-scrollbar-button:vertical:end,
-::-webkit-scrollbar-button:horizontal:start, ::-webkit-scrollbar-button:horizontal:end { display: none !important; width: 0 !important; height: 0 !important; background: transparent; }
 ::-webkit-scrollbar-track-piece { background: transparent; }
-/* the bar stops short of a rounded pane's corners instead of running into them */
-::-webkit-scrollbar-track-piece:vertical:end { margin-bottom: 12px; }
-::-webkit-scrollbar-track-piece:vertical:start { margin-top: 4px; }
-::-webkit-scrollbar-track-piece:horizontal:end { margin-right: 12px; }
 ::-webkit-scrollbar-corner { background: transparent; }
+/* 2px of visible bar, centred in the gutter by a transparent border.
+   Every rule below must set background-COLOR, never the `background` shorthand:
+   the shorthand resets background-clip to border-box and the bar silently
+   paints its full 12px, making all three states the same width. */
+::-webkit-scrollbar-thumb { background-color: var(--bark-300); background-clip: content-box; border: solid transparent; border-width: 2px 2px 2px 6px; border-radius: 8px 4px 4px 8px / 4px; }
+/* Asymmetric insets: the outer 2px is fixed, the inner one carries the width.
+   The radii MUST be per-corner AND per-axis (the `/` form), because the painted
+   content box rounds by `radius - border-width` computed separately for x and
+   y. Give every corner one number and the fat side's caps stretch into
+   ellipses; give it --radius-pill and they collapse on one side entirely. Each
+   value here is `that edge's border + half the bar`, so all four caps land on
+   the same circle. */
+::-webkit-scrollbar-thumb:horizontal { border-width: 6px 2px 2px; border-radius: 4px / 8px 8px 4px 4px; }
+/* the button square is reserved always — it is simply unpainted until `near` */
+::-webkit-scrollbar-button { display: block; width: 12px; height: 12px; background: transparent no-repeat center / 12px 12px; }
+::-webkit-scrollbar-button:vertical:start:increment, ::-webkit-scrollbar-button:vertical:end:decrement,
+::-webkit-scrollbar-button:horizontal:start:increment, ::-webkit-scrollbar-button:horizontal:end:decrement { display: none; }
+
+/* rest — the script is loaded, so the bar starts hidden */
+[data-sb-js] *::-webkit-scrollbar-thumb { background-color: transparent; }
+
+/* on — the resting bar, unchanged from what it has always looked like */
+[data-sb-js] [data-sb="on"]::-webkit-scrollbar-thumb { background-color: var(--bark-300); }
+
+/* near — the bar grows inward, a soft wash appears behind it, and the arrows
+   arrive. Same thumb colour and same outer edge as `on`: hovering the gutter is
+   an invitation, not a state change on the bar itself. The wash carries no
+   rule — a tint, not a channel. */
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-thumb { background-color: var(--bark-300); border-width: 2px 2px 2px 3px; border-radius: 6.5px 5.5px 5.5px 6.5px / 5.5px; }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-thumb:horizontal { border-width: 3px 2px 2px; border-radius: 5.5px / 6.5px 6.5px 5.5px 5.5px; }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-track:vertical,
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-track:horizontal { background-color: var(--surface-hover); }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-corner { background-color: var(--surface-hover); }
+/* The corner stays plain wash. Do NOT paint the horizontal end arrow into it to
+   line up under the down arrow: ::-webkit-scrollbar-corner is inert, so the
+   glyph would look like a button and do nothing, and three arrowheads converge
+   on the pane's rounded corner. The horizontal bar keeps its own end square,
+   one short of the vertical bar; the wash ties the L together. */
+/* the wash runs the whole gutter, arrows included, so it reads as one channel.
+   The arrowheads are stroked at #c8bfaf — --bark-300 nudged 30% toward --bark-400
+   (hard-coded because a data: URL cannot read a custom property). Bar and arrows
+   are one instrument and should LOOK one weight, but a 1.6px anti-aliased stroke
+   spreads its colour over partial pixels and reads lighter than the solid bar at
+   the identical hex. The fix is a shade of ink, not a thicker line: thickening
+   would make the arrows the heaviest thing in a gutter built to disappear.
+   Re-derive this hex if --bark-300 or --bark-400 ever changes. */
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-button { background-color: var(--surface-hover); }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:hover { background-color: var(--surface-press); }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:vertical:start:decrement { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M2.4%207.8L6%204.2l3.6%203.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:vertical:end:increment { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M2.4%204.2L6%207.8l3.6-3.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:horizontal:start:decrement { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M7.8%202.4L4.2%206l3.6%203.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+[data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:horizontal:end:increment { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M4.2%202.4L7.8%206l-3.6%203.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }

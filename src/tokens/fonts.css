@@ -5,5 +5,8 @@
 
    Quicksand  — geometric, fully rounded terminals. Display + pane titles.
    Nunito     — rounded humanist, very legible at 11-13px. Everything else.
-   JetBrains Mono — ids, counts, code. Softer than Menlo, still monospaced. */
+   JetBrains Mono — ids, counts, code. Softer than Menlo, still monospaced.
+                    LOADED AT 400 AND 500 ONLY — a mono numeral asked for 600 or
+                    700 renders at 500, so weight steps on counts must be
+                    regular → medium, never medium → semibold. */
 @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap");

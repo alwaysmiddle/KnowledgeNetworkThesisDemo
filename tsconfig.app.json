@@ -18,6 +18,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "resolveJsonModule": true,
+    /* src/ds/assets/scrollbars.js is a DS asset vendored VERBATIM (#94) — it is
+       not ported to .tsx on purpose, so a re-sync stays a copy. checkJs is left
+       off: the file is carried, not maintained here. */
+    "allowJs": true,
 
     /* Linting */
     "strict": true,
