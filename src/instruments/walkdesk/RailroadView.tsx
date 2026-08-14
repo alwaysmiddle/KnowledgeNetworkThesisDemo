@@ -90,7 +90,9 @@ export default function RailroadView({ bus }: { bus: Bus }) {
     const idx = chosenIdx(selStop, choices)
     const after = [...selPath.slice(0, -1), selPath[selPath.length - 1] + 1]
     state.extractVariant(selPath, idx, after)
-    pickBranch(selStop.key!, 0) // the trimmed container falls back to its first version
+    // trimmed container falls back to its first remaining version (#92: by id)
+    const firstRemaining = selStop.variants.filter((_, k) => k !== idx)[0]
+    if (firstRemaining) pickBranch(selStop.key!, firstRemaining.id)
   }
 
   return (
