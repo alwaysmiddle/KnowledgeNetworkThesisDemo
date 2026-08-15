@@ -8,7 +8,7 @@ import StudioView from './studio/StudioView'
 
 export default function App() {
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-screen bg-canopy">
       <main className="flex-1 min-h-0">
         <StudioView />
       </main>

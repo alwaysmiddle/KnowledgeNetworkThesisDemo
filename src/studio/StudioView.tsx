@@ -108,7 +108,7 @@ export default function StudioView() {
         // px literal); only the token colour is set here. overflow stays visible
         // so the title's top half, which floats ABOVE this top border, is not
         // clipped; the content div below clips its own corners.
-        borderColor: 'var(--border-rule)',
+        borderColor: 'var(--border-frame)',
         borderStyle: 'solid',
         background: 'var(--surface-paper)',
         borderRadius: 'var(--radius-lg)',
@@ -160,7 +160,7 @@ export default function StudioView() {
   const strips = INSTRUMENTS.filter((i) => i.slot === 'strip' && mounted.has(i.id as InstrumentId))
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="h-full flex flex-col bg-canopy">
       {/* The header renders from the DS AppHeader; session controls are DS
           PillButtons and the live counts are DS CountBadges. AppHeader owns the
           VISIBLE focus (dot + title). The machine-readable focus hook the shot
@@ -205,66 +205,73 @@ export default function StudioView() {
       {/* #55: app-level operations, pinned directly under the app header */}
       <AppToolbar />
 
-      <div className="flex-1 min-h-0 flex">
-        <aside aria-label="studio-sidebar" className="w-52 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-auto">
-          <div className="p-2 border-b border-slate-100">
-            <SectionLabel>presets</SectionLabel>
-            <div className="flex flex-col gap-1">
-              {PRESETS.map((p) => (
-                <div key={p.id} aria-label={`studio-preset-${p.id}`}>
-                  <PresetButton label={p.label} hint={p.hint} active={presetId === p.id} onClick={() => applyPreset(p)} />
-                </div>
-              ))}
+      <div className="flex-1 min-h-0 flex gap-3 p-3">
+        {/* #96: the palette is now a pane — paper face, border-frame hairline,
+            rounded-lg, legend PaneHeader. It was a flat bordered sidebar
+            (border-r border-slate-200 bg-white) which read as an unfinished
+            migration against the warm panes beside it. overflow-visible is
+            required so the legend title can float above the top border. */}
+        <aside aria-label="studio-sidebar" className="relative w-52 shrink-0 flex flex-col overflow-visible rounded-lg border border-frame bg-paper">
+          <PaneHeader title="palette" variant="legend" legendBg="var(--surface-canopy)" />
+          <div className="mb-3 min-h-0 flex-1 overflow-auto">
+            <div className="border-b border-hair p-3 pt-2">
+              <SectionLabel>presets</SectionLabel>
+              <div className="flex flex-col gap-1">
+                {PRESETS.map((p) => (
+                  <div key={p.id} aria-label={`studio-preset-${p.id}`}>
+                    <PresetButton label={p.label} hint={p.hint} active={presetId === p.id} onClick={() => applyPreset(p)} />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="p-2 flex-1 overflow-auto">
-            <SectionLabel>instruments</SectionLabel>
-            {/* #97: the flat INSTRUMENTS.map is now the DS InstrumentGroup, one
-                family per group. FamilyColumn is measured ONCE over every family
-                name and handed to all of them, so the on-screen counts land on a
-                single x instead of each group orphaning its own number. A group
-                reports how many of its members are on screen, so a folded family
-                still says something. */}
-            <div className="flex flex-col gap-0.5">
-              {FAMILIES.map((fam) => {
-                const members = INSTRUMENTS.filter((i) => i.family === fam)
-                if (members.length === 0) return null
-                return (
-                  <InstrumentGroup
-                    key={fam}
-                    label={fam}
-                    labelWidth={familyColumn}
-                    open={openFamilies.includes(fam)}
-                    onToggle={() => setOpenFamilies((f) => (f.includes(fam) ? f.filter((x) => x !== fam) : [...f, fam]))}
-                    count={members.filter((i) => onScreen.includes(i.id as InstrumentId)).length}
-                  >
-                    {members.map((inst) => {
-                      const lensType = lensTypeOf(inst.id)
-                      return (
-                        <div key={inst.id} aria-label={`studio-inst-${inst.id}`}>
-                          <InstrumentRow
-                            label={inst.label}
-                            on={onScreen.includes(inst.id as InstrumentId)}
-                            swatch={lensType ? EDGE_TOKEN[lensType as EdgeKind] : undefined}
-                            onClick={() => toggle(inst.id as InstrumentId)}
-                          />
-                        </div>
-                      )
-                    })}
-                  </InstrumentGroup>
-                )
-              })}
+            <div className="p-3 flex-1">
+              <SectionLabel>instruments</SectionLabel>
+              {/* #97: the flat INSTRUMENTS.map is now the DS InstrumentGroup, one
+                  family per group. FamilyColumn is measured ONCE over every family
+                  name and handed to all of them, so the on-screen counts land on a
+                  single x instead of each group orphaning its own number. A group
+                  reports how many of its members are on screen, so a folded family
+                  still says something. */}
+              <div className="flex flex-col gap-0.5">
+                {FAMILIES.map((fam) => {
+                  const members = INSTRUMENTS.filter((i) => i.family === fam)
+                  if (members.length === 0) return null
+                  return (
+                    <InstrumentGroup
+                      key={fam}
+                      label={fam}
+                      labelWidth={familyColumn}
+                      open={openFamilies.includes(fam)}
+                      onToggle={() => setOpenFamilies((f) => (f.includes(fam) ? f.filter((x) => x !== fam) : [...f, fam]))}
+                      count={members.filter((i) => onScreen.includes(i.id as InstrumentId)).length}
+                    >
+                      {members.map((inst) => {
+                        const lensType = lensTypeOf(inst.id)
+                        return (
+                          <div key={inst.id} aria-label={`studio-inst-${inst.id}`}>
+                            <InstrumentRow
+                              label={inst.label}
+                              on={onScreen.includes(inst.id as InstrumentId)}
+                              swatch={lensType ? EDGE_TOKEN[lensType as EdgeKind] : undefined}
+                              onClick={() => toggle(inst.id as InstrumentId)}
+                            />
+                          </div>
+                        )
+                      })}
+                    </InstrumentGroup>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </aside>
 
-        {/* #77: the pane area is the canopy DESK. Panes are bordered boxes with a
-            gap between them, so the desk shows through and each legend title has
-            room to float on it. p-4 keeps the top row's straddling title clear of
-            the toolbar; gap-4 separates columns, stacks, and the strip row. */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4 p-4" style={{ background: 'var(--surface-canopy)' }}>
-          <div className="flex-1 min-h-0 flex gap-4">
+        {/* #77/#96: the canopy desk. Panes float on it with gap-3 between them;
+            the 12px gutter matches the p-3 window inset on the outer flex row.
+            Canopy is now on the root div — no inline background needed here. */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+          <div className="flex-1 min-h-0 flex gap-3">
             {columnSlots.map(({ order, members }) =>
               members.length === 1 ? (
                 pane(members[0], true, { order, ...widthOf(members[0]) }, '')
@@ -272,7 +279,7 @@ export default function StudioView() {
                 <div
                   key={members.map((m) => m.id).join('+')}
                   aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
-                  className="flex flex-col min-w-0 min-h-0 gap-4"
+                  className="flex flex-col min-w-0 min-h-0 gap-3"
                   style={{ order, ...widthOf(members[0]) }}
                 >
                   {members.map((m) =>
