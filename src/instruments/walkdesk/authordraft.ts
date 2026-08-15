@@ -65,14 +65,15 @@ const SEED: Stop[] = [
   {
     key: 'seed-net',
     title: 'Reach the machine',
-    variants: [{ label: '', steps: [{ node: 'stk-ip-routing', variants: [] }, { node: 'stk-tcp-udp', variants: [] }] }],
+    variants: [{ id: 'seed-net-v0', label: '', steps: [{ node: 'stk-ip-routing', variants: [] }, { node: 'stk-tcp-udp', variants: [] }] }],
   },
   {
     key: 'seed-sec',
     title: 'Secure the channel',
     variants: [
-      { label: 'just the handshake', steps: [{ node: 'cry-tls-certificates', variants: [] }] },
+      { id: 'seed-sec-v0', label: 'just the handshake', steps: [{ node: 'cry-tls-certificates', variants: [] }] },
       {
+        id: 'seed-sec-v1',
         label: 'full crypto tour',
         steps: [
           { node: 'cry-public-key-cryptography', variants: [] },
@@ -91,11 +92,13 @@ const SEED: Stop[] = [
 const stopsStore = store<Stop[]>(SEED)
 const selectedStore = store<ReadonlySet<string>>(new Set())
 const caretStore = store<Path | null>(null)
-/** which variant each container takes, and whether optionals ride the road —
- * the road's VIEW of the draft. The railroad edits it; the projection reads it. */
-const choicesStore = store<Record<string, number>>({})
+/** which variant each container takes, keyed by container key → variant id.
+ * Storing the id rather than an index means deletions never silently retarget
+ * the active version (#92). The railroad writes it; the projection reads it. */
+const choicesStore = store<Record<string, string>>({})
 const optionalsStore = store(true)
-const seq = { box: 0 }
+const seq = { box: 0, vid: 0 }
+const nextVid = () => 'v' + (seq.vid++).toString(36)
 
 // ── Undo / redo over the stops tree (#34) ────────────────────────────────────
 // History lives UNDER the store interface: one historic setter records the
@@ -151,7 +154,7 @@ export function useRoad() {
     choices,
     withOptionals,
     setWithOptionals,
-    pickBranch: (key: string, idx: number) => setChoices({ ...choices, [key]: idx }),
+    pickBranch: (key: string, id: string) => setChoices({ ...choices, [key]: id }),
   }
 }
 
@@ -300,8 +303,9 @@ export interface AuthorState {
   retitle(key: string, title: string): void
   /** set the free-text description under the title of an open container (#86) */
   redesc(key: string, desc: string): void
-  /** append a variant to the container — turns a plain group into a fork */
-  addVariant(key: string): void
+  /** append a variant to the container — turns a plain group into a fork.
+   * Returns the new variant's id so callers can immediately pickBranch to it. */
+  addVariant(key: string): string
   relabelVariant(key: string, idx: number, label: string): void
   canGroup: boolean
   canOptional: boolean
@@ -383,7 +387,7 @@ export function useAuthorDraft(): AuthorState {
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),
-          { key, title: 'name this stage', variants: [{ label: '', steps: list.slice(run.from, run.to + 1) }] },
+          { key, title: 'name this stage', variants: [{ id: nextVid(), label: '', steps: list.slice(run.from, run.to + 1) }] },
           ...list.slice(run.to + 1),
         ]),
       )
@@ -425,7 +429,7 @@ export function useAuthorDraft(): AuthorState {
       // the lifted version keeps its name AS a version; the new group inherits the
       // fork's stage title. Two separate fields, carried through separately —
       // pre-#70 this folded the label into the title, which now reads as "v1".
-      const lifted: Stop = { key: `draft-${seq.box++}`, title: s.title, variants: [{ label: vr.label, steps: vr.steps }] }
+      const lifted: Stop = { key: `draft-${seq.box++}`, title: s.title, variants: [{ ...vr }] }
       const remaining = s.variants.filter((_, k) => k !== idx)
       // the fork stays in place and only loses a variant, so every sibling index
       // before `to` is unchanged — no adjustAfterRemoval needed.
@@ -458,8 +462,10 @@ export function useAuthorDraft(): AuthorState {
     },
     addVariant: (key) => {
       // empty label → the version box + namecard show the default vN name
-      const variant: Variant = { label: '', steps: [{ node: '', unset: true, variants: [] }] }
+      const id = nextVid()
+      const variant: Variant = { id, label: '', steps: [{ node: '', unset: true, variants: [] }] }
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))
+      return id
     },
     relabelVariant: (key, idx, label) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)

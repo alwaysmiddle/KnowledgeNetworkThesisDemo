@@ -225,7 +225,7 @@ interface Slot {
 function layoutRoad(
   stops: Stop[],
   collapsed: ReadonlySet<string>,
-  choices: Record<string, number>,
+  choices: Record<string, string>,
   withOptionals: boolean,
 ) {
   // one container, one column: the ACTIVE version's steps (#70). The comparator's
@@ -339,7 +339,7 @@ function VersionMenu({
   chosen: number
   x: number
   y: number
-  onPick(k: number): void
+  onPick(id: string): void
   onCreate(): void
   onDelete(k: number): void
 }) {
@@ -365,7 +365,7 @@ function VersionMenu({
               onMouseDown={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.stopPropagation()
-                onPick(k)
+                onPick(vr.id)
               }}
               className="flex-1 min-w-0 text-left truncate py-1"
               style={active ? { fontWeight: 'var(--fw-bold)', color: 'var(--accent-primary-ink)' } : { color: 'var(--text-2)' }}
@@ -416,8 +416,8 @@ export default function AuthorRoad({
 }: {
   state: AuthorState
   sync: HoverBinding
-  choices: Record<string, number>
-  pickBranch(key: string, idx: number): void
+  choices: Record<string, string>
+  pickBranch(key: string, id: string): void
   withOptionals: boolean
   onLeafFocus?: (id: string) => void
 }) {
@@ -460,9 +460,8 @@ export default function AuthorRoad({
   // variant is appended, so its index is the pre-add length; addVariant seeds it
   // with one unset slot, so it reads as a blank new version with a default name.
   const createVersion = (s: Stop) => {
-    const newIdx = s.variants.length
-    state.addVariant(s.key!)
-    pickBranch(s.key!, newIdx)
+    const newId = state.addVariant(s.key!)
+    pickBranch(s.key!, newId)
     setMenuKey(null)
     setEditKey(s.key!)
   }
@@ -944,8 +943,9 @@ export default function AuthorRoad({
                     description={s.description ?? ''}
                     count={shutSteps.length}
                     countLabel="steps"
-                    versions={s.variants.map((v, i) => ({ id: String(i), name: v.label || VERSION_UNNAMED, label: versionCode(i) }))}
-                    activeId={String(shutChosen)}
+                    versions={s.variants.map((v, i) => ({ id: v.id, name: v.label || VERSION_UNNAMED, label: versionCode(i) }))}
+                    activeId={s.variants[shutChosen]?.id ?? ''}
+                    onSelect={(id) => pickBranch(s.key!, id)}
                     // TOLD, never measured: `narrow` uninstalls the component's
                     // ResizeObserver, which is what lets foldSize() predict this
                     // box before it renders. `width` pins it to the leaf column so
@@ -1394,8 +1394,8 @@ export default function AuthorRoad({
                   chosen={chosenIdx(card.stop, choices)}
                   x={card.x + PAD}
                   y={card.y + (card.headH ?? NODEH)}
-                  onPick={(k) => {
-                    pickBranch(menuKey, k)
+                  onPick={(id) => {
+                    pickBranch(menuKey, id)
                     setMenuKey(null)
                   }}
                   onCreate={() => createVersion(card.stop)}

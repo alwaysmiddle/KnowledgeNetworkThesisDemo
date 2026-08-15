@@ -28,7 +28,7 @@ export function bandFor(e: ReactDragEvent, stop: Stop): Band {
 /** where a drag over a block row should insert: before, after, or (containers,
  * middle band) inside the chosen variant at the end — shared by dragover
  * (caret) and drop. A container's inside-drop lands in the variant on show. */
-export function gapFor(e: ReactDragEvent, path: Path, stop: Stop, choices: Record<string, number>): Path {
+export function gapFor(e: ReactDragEvent, path: Path, stop: Stop, choices: Record<string, string>): Path {
   const r = e.currentTarget.getBoundingClientRect()
   const y = (e.clientY - r.top) / r.height
   const i = path[path.length - 1]

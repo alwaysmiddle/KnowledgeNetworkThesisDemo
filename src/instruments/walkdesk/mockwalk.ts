@@ -21,6 +21,9 @@ import { WALKS } from '../../corpus/walks'
 
 /** one child-list of a container — its label is what picks it at a fork */
 export interface Variant {
+  /** stable id assigned at creation; survives reorder/delete so VersionedGroup
+   * can track activeId across structural edits (#92). */
+  id: string
   label: string
   steps: Stop[]
 }
@@ -56,16 +59,20 @@ export const isBox = (s: Stop): s is Stop & { key: string; title: string } => s.
 /** a fork: a container offering a choice (more than one variant) */
 export const isFork = (s: Stop): boolean => s.variants.length > 1
 
-/** which variant a container currently shows/takes, clamped into range */
-export const chosenIdx = (s: Stop, choices: Record<string, number>): number =>
-  Math.min(Math.max(s.variants.length - 1, 0), Math.max(0, choices[s.key ?? ''] ?? 0))
+/** which variant a container currently shows/takes. Looks up by the stored id
+ * so the result is stable when variants before it are deleted (#92). Falls
+ * back to 0 if the id is not found — the active version was deleted. */
+export const chosenIdx = (s: Stop, choices: Record<string, string>): number => {
+  const i = s.variants.findIndex((v) => v.id === choices[s.key ?? ''])
+  return i >= 0 ? i : 0
+}
 /** the steps of the chosen variant */
-export const chosenSteps = (s: Stop, choices: Record<string, number>): Stop[] =>
+export const chosenSteps = (s: Stop, choices: Record<string, string>): Stop[] =>
   s.variants[chosenIdx(s, choices)]?.steps ?? []
 
 const v = (node: string, note?: string): Stop => ({ node, note, variants: [] })
 /** a plain group: one unlabeled variant holding the steps */
-const group = (key: string, title: string, steps: Stop[]): Stop => ({ key, title, variants: [{ label: '', steps }] })
+const group = (key: string, title: string, steps: Stop[]): Stop => ({ key, title, variants: [{ id: key + '-v0', label: '', steps }] })
 
 /** a group built FROM an authored walk — sub-walk by reference. The stop "is"
  * the whole walk; expanding it plays the walk's stops as its steps. */
@@ -158,7 +165,7 @@ export function leafIds(stops: Stop[]): string[] {
 // downstream renders a container the same way whether it began as a group or a
 // fork.
 
-export function resolveRoad(stops: Stop[], choices: Record<string, number>, withOptionals: boolean): Stop[] {
+export function resolveRoad(stops: Stop[], choices: Record<string, string>, withOptionals: boolean): Stop[] {
   const out: Stop[] = []
   for (const s of stops) {
     if (isLeaf(s)) {
@@ -170,7 +177,7 @@ export function resolveRoad(stops: Stop[], choices: Record<string, number>, with
       const chosen = s.variants[chosenIdx(s, choices)]
       out.push({
         ...s,
-        variants: [{ label: chosen?.label ?? '', steps: resolveRoad(chosen?.steps ?? [], choices, withOptionals) }],
+        variants: [{ id: chosen?.id ?? '', label: chosen?.label ?? '', steps: resolveRoad(chosen?.steps ?? [], choices, withOptionals) }],
       })
     }
   }
