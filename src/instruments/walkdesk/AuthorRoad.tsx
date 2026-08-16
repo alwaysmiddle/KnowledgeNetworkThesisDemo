@@ -82,11 +82,12 @@ const AGAP = 26 // vertical space between siblings — the arrow lives here
 //   fails on any drift.
 const M = GROUP_METRICS
 const SLOT_LEFT = M.faceBorder + M.padX + M.railIndent + M.railStroke + M.railPadLeft // 33.5
-const SLOT_RIGHT = M.bodyPadRight + M.padX + M.faceBorder // 13
-// The card is centred on the road's axis, so SLOT_LEFT — the bigger of the two — is
-// the clearance the width has to leave on BOTH sides for the column to stay on that
-// axis; SLOT_RIGHT is then only how far the DS's own empty zone reaches, which is
-// what the road's transparent drop target has to cover.
+const SLOT_RIGHT = M.bodyPadRight + M.padX + M.faceBorder // 17
+// The two are the card's own asymmetry: the ancestry rail hangs on the left, so the
+// slot is inset further that side. The COLUMN sits on the road's axis (see reachOf),
+// which makes SLOT_LEFT the card's reach to the left of it and leaves the card's
+// edges falling where they fall. Both are also how far the DS's own empty zone
+// reaches, which is what the road's transparent drop target has to cover.
 const EMPTY_SLOT_H = 34 // what to ask for when the active version has no steps: the DS's own
 // zone minimum. The zone the component then draws is taller (GROUP_METRICS.emptyZone) and
 // openHeight knows it; the road's transparent drop target covers that box.
@@ -229,29 +230,42 @@ function layoutRoad(
       const spec = groupSpec(s, outline, NODEW, 0, chosen)
       return { w: NODEW, h: Math.ceil(GroupGeometry.foldedSize({ ...spec, foldedMinWidth: FOLD_MIN_W, narrow: true }).height), spec }
     }
-    // the OPEN card is CENTRED on the axis like every other stop (#93), so its
-    // width has to leave the column — which stays ON the axis, so the spine runs
-    // straight through the card — clear of the ancestry rail. That is SLOT_LEFT of
-    // clearance on BOTH sides: the DS slot is asymmetric (33.5 rail-side, 13
-    // right), and spending the difference on the right is the price of a card that
-    // does not slide sideways as its widest step grows. Never so narrow the head
-    // goes to two rows. Width first, THEN height: the head's fields wrap against
-    // the width, so this order is what keeps openHeight() an answer rather than a
-    // circular question.
+    // the OPEN card wraps its column ASYMMETRICALLY — SLOT_LEFT of ancestry rail on
+    // one side, SLOT_RIGHT on the other — because the column, not the card, is what
+    // sits on the road's axis. That is the DS's own rule (VersionedGroup.prompt.md,
+    // "Filling the body slot" point 7): the chain continues THROUGH the body, so the
+    // arrows into and out of a card must land on the body's axis, and a chain whose
+    // arrows sit on two axes reads as a mistake even when every box is where it
+    // should be. The card's own edges are then free to fall where the slot puts them.
+    // Never so narrow the head goes to two rows. Width first, THEN height: the head's
+    // fields wrap against the width, so this order is what keeps openHeight() an
+    // answer rather than a circular question.
     const body = bodyColOf(s, outline)
-    const w = Math.max(CARD_MIN_W, body.w + 2 * SLOT_LEFT)
+    const w = Math.max(CARD_MIN_W, SLOT_LEFT + body.w + SLOT_RIGHT)
     const spec = groupSpec(s, outline, w, body.h, chosen)
     const g = GroupGeometry.openHeight(spec)
     return { w, h: Math.ceil(g.height), body, bodyTop: g.bodyTop, spec }
   }
 
-  /** what a stop PAINTS, which is not always what it RESERVES: a fold's DS shell
-   *  overhangs the NODEW slot it keeps in the column. Everything else paints its
-   *  own measured width. */
-  const paintedW = (s: Stop, m: { w: number; spec?: GroupSpec }) =>
-    !isLeaf(s) && collapsed.has(s.key!)
-      ? Math.max(m.w, GroupGeometry.foldedSize({ ...m.spec!, foldedMinWidth: FOLD_MIN_W, narrow: true }).width)
-      : m.w
+  /** how far a stop reaches either side of the road's AXIS, and what it PAINTS —
+   *  which is not always what it RESERVES.
+   *
+   *  The axis is where the arrows are drawn, and the DS's body-slot rule puts it on
+   *  the BODY rather than on the card. So a leaf or a fold is centred on it and
+   *  reaches half its painted width each way (a fold's DS shell overhangs the NODEW
+   *  slot it keeps in the column, which is why `painted` is not always `m.w`), while
+   *  an OPEN CARD hangs asymmetrically: its column sits on the axis, so it reaches
+   *  SLOT_LEFT plus half its body to the left and the rest of its width to the right.
+   *  Placement and board sizing both read this, so the two can never disagree. */
+  const reachOf = (s: Stop, m: { w: number; body?: Col; spec?: GroupSpec }) => {
+    if (!isLeaf(s) && collapsed.has(s.key!)) {
+      const painted = Math.max(m.w, GroupGeometry.foldedSize({ ...m.spec!, foldedMinWidth: FOLD_MIN_W, narrow: true }).width)
+      return { left: painted / 2, right: painted / 2, painted }
+    }
+    if (isLeaf(s)) return { left: m.w / 2, right: m.w / 2, painted: m.w }
+    const left = SLOT_LEFT + (m.body ? m.body.w / 2 : 0)
+    return { left, right: m.w - left, painted: m.w }
+  }
 
   const items: Placed[] = []
   const arrows: Arrow[] = []
@@ -269,15 +283,17 @@ function layoutRoad(
       const outline = prefix ? `${prefix}.${i + 1}` : String(i + 1)
       const m = measure(s, outline)
       const { w, h } = m
-      // EVERY stop is centred on the axis, by what it PAINTS — the arrows land on
-      // centerX, so anything placed off it puts a jog in the spine. A fold renders
-      // wider than the slot it reserves, and an open card is sized (see measure) so
-      // that centring it still leaves its column on the axis. The drop slot keeps
-      // the RESERVED width and centre, so a slot above a fold still lines up with
-      // the leaves.
+      // the COLUMN is what sits on centerX, not the card. Arrows are drawn at
+      // centerX, so what has to land there is whatever the chain runs through: a
+      // leaf's own box, a fold's face, and an open card's BODY — never the open
+      // card's outline, which hangs wider on the rail side than on the other. Two
+      // same-width cards with different widest steps therefore do NOT share edges,
+      // and that is the drawing, not a bug. The drop slot keeps the RESERVED width
+      // and stays centred, so a slot above a fold still lines up with the leaves.
       const isFold = !isLeaf(s) && collapsed.has(s.key!)
-      const vw = paintedW(s, m)
-      const x = centerX - vw / 2
+      const r = reachOf(s, m)
+      const vw = r.painted
+      const x = centerX - r.left
       slots.push({ path: p, x: centerX - w / 2, y: prevBottom === null ? y - 8 : (prevBottom + y) / 2, w })
       lastW = w
       const skipped = !!s.optional && !withOptionals
@@ -307,13 +323,16 @@ function layoutRoad(
       slots.push({ path: [...parent, list.length], x: centerX - lastW / 2, y: prevBottom + 8, w: lastW })
   }
 
-  // the board is as wide as its widest top-level stop PAINTS, centred on the column
-  // axis: every stop is centred on that axis, so both sides are the same reach, and
-  // measuring what is painted keeps a fold's overhanging shell inside the board
-  // instead of over its edge
-  const halfW = Math.max(NODEW / 2, ...stops.map((s, i) => paintedW(s, measure(s, String(i + 1))) / 2))
-  const W = 2 * halfW + 2 * MARGIN
-  placeList(stops, [], MARGIN + halfW, MARGIN, true, 0, '')
+  // the board holds the axis at MARGIN + the furthest any stop reaches LEFT of it,
+  // and is as wide as that plus the furthest any reaches right. The two sides are
+  // measured separately because an open card is not symmetric about the axis, and
+  // they are measured from what each stop PAINTS, which keeps a fold's overhanging
+  // shell inside the board instead of over its edge.
+  const reaches = stops.map((s, i) => reachOf(s, measure(s, String(i + 1))))
+  const halfL = Math.max(NODEW / 2, ...reaches.map((r) => r.left))
+  const halfR = Math.max(NODEW / 2, ...reaches.map((r) => r.right))
+  const W = halfL + halfR + 2 * MARGIN
+  placeList(stops, [], MARGIN + halfL, MARGIN, true, 0, '')
   const bottoms = items.map((it) => it.y + it.h)
   const H = (bottoms.length ? Math.max(...bottoms) : 0) + MARGIN
   return { items, arrows, slots, W, H }

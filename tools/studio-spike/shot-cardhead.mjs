@@ -104,29 +104,65 @@ const overlaps = await page.evaluate(() => {
 console.log(`head/step overlaps = ${overlaps.length} (expect 0)`)
 if (overlaps.length) fail(`the head reservation is wrong:\n  ${overlaps.join('\n  ')}`)
 
-// -- every stop sits on ONE axis --------------------------------------------
-// The road is a vertical spine: the arrows are drawn on the column axis, so a stop
-// centred anywhere else puts a visible jog in it. This caught the open card being
-// anchored to its own COLUMN instead of the axis -- the card then slid sideways by
-// half its widest step, so two cards of the same width stood 16.5px apart. Steps
-// inside a card ride the same axis, so they are measured with everything else.
+// -- the CHAIN sits on one axis; the cards need not -------------------------
+// The road is a vertical spine and the arrows are drawn on the column axis, so
+// anything the chain runs THROUGH has to land on it: a leaf stop's own box, a
+// fold's face, and an open card's floating steps. The open CARD is deliberately
+// exempt -- the DS's body-slot rule (VersionedGroup.prompt.md point 7) puts the
+// axis on the BODY, and the slot is inset further on the rail side, so a card
+// hangs wider to the left of the axis than to the right. Two same-width cards
+// with different widest steps therefore do not share edges. Asserting otherwise
+// is what the symmetric-padding version of this file did, and it cost 20.5px of
+// card width to buy an alignment the design does not ask for.
 const axes = await page.evaluate(() => {
   const road = document.querySelector('[data-rstage]')?.offsetParent
-  const at = (el) => {
+  const read = (el, i) => {
     const r = el.getBoundingClientRect()
-    return {
-      name: el.getAttribute('data-rstage') || el.getAttribute('data-rstage-closed') || el.getAttribute('data-rnode'),
-      c: r.left + r.width / 2,
-    }
+    const name = el.getAttribute('data-rstage-closed') || el.getAttribute('data-rnode')
+    return { name: !name || name === 'true' ? `node#${i}` : name, c: r.left + r.width / 2 }
   }
-  return [...(road?.querySelectorAll('[data-rnode], [data-rstage], [data-rstage-closed]') || [])].map(
-    (el, i) => ({ ...at(el), name: at(el).name === 'true' ? `node#${i}` : at(el).name }),
-  )
+  // [data-rnode] is every leaf stop AND every step floated into a card's slot;
+  // [data-rstage-closed] is a fold, which is a node again. [data-rstage] -- the
+  // open card -- is the one thing left out, on purpose.
+  return [...(road?.querySelectorAll('[data-rnode], [data-rstage-closed]') || [])].map(read)
 })
 const spread = axes.length ? Math.max(...axes.map((a) => a.c)) - Math.min(...axes.map((a) => a.c)) : -1
-console.log(`stops on the axis = ${axes.length}, centre spread = ${spread.toFixed(2)}px (expect 0)`)
-if (axes.length < 6) fail(`only ${axes.length} stops found — the axis check is not looking at the road`)
-if (spread > 0.5) fail(`the road has more than one axis: ${axes.map((a) => `${a.name}@${a.c.toFixed(1)}`).join(', ')}`)
+console.log(`chain members on the axis = ${axes.length}, centre spread = ${spread.toFixed(2)}px (expect 0)`)
+if (axes.length < 6) fail(`only ${axes.length} chain members found — the axis check is not looking at the road`)
+if (spread > 0.5) fail(`the chain has more than one axis: ${axes.map((a) => `${a.name}@${a.c.toFixed(1)}`).join(', ')}`)
+
+// -- and each open card wraps that axis asymmetrically ----------------------
+// the other half of the same rule. The card is off the axis, but by a KNOWN amount:
+// its column's left edge sits exactly SLOT_LEFT inside the card's own left edge, the
+// ancestry rail's inset. The card's CENTRE is not a usable check -- a card clamped to
+// CARD_MIN_W spends all its surplus width on the right, so the centre offset moves
+// with the widest step -- but the rail inset holds at every width. If a card ever
+// centres itself on the axis instead, the spread check above stays 0.00 and nothing
+// else notices; this is what catches it.
+const insets = await page.evaluate(() => {
+  const road = document.querySelector('[data-rstage]')?.offsetParent
+  const nodes = [...(road?.querySelectorAll('[data-rnode]') || [])].map((el) => el.getBoundingClientRect())
+  return [...(road?.querySelectorAll('[data-rstage]') || [])].map((el) => {
+    const c = el.getBoundingClientRect()
+    // a card's own steps are board-level SIBLINGS floated over its slot, not DOM
+    // children, so they are found geometrically -- the same test the overlap check uses
+    const mine = nodes.filter((r) => r.left >= c.left - 1 && r.right <= c.right + 1 && r.top >= c.top - 1 && r.bottom <= c.bottom + 1)
+    return {
+      name: el.getAttribute('data-rstage'),
+      steps: mine.length,
+      inset: mine.length ? Math.min(...mine.map((r) => r.left)) - c.left : null,
+    }
+  })
+})
+const SLOT_LEFT = 33.5 // faceBorder 1 + padX 8 + railIndent 13 + railStroke 1.5 + railPadLeft 10
+console.log(`open cards = ${insets.length}, column inset = ${insets.map((c) => `${c.name}:${c.inset === null ? 'no steps' : c.inset.toFixed(2)}`).join(', ')} (expect ${SLOT_LEFT})`)
+if (!insets.length) fail('no open cards found — the asymmetry check is not looking at the road')
+for (const c of insets) {
+  if (c.inset === null) fail(`${c.name} has no steps inside it — the inset check found nothing to measure`)
+  else if (Math.abs(c.inset - SLOT_LEFT) > 0.5) {
+    fail(`${c.name}'s column is inset ${c.inset.toFixed(2)}px, expected ${SLOT_LEFT} — its body is not on the chain's axis`)
+  }
+}
 
 // ── the picker still drops its menu, now from the whole row ────────────────
 // the DS menu portals to the body and paints over every card. The picker's
