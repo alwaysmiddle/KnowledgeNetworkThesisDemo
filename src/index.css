@@ -64,6 +64,25 @@
   --surface-inset: var(--surface-veil);
 }
 
+/* ── The DS's own box model, where a DS component is hosted ─────────────────
+   The Design System renders under its own base.css, which has NO universal
+   box-sizing reset — its components lay out CONTENT-BOX unless a style block
+   says `boxSizing: 'border-box'` itself (twelve do in VersionedGroup; the shell
+   is not one of them). This app runs Tailwind's preflight, which puts every
+   element on BORDER-BOX. Same component, same props, two different pictures:
+   measured 2026-08-16, the folded group's face is 184px here against 190px in
+   the DS's studio (shell 190 minus its 6px peek padding, vs 190 content + 6).
+   Rather than re-port every DS file with explicit box-sizing, a HOST marks the
+   subtree it gives to a DS component and the DS's regime applies inside it.
+   Inline `boxSizing: 'border-box'` in the ports still wins, exactly as it does
+   in the DS. Reported to the design agent — a component whose geometry depends
+   on the host's reset is the DS's own portability gap; this is the shim until
+   the DS says box-sizing itself. Only put it on an element whose ENTIRE
+   subtree is DS ports: an app element inside it would lay out content-box too. */
+[data-ds-host], [data-ds-host] *, [data-ds-host] *::before, [data-ds-host] *::after {
+  box-sizing: content-box;
+}
+
 /* Expand/collapse in the map view relayouts every box; animating the transform
    makes the reshaping legible (nodes visibly make room) instead of teleporting.
    Safe globally because node dragging is disabled in all experiment views. */

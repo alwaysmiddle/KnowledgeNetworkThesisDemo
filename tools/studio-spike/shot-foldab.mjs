@@ -83,11 +83,60 @@ const cal = await page.evaluate(() => {
       titleH: title ? Math.round(title.getBoundingClientRect().height * 100) / 100 : null,
       lineH: Math.round(lh * 100) / 100,
       lines: title && lh ? Math.round(title.getBoundingClientRect().height / lh) : null,
+      // the room the title's WRAPPER gets in the row (its floor is 96) — what
+      // FOLD_TITLE_W has to name; and the face + shell widths, which the DS's own
+      // content-box regime (data-ds-host) puts at 190 / 196
+      titleW: title ? Math.round(title.parentElement.getBoundingClientRect().width * 100) / 100 : null,
+      faceW: face ? Math.round(face.getBoundingClientRect().width * 100) / 100 : null,
+      shellW: Math.round(shell.getBoundingClientRect().width * 100) / 100,
+      predH: Number(el.getAttribute('data-pred-h')), predW: Number(el.getAttribute('data-pred-w')),
     }
   })
 })
+// the OPEN head's rows, from the DS component itself — what headRows() predicts
+// for the road-drawn GroupHead. Row 1 is the head row (index/title/tally), row 2
+// the DescLine block, row 3 the picker; y is each row's top from the face's top.
+const openCal = await page.evaluate(() => {
+  return [...document.querySelectorAll('[data-cal-open]')].map((el) => {
+    const shell = el.firstElementChild
+    const face = shell.querySelector('[data-grab]')
+    const fb = face.getBoundingClientRect()
+    const rows = [...face.children].filter((c) => c.tagName === 'DIV')
+    const r = (x) => { const b = x.getBoundingClientRect(); return { y: Math.round((b.y - fb.y) * 100) / 100, h: Math.round(b.height * 100) / 100 } }
+    const title = face.querySelector('span[title]')
+    const desc = face.querySelector('[data-grab] > div:nth-child(2) span')
+    const picker = face.querySelector('[role="button"]')
+    const sb = shell.getBoundingClientRect()
+    return {
+      k: el.getAttribute('data-cal-open'), faceW: Math.round(fb.width * 100) / 100, faceH: Math.round(fb.height * 100) / 100,
+      shellH: Math.round(sb.height * 100) / 100,
+      rows: rows.map(r), titleH: title ? Math.round(title.getBoundingClientRect().height * 100) / 100 : null,
+      descTextH: desc ? Math.round(desc.getBoundingClientRect().height * 100) / 100 : null,
+      pickerH: picker ? Math.round(picker.getBoundingClientRect().height * 100) / 100 : null,
+      predH: Number(el.getAttribute('data-pred-h')), predBodyTop: Number(el.getAttribute('data-pred-bodytop')),
+      measured: el.getAttribute('data-pred-measured'), slot: el.getAttribute('data-slot'),
+    }
+  })
+})
+console.log('\nGroupGeometry.openHeight vs the DS group OPEN with bodySlot @ width ' + (openCal[0] && openCal[0].faceW) + ' (text ' + (openCal[0] && openCal[0].measured === 'true' ? 'measured' : 'ESTIMATED') + '):')
+let geomBad = 0
+for (const c of openCal) {
+  const slotTop = c.slot ? Number(c.slot.split(',')[1]) : null
+  // the slot's CONTENT begins under its own 6px padding — bodyTop names that line
+  const dH = Math.round((c.predH - c.shellH) * 100) / 100
+  const dTop = slotTop === null ? null : Math.round((c.predBodyTop - (slotTop + 6)) * 100) / 100
+  const ok = Math.abs(dH) <= 0.5 && (dTop === null || Math.abs(dTop) <= 1)
+  if (!ok) geomBad++
+  console.log(`  ${c.k.padEnd(9)} shell=${c.shellH} predicted=${c.predH} (${dH >= 0 ? '+' : ''}${dH})  slot=[${c.slot}] bodyTop=${c.predBodyTop} (${dTop === null ? '—' : (dTop >= 0 ? '+' : '') + dTop})  rows=${JSON.stringify(c.rows.slice(0, 3))} ${ok ? 'ok' : 'DRIFT'}`)
+}
+
 console.log('\nfoldSize() calibration @ width 150, narrow, folded:')
-for (const c of cal) console.log(`  ${String(c.chars).padStart(3)}ch  lines=${c.lines}  titleH=${c.titleH}  faceH=${c.faceH}  TOTAL=${c.h}   "${c.title}"`)
+for (const c of cal) {
+  const dH = Math.round((c.predH - c.h) * 100) / 100
+  const ok = Math.abs(dH) <= 0.5 && c.predW === c.shellW
+  if (!ok) geomBad++
+  console.log(`  ${String(c.chars).padStart(3)}ch  lines=${c.lines}  titleH=${c.titleH}  faceH=${c.faceH}  TOTAL=${c.h}  foldedSize=${c.predW}x${c.predH} (${dH >= 0 ? '+' : ''}${dH})  titleW=${c.titleW} face=${c.faceW} shell=${c.shellW} ${ok ? 'ok' : 'DRIFT'}   "${c.title}"`)
+}
 const byLines = new Map()
 for (const c of cal) if (!byLines.has(c.lines)) byLines.set(c.lines, c.h)
 console.log('  height by title lines:', JSON.stringify([...byLines.entries()].sort((a, b) => a[0] - b[0])))
@@ -95,4 +144,5 @@ console.log('  height by title lines:', JSON.stringify([...byLines.entries()].so
 await browser.close()
 vite.kill()
 if (errors.length) { console.log('ERRORS:\n' + errors.join('\n')); process.exit(1) }
-console.log('DONE')
+if (geomBad) { console.log(`GEOMETRY DRIFT: ${geomBad} case(s) where GroupGeometry disagrees with the rendered card`); process.exit(1) }
+console.log('DONE — GroupGeometry agrees with the rendered card in every case')

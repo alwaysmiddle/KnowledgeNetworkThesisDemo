@@ -6,7 +6,11 @@ import { bulletStyle } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
 
 /** A nested subgroup that holds several versions of itself, exactly one of which
- *  is on screen. Port of DS components/group/VersionedGroup.jsx.
+ *  is on screen. Port of DS components/group/VersionedGroup.jsx as of 2026-08-16
+ *  — the revision that added `bodySlot` (chrome-only hosting for a board that
+ *  floats its own nodes), the published GroupGeometry, and `selected`.
+ *  LOCAL, on top of the DS: the `optional` prop, and the measured corrections in
+ *  the geometry, each marked and reported on drift-log #74.
  *
  *  Four rows: the group's name with its tally and fold control, the group's one
  *  description, the version picker, then the contents chained by arrows.
@@ -20,6 +24,9 @@ export interface GroupVersion {
   /** a short designation, e.g. "v2" — mono, tabular. Normally omitted */
   label?: string
 }
+
+/** where the body slot is, relative to the group's shell — see `bodySlot` */
+export interface BodySlot { left: number; top: number; width: number; height: number }
 
 export interface VersionedGroupProps {
   title: string
@@ -67,6 +74,24 @@ export interface VersionedGroupProps {
   countLabel?: string
   folded?: boolean
   defaultFolded?: boolean
+  /** the host's selection cue, drawn by the group: folded, an outline on the
+   *  face (the group IS a node again); open, an outline round the HEAD only —
+   *  name, tally, description, picker — never round the body, whose nodes are
+   *  selectable in their own right. --stroke-ring --state-selected at 1px */
+  selected?: boolean
+  /** the HOST's "conditional" cue — LOCAL ADDITION (not in the DS source; drift-log
+   *  #74): a dashed ring hugging the face in the host's own dashed recipe, in both
+   *  states — a conditional container is conditional as a whole. Folded it yields
+   *  to `selected`, which wants the same layer and is the more urgent signal */
+  optional?: boolean
+  /** CHROME-ONLY MODE: draw the well, head, description, picker, menu, rail and
+   *  the empty-version zone, leave the body area EMPTY and report where it is
+   *  (relative to the group's own box) through `onBodySlot`, so a board that
+   *  floats its nodes as its own siblings can position them into it. `slotHeight`
+   *  is how much space the slot holds for them; the tally comes from `count` */
+  bodySlot?: boolean
+  slotHeight?: number
+  onBodySlot?: (slot: BodySlot) => void
   addLabel?: string
   defaultOpen?: boolean
   onRetitle?: (title: string) => void
@@ -137,11 +162,8 @@ function IconButton({ label, glyph, size = 12, onClick, reachable = true }: {
   )
 }
 
-/** The tick, drawn rather than set — two strokes of a rotated corner. Exported
- *  for the same reason caretStyle is: the Railroad's container head is this same
- *  version picker laid out by its own engine, and the system draws a tick one
- *  way. (Upstream still keeps it private — see the drift log.) */
-export function checkStyle(): CSSProperties {
+/** The tick, drawn rather than set — two strokes of a rotated corner. */
+function checkStyle(): CSSProperties {
   return {
     width: 9, height: 5, boxSizing: 'border-box',
     borderLeft: '1.75px solid currentColor', borderBottom: '1.75px solid currentColor',
@@ -295,9 +317,232 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+/* ═══ PUBLISHED GEOMETRY ════════════════════════════════════════════════════
+ *  How tall is this card, before it renders?
+ *
+ *  A board that lays its cards out arithmetically — AuthorRoad does, and must:
+ *  it places every box in one pass before React commits anything — cannot ask a
+ *  rendered group how big it is. So it either guesses or it is told. It guessed:
+ *  `CHAR_W = 8`, `HEAD_LINE_H = 17.55`, `FOLD_CHROME = 44.85`, the last two
+ *  read off SCREENSHOTS of this component. Numbers obtained that way are correct
+ *  exactly once. Every padding change here silently misplaced their cards, and
+ *  nothing on either side reported it.
+ *
+ *  These functions are the same numbers, exported from the file that draws them.
+ *  The paddings below are not a copy of the component's — they are read by the
+ *  component too (GROUP_METRICS), so a change lands in the drawing and in the
+ *  prediction together or not at all.
+ *
+ *  Text is MEASURED, not estimated: an offscreen canvas at the same font
+ *  shorthand the label uses. It needs no layout and no paint, so it is legal in
+ *  the same pass that computes positions — which is what makes a monospace
+ *  `CHAR_W` for a proportional display face unnecessary rather than merely
+ *  wrong. Without a document (SSR, tests) it falls back to a 0.55em factor and
+ *  says so via `measured: false`.
+ *
+ *  LOCAL CORRECTIONS (marked ★ below, reported on drift-log #74): the DS's
+ *  functions as shipped on 2026-08-16 predict a few px short of what the DS
+ *  component itself renders — the face's two 1px borders are not counted; the
+ *  DescLine block is a 13px strut's line box (19.55 at one line, not 2 + 16.2);
+ *  the picker floors at 30 (padding + borders + its 18px cells), not 28; and the
+ *  narrow tally row is 18.84, not 14.85. Measured by tools/studio-spike/shot-foldab.mjs
+ *  ("headRows() calibration" / bodySlot cases), which also checks these
+ *  functions against the rendered card so a drift shows up as a number. */
+
+export const GROUP_METRICS = {
+  padX: 8, padTop: 8, padBottom: 12, rowGap: 4,       /* --space-2 / --space-3 / --space-1 */
+  headPadLeft: 7, headPadRight: 2, headMinH: 22, titleMinW: 96,
+  bodyLine: 17.55,                                     /* --fs-body 13 × --lh-snug 1.35 */
+  capLine: 16.2,                                       /* --fs-caption 12 × 1.35 */
+  microLine: 14.85,                                    /* --fs-micro 11 × 1.35 */
+  titleClampOpen: 2, titleClampFolded: 3, versionClamp: 2,
+  descPadY: 1, descPadX: 7,
+  pickerMinH: 28, pickerPadY: 10, pickerPadX: 13,       /* --hit-min; 5+5; 7+6 */
+  pickerCheck: 12, pickerCaret: 16, pickerGap: 6,
+  narrowAt: 250, ctlCluster: 37,                       /* two 18px buttons + 1px */
+  foldPadTop: 8, foldPadX: 9, foldPadBottom: 9, foldPeekX: 6, foldPeekY: 7,
+  railIndent: 13, railPadLeft: 10, bodyPadTop: 6, bodyPadRight: 4,
+  /* ★ LOCAL: what the DS's own numbers leave out, measured */
+  faceBorder: 1,          /* the face's 1px border, top and bottom, open or folded */
+  descStrut: 17.55,       /* the DescLine block's line box: the 13px strut wins over one 12px line */
+  descLastDescent: 0.36,  /* wrapped, the last caption line sits on the block's baseline: 4.5 vs 4.14 */
+  pickerCell: 18,         /* the picker's check cell and code are 18 tall — taller than one 17.55 line */
+  tallyRow: 18.84,        /* the narrow tally's own row, a strut'd block round an 11px inline-block */
+  emptyZone: 58,          /* the empty-version zone in a bodySlot: minHeight 34 + 11px padding twice + 1.5px borders, content-box */
+  railStroke: 1.5,        /* the ancestry rail's border-left — between railIndent and railPadLeft, so a host can find the slot sideways */
+}
+
+/** what the geometry needs to know about a card — the same strings the component
+ *  is given, plus the width it will be laid out at */
+export interface GroupSpec {
+  width?: number
+  title?: string
+  index?: string
+  description?: string
+  descPlaceholder?: string
+  versionName?: string
+  versionLabel?: string
+  count?: number
+  countLabel?: string
+  narrow?: boolean
+  /** open: the height the caller wants the body slot to be (== `slotHeight`) */
+  bodyHeight?: number
+  foldedMinWidth?: number
+}
+
+type FontKind = 'ui' | 'display' | 'mono'
+const FONTS: Partial<Record<FontKind, string>> = {}
+function fontOf(kind: FontKind): string {
+  const cached = FONTS[kind]
+  if (cached) return cached
+  let fam = kind === 'mono' ? 'ui-monospace, monospace'
+    : kind === 'display' ? 'Georgia, serif' : 'system-ui, sans-serif'
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue('--font-' + (kind === 'display' ? 'display' : kind === 'mono' ? 'mono' : 'ui')).trim()
+    if (v) fam = v
+  }
+  FONTS[kind] = fam
+  return fam
+}
+
+let ctx2d: CanvasRenderingContext2D | null | false = null
+function measure(text: unknown, weight: number, size: number, kind: FontKind): number {
+  const str = String(text == null ? '' : text)
+  if (!str) return 0
+  if (typeof document !== 'undefined') {
+    if (!ctx2d) {
+      try { ctx2d = document.createElement('canvas').getContext('2d') } catch { ctx2d = false }
+    }
+    if (ctx2d) {
+      ctx2d.font = weight + ' ' + size + 'px ' + fontOf(kind)
+      return ctx2d.measureText(str).width
+    }
+  }
+  return str.length * size * 0.55
+}
+
+/** lines a label takes at a given width, honouring `overflow-wrap: anywhere` —
+ *  a single unbreakable word longer than the column wraps INSIDE itself rather
+ *  than overhanging, which is what the drawn label does. */
+function linesOf(text: unknown, width: number, weight: number, size: number, kind: FontKind, clamp: number): number {
+  const str = String(text == null ? '' : text).trim()
+  if (!str) return 0
+  if (!(width > 0)) return clamp || 1
+  const words = str.split(/\s+/)
+  let lines = 1
+  let cur = ''
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]
+    const trial = cur ? cur + ' ' + w : w
+    if (measure(trial, weight, size, kind) <= width) { cur = trial; continue }
+    if (cur) { lines++; cur = w } else cur = w
+    const solo = measure(cur, weight, size, kind)
+    if (solo > width) {
+      const extra = Math.ceil(solo / width) - 1
+      lines += extra
+      cur = ''
+    }
+  }
+  return clamp ? Math.min(lines, clamp) : lines
+}
+
+function titleColumn(width: number, spec: GroupSpec, folded: boolean): { col: number; narrow: boolean } {
+  const M = GROUP_METRICS
+  const shellPad = folded ? M.foldPadX * 2 : M.padX * 2
+  let col = width - shellPad - M.headPadLeft - M.headPadRight
+  if (spec.index) col -= measure(spec.index, 500, 12, 'mono') + M.pickerGap - 2
+  col -= M.ctlCluster + M.pickerGap
+  const narrow = spec.narrow === undefined ? width < M.narrowAt : spec.narrow
+  if (!narrow && !folded) {
+    const t = (spec.count === undefined ? 0 : spec.count) + ' ' + (spec.countLabel || 'nodes')
+    col -= measure(t, 400, 11, 'ui') + M.pickerGap
+  }
+  return { col: Math.max(M.titleMinW, col), narrow }
+}
+
+export interface HeadHeight { height: number; narrow: boolean; titleLines: number; versionLines: number; measured: boolean }
+
+/** The head's height: everything above the body — the face's top border, the
+ *  title row, the narrow tally line if the row is too tight to hold it, the
+ *  description, the picker. Feed it the width the card will be laid out at. */
+export function headHeight(spec?: GroupSpec): HeadHeight {
+  const s = spec || {}
+  const M = GROUP_METRICS
+  const width = s.width || 300
+  const c = titleColumn(width, s, false)
+  const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampOpen))
+  /* ★ faceBorder: the head is measured from the card's outer edge, border included */
+  let h = M.faceBorder + M.padTop + Math.max(M.headMinH, titleLines * M.bodyLine)
+  if (c.narrow) h += M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
+  const descText = s.description || s.descPlaceholder || ''
+  if (descText) {
+    const dcol = width - M.padX * 2 - M.descPadX * 2
+    const dl = linesOf(descText, dcol, 400, 12, 'ui', 0)
+    /* ★ the block's line box: one line is the 13px strut; wrapped, the lines win
+       and the last one sits on the block's baseline (+0.36) */
+    h += M.rowGap + M.descPadY * 2 + Math.max(M.descStrut, dl * M.capLine + M.descLastDescent)
+  }
+  let pcol = width - M.padX * 2 - M.pickerPadX - M.pickerCheck - M.pickerCaret - M.pickerGap * 3
+  if (s.versionLabel) pcol -= measure(s.versionLabel, 500, 11, 'mono')
+  const vLines = Math.max(1, linesOf(s.versionName || 'untitled', pcol, 600, 13, 'ui', M.versionClamp))
+  /* ★ padding + its two 1px borders round the taller of the 18px cells and the lines: 30 at one line */
+  h += M.rowGap + M.pickerPadY + 2 + Math.max(M.pickerCell, vLines * M.bodyLine)
+  return { height: Math.round(h * 100) / 100, narrow: c.narrow, titleLines, versionLines: vLines, measured: !!ctx2d }
+}
+
+/** The whole open card, given the height the caller wants the body slot to be.
+ *  `bodyHeight` is the same number passed to the component as `bodyHeight` /
+ *  `slotHeight`, so the box the board reserves and the box the group draws are
+ *  one number with one owner. `bodyTop` is where the slot's content begins,
+ *  from the card's top edge — the slot's own --space-15 padding included. */
+export function openHeight(spec?: GroupSpec): HeadHeight & { bodyTop: number } {
+  const head = headHeight(spec)
+  const s = spec || {}
+  const M = GROUP_METRICS
+  const asked = s.bodyHeight === undefined ? 0 : s.bodyHeight
+  /* ★ an EMPTY version (count 0) draws the dashed zone in the slot, and the zone
+     is taller than the slot it fills — its padding and borders sit outside the
+     34px minimum under the DS's content-box. The board asks for slotHeight and
+     gets the zone; the prediction has to say so. */
+  const body = s.count === 0 ? Math.max(asked, M.emptyZone) : asked
+  /* bodyPadTop: the slot's own --space-15 gap between the picker and the first
+     node. It is part of the card whether the slot is filled or empty, so it is
+     part of the prediction — and it is why a caller passing bodyHeight={0} still
+     gets a taller card than the head alone. */
+  const pad = body > 0 ? M.bodyPadTop : 0
+  /* ★ rowGap: the face is a flex column with --space-1 between its rows, and the
+     body is one of those rows — the gap between the picker and the slot */
+  const top = head.height + M.rowGap + pad
+  return {
+    ...head,
+    bodyTop: Math.round(top * 100) / 100,
+    /* ★ faceBorder: the bottom border closes the card */
+    height: Math.round((top + body + M.padBottom + M.faceBorder) * 100) / 100,
+  }
+}
+
+/** The folded card, peek plate included — the number their FOLD_CHROME and
+ *  FOLD_BASELINE_SLACK were approximating. Height covers the stacked tint the
+ *  shell reserves below and right of itself, so a chain's arrow lands clear of it. */
+export function foldedSize(spec?: GroupSpec): { width: number; height: number; titleLines: number; narrow: boolean; measured: boolean } {
+  const s = spec || {}
+  const M = GROUP_METRICS
+  const width = Math.max(s.width || 190, s.foldedMinWidth || 190)
+  const c = titleColumn(width, s, true)
+  const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampFolded))
+  const tally = M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
+  const h = M.faceBorder * 2 /* ★ */ + M.foldPadTop + Math.max(M.headMinH, titleLines * M.bodyLine)
+    + (c.narrow ? tally : 0) + M.foldPadBottom + M.foldPeekY
+  return { width: width + M.foldPeekX, height: Math.round(h * 100) / 100, titleLines, narrow: c.narrow, measured: !!ctx2d }
+}
+
+/** Reachable from the DS window namespace, where a bare lowercase export is not. */
+export const GroupGeometry = { GROUP_METRICS, headHeight, openHeight, foldedSize }
+
 export function VersionedGroup({
   title = 'untitled', index, description, versions = [], activeId,
-  folded, defaultFolded = false, count, addLabel = 'add new version', defaultOpen = false,
+  folded, defaultFolded = false, selected = false, optional = false, count, addLabel = 'add new version', defaultOpen = false,
   descPlaceholder = 'enter description',
   emptyLabel = 'no nodes in this version — drag one in', numberSteps = true, countLabel = 'nodes',
   onReorderNodes,
@@ -306,6 +551,7 @@ export function VersionedGroup({
   width, bodyHeight, offset, narrow, menuPortal,
   movable = true, onMove, onDeleteVersion, ungroupBlockedLabel, confirmDelete = true,
   onRetitle, onDescribe, onSelect, onRename, onAddVersion, onToggleFold, onClose, children,
+  bodySlot = false, slotHeight, onBodySlot,
 }: VersionedGroupProps) {
   const [open, setOpen] = useState(defaultOpen)
   const [editing, setEditing] = useState<'title' | 'version' | null>(null)
@@ -319,6 +565,7 @@ export function VersionedGroup({
   const body = useRef<HTMLDivElement | null>(null)
   const pickerRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const slot = useRef<HTMLDivElement | null>(null)
   const [anchor, setAnchor] = useState<{ left: number; width: number; up: boolean; top?: number; bottom?: number } | null>(null)
   const [live, setLive] = useState(false)
   const [ownNarrow, setOwnNarrow] = useState(false)
@@ -384,6 +631,40 @@ export function VersionedGroup({
     document.addEventListener('keydown', key)
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key) }
   }, [open])
+
+  /* CHROME-ONLY MODE: the caller draws the body, we draw everything else.
+     A board that floats its step nodes as its OWN siblings — so that a click
+     inside one can never bubble into a parent group, and so one arithmetic pass
+     can place them all — cannot hand those nodes to us as `children`. That was
+     the wall: this component drew a body or nothing, so a board that needed to
+     own the body had to redraw the head, the picker, the menu and the well by
+     hand, and ~230 lines of AuthorRoad are exactly that.
+     `bodySlot` leaves the body area empty and reports where it is, relative to
+     the group's own box, so the caller can position nodes into it. What it does
+     NOT give up is the rail and the empty-version zone: those decorate the body
+     AREA rather than the nodes, so they stay ours and come back on a road that
+     has never had them. The tally must come from `count` in this mode — there
+     are no children to count. `onBodySlot` is called on mount and on any size
+     change; memoize it, or it re-subscribes every render. */
+  useEffect(() => {
+    if (!bodySlot || !onBodySlot || isFolded) return
+    const el = slot.current
+    const sh = shell.current
+    if (!el || !sh) return
+    const report = () => {
+      const a = el.getBoundingClientRect()
+      const b = sh.getBoundingClientRect()
+      onBodySlot({
+        left: Math.round(a.left - b.left), top: Math.round(a.top - b.top),
+        width: Math.round(a.width), height: Math.round(a.height),
+      })
+    }
+    report()
+    const raf = requestAnimationFrame(report)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null
+    if (ro) { ro.observe(el); ro.observe(sh) }
+    return () => { cancelAnimationFrame(raf); if (ro) ro.disconnect() }
+  }, [bodySlot, onBodySlot, isFolded, curW, curH, isNarrow, slotHeight])
 
   const fold = () => {
     setOpen(false)
@@ -559,7 +840,13 @@ export function VersionedGroup({
           onCommit={(v) => { setEditing(null); if (v && v !== title && onRetitle) onRetitle(v) }}
           onCancel={() => setEditing(null)} />
       ) : (
-        <span data-grab="" style={{ flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2 }}>
+        <span data-grab="" style={{
+          /* a floor, not a share: the head's fixed furniture is what shrinks when the
+             group is narrow, never the name. The control cluster keeps its width even
+             while receded, so the title never jumps — and never has controls land on
+             its tail — when they appear */
+          flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2,
+        }}>
           <span title={title} onClick={(e) => { stop(e); setEditing('title') }}
             style={{
               width: 'fit-content',
@@ -692,6 +979,13 @@ export function VersionedGroup({
         background: isFolded ? 'var(--surface-raised)' : 'var(--surface-sunken)',
         border: '1px solid ' + (isFolded ? 'var(--border-rule)' : 'transparent'),
         boxShadow: carrying ? 'var(--lift-drag)' : isFolded ? 'var(--lift-2)' : 'var(--sink-1)',
+        /* folded, the group IS a node again, so it is outlined like one. LOCAL:
+           `optional` is the host's dashed cue on the face in both states, 2px off,
+           yielding to selection when folded — an OUTLINE, so it follows the radius
+           and paints above the lift shadow without taking its slot */
+        outline: selected && isFolded ? 'var(--stroke-ring) solid var(--state-selected)'
+          : optional ? '1.5px dashed var(--border-dashed)' : undefined,
+        outlineOffset: selected && isFolded ? 1 : optional ? 2 : undefined,
         cursor: movable ? 'move' : 'inherit',
         userSelect: 'none', WebkitUserSelect: 'none',
         transition: carrying ? 'none' : 'var(--transition-wash)',
@@ -708,13 +1002,32 @@ export function VersionedGroup({
         {resizable ? edge('right') : null}
         {isFolded || !resizable ? null : edge('bottom')}
         {isFolded || !resizable ? null : edge('corner')}
-        <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{headRow}</div>
-        {isNarrow ? <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{tallyLine}</div> : null}
-        {isFolded ? null : (
-          <DescLine text={description} placeholder={descPlaceholder}
-            onCommit={onDescribe ? (v) => onDescribe(v) : undefined} />
-        )}
-        {isFolded ? null : picker}
+        {/* SELECTED OPEN, THE OUTLINE GOES ROUND THE HEAD — not round the card.
+            A group's body holds nodes that are selectable in their own right, and on a
+            board a run of them can be selected together with its own box drawn round
+            it. An outline round the whole well claims those children: a nested card
+            then reads as selected end to end, and there is no way left to show that
+            the GROUP is picked but its contents are not. So the outline encloses
+            exactly what the group itself is — its name, tally, description and picker
+            — and stops at the body. Folded there is no body, so the outline is the
+            card's own edge (above).
+            2px --state-selected at 1px offset, which takes no layout: picking a card
+            must not move it or its neighbours. One ring per meaning — this is the same
+            pond the board's own selection box is drawn in. */}
+        <div data-grab="" style={{
+          display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
+          borderRadius: 'var(--radius-md)',
+          outline: selected && !isFolded ? 'var(--stroke-ring) solid var(--state-selected)' : undefined,
+          outlineOffset: selected && !isFolded ? 1 : undefined,
+        }}>
+          <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{headRow}</div>
+          {isNarrow ? <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{tallyLine}</div> : null}
+          {isFolded ? null : (
+            <DescLine text={description} placeholder={descPlaceholder}
+              onCommit={onDescribe ? (v) => onDescribe(v) : undefined} />
+          )}
+          {isFolded ? null : picker}
+        </div>
         {isFolded ? null : (
           <div ref={body} data-grab="" style={{
             marginLeft: 13, paddingLeft: 10, borderLeft: '1.5px solid var(--bark-300)',
@@ -722,7 +1035,28 @@ export function VersionedGroup({
             ...(curH ? { height: curH, minHeight: 0 } : { maxHeight: bodyMaxHeight }),
             overflowY: 'auto', overflowX: 'hidden',
           }}>
-            {kids.length === 0 ? (
+            {bodySlot ? (
+              /* the slot. Empty on purpose: the caller's nodes land here, and it
+                 holds `slotHeight` of space for them. `children` still render if
+                 any are passed, so a caller can mix — but they are NOT chained,
+                 because a board that positions nodes itself owns their order and
+                 their arrows too. */
+              <div ref={slot} data-grab="" style={{
+                position: 'relative', flex: curH ? 1 : '0 0 auto',
+                minHeight: curH ? 0 : (slotHeight || 0),
+                paddingTop: 'var(--space-15)', paddingRight: 'var(--space-1)',
+              }}>
+                {tally === 0 ? (
+                  <div data-grab="" style={{
+                    height: '100%', minHeight: 34, display: 'grid', placeItems: 'center',
+                    padding: '11px 12px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px dashed var(--border-dashed)', background: 'transparent',
+                    fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
+                    lineHeight: 'var(--lh-snug)', color: 'var(--text-3)', textAlign: 'center',
+                  }}>{emptyLabel}</div>
+                ) : kids}
+              </div>
+            ) : kids.length === 0 ? (
               <div data-grab="" style={{
                 flex: curH ? 1 : '0 0 auto', minHeight: 0,
                 marginTop: 'var(--space-15)', marginRight: 'var(--space-1)',
