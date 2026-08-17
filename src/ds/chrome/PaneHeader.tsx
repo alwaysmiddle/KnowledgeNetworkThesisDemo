@@ -128,7 +128,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
             pointerEvents: 'none',
           }}
         >
-          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', minWidth: 0, padding: '0 8px', pointerEvents: 'auto' }}>
+          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', minWidth: 0, padding: '0 5px', pointerEvents: 'auto' }}>
             <span style={cut} />
             <span
               style={{

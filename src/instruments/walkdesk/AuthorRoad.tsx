@@ -585,9 +585,14 @@ export default function AuthorRoad({
   }
 
   return (
+    // DS PaneHeader.d.ts rule 3: A SCROLLING BODY INSETS 12px FROM THE BOTTOM, as a
+    // margin rather than a radius on the scroller, so the scrollbar's end arrow stays
+    // clear of the pane's corner arc instead of being clipped by it; the pane's own
+    // paper fills the strip. One inset serves both axes.
     <div
       data-road-root
       className="flex-1 min-h-0 overflow-auto"
+      style={{ marginBottom: 'var(--space-3)' }}
       onPointerDown={onBoardPointerDown}
       onPointerMove={onBoardPointerMove}
       onPointerUp={onBoardPointerUp}
@@ -661,7 +666,7 @@ export default function AuthorRoad({
           <svg className="absolute inset-0 pointer-events-none z-10" width={W} height={H}>
             <defs>
               <marker id="wt-road-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--acorn-600)' }} />
+                <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--accent-walk)' }} />
               </marker>
               <marker id="wt-road-ghost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--text-3)' }} />
@@ -675,7 +680,7 @@ export default function AuthorRoad({
                 y1={a.y1}
                 x2={a.x2}
                 y2={a.y2}
-                style={{ stroke: a.live ? 'var(--acorn-600)' : 'var(--text-3)' }}
+                style={{ stroke: a.live ? 'var(--accent-walk)' : 'var(--text-3)' }}
                 strokeWidth={a.live ? 2.5 : 1.5}
                 strokeDasharray={a.optional ? '5 4' : a.live ? undefined : '4 3'}
                 markerEnd={a.live ? 'url(#wt-road-head)' : 'url(#wt-road-ghost)'}
