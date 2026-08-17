@@ -108,10 +108,12 @@ const M = GROUP_METRICS
 const SLOT_LEFT = M.faceBorder + M.padX + M.railIndent + M.railStroke + M.railPadLeft // 33.5
 const SLOT_RIGHT = M.bodyPadRight + M.padX + M.faceBorder // 17
 // The two are the card's own asymmetry: the ancestry rail hangs on the left, so the
-// slot is inset further that side. The COLUMN sits on the road's axis (see reachOf),
-// which makes SLOT_LEFT the card's reach to the left of it and leaves the card's
-// edges falling where they fall. Both are also how far the DS's own empty zone
-// reaches, which is what the road's transparent drop target has to cover.
+// slot is inset further that side, and its centre therefore sits (SLOT_LEFT -
+// SLOT_RIGHT) / 2 = 8.25px RIGHT of the card's own centre. The SLOT sits on the road's
+// axis (see reachOf), so an open card hangs that 8.25px left of it — the same amount at
+// every width, which is what lets two cards of one width share their edges. Both are
+// also how far the DS's own empty zone reaches, which is what the road's transparent
+// drop target has to cover.
 const EMPTY_SLOT_H = 34 // what to ask for when the active version has no steps: the DS's own
 // zone minimum. The zone the component then draws is taller (GROUP_METRICS.emptyZone) and
 // openHeight knows it; the road's transparent drop target covers that box.
@@ -265,13 +267,14 @@ function layoutRoad(
       const spec = groupSpec(s, outline, NODEW, 0, chosen)
       return { w: NODEW, h: Math.ceil(GroupGeometry.foldedSize({ ...spec, foldedMinWidth: FOLD_MIN_W, narrow: true }).height), spec }
     }
-    // the OPEN card wraps its column ASYMMETRICALLY — SLOT_LEFT of ancestry rail on
-    // one side, SLOT_RIGHT on the other — because the column, not the card, is what
-    // sits on the road's axis. That is the DS's own rule (VersionedGroup.prompt.md,
-    // "Filling the body slot" point 7): the chain continues THROUGH the body, so the
-    // arrows into and out of a card must land on the body's axis, and a chain whose
-    // arrows sit on two axes reads as a mistake even when every box is where it
-    // should be. The card's own edges are then free to fall where the slot puts them.
+    // the OPEN card wraps its slot ASYMMETRICALLY — SLOT_LEFT of ancestry rail on one
+    // side, SLOT_RIGHT on the other — because the SLOT, not the card, is what sits on
+    // the road's axis. That is the DS's own rule (VersionedGroup.prompt.md, "Filling the
+    // body slot" point 7): the chain continues THROUGH the body, so the arrows into and
+    // out of a card must land on the body's axis, and a chain whose arrows sit on two
+    // axes reads as a mistake even when every box is where it should be. The card's own
+    // edges then fall a fixed 8.25px left of the axis — fixed being the point, see
+    // reachOf. Width is still content-driven, floored at CARD_MIN_W.
     // Never so narrow the head goes to two rows. Width first, THEN height: the head's
     // fields wrap against the width, so this order is what keeps openHeight() an
     // answer rather than a circular question.
@@ -286,11 +289,22 @@ function layoutRoad(
    *  which is not always what it RESERVES.
    *
    *  The axis is where the arrows are drawn, and the DS's body-slot rule puts it on
-   *  the BODY rather than on the card. So a leaf or a fold is centred on it and
+   *  the BODY SLOT rather than on the card. So a leaf or a fold is centred on it and
    *  reaches half its painted width each way (a fold's DS shell overhangs the NODEW
    *  slot it keeps in the column, which is why `painted` is not always `m.w`), while
-   *  an OPEN CARD hangs asymmetrically: its column sits on the axis, so it reaches
-   *  SLOT_LEFT plus half its body to the left and the rest of its width to the right.
+   *  an OPEN CARD reaches to its SLOT's centre — (w + SLOT_LEFT - SLOT_RIGHT) / 2,
+   *  since the slot is inset further on the rail side — and so hangs 8.25px left of
+   *  the axis at every width.
+   *
+   *  It used to reach to the CONTENT COLUMN's centre instead. That is the same number
+   *  only while the content fills the slot, and it never does: CARD_MIN_W (250) is
+   *  wider than most bodies, and every pixel of that surplus fell on the RIGHT of the
+   *  column, so a card's offset moved with its widest step. Measured on the Plan board
+   *  2026-08-16, two cards BOTH 250 wide sat 12px apart, their arrows entering at +17
+   *  and +5 from the axis every leaf chip was exactly on — read as two boxes that
+   *  simply failed to line up. Reaching to the slot centres the chips in the slot they
+   *  are floated over, gives equal-width cards equal edges, and satisfies point 7
+   *  exactly rather than approximately.
    *  Placement and board sizing both read this, so the two can never disagree. */
   const reachOf = (s: Stop, m: { w: number; body?: Col; spec?: GroupSpec }) => {
     if (!isLeaf(s) && collapsed.has(s.key!)) {
@@ -298,7 +312,7 @@ function layoutRoad(
       return { left: painted / 2, right: painted / 2, painted }
     }
     if (isLeaf(s)) return { left: m.w / 2, right: m.w / 2, painted: m.w }
-    const left = SLOT_LEFT + (m.body ? m.body.w / 2 : 0)
+    const left = (m.w + SLOT_LEFT - SLOT_RIGHT) / 2
     return { left, right: m.w - left, painted: m.w }
   }
 
@@ -318,12 +332,12 @@ function layoutRoad(
       const outline = prefix ? `${prefix}.${i + 1}` : String(i + 1)
       const m = measure(s, outline)
       const { w, h } = m
-      // the COLUMN is what sits on centerX, not the card. Arrows are drawn at
+      // the SLOT is what sits on centerX, not the card. Arrows are drawn at
       // centerX, so what has to land there is whatever the chain runs through: a
-      // leaf's own box, a fold's face, and an open card's BODY — never the open
-      // card's outline, which hangs wider on the rail side than on the other. Two
-      // same-width cards with different widest steps therefore do NOT share edges,
-      // and that is the drawing, not a bug. The drop slot keeps the RESERVED width
+      // leaf's own box, a fold's face, and an open card's BODY SLOT — never the open
+      // card's outline, which hangs 8.25px left of it because the rail is inset
+      // further than the other side. That offset is the same for every card, so two
+      // cards of one width DO share edges. The drop slot keeps the RESERVED width
       // and stays centred, so a slot above a fold still lines up with the leaves.
       const isFold = !isLeaf(s) && collapsed.has(s.key!)
       const r = reachOf(s, m)

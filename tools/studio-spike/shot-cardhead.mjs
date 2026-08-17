@@ -104,16 +104,17 @@ const overlaps = await page.evaluate(() => {
 console.log(`head/step overlaps = ${overlaps.length} (expect 0)`)
 if (overlaps.length) fail(`the head reservation is wrong:\n  ${overlaps.join('\n  ')}`)
 
-// -- the CHAIN sits on one axis; the cards need not -------------------------
+const SLOT_LEFT = 33.5 // faceBorder 1 + padX 8 + railIndent 13 + railStroke 1.5 + railPadLeft 10
+const SLOT_RIGHT = 17 // bodyPadRight 8 + padX 8 + faceBorder 1
+
+// -- the CHAIN sits on one axis, and so does every card's SLOT ---------------
 // The road is a vertical spine and the arrows are drawn on the column axis, so
 // anything the chain runs THROUGH has to land on it: a leaf stop's own box, a
-// fold's face, and an open card's floating steps. The open CARD is deliberately
-// exempt -- the DS's body-slot rule (VersionedGroup.prompt.md point 7) puts the
-// axis on the BODY, and the slot is inset further on the rail side, so a card
-// hangs wider to the left of the axis than to the right. Two same-width cards
-// with different widest steps therefore do not share edges. Asserting otherwise
-// is what the symmetric-padding version of this file did, and it cost 20.5px of
-// card width to buy an alignment the design does not ask for.
+// fold's face, and an open card's floating steps. The open CARD's own outline is
+// still exempt -- the DS's body-slot rule (VersionedGroup.prompt.md point 7) puts
+// the axis on the BODY SLOT, and the slot is inset further on the rail side, so a
+// card hangs 8.25px left of the axis. What is NOT exempt, and what the next block
+// checks, is the slot itself.
 const axes = await page.evaluate(() => {
   const road = document.querySelector('[data-rstage]')?.offsetParent
   const read = (el, i) => {
@@ -131,15 +132,20 @@ console.log(`chain members on the axis = ${axes.length}, centre spread = ${sprea
 if (axes.length < 6) fail(`only ${axes.length} chain members found — the axis check is not looking at the road`)
 if (spread > 0.5) fail(`the chain has more than one axis: ${axes.map((a) => `${a.name}@${a.c.toFixed(1)}`).join(', ')}`)
 
-// -- and each open card wraps that axis asymmetrically ----------------------
-// the other half of the same rule. The card is off the axis, but by a KNOWN amount:
-// its column's left edge sits exactly SLOT_LEFT inside the card's own left edge, the
-// ancestry rail's inset. The card's CENTRE is not a usable check -- a card clamped to
-// CARD_MIN_W spends all its surplus width on the right, so the centre offset moves
-// with the widest step -- but the rail inset holds at every width. If a card ever
-// centres itself on the axis instead, the spread check above stays 0.00 and nothing
-// else notices; this is what catches it.
-const insets = await page.evaluate(() => {
+// -- and each open card's SLOT lands on that same axis ----------------------
+// The other half of the same rule, and the half that was wrong. The card's own
+// centre is off the axis by a FIXED 8.25px -- (SLOT_LEFT - SLOT_RIGHT) / 2, the
+// rail's extra inset -- so what has to be on the axis is the slot the DS reports,
+// which is where the road floats the steps. This file used to assert the rail
+// INSET instead, with a note saying the centre "is not a usable check" because a
+// card clamped to CARD_MIN_W spends its surplus width on the right and its offset
+// moves with its widest step. That was true, and it was the bug: the card was
+// anchored to its CONTENT COLUMN rather than to its SLOT, so two cards both 250px
+// wide sat 12px apart with their arrows entering at +17 and +5. The check had been
+// shaped around it. Anchoring to the slot costs no width at all -- unlike the
+// symmetric-padding attempt this file also remembers, which bought the same
+// alignment for 20.5px a card.
+const slotAxis = await page.evaluate(([SLOT_LEFT, SLOT_RIGHT]) => {
   const road = document.querySelector('[data-rstage]')?.offsetParent
   const nodes = [...(road?.querySelectorAll('[data-rnode]') || [])].map((el) => el.getBoundingClientRect())
   return [...(road?.querySelectorAll('[data-rstage]') || [])].map((el) => {
@@ -150,19 +156,42 @@ const insets = await page.evaluate(() => {
     return {
       name: el.getAttribute('data-rstage'),
       steps: mine.length,
-      inset: mine.length ? Math.min(...mine.map((r) => r.left)) - c.left : null,
+      left: c.left,
+      width: c.width,
+      // where the DS puts the slot inside the card, from its own metrics
+      slotC: c.left + SLOT_LEFT + (c.width - SLOT_LEFT - SLOT_RIGHT) / 2,
+      stepC: mine.length ? (Math.min(...mine.map((r) => r.left)) + Math.max(...mine.map((r) => r.right))) / 2 : null,
     }
   })
-})
-const SLOT_LEFT = 33.5 // faceBorder 1 + padX 8 + railIndent 13 + railStroke 1.5 + railPadLeft 10
-console.log(`open cards = ${insets.length}, column inset = ${insets.map((c) => `${c.name}:${c.inset === null ? 'no steps' : c.inset.toFixed(2)}`).join(', ')} (expect ${SLOT_LEFT})`)
-if (!insets.length) fail('no open cards found — the asymmetry check is not looking at the road')
-for (const c of insets) {
-  if (c.inset === null) fail(`${c.name} has no steps inside it — the inset check found nothing to measure`)
-  else if (Math.abs(c.inset - SLOT_LEFT) > 0.5) {
-    fail(`${c.name}'s column is inset ${c.inset.toFixed(2)}px, expected ${SLOT_LEFT} — its body is not on the chain's axis`)
+}, [SLOT_LEFT, SLOT_RIGHT])
+const AXIS = axes.length ? axes[0].c : null
+console.log(`open cards = ${slotAxis.length}, slot centre - axis = ${slotAxis.map((c) => `${c.name}:${(c.slotC - AXIS).toFixed(2)}`).join(', ')} (expect 0)`)
+console.log(`  card box centre - axis = ${slotAxis.map((c) => `${c.name}:${(c.left + c.width / 2 - AXIS).toFixed(2)}`).join(', ')} (expect a CONSTANT -8.25)`)
+if (!slotAxis.length) fail('no open cards found — the slot-axis check is not looking at the road')
+for (const c of slotAxis) {
+  if (c.steps === 0) fail(`${c.name} has no steps inside it — the slot-axis check found nothing to measure`)
+  if (Math.abs(c.slotC - AXIS) > 0.5) {
+    fail(`${c.name}'s body slot is ${(c.slotC - AXIS).toFixed(2)}px off the chain's axis — the arrows into and out of this card do not meet the arrows inside it (VersionedGroup.prompt.md, "Filling the body slot" point 7)`)
+  }
+  if (c.stepC !== null && Math.abs(c.stepC - AXIS) > 0.5) {
+    fail(`${c.name}'s steps sit ${(c.stepC - AXIS).toFixed(2)}px off the axis inside their own card`)
   }
 }
+// equal-width cards must share edges: that is what "a fixed offset" MEANS, and it is
+// the thing the eye actually reads on the board
+const byW = new Map()
+for (const c of slotAxis) {
+  const k = Math.round(c.width)
+  if (!byW.has(k)) byW.set(k, [])
+  byW.get(k).push(c)
+}
+for (const [w, group] of byW) {
+  const spreadL = Math.max(...group.map((c) => c.left)) - Math.min(...group.map((c) => c.left))
+  if (group.length > 1 && spreadL > 0.5) {
+    fail(`${group.length} cards are all ${w}px wide but their left edges spread ${spreadL.toFixed(2)}px — same-width cards must line up`)
+  }
+}
+console.log(`same-width card groups = ${[...byW.entries()].map(([w, g]) => `${w}px x${g.length}`).join(', ')} (edges must agree within each)`)
 
 // -- and every step it holds stays inside it --------------------------------
 // The card's height is RESERVED by layoutRoad from GroupGeometry, and the steps
