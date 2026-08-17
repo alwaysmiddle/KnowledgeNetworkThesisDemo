@@ -121,11 +121,14 @@ export default function StudioView() {
           rather than as a filled bar. legendBg MUST equal the desk color behind
           the pane for the mask to blend. */}
       <PaneHeader title={inst.label} variant="legend" legendBg="var(--surface-canopy)" onClose={() => toggle(inst.id as InstrumentId)} />
-      {/* content clips to the box's lower corners; a strip with no declared height
-          sizes itself to its content */}
+      {/* content clips to ALL FOUR of the box's corners, never the bottom two alone
+          (DS PaneHeader.d.ts rule 2, 2026-08-17): the header is 11px tall, so the
+          content still starts inside the 20px corner arc and has to follow it, or
+          anything it paints squares off the pane's rounded top. A strip with no
+          declared height sizes itself to its content. */}
       <div
         className={inst.slot === 'strip' && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}
-        style={{ overflow: 'hidden', borderBottomLeftRadius: 'var(--radius-lg)', borderBottomRightRadius: 'var(--radius-lg)' }}
+        style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}
       >
         {inst.render(bus)}
       </div>

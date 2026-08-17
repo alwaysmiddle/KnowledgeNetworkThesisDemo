@@ -9,7 +9,14 @@ import { DOMAIN_TOKEN } from '../graph/vocab'
  *  both failed here — a fill out-inks the labels, and every hollow or angle-quote
  *  glyph is too small and too oddly proportioned at 15px to read as a shape.
  *  Exported because the instrument palette (InstrumentGroup) is a containment
- *  list too and reuses this exact mark — the system draws nesting one way. */
+ *  list too and reuses this exact mark — the system draws nesting one way.
+ *
+ *  IF YOU REPEAT THE RECIPE, REPEAT THE LONGHANDS. This sets `borderRight` and
+ *  `borderBottom` and nothing else. Writing it as `border` plus `borderTop: 'none'`
+ *  looks equivalent and is not: React diffs style objects key by key, so a re-render
+ *  that changes only the shorthand's colour re-sets `border` and never re-sets the two
+ *  sides that were switched off — the mark fills in and the caret becomes a diamond the
+ *  first time it is hovered. (DS 2026-08-17, contracted at last.) */
 export function caretStyle(open?: boolean): CSSProperties {
   return {
     width: 6,
@@ -31,9 +38,12 @@ export function caretStyle(open?: boolean): CSSProperties {
 export interface TreeRowProps {
   title: string
   domain: DomainCode
-  /** indentation level; 16px per step */
+  /** indentation level; 16px per step. This component is the REFERENCE for nesting
+   *  anywhere in the system — a 16px caret slot plus 16px of indent per level. Anything
+   *  else that nests matches those two numbers rather than picking its own step */
   depth?: number
-  /** has children — draws the ▾/▸ disclosure and answers to double-click */
+  /** has children — draws the disclosure caret (`caretStyle`, rotated when open)
+   *  and answers to double-click. Never a typed ▾/▸, never an SVG chevron */
   container?: boolean
   expanded?: boolean
   /** this row is the bus's focus */

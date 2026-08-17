@@ -96,7 +96,11 @@ export default function RailroadView({ bus }: { bus: Bus }) {
   }
 
   return (
-    <div data-railroad className="h-full flex flex-col" style={{ background: 'var(--surface-canopy)' }}>
+    // DS PaneHeader.d.ts rule 2: THE PANE BODY TAKES NO BACKGROUND OF ITS OWN — the
+    // pane's --surface-paper shows through. Painting canopy here started the fill
+    // INSIDE the pane's 20px corner arc with square corners, biting two square
+    // notches of desk colour out of the rounded top where the content starts.
+    <div data-railroad className="h-full flex flex-col">
       <div className="shrink-0 px-2 py-1.5 border-b border-[var(--border-hair)]">
         <div className="text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
           railroad — the road can fork and rejoin; ● picks the branch
