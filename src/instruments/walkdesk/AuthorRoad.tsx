@@ -31,7 +31,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
-import { byId, domainOf, DOMAIN_COLOR, topicIds } from '../../corpus/graph'
+import { byId, domainOf, topicIds } from '../../corpus/graph'
+import { NodeChip, chipSize } from '../../ds/graph/NodeChip'
+import type { DomainCode } from '../../ds/graph/vocab'
 import { VersionedGroup, GroupGeometry, GROUP_METRICS } from '../../ds/group/VersionedGroup'
 import type { GroupSpec } from '../../ds/group/VersionedGroup'
 import type { AuthorState, Path } from './authordraft'
@@ -43,6 +45,9 @@ import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
 const NODEW = 150
+// an UNSET slot is the road's own picker — a dashed pill round a <select> — so
+// this is the road's box to choose. A BOUND leaf is a NodeChip and asks that
+// component for its own; see leafSize.
 const NODEH = 34
 const FOLD_MIN_W = 190 // DS foldedMinWidth: the shell's CONTENT is never squeezed
 // below this — the face is 190 wide, exactly as in the DS's own studio; the shell
@@ -51,12 +56,19 @@ const FOLD_MIN_W = 190 // DS foldedMinWidth: the shell's CONTENT is never squeez
 // it on the column axis (see visualW). Content-box — the DS's regime, which the
 // [data-ds-host] rule in index.css restores on every hosted card.
 // a leaf title used to `truncate` at NODEW; it now WRAPS and the node grows to
-// fit, but only up to these bounds so one long title can't balloon the board (#72)
+// fit, but only up to these bounds so one long title can't balloon the board (#72).
+// These two are the road's POLICY — how much of the board one stop may take — and
+// they are the only leaf numbers left here. Everything about the chip's own box
+// (its 1.5px edge, its paddings, the delete button's 18px, the real advance of the
+// mono step number) belongs to ChipGeometry, exported from the file that draws it.
+// NODE_MAXH is spent on LINES rather than cropped to, so a title too long for it
+// loses its tail instead of the box lying about how tall it is.
 const NODE_MAXW = 220
 const NODE_MAXH = 66
-const LEAF_LINE_H = 16 // added height per wrapped title line past the first (13px × ~1.2 lh)
-const CHAR_W = 8 // rough advance of the 13px (--fs-body) semibold Nunito title, for wrap estimation
-const LEAF_CHROME_W = 40 // outline number + horizontal padding around the title
+/** the step number as the CHIP is handed it. leafSize measures this and the render
+ *  below draws it, from one place — the trailing dot is a few px of mono, and a
+ *  reservation that missed it would be that much too narrow on every stop. */
+const leafIndex = (outline: string) => `${outline}.`
 // the selection cue on a LEAF: an OUTLINE, not a ring — it survives the inline
 // box-shadow on pills, and its offset sits OUTSIDE a node's thick coloured border,
 // so selection stays legible where a 1px ring was lost against the border (#72 #10)
@@ -201,11 +213,22 @@ function layoutRoad(
   // DS says a card with that head and that slot is.
   // a bound leaf's box: wide enough for a short title on one line, growing (and
   // wrapping) toward NODE_MAXW / NODE_MAXH for a long one, then clamped (#72 #8).
-  const leafSize = (title: string): { w: number; h: number } => {
-    const w = Math.min(NODE_MAXW, Math.max(NODEW, title.length * CHAR_W + LEAF_CHROME_W))
-    const perLine = Math.max(1, Math.floor((w - LEAF_CHROME_W) / CHAR_W))
-    const lines = Math.max(1, Math.ceil(title.length / perLine))
-    return { w, h: Math.min(NODE_MAXH, NODEH + (lines - 1) * LEAF_LINE_H) }
+  // ASKED, not guessed. chipSize is the chip's own geometry, exported from the
+  // file that draws it and reading back the same CHIP_METRICS its style block
+  // writes, so a padding change lands in the reservation and in the drawing
+  // together or not at all — the rule GroupGeometry already gives the card.
+  // What stood here counted characters at CHAR_W = 8 against chrome scored at 40
+  // when the chip's real chrome is ~83, so every title it scored as one line
+  // wrapped to two and was clipped against the height it had been told (#97).
+  const leafSize = (title: string, outline: string): { w: number; h: number } => {
+    const c = chipSize({
+      title,
+      index: leafIndex(outline),
+      // the road's leaf, in exactly the form the chip is handed below
+      mark: 'border', wrap: true, deletable: true,
+      minWidth: NODEW, maxWidth: NODE_MAXW, maxHeight: NODE_MAXH,
+    })
+    return { w: c.width, h: c.height }
   }
   /** the active version's column: its widest step wide, its whole stack tall —
    *  or, empty, the slot height the DS zone wants */
@@ -219,7 +242,7 @@ function layoutRoad(
     if (isLeaf(s)) {
       // a bound leaf wraps and grows within bounds (#72 #8); an unset slot keeps
       // the fixed pill size
-      return s.unset ? { w: NODEW, h: NODEH } : leafSize(byId.get(s.node)?.title ?? '')
+      return s.unset ? { w: NODEW, h: NODEH } : leafSize(byId.get(s.node)?.title ?? '', outline)
     }
     const chosen = chosenIdx(s, choices)
     if (collapsed.has(s.key!)) {
@@ -496,32 +519,9 @@ export default function AuthorRoad({
    * there UNGROUPS (its active version's steps are lifted out in place and the
    * wrapper, plus any other versions, drops), and deleting a whole group,
    * contents and all, is the toolbar's ✕ Delete. All undoable. */
-  const browserBar = (pl: Placed, shown: boolean) => {
-    const key = pathKey(pl.path)
-    return (
-      <span
-        data-browserbar={key}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-        onDoubleClick={(e) => e.stopPropagation()}
-        className={['shrink-0 flex items-center gap-0.5 pl-0.5 transition-opacity duration-150', shown ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'].join(' ')}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            state.deleteAt(pl.path)
-          }}
-          title="delete this node"
-          aria-label="delete"
-          className="shrink-0 grid place-items-center w-3.5 h-3.5 rounded transition-colors hover:bg-[var(--state-danger-wash)] hover:text-[var(--state-danger)]"
-          style={{ color: 'var(--state-danger)' }}
-        >
-          ✕
-        </button>
-      </span>
-    )
-  }
+  // the road's own delete ✕ for a leaf stop is RETIRED (#97): NodeChip carries one,
+  // berry at rest, receding on the shared PKT_SB clock with its space reserved so the
+  // chip never changes width — the same control every other ✕ in the system is.
 
 
   // ── marquee (rubber-band) select ──────────────────────────────────────────
@@ -701,7 +701,20 @@ export default function AuthorRoad({
                   </div>
                 )
               }
-              const color = DOMAIN_COLOR[domainOf(s.node)]
+              // a stop is a DS NodeChip (#97), not a pill the road draws. `mark="border"`
+              // is the DS's own form for a node standing on its own — the domain on the
+              // edge, no disc, and the step number in the freed column — and it takes its
+              // hue from --domain-* rather than the corpus's raw authored hex, which is
+              // what the road was reading before.
+              //
+              // The road keeps everything that is BEHAVIOUR and hands over the drawing,
+              // exactly as the folded card does: the wrapper owns position, the relayout
+              // transition, drag, the hover-bus binding and the selection SET; the chip
+              // owns its picture, its ✕ and its rings. `selected` WITHOUT `selectable` is
+              // the DS's own advice for a board — it paints the chip picked without also
+              // handing it a click gesture, which would fight the marquee and the drag.
+              // `dim` is the DS's off-the-resolved-path treatment (no lift, no fill,
+              // --opacity-off-path), a step past the plain opacity the road used.
               return (
                 <div
                   key={key}
@@ -710,31 +723,29 @@ export default function AuthorRoad({
                   data-rnode
                   data-node={s.node}
                   data-ropt={s.optional ? 1 : undefined}
-                  className={[
-                    'group absolute z-20 rounded-full border px-3 flex items-center gap-1.5 text-[var(--fs-body)] font-semibold cursor-grab',
-                    'transition-[left,top,width,height] duration-200 ease-out',
-                    s.optional ? 'border-dashed' : '',
-                    dim,
-                    isSelected ? SEL_OUTLINE : '',
-                  ].join(' ')}
-                  style={{
-                    left: pl.x, top: pl.y, width: pl.w, height: pl.h,
-                    borderWidth: 'var(--stroke-rule)',
-                    borderColor: color,
-                    color: 'var(--text-1)',
-                    background: 'var(--surface-raised)',
-                    boxShadow: !isSelected && sync.lit(s.node) ? 'var(--ring-linked)' : undefined,
-                  }}
+                  data-rord={pl.outline}
+                  className="absolute z-20 cursor-grab transition-[left,top,width,height] duration-200 ease-out"
+                  style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
                 >
-                  <span data-rord={pl.outline} className="shrink-0 text-[var(--fs-micro)] font-bold tabular-nums" style={{ color: 'var(--text-3)' }}>
-                    {pl.outline}.
-                  </span>
-                  {/* a leaf (unnested node) centres its title (#15). #72 #8: it
-                      WRAPS now instead of truncating — the node grew to fit in
-                      measure()/leafSize, bounded by NODE_MAXW/NODE_MAXH. */}
-                  <span className="flex-1 text-center whitespace-normal break-words leading-tight">{byId.get(s.node)!.title}</span>
-                  {/* #15: a leaf's close (delete) button, top-right, on hover/select */}
-                  {browserBar(pl, isSelected)}
+                  {/* #72 #8: the title WRAPS instead of truncating — the node grew to
+                      fit in measure()/leafSize, which ASKS this component's own
+                      chipSize() for the box and bounds it by NODE_MAXW/NODE_MAXH. So
+                      what the chip is told here is what it would have measured. */}
+                  <NodeChip
+                    title={byId.get(s.node)!.title}
+                    index={leafIndex(pl.outline)}
+                    domain={domainOf(s.node) as DomainCode}
+                    mark="border"
+                    wrap
+                    optional={!!s.optional}
+                    dim={(!pl.onRoad || pl.skipped) && !isSelected}
+                    lit={sync.lit(s.node)}
+                    selected={isSelected}
+                    width={pl.w}
+                    height={pl.h}
+                    resizable={false}
+                    onDelete={() => state.deleteAt(pl.path)}
+                  />
                 </div>
               )
             }
@@ -847,6 +858,9 @@ export default function AuthorRoad({
             const steps = chosenSteps(s, choices)
             const spec = pl.spec!
             const bodyTop = pl.bodyTop ?? 0
+            // the slot layoutRoad reserved. The card must draw exactly this and
+            // impose NO ceiling of its own — see bodyMaxHeight below (#97).
+            const slotH = pl.body?.h ?? EMPTY_SLOT_H
             // where a drag over the card lands: the HEAD zone (above the slot) reads
             // before / inside / after in thirds, as bandFor does for a node; the slot
             // itself, and anything under it, is inside — the version on show
@@ -915,7 +929,22 @@ export default function AuthorRoad({
                   // would keep the card's own guess after the road had reopened it
                   folded={false}
                   bodySlot
-                  slotHeight={pl.body?.h ?? EMPTY_SLOT_H}
+                  slotHeight={slotH}
+                  // NO CEILING. The DS defaults this to 260 and caps the body with
+                  // `overflow-y: auto`, but openHeight — which is where the road got
+                  // this card's height — does not model the cap. So a column over 260
+                  // was RESERVED at full height and DRAWN capped, and because the
+                  // steps are board-level siblings they do not scroll with the body:
+                  // they hung out of the bottom of the card while the reserved height
+                  // left dead space above the arrow out of it. Not `slotH` either —
+                  // the cap applies to the body BOX, padding included, so a tight
+                  // number crushes it (and the empty version's zone, which the
+                  // component draws at GROUP_METRICS.emptyZone whatever was asked).
+                  // The road already reserved this card's exact height; a ceiling of
+                  // the card's own is a second opinion on a box that is not its to
+                  // decide. Reported on #74: openHeight should model bodyMaxHeight,
+                  // or say that a bodySlot host must clear it.
+                  bodyMaxHeight="none"
                   // TOLD, never measured — the same spec layoutRoad reserved by, so
                   // the card draws exactly the box that was reserved for it
                   width={pl.w}

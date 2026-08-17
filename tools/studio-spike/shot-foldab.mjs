@@ -141,8 +141,94 @@ const byLines = new Map()
 for (const c of cal) if (!byLines.has(c.lines)) byLines.set(c.lines, c.h)
 console.log('  height by title lines:', JSON.stringify([...byLines.entries()].sort((a, b) => a[0] - b[0])))
 
+// ── ChipGeometry vs the rendered NodeChip ───────────────────────────────
+// Two questions, because a told box can be wrong in two directions.
+//
+//   FIT      the chip is told chipSize()'s box and its own overflow is hidden, so a
+//            box scored short does not grow — it crops, silently. `overflow` here is
+//            the shell's scroll extent against its client box: any excess is text
+//            the user cannot read. This is the #97 defect, and it is the check that
+//            would have failed the day CHAR_W = 8 was written.
+//   NATURAL  the same chip with no told size settles somewhere on its own. That is
+//            the answer the prediction is claiming, so the two must agree.
+const chipCal = await page.evaluate(() => {
+  const boxOf = (host) => {
+    const shell = host.firstElementChild
+    const r = shell.getBoundingClientRect()
+    const spans = [...shell.children].filter((c) => c.tagName === 'SPAN')
+    const title = spans[spans.length - 1]
+    const lh = title ? parseFloat(getComputedStyle(title).lineHeight) : 0
+    return {
+      w: Math.round(r.width * 100) / 100, h: Math.round(r.height * 100) / 100,
+      // overflow past the shell's own content box — what `overflow: hidden` eats
+      overY: shell.scrollHeight - shell.clientHeight,
+      overX: shell.scrollWidth - shell.clientWidth,
+      lines: title && lh ? Math.round(title.getBoundingClientRect().height / lh) : null,
+      // the column the title actually got, CONTENT box — the title span carries a
+      // 4px right gutter of its own, and chipSize's titleColumn is the room for the
+      // text, so the gutter has to come off or the two are not the same quantity
+      col: title
+        ? Math.round((title.getBoundingClientRect().width
+            - parseFloat(getComputedStyle(title).paddingLeft)
+            - parseFloat(getComputedStyle(title).paddingRight)) * 100) / 100
+        : null,
+    }
+  }
+  return [...document.querySelectorAll('[data-cal-chip]')].map((el) => ({
+    idx: el.getAttribute('data-cal-chip'),
+    predW: Number(el.getAttribute('data-pred-w')),
+    predH: Number(el.getAttribute('data-pred-h')),
+    predLines: Number(el.getAttribute('data-pred-lines')),
+    predCol: Number(el.getAttribute('data-pred-col')),
+    measured: el.getAttribute('data-pred-measured'),
+    told: boxOf(el.querySelector('[data-chip-told]')),
+    natural: boxOf(el.querySelector('[data-chip-natural]')),
+    title: el.querySelector('[data-chip-told] span:last-of-type').textContent,
+  }))
+})
+console.log('\nChipGeometry.chipSize vs the rendered NodeChip, leaf form @ ' + 150 + '–220 (text '
+  + (chipCal[0] && chipCal[0].measured === 'true' ? 'measured' : 'ESTIMATED') + '):')
+if (!chipCal.length) { console.log('  NO CHIP CASES FOUND — the chip calibration is not on the page'); geomBad++ }
+for (const c of chipCal) {
+  const dW = Math.round((c.predW - c.natural.w) * 100) / 100
+  const dLines = c.predLines - c.told.lines
+  // the chrome arithmetic on its own: what chipSize claimed it was leaving the
+  // title, against what the drawn chip actually left it
+  const dCol = Math.round((c.predCol - c.told.col) * 100) / 100
+  // the natural chip may sit BELOW the road's floor (a two-letter title wants less
+  // than 150), and the prediction is clamped to it — so only judge width where the
+  // clamp is not what produced the number
+  const clamped = c.predW <= 150 + 0.01
+  // the prediction must never be NARROWER than what the component would pick
+  // (that is what crops), and must not waste much room being wider. Exact
+  // agreement is not the bar: a shrink-to-fit flex container sizes a `flex: 1`
+  // item from a 0 basis, which is a different algorithm from adding the parts
+  // up — and the road never asks for that width anyway, it TELLS one. What the
+  // arithmetic itself is judged on is the title column, below.
+  const okW = clamped || (dW >= -0.5 && dW <= 3)
+  const okFit = c.told.overY <= 1 && c.told.overX <= 1
+  const okLines = dLines === 0
+  // DIRECTION MATTERS more than size here. A prediction that claims MORE column
+  // than the title gets is the one that clips: it scores a wrap that will not
+  // happen, reserves too few lines, and the chip's overflow eats the rest. Under-
+  // claiming only ever buys a line that was not needed. The canvas runs ~1px over
+  // the laid-out width of the mono step number — constant, not per-character, so
+  // it is a side-bearing or rounding difference between measureText and inline
+  // layout rather than a font mismatch — which lands on the safe side and stays.
+  const okCol = dCol <= 0.5 && dCol >= -2
+  const ok = okW && okFit && okLines && okCol
+  if (!ok) geomBad++
+  const why = [okFit ? '' : `CLIPPED by ${c.told.overY}x${c.told.overX}px`,
+    okW ? '' : `width off by ${dW}`, okLines ? '' : `lines off by ${dLines}`,
+    okCol ? '' : `title column off by ${dCol}`].filter(Boolean).join(', ')
+  console.log(`  ${c.idx.padEnd(6)} told=${c.told.w}x${c.told.h} predicted=${c.predW}x${c.predH}`
+    + `  natural=${c.natural.w}${clamped ? ' (under the 150 floor)' : ` (${dW >= 0 ? '+' : ''}${dW})`}`
+    + `  lines=${c.told.lines}/${c.predLines}  col=${c.told.col}/${c.predCol} (${dCol >= 0 ? '+' : ''}${dCol})  ${ok ? 'ok' : 'DRIFT — ' + why}`
+    + `   "${c.title}"`)
+}
+
 await browser.close()
 vite.kill()
 if (errors.length) { console.log('ERRORS:\n' + errors.join('\n')); process.exit(1) }
-if (geomBad) { console.log(`GEOMETRY DRIFT: ${geomBad} case(s) where GroupGeometry disagrees with the rendered card`); process.exit(1) }
-console.log('DONE — GroupGeometry agrees with the rendered card in every case')
+if (geomBad) { console.log(`GEOMETRY DRIFT: ${geomBad} case(s) where the published geometry disagrees with what rendered`); process.exit(1) }
+console.log('DONE — GroupGeometry agrees with the rendered card, and ChipGeometry with the rendered chip, in every case')

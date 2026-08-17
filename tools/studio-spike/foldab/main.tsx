@@ -24,6 +24,7 @@ import '../../../src/index.css'
 import { useCallback, useState } from 'react'
 import { VersionedGroup, GroupGeometry } from '../../../src/ds/group/VersionedGroup'
 import type { BodySlot } from '../../../src/ds/group/VersionedGroup'
+import { NodeChip, chipSize } from '../../../src/ds/graph/NodeChip'
 
 const NODEW = 150
 const NODEH = 34
@@ -32,6 +33,10 @@ const NODEH = 34
 // FOLD_MIN_W). The calibration rows must render the same way or they measure a
 // box the road never draws.
 const FOLD_MIN_W = 190
+// AuthorRoad's leaf bounds — the chip cases below are judged inside them,
+// because a reservation is only right at the width the road would pick
+const NODE_MAXW = 220
+const NODE_MAXH = 66
 const TITLE = 'Secure the channel'
 const STEPS = 1
 
@@ -140,7 +145,67 @@ const OPEN_CASES: { k: string; title: string; desc: string; name: string; slot?:
   { k: 'n2', title: 'Secure the channel', desc: 'a typed name must become an address', name: 'what breaks when a hop is lost, and what the sender learns about it' },
   { k: 'd0', title: 'Secure the channel', desc: '', name: 'just the handshake' },
   { k: 'empty', title: 'Secure the channel', desc: '', name: 'just the handshake', slot: 34, count: 0 },
+  // THE CASE THAT WAS MISSING. Every row above asks for 94 or 34, both under
+  // the DS's `bodyMaxHeight` default of 260 — so the cap never bit, this driver
+  // reported +0, and the road shipped reserving 464 for a card that drew 365.
+  // openHeight does not model the cap (it returns the height the slot ASKED
+  // for), so a board hosting a tall column has to lift it, which is what
+  // OpenCase does below and what AuthorRoad now does. 355 is the real number
+  // off the failing screenshot: a five-step column with a nested card in it.
+  { k: 'tall', title: 'Secure the channel', desc: 'a typed name must become an address', name: 'just the handshake', slot: 355, count: 5 },
 ]
+
+/** CALIBRATION of ChipGeometry — the leaf stop, hosted the way the road hosts it.
+ *
+ *  layoutRoad reserves every leaf before render, so it asks chipSize() for the
+ *  box and then TELLS the chip that box. Two things therefore have to hold, and
+ *  each row checks one:
+ *
+ *    told     the chip is given chipSize()'s w/h, and its title must FIT — the
+ *             shell is `overflow: hidden`, so a box an estimate scored short
+ *             does not grow, it silently crops. This is the #97 defect exactly:
+ *             CHAR_W = 8 against chrome scored at 40 when it is really ~83, so
+ *             'DNS & Naming' was reserved one line and drawn two.
+ *    natural  the same chip with NO told size, free to size itself inside the
+ *             road's max width. What it settles on is what chipSize() claims it
+ *             would — the prediction judged against the component's own answer.
+ *
+ *  The titles are the ones that clipped on the board, plus the ends of the range. */
+const CHIP_CASES = [
+  { idx: '1.', title: 'IP' },
+  { idx: '2.1.', title: 'DNS & Naming' },
+  { idx: '2.2.', title: 'Processes & Threads' },
+  { idx: '3.', title: 'Virtual Memory' },
+  { idx: '10.2.', title: 'Sockets & APIs' },
+  { idx: '4.', title: 'Authentication & Authorization' },
+  { idx: '5.', title: 'Everything the browser does before the first byte comes back' },
+]
+
+function ChipCase({ c }: { c: (typeof CHIP_CASES)[number] }) {
+  const spec = {
+    title: c.title, index: c.idx, mark: 'border' as const, wrap: true, deletable: true,
+    minWidth: NODEW, maxWidth: NODE_MAXW, maxHeight: NODE_MAXH,
+  }
+  const p = chipSize(spec)
+  return (
+    <div data-cal-chip={c.idx} data-ds-host=""
+      data-pred-w={p.width} data-pred-h={p.height} data-pred-lines={p.titleLines}
+      data-pred-col={p.titleColumn} data-pred-measured={String(p.measured)}
+      style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      {/* TOLD — the road's own call. The box must hold the text. */}
+      <div data-chip-told style={{ flexShrink: 0 }}>
+        <NodeChip title={c.title} index={c.idx} domain="net" mark="border" wrap
+          width={p.width} height={p.height} resizable={false} onDelete={() => {}} />
+      </div>
+      {/* NATURAL — no told size, bounded only by the road's max width, so the
+          component picks its own box and the prediction is judged against it */}
+      <div data-chip-natural style={{ maxWidth: NODE_MAXW, flexShrink: 0 }}>
+        <NodeChip title={c.title} index={c.idx} domain="net" mark="border" wrap
+          resizable={false} onDelete={() => {}} />
+      </div>
+    </div>
+  )
+}
 
 /** one calibration card: the port hosted with bodySlot, its prediction and its
  *  reported slot stamped on the wrapper for the driver to read */
@@ -156,7 +221,12 @@ function OpenCase({ c }: { c: (typeof OPEN_CASES)[number] }) {
       <VersionedGroup title={c.title} index="3" count={count} countLabel="nodes" description={c.desc}
         versions={[{ id: '0', name: c.name, label: 'v1' }]} activeId="0"
         resizable={false} movable={false} narrow={false} width={OPEN_W}
-        bodySlot slotHeight={slotH} onBodySlot={onBodySlot}
+        // AS THE ROAD HOSTS IT: the slot asked for, and NO ceiling. Left at the
+        // DS's 260 default the body stops there while openHeight keeps predicting
+        // the full slot — the `tall` case below is what proves it. Given the slot
+        // height instead, the cap crushes the body by its own padding, which is
+        // what every case here reported as -6 (and -30 on the empty zone).
+        bodySlot slotHeight={slotH} bodyMaxHeight="none" onBodySlot={onBodySlot}
         onToggleFold={() => {}} onClose={() => {}} onDescribe={() => {}} onRetitle={() => {}} onRename={() => {}} />
     </div>
   )
@@ -188,6 +258,16 @@ createRoot(document.getElementById('root')!).render(
           The DS group OPEN as the road hosts it — bodySlot, told 272 wide and a slot of {SLOT_H} — against GroupGeometry.openHeight: title, DescLine, picker at one and two lines, an empty version.
         </div>
         {OPEN_CASES.map((c) => <OpenCase key={c.k} c={c} />)}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 470 }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>calibrate · leaf chip</div>
+        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--text-2)', minHeight: 48 }}>
+          The DS NodeChip in the road's leaf form — border mark, wrapping, a mono step
+          number and a delete button — against ChipGeometry.chipSize. Left: TOLD the
+          predicted box, which must hold its text. Right: the same chip sizing itself
+          inside the road's {NODE_MAXW}px bound, which is what the prediction claims.
+        </div>
+        {CHIP_CASES.map((c) => <ChipCase key={c.idx} c={c} />)}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 210 }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>calibrate</div>

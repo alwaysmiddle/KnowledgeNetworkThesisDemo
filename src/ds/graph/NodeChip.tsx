@@ -22,6 +22,16 @@ export interface NodeChipProps {
   mark?: 'dot' | 'border' | 'none'
   /** off the resolved path: no lift, no fill, --opacity-off-path */
   dim?: boolean
+  /** LOCAL, not in the DS: this node is CONDITIONAL — an optional stop, one that may
+   *  be bypassed. Dashes its own border and keeps its hue, because "dashed always
+   *  means conditional" is a system rule (readme, Borders and dashes) and the border
+   *  is where a chip says what it is. A prop rather than a stylesheet override from
+   *  the host: the border is written here as an inline shorthand, so the only way in
+   *  from outside is `border-style: dashed !important` on a descendant selector, and
+   *  that stops matching the day this component gains a wrapper element — silently,
+   *  with every optional stop rendering solid and nothing failing. Reported on
+   *  drift-log #74; the DS should own the form. */
+  optional?: boolean
   /** cross-pane hover correspondence — a 1.5px pond ring over the chip's own lift */
   lit?: boolean
   /** SELECTABLE OR STATIC — static is the default, and most chips in this product are:
@@ -147,12 +157,249 @@ function useSizeDrag(
   return [size, start, reset, setOwnSize] as const
 }
 
+/* ═══ PUBLISHED GEOMETRY ═════════════════════════════════════════════════════
+ *  How wide and how tall is this chip, before it renders?
+ *
+ *  The same question GroupGeometry answers for the card, asked for the same
+ *  reason: a board that lays out arithmetically — AuthorRoad does, and must,
+ *  since its arrows, its drop bands and its own extent all need every box
+ *  placed before React commits anything — cannot ask a rendered chip how big
+ *  it is. So it either guesses or it is told. It guessed: `CHAR_W = 8` for a
+ *  proportional face and `LEAF_CHROME_W = 40` for chrome that is really ~83,
+ *  so a title scored as one line wrapped to two and was clipped against the
+ *  height it had been told.
+ *
+ *  The DS ships no geometry for this component and keeps its own measuring
+ *  module-private, so this is the group's own pattern applied here (reported on
+ *  drift-log #74). Two rules are what make it hold:
+ *
+ *  1. CSS OWNS WHAT CSS DECLARES. The stroke, the line height, the font sizes
+ *     and the weights are read from the stylesheet at measure time — the very
+ *     custom properties the style block below writes — so a token change lands
+ *     in the drawing and in the prediction together or not at all.
+ *  2. THE TABLE OWNS WHAT JS DECLARES. Every number written as a literal in
+ *     that style block lives in CHIP_METRICS and is read back from there, so
+ *     the same is true of a padding, a gap or the delete button's box.
+ *
+ *  Text is MEASURED, not estimated: an offscreen canvas at the chip's own font.
+ *  It needs no layout and no paint, so it is legal in the same pass that
+ *  computes positions. Without a document (SSR, tests) it falls back to a
+ *  0.55em factor and says so via `measured: false`.
+ *
+ *  `fontOf` / `measure` / `linesOf` are this file's own copies of the group's,
+ *  not a shared import — the same call the DS makes for useRecede and
+ *  useSizeDrag, and for the same reason: each component stays re-portable on
+ *  its own, and a re-sync of one never has to reason about the other.
+ *
+ *  proven: tools/studio-spike/shot-foldab.mjs renders chips in the road's own
+ *  forms and fails on any disagreement between chipSize and the rendered box. */
+
+export const CHIP_METRICS = {
+  /** flex gap between the chip's furniture and its title */
+  gap: 6,
+  /** the 'dot' and 'none' forms take a plain 1px edge; 'border' takes --stroke-rule */
+  plainBorder: 1,
+  /** wrapping form: squarer, and a touch more room above and below the lines */
+  padXWrap: 11, padYWrap: 4,
+  /** truncating form: the pill */
+  padXFlat: 12, padYFlat: 3,
+  /** the dot form reserves a narrower left inset, since the disc sits in it */
+  dotPadLeft: 9, dotPadRight: 11, dotPadY: 4,
+  dot: 7, dotTop: 6,
+  /** the step number's optical lift off the first title line */
+  indexTop: 1,
+  /** the gutter the title keeps from the delete button that follows it */
+  titlePadRight: 4,
+  /** the delete button: an 18px box pulled 2px into the chip's own right padding */
+  del: 18, delPull: 2, delTop: 1,
+  /** the resize bounds the component defaults to */
+  minWidth: 120, maxWidth: 520, minHeight: 28, maxHeight: 320,
+  /** only ever reached without a document: CSS `line-height: normal` is the
+   *  font's own metrics, which a canvas cannot report, so this stands in */
+  normalLh: 1.36,
+}
+
+type FontKind = 'ui' | 'mono'
+const FONTS: Partial<Record<FontKind, string>> = {}
+function fontOf(kind: FontKind): string {
+  const cached = FONTS[kind]
+  if (cached) return cached
+  let fam = kind === 'mono' ? 'ui-monospace, monospace' : 'system-ui, sans-serif'
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--font-' + kind).trim()
+    if (v) fam = v
+  }
+  FONTS[kind] = fam
+  return fam
+}
+
+/** a numeric design token, read once from the stylesheet the style block writes
+ *  against. `1.5px` and `1.35` both parse; anything unreadable keeps the fallback,
+ *  which is the only path a test without a document ever takes. */
+const TOKENS: Record<string, number> = {}
+function tokenNum(name: string, fallback: number): number {
+  const hit = TOKENS[name]
+  if (hit !== undefined) return hit
+  let v = fallback
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    const n = parseFloat(raw)
+    if (raw && !Number.isNaN(n)) v = n
+  }
+  TOKENS[name] = v
+  return v
+}
+
+let ctx2d: CanvasRenderingContext2D | null | false = null
+function measure(text: unknown, weight: number, size: number, kind: FontKind): number {
+  const str = String(text == null ? '' : text)
+  if (!str) return 0
+  if (typeof document !== 'undefined') {
+    if (!ctx2d) {
+      try { ctx2d = document.createElement('canvas').getContext('2d') } catch { ctx2d = false }
+    }
+    if (ctx2d) {
+      ctx2d.font = weight + ' ' + size + 'px ' + fontOf(kind)
+      return ctx2d.measureText(str).width
+    }
+  }
+  return str.length * size * 0.55
+}
+
+/** lines a title takes at a given column, honouring the chip's `overflow-wrap:
+ *  break-word`: word boundaries first, and only a word that cannot fit at all is
+ *  split inside itself — which is what the drawn label does. */
+function linesOf(text: unknown, width: number, weight: number, size: number, kind: FontKind, clamp: number): number {
+  const str = String(text == null ? '' : text).trim()
+  if (!str) return 0
+  if (!(width > 0)) return clamp || 1
+  const words = str.split(/\s+/)
+  let lines = 1
+  let cur = ''
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]
+    const trial = cur ? cur + ' ' + w : w
+    if (measure(trial, weight, size, kind) <= width) { cur = trial; continue }
+    if (cur) { lines++; cur = w } else cur = w
+    const solo = measure(cur, weight, size, kind)
+    if (solo > width) {
+      lines += Math.ceil(solo / width) - 1
+      cur = ''
+    }
+  }
+  return clamp ? Math.min(lines, clamp) : lines
+}
+
+/** what a chip is going to be, given what it will be handed. The props named
+ *  here are the ones that MOVE the box; everything else a chip takes (hue, lit,
+ *  selected, dim) is paint, and paint takes no layout — `selected` is an outline
+ *  for exactly that reason. */
+export interface ChipSpec {
+  title?: string
+  /** the step number, if one is shown — mono, and it is measured, not counted */
+  index?: string
+  mark?: 'dot' | 'border' | 'none'
+  /** the title wraps instead of truncating. A wrapping chip is the only form
+   *  whose height is not a single line, and the only one a board has to think about */
+  wrap?: boolean
+  /** a delete button is offered. It reserves its space at rest, so it counts even unhovered */
+  deletable?: boolean
+  /** the caller's bounds. `maxHeight` becomes a LINE CLAMP rather than a crop:
+   *  the height returned always matches the lines actually drawn, so a title too
+   *  long for the bound loses its tail (the chip's own `overflow: hidden`) instead
+   *  of the box lying about how tall it is. Defaults are the component's own. */
+  minWidth?: number
+  maxWidth?: number
+  maxHeight?: number
+}
+
+export interface ChipSize {
+  width: number
+  height: number
+  /** how many lines the title actually takes at `width` — after the clamp */
+  titleLines: number
+  /** the column left for the title once the furniture has taken its share */
+  titleColumn: number
+  /** false when there was no canvas and the text is a 0.55em estimate */
+  measured: boolean
+}
+
+/** The chip's box at the width it will settle on: as wide as one line of title
+ *  wants, bounded, and as tall as that title then takes at that width. */
+export function chipSize(spec?: ChipSpec): ChipSize {
+  const M = CHIP_METRICS
+  const s = spec || {}
+  const bordered = s.mark === 'border'
+  const plain = s.mark === 'none'
+  const wrap = !!s.wrap
+
+  const stroke = tokenNum('--stroke-rule', 1.5)
+  const snug = tokenNum('--lh-snug', 1.35)
+  const fsTitle = tokenNum('--fs-body', 13)
+  const fsIndex = tokenNum('--fs-micro', 11)
+  const fwTitle = tokenNum('--fw-semibold', 600)
+  const fwIndex = tokenNum('--fw-regular', 400)
+
+  /* the shell is border-box, so its border and padding come out of the width */
+  const edge = (bordered ? stroke : M.plainBorder) * 2
+  const padX = bordered || plain
+    ? (wrap ? M.padXWrap : M.padXFlat) * 2
+    : M.dotPadLeft + M.dotPadRight
+  const padY = (bordered || plain ? (wrap ? M.padYWrap : M.padYFlat) : M.dotPadY) * 2
+
+  /* every flex child except the title, and the gap between each pair. The resize
+     handles are position:absolute, so they are out of flow and take no width. */
+  const furniture: number[] = []
+  if (!bordered && !plain) furniture.push(M.dot)
+  if (s.index) furniture.push(measure(s.index, fwIndex, fsIndex, 'mono'))
+  /* marginRight: -2 pulls the delete button back into the chip's own right padding */
+  if (s.deletable) furniture.push(M.del - M.delPull)
+  const gaps = furniture.length * M.gap
+  const chrome = edge + padX + furniture.reduce((a, b) => a + b, 0) + gaps
+    + (s.deletable ? M.titlePadRight : 0)
+
+  const minW = s.minWidth === undefined ? M.minWidth : s.minWidth
+  const maxW = s.maxWidth === undefined ? M.maxWidth : s.maxWidth
+  const oneLine = measure(s.title, fwTitle, fsTitle, 'ui')
+  /* measured LAST of the reads above, so ctx2d has been settled by the call */
+  const measured = ctx2d !== false && ctx2d !== null
+  const width = Math.max(minW, Math.min(maxW, Math.ceil(chrome + oneLine)))
+  const titleColumn = Math.max(1, width - chrome)
+
+  /* wrapping, the line box is --lh-snug on the shell, inherited unitless so each
+     child multiplies its OWN size by it. Truncating, there is no line-height at
+     all and CSS falls back to the font's normal metrics, which no canvas reports. */
+  const lh = wrap ? snug : M.normalLh
+  const lineH = fsTitle * lh
+  /* the height bound is spent on LINES, so the box never claims a height the
+     drawn text does not fill */
+  const room = s.maxHeight === undefined ? 0
+    : Math.max(1, Math.floor((s.maxHeight - padY - edge) / lineH))
+  const titleLines = wrap ? Math.max(1, linesOf(s.title, titleColumn, fwTitle, fsTitle, 'ui', room)) : 1
+
+  /* wrapping tops its furniture out (align-items: flex-start, each with its own
+     nudge down); truncating centres everything, so the row is just the tallest child */
+  const rows = [titleLines * lineH]
+  if (s.index) rows.push(fsIndex * lh + (wrap ? M.indexTop : 0))
+  if (s.deletable) rows.push(M.del + (wrap ? M.delTop : 0))
+  if (!bordered && !plain) rows.push(M.dot + (wrap ? M.dotTop : 0))
+
+  const height = Math.ceil(Math.max.apply(null, rows) + padY + edge)
+  return { width, height, titleLines, titleColumn: Math.round(titleColumn * 100) / 100, measured }
+}
+
+export const ChipGeometry = { CHIP_METRICS, chipSize }
+
 export function NodeChip({
-  title, index, domain, mark = 'dot', dim, lit, note, wrap, onClick, onDelete,
+  title, index, domain, mark = 'dot', dim, optional, lit, note, wrap, onClick, onDelete,
   selectable = false, selected, defaultSelected = false, onSelectedChange,
-  resizable = true, minWidth = 120, maxWidth = 520, minHeight = 28, maxHeight = 320,
+  resizable = true,
+  minWidth = CHIP_METRICS.minWidth, maxWidth = CHIP_METRICS.maxWidth,
+  minHeight = CHIP_METRICS.minHeight, maxHeight = CHIP_METRICS.maxHeight,
   width, height, onResize,
 }: NodeChipProps) {
+  /* the SAME table chipSize() above predicts from — read, never copied */
+  const M = CHIP_METRICS
   const hue = DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)'
   const bordered = mark === 'border'
   const plain = mark === 'none'
@@ -194,7 +441,7 @@ export function NodeChip({
       onFocus={showX} onBlur={hideX}
       style={{
         boxSizing: 'border-box',
-        position: 'relative', display: 'inline-flex', gap: 6,
+        position: 'relative', display: 'inline-flex', gap: M.gap,
         /* a hand-set height centres its content: the extra room is deliberate, and
            text pinned to the top of it looks like a layout accident instead */
         alignItems: size && size.h ? 'center' : (wrap ? 'flex-start' : 'center'),
@@ -204,11 +451,14 @@ export function NodeChip({
         userSelect: 'none', WebkitUserSelect: 'none',
         /* no disc means no room reserved for one: 'none' takes the bordered padding,
            which is symmetric, rather than the dot form's narrower left inset */
-        padding: bordered || plain ? (wrap ? '4px 11px' : '3px 12px') : '4px 11px 4px 9px',
+        padding: bordered || plain
+          ? (wrap ? `${M.padYWrap}px ${M.padXWrap}px` : `${M.padYFlat}px ${M.padXFlat}px`)
+          : `${M.dotPadY}px ${M.dotPadRight}px ${M.dotPadY}px ${M.dotPadLeft}px`,
         borderRadius: wrap ? 'var(--radius-md)' : 'var(--radius-pill)',
+        /* LOCAL `optional`: dashed, hue kept — dashed always means conditional */
         border: bordered
-          ? 'var(--stroke-rule) solid ' + (dim ? 'var(--border-hair)' : hue)
-          : '1px solid ' + (dim ? 'var(--border-hair)' : 'var(--border-rule)'),
+          ? 'var(--stroke-rule) ' + (optional ? 'dashed ' : 'solid ') + (dim ? 'var(--border-hair)' : hue)
+          : M.plainBorder + 'px ' + (optional ? 'dashed ' : 'solid ') + (dim ? 'var(--border-hair)' : 'var(--border-rule)'),
         /* takes no layout and leaves the chip's own border readable under it */
         outline: isSel ? 'var(--stroke-ring) solid var(--state-selected)' : undefined,
         /* 2px, not 1: at 1px the 2px pond ring all but touched the 1.5px domain border
@@ -231,13 +481,13 @@ export function NodeChip({
       }}
     >
       {bordered || plain ? null : (
-        <span style={{ width: 7, height: 7, borderRadius: 'var(--radius-pill)', flexShrink: 0, background: hue, marginTop: wrap ? 6 : 0 }} />
+        <span style={{ width: M.dot, height: M.dot, borderRadius: 'var(--radius-pill)', flexShrink: 0, background: hue, marginTop: wrap ? M.dotTop : 0 }} />
       )}
       {index ? (
         <span style={{
           flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)',
           fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-regular)',
-          color: 'var(--text-3)', marginTop: wrap ? 1 : 0, opacity: dim ? 0.8 : 1,
+          color: 'var(--text-3)', marginTop: wrap ? M.indexTop : 0, opacity: dim ? 0.8 : 1,
         }}>{index}</span>
       ) : null}
       {/* 'break-word', not 'anywhere': anywhere breaks mid-word at the first
@@ -248,7 +498,7 @@ export function NodeChip({
         overflow: 'hidden',
         overflowWrap: wrap ? 'break-word' : undefined, wordBreak: wrap ? 'normal' : undefined,
         textOverflow: wrap ? 'clip' : 'ellipsis',
-        paddingRight: onDelete ? 4 : 0,
+        paddingRight: onDelete ? M.titlePadRight : 0,
       }}>{title}</span>
       {resizable ? (
         <>
@@ -270,12 +520,12 @@ export function NodeChip({
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--state-danger-wash)'; e.currentTarget.style.borderColor = 'var(--state-danger)'; e.currentTarget.style.color = 'var(--berry-600)' }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--state-danger)' }}
           style={{
-            width: 18, height: 18, flexShrink: 0, marginLeft: 'auto', marginRight: -2, padding: 0,
+            width: M.del, height: M.del, flexShrink: 0, marginLeft: 'auto', marginRight: -M.delPull, padding: 0,
             display: 'grid', placeItems: 'center', boxSizing: 'border-box',
             borderRadius: 'var(--radius-pill)', border: '1px solid transparent', background: 'transparent',
             color: 'var(--state-danger)', fontFamily: 'var(--font-ui)', fontSize: 10, lineHeight: 1,
             cursor: 'pointer', opacity: hot ? 1 : 0, pointerEvents: hot ? 'auto' : 'none',
-            alignSelf: wrap ? 'flex-start' : 'center', marginTop: wrap ? 1 : 0,
+            alignSelf: wrap ? 'flex-start' : 'center', marginTop: wrap ? M.delTop : 0,
             transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
           }}>{'✕'}</button>
       ) : null}

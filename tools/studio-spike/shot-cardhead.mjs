@@ -164,6 +164,45 @@ for (const c of insets) {
   }
 }
 
+// -- and every step it holds stays inside it --------------------------------
+// The card's height is RESERVED by layoutRoad from GroupGeometry, and the steps
+// are floated into that reservation as board-level siblings. So the one thing
+// that must hold is that the card actually DRAWS the box that was reserved: if
+// it draws shorter, the steps do not come with it — they are not its children —
+// they hang out of the bottom, and its body grows a scrollbar over content that
+// was never in it. That is #97's body cap, and nothing above would have seen it:
+// the axis check reads centres, and the inset check collects a card's steps BY
+// containment, so an escaped step stops counting as one of that card's rather
+// than failing anything.
+const spill = await page.evaluate(() => {
+  const road = document.querySelector('[data-rstage]')?.offsetParent
+  const nodes = [...(road?.querySelectorAll('[data-rnode], [data-rstage-closed]') || [])]
+  return [...(road?.querySelectorAll('[data-rstage]') || [])].map((el) => {
+    const c = el.getBoundingClientRect()
+    // whatever starts inside this card horizontally and below its top is a step
+    // OF this card — collected without the bottom edge, which is the thing on trial
+    const inside = nodes
+      .map((n) => n.getBoundingClientRect())
+      .filter((r) => r.left >= c.left - 1 && r.right <= c.right + 1 && r.top >= c.top - 1 && r.top < c.bottom)
+    const over = inside.length ? Math.max(...inside.map((r) => r.bottom)) - c.bottom : 0
+    // the body's own scroll extent: `overflow-y: auto` under a cap that the road
+    // did not lift shows up here before it shows up as a visible scrollbar
+    const scrolls = [...el.querySelectorAll('*')]
+      .filter((n) => n.scrollHeight - n.clientHeight > 1 && getComputedStyle(n).overflowY !== 'visible')
+      .length
+    return { name: el.getAttribute('data-rstage'), steps: inside.length, over: Math.round(over * 100) / 100, scrolls }
+  })
+})
+console.log(`open cards = ${spill.length}, step spill past the card's bottom = ${spill.map((c) => `${c.name}:${c.over}`).join(', ')} (expect 0), scrolling bodies = ${spill.reduce((a, c) => a + c.scrolls, 0)} (expect 0)`)
+for (const c of spill) {
+  if (c.over > 0.5) {
+    fail(`${c.name} draws ${c.over.toFixed(2)}px shorter than the road reserved — ${c.steps} step(s) hang out of its bottom. Its body is capped below the slot it was given (bodyMaxHeight); openHeight does not model that cap, so the reservation and the drawing disagree`)
+  }
+  if (c.scrolls) {
+    fail(`${c.name} has ${c.scrolls} scrolling element inside it — a card whose height the road reserved must never scroll its own body, and its steps are siblings that would not scroll with it anyway`)
+  }
+}
+
 // ── the picker still drops its menu, now from the whole row ────────────────
 // the DS menu portals to the body and paints over every card. The picker's
 // centre is the version NAME, which opens its rename field (as in the DS); the
