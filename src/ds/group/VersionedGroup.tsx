@@ -143,9 +143,21 @@ export interface VersionedGroupProps {
   onRename?: (id: string, name: string) => void
   onAddVersion?: () => void
   onDeleteVersion?: (id: string) => void
+  /** overrides the ungroup confirmation's wording. It is a QUESTION — whatever you
+   *  pass has to read sensibly above a "keep" and an "ungroup" button */
+  ungroupConfirmLabel?: string
+  /** @deprecated the old name, from when the act was REFUSED while a group held more
+   *  than one version. Still honoured, so no call site breaks — but text written for
+   *  that refusal now sits above a button that ungroups, which is how it shipped here
+   *  (DS 2026-08-17, found by looking at our screen). Re-word as a question and move */
   ungroupBlockedLabel?: string
   confirmDelete?: boolean
   onToggleFold?: (folded: boolean) => void
+  /** ungroup — called with the version to spill and how many nodes it holds; replace
+   *  the group with those nodes, in order, in the slot it occupied. With more than one
+   *  version the component ASKS first, naming the cost in figures, and calls this only
+   *  if the user answers "ungroup". (Until 2026-08-17 the contract still said the act
+   *  was refused and this handler not called — our own port reported it.) */
   onClose?: (spill: { versionId: string; count: number }) => void
   children?: React.ReactNode
 }
@@ -592,7 +604,7 @@ export function VersionedGroup({
   maxWidth = 300, bodyMaxHeight = 260, menuMaxHeight = 240, foldedMinWidth = 190,
   resizable = true, minWidth = 200, resizeMaxWidth = 680, minBodyHeight = 72, onResize,
   width, bodyHeight, offset, narrow, menuPortal,
-  movable = true, onMove, onDeleteVersion, ungroupBlockedLabel, confirmDelete = true,
+  movable = true, onMove, onDeleteVersion, ungroupConfirmLabel, ungroupBlockedLabel, confirmDelete = true,
   onRetitle, onDescribe, onSelect, onRename, onAddVersion, onToggleFold, onClose, children,
   bodySlot = false, slotHeight, onBodySlot, numberScope = 'local', depth: depthProp,
 }: VersionedGroupProps) {
@@ -734,7 +746,7 @@ export function VersionedGroup({
     if (versions.length > 1) {
       setRefusal({
         confirm: true,
-        text: ungroupBlockedLabel || ('This node has ' + versions.length
+        text: ungroupConfirmLabel || ungroupBlockedLabel || ('This node has ' + versions.length
           + ' versions currently. Confirm ungrouping of this node and deleting the unselected versions?'),
       })
       return

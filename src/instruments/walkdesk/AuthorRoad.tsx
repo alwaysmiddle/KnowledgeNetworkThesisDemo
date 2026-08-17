@@ -864,13 +864,13 @@ export default function AuthorRoad({
                     movable={false}
                     resizable={false}
                     // the #15 gesture set, now drawn by the DS: its RestoreMark
-                    // maximises, and its ✕ ungroups — including the refusal when
-                    // more than one version lives here, which askUngroup already
+                    // maximises, and its ✕ ungroups — including the CONFIRMATION
+                    // when more than one version lives here, which askUngroup already
                     // implements exactly as the road did by hand. Both stay ops on
                     // `authordraft`, so undo/redo holds.
                     onToggleFold={() => toggle(s.key!)}
                     onClose={() => state.promote(pl.path, shutChosen)}
-                    ungroupBlockedLabel={`cannot ungroup — ${s.variants.length} versions live here; delete all but one first`}
+                    ungroupConfirmLabel={`ungroup this node? the live version's steps spill onto the road — its other ${s.variants.length - 1} version${s.variants.length === 2 ? '' : 's'} go with it`}
                   />
                 </div>
               )
@@ -1012,7 +1012,7 @@ export default function AuthorRoad({
                   onDeleteVersion={(id) => deleteVersion(pl.path, s, id)}
                   onToggleFold={() => toggle(s.key!)}
                   onClose={() => state.promote(pl.path, chosen)}
-                  ungroupBlockedLabel={`cannot ungroup — ${s.variants.length} versions live here; delete all but one first`}
+                  ungroupConfirmLabel={`ungroup this node? the live version's steps spill onto the road — its other ${s.variants.length - 1} version${s.variants.length === 2 ? '' : 's'} go with it`}
                 />
 
                 {/* the ACTIVE version's steps float over the slot as board-level

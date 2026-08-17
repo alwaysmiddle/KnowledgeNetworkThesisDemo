@@ -9,6 +9,23 @@ import type { CSSProperties, MouseEvent, ReactNode } from 'react'
  *  The ✕ keeps the scrollbar's manners: absent while the pane is at rest,
  *  present the moment the pointer (or the keyboard) is inside it, so a dormant
  *  pane wears an unbroken border rather than a hole where a control used to be.
+ *  WHAT THE PANE AROUND IT MUST DO — three rules this header's geometry depends on
+ *  that no prop can express. They lived only in the DS readme until 2026-08-17, where a
+ *  port could not see them, and all three were missed here:
+ *
+ *   1. `position: relative`, the `--border-frame` hairline on the pane itself, and
+ *      `--radius-lg` (20px) corners. The legend masks the border with a straight 2px
+ *      bar, which cannot erase a curve — a tighter radius leaves a stub beside the ✕.
+ *   2. THE BODY TAKES NO BACKGROUND OF ITS OWN; the pane's `--surface-paper` shows
+ *      through. This header is 11px tall, so a body that paints its own colour starts
+ *      INSIDE the 20px corner arc with square corners and bites two square notches out
+ *      of the pane's rounded top — worst when that colour is `--surface-canopy`, which
+ *      reads as a hole in the sheet. A body that must clip rounds ALL FOUR corners at
+ *      `--radius-lg`, never the bottom two alone.
+ *   3. A SCROLLING BODY INSETS ITSELF 12px FROM THE BOTTOM (`marginBottom`, not a radius
+ *      on the scroller), so the scrollbar's end arrow stays clear of the corner arc
+ *      instead of being clipped by it; the pane's own paper fills the strip.
+ *
  *  Typed port of the DS PaneHeader.jsx (contract: PaneHeader.d.ts). */
 export interface PaneHeaderProps {
   /** lower case, one or two words: "tree", "document", "palette" */
@@ -16,8 +33,12 @@ export interface PaneHeaderProps {
   /** an optional Unicode mark from the house set */
   glyph?: string
   onClose?: () => void
-  /** pane-scoped controls, rendered on the frame beside the title. The legend
-   *  slot is 18px tall — put only icon-height controls here, never a full pill. */
+  /** pane-scoped controls, rendered on the frame beside the title. The legend slot
+   *  is 18px tall — put only icon-height controls here, never a full-height pill, and
+   *  build them to the house icon-button recipe: round, transparent, with a **1px
+   *  transparent border reserved at rest** so hover cannot move the glyph, then face
+   *  → `--surface-hover`, border → `--border-rule`, ink `--text-2` → `--text-1`, and
+   *  nothing else. A control on a frame is chrome, never destructive-hued */
   actions?: ReactNode
   /** legend = the title straddles the pane border (default); bar = a filled row */
   variant?: 'legend' | 'bar'
