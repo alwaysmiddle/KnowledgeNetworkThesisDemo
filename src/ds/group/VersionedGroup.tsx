@@ -1,12 +1,44 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useContext, createContext } from 'react'
 import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 import { caretStyle } from '../nav/TreeRow'
 import { bulletStyle } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
 
+/* HOW DEEP AM I? Counted, not passed: a group cannot be told its depth by a caller that
+   does not know how it is being composed, and every level has to step against its parent
+   or nesting has no visible edge at all. Open, a group is a well — --surface-sunken with
+   --sink-1 and no border — and a well inside a well of the same tint reads as one well
+   with loose furniture in it, which is exactly how the three-deep specimen failed. So the
+   tint alternates by depth: --surface-sunken at even levels, --surface-sunken-2 at odd.
+   Still depth rather than hue, still no border and never a lift over a sink; what changes
+   is that two consecutive wells are no longer the same colour. */
+const Depth = createContext(0)
+
+/** THE NUMBER IS LOCAL TO ITS OWN WELL, not a path from the root. "2.2.2.1." is four
+ *  numbers to read before the name, it grows with every level, and it repeats what the
+ *  nesting already shows — the reader can see which well they are in. So a group displays
+ *  its own ordinal and numbers its children from that: "2." holding "2.1", "2.2", at
+ *  whatever depth it sits. `numberScope="path"` keeps the full dotted path for a surface
+ *  that genuinely needs a citable address. */
+function localIndex(index?: string): string | undefined {
+  const raw = String(index == null ? '' : index).trim()
+  if (!raw) return index
+  const dotted = raw.endsWith('.')
+  const parts = raw.replace(/\.$/, '').split('.')
+  const last = parts[parts.length - 1]
+  return dotted ? last + '.' : last
+}
+
+/** a NOTE tells you something and dismisses itself; a QUESTION has answers and does not */
+interface Refusal { confirm?: boolean; text: string }
+
 /** A nested subgroup that holds several versions of itself, exactly one of which
- *  is on screen. Port of DS components/group/VersionedGroup.jsx.
+ *  is on screen. Port of DS components/group/VersionedGroup.jsx as of 2026-08-16
+ *  — the revision that added `bodySlot` (chrome-only hosting for a board that
+ *  floats its own nodes), the published GroupGeometry, and `selected`.
+ *  LOCAL, on top of the DS: the `optional` prop, and the measured corrections in
+ *  the geometry, each marked and reported on drift-log #74.
  *
  *  Four rows: the group's name with its tally and fold control, the group's one
  *  description, the version picker, then the contents chained by arrows.
@@ -21,10 +53,28 @@ export interface GroupVersion {
   label?: string
 }
 
+/** where the body slot is, relative to the group's shell — see `bodySlot` */
+export interface BodySlot { left: number; top: number; width: number; height: number }
+
 export interface VersionedGroupProps {
   title: string
   index?: string
   numberSteps?: boolean
+  /** 'local' (default) — a group shows its own ordinal and numbers its children from it,
+   *  at whatever depth it sits, because the nesting already says which well you are in.
+   *  'path' restores the full dotted address for a surface that needs a citable one */
+  numberScope?: 'local' | 'path'
+  /** ★ LOCAL: this well's nesting depth, which picks its tint — `--surface-sunken`
+   *  at even levels, `--surface-sunken-2` at odd. The DS counts this through a React
+   *  context and deliberately offers no prop, because "a group cannot be told its
+   *  depth by a caller that does not know how it is being composed". True, and it
+   *  inverts in `bodySlot` mode: a board that floats its cards as siblings (the case
+   *  the DS built `bodySlot` FOR) is not a React ancestor of them, so the context
+   *  cannot reach them and every card reads depth 0 — which is the one-tint failure
+   *  the alternation exists to prevent. Such a board is also the only thing that DOES
+   *  know the depth. Omit it and the context still wins, so ordinary nesting is
+   *  untouched. Drift-log #74. */
+  depth?: number
   onReorderNodes?: (from: number, to: number) => void
   maxWidth?: number | string
   bodyMaxHeight?: number | string
@@ -67,6 +117,24 @@ export interface VersionedGroupProps {
   countLabel?: string
   folded?: boolean
   defaultFolded?: boolean
+  /** the host's selection cue, drawn by the group: folded, an outline on the
+   *  face (the group IS a node again); open, an outline round the HEAD only —
+   *  name, tally, description, picker — never round the body, whose nodes are
+   *  selectable in their own right. --stroke-ring --state-selected at 1px */
+  selected?: boolean
+  /** the HOST's "conditional" cue — LOCAL ADDITION (not in the DS source; drift-log
+   *  #74): a dashed ring hugging the face in the host's own dashed recipe, in both
+   *  states — a conditional container is conditional as a whole. Folded it yields
+   *  to `selected`, which wants the same layer and is the more urgent signal */
+  optional?: boolean
+  /** CHROME-ONLY MODE: draw the well, head, description, picker, menu, rail and
+   *  the empty-version zone, leave the body area EMPTY and report where it is
+   *  (relative to the group's own box) through `onBodySlot`, so a board that
+   *  floats its nodes as its own siblings can position them into it. `slotHeight`
+   *  is how much space the slot holds for them; the tally comes from `count` */
+  bodySlot?: boolean
+  slotHeight?: number
+  onBodySlot?: (slot: BodySlot) => void
   addLabel?: string
   defaultOpen?: boolean
   onRetitle?: (title: string) => void
@@ -137,11 +205,8 @@ function IconButton({ label, glyph, size = 12, onClick, reachable = true }: {
   )
 }
 
-/** The tick, drawn rather than set — two strokes of a rotated corner. Exported
- *  for the same reason caretStyle is: the Railroad's container head is this same
- *  version picker laid out by its own engine, and the system draws a tick one
- *  way. (Upstream still keeps it private — see the drift log.) */
-export function checkStyle(): CSSProperties {
+/** The tick, drawn rather than set — two strokes of a rotated corner. */
+function checkStyle(): CSSProperties {
   return {
     width: 9, height: 5, boxSizing: 'border-box',
     borderLeft: '1.75px solid currentColor', borderBottom: '1.75px solid currentColor',
@@ -295,9 +360,232 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+/* ═══ PUBLISHED GEOMETRY ════════════════════════════════════════════════════
+ *  How tall is this card, before it renders?
+ *
+ *  A board that lays its cards out arithmetically — AuthorRoad does, and must:
+ *  it places every box in one pass before React commits anything — cannot ask a
+ *  rendered group how big it is. So it either guesses or it is told. It guessed:
+ *  `CHAR_W = 8`, `HEAD_LINE_H = 17.55`, `FOLD_CHROME = 44.85`, the last two
+ *  read off SCREENSHOTS of this component. Numbers obtained that way are correct
+ *  exactly once. Every padding change here silently misplaced their cards, and
+ *  nothing on either side reported it.
+ *
+ *  These functions are the same numbers, exported from the file that draws them.
+ *  The paddings below are not a copy of the component's — they are read by the
+ *  component too (GROUP_METRICS), so a change lands in the drawing and in the
+ *  prediction together or not at all.
+ *
+ *  Text is MEASURED, not estimated: an offscreen canvas at the same font
+ *  shorthand the label uses. It needs no layout and no paint, so it is legal in
+ *  the same pass that computes positions — which is what makes a monospace
+ *  `CHAR_W` for a proportional display face unnecessary rather than merely
+ *  wrong. Without a document (SSR, tests) it falls back to a 0.55em factor and
+ *  says so via `measured: false`.
+ *
+ *  LOCAL CORRECTIONS (marked ★ below, reported on drift-log #74): the DS's
+ *  functions as shipped on 2026-08-16 predict a few px short of what the DS
+ *  component itself renders — the face's two 1px borders are not counted; the
+ *  DescLine block is a 13px strut's line box (19.55 at one line, not 2 + 16.2);
+ *  the picker floors at 30 (padding + borders + its 18px cells), not 28; and the
+ *  narrow tally row is 18.84, not 14.85. Measured by tools/studio-spike/shot-foldab.mjs
+ *  ("headRows() calibration" / bodySlot cases), which also checks these
+ *  functions against the rendered card so a drift shows up as a number. */
+
+export const GROUP_METRICS = {
+  padX: 8, padTop: 8, padBottom: 12, rowGap: 4,       /* --space-2 / --space-3 / --space-1 */
+  headPadLeft: 7, headPadRight: 2, headMinH: 22, titleMinW: 96,
+  bodyLine: 17.55,                                     /* --fs-body 13 × --lh-snug 1.35 */
+  capLine: 16.2,                                       /* --fs-caption 12 × 1.35 */
+  microLine: 14.85,                                    /* --fs-micro 11 × 1.35 */
+  titleClampOpen: 2, titleClampFolded: 3, versionClamp: 2,
+  descPadY: 1, descPadX: 7,
+  pickerMinH: 28, pickerPadY: 10, pickerPadX: 13,       /* --hit-min; 5+5; 7+6 */
+  pickerCheck: 12, pickerCaret: 16, pickerGap: 6,
+  narrowAt: 250, ctlCluster: 37,                       /* two 18px buttons + 1px */
+  foldPadTop: 8, foldPadX: 8, foldPadBottom: 9, foldPeekX: 6, foldPeekY: 7,
+  railIndent: 13, railPadLeft: 10, bodyPadTop: 6, bodyPadRight: 8,
+  /* ★ LOCAL: what the DS's own numbers leave out, measured */
+  faceBorder: 1,          /* the face's 1px border, top and bottom, open or folded */
+  descStrut: 17.55,       /* the DescLine block's line box: the 13px strut wins over one 12px line */
+  descLastDescent: 0.36,  /* wrapped, the last caption line sits on the block's baseline: 4.5 vs 4.14 */
+  pickerCell: 18,         /* the picker's check cell and code are 18 tall — taller than one 17.55 line */
+  tallyRow: 18.84,        /* the narrow tally's own row, a strut'd block round an 11px inline-block */
+  emptyZone: 58,          /* the empty-version zone in a bodySlot: minHeight 34 + 11px padding twice + 1.5px borders, content-box */
+  railStroke: 1.5,        /* the ancestry rail's border-left — between railIndent and railPadLeft, so a host can find the slot sideways */
+}
+
+/** what the geometry needs to know about a card — the same strings the component
+ *  is given, plus the width it will be laid out at */
+export interface GroupSpec {
+  width?: number
+  title?: string
+  index?: string
+  description?: string
+  descPlaceholder?: string
+  versionName?: string
+  versionLabel?: string
+  count?: number
+  countLabel?: string
+  narrow?: boolean
+  /** open: the height the caller wants the body slot to be (== `slotHeight`) */
+  bodyHeight?: number
+  foldedMinWidth?: number
+}
+
+type FontKind = 'ui' | 'display' | 'mono'
+const FONTS: Partial<Record<FontKind, string>> = {}
+function fontOf(kind: FontKind): string {
+  const cached = FONTS[kind]
+  if (cached) return cached
+  let fam = kind === 'mono' ? 'ui-monospace, monospace'
+    : kind === 'display' ? 'Georgia, serif' : 'system-ui, sans-serif'
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue('--font-' + (kind === 'display' ? 'display' : kind === 'mono' ? 'mono' : 'ui')).trim()
+    if (v) fam = v
+  }
+  FONTS[kind] = fam
+  return fam
+}
+
+let ctx2d: CanvasRenderingContext2D | null | false = null
+function measure(text: unknown, weight: number, size: number, kind: FontKind): number {
+  const str = String(text == null ? '' : text)
+  if (!str) return 0
+  if (typeof document !== 'undefined') {
+    if (!ctx2d) {
+      try { ctx2d = document.createElement('canvas').getContext('2d') } catch { ctx2d = false }
+    }
+    if (ctx2d) {
+      ctx2d.font = weight + ' ' + size + 'px ' + fontOf(kind)
+      return ctx2d.measureText(str).width
+    }
+  }
+  return str.length * size * 0.55
+}
+
+/** lines a label takes at a given width, honouring `overflow-wrap: anywhere` —
+ *  a single unbreakable word longer than the column wraps INSIDE itself rather
+ *  than overhanging, which is what the drawn label does. */
+function linesOf(text: unknown, width: number, weight: number, size: number, kind: FontKind, clamp: number): number {
+  const str = String(text == null ? '' : text).trim()
+  if (!str) return 0
+  if (!(width > 0)) return clamp || 1
+  const words = str.split(/\s+/)
+  let lines = 1
+  let cur = ''
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]
+    const trial = cur ? cur + ' ' + w : w
+    if (measure(trial, weight, size, kind) <= width) { cur = trial; continue }
+    if (cur) { lines++; cur = w } else cur = w
+    const solo = measure(cur, weight, size, kind)
+    if (solo > width) {
+      const extra = Math.ceil(solo / width) - 1
+      lines += extra
+      cur = ''
+    }
+  }
+  return clamp ? Math.min(lines, clamp) : lines
+}
+
+function titleColumn(width: number, spec: GroupSpec, folded: boolean): { col: number; narrow: boolean } {
+  const M = GROUP_METRICS
+  const shellPad = folded ? M.foldPadX * 2 : M.padX * 2
+  let col = width - shellPad - M.headPadLeft - M.headPadRight
+  if (spec.index) col -= measure(spec.index, 500, 12, 'mono') + M.pickerGap - 2
+  col -= M.ctlCluster + M.pickerGap
+  const narrow = spec.narrow === undefined ? width < M.narrowAt : spec.narrow
+  if (!narrow && !folded) {
+    const t = (spec.count === undefined ? 0 : spec.count) + ' ' + (spec.countLabel || 'nodes')
+    col -= measure(t, 400, 11, 'ui') + M.pickerGap
+  }
+  return { col: Math.max(M.titleMinW, col), narrow }
+}
+
+export interface HeadHeight { height: number; narrow: boolean; titleLines: number; versionLines: number; measured: boolean }
+
+/** The head's height: everything above the body — the face's top border, the
+ *  title row, the narrow tally line if the row is too tight to hold it, the
+ *  description, the picker. Feed it the width the card will be laid out at. */
+export function headHeight(spec?: GroupSpec): HeadHeight {
+  const s = spec || {}
+  const M = GROUP_METRICS
+  const width = s.width || 300
+  const c = titleColumn(width, s, false)
+  const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampOpen))
+  /* ★ faceBorder: the head is measured from the card's outer edge, border included */
+  let h = M.faceBorder + M.padTop + Math.max(M.headMinH, titleLines * M.bodyLine)
+  if (c.narrow) h += M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
+  const descText = s.description || s.descPlaceholder || ''
+  if (descText) {
+    const dcol = width - M.padX * 2 - M.descPadX * 2
+    const dl = linesOf(descText, dcol, 400, 12, 'ui', 0)
+    /* ★ the block's line box: one line is the 13px strut; wrapped, the lines win
+       and the last one sits on the block's baseline (+0.36) */
+    h += M.rowGap + M.descPadY * 2 + Math.max(M.descStrut, dl * M.capLine + M.descLastDescent)
+  }
+  let pcol = width - M.padX * 2 - M.pickerPadX - M.pickerCheck - M.pickerCaret - M.pickerGap * 3
+  if (s.versionLabel) pcol -= measure(s.versionLabel, 500, 11, 'mono')
+  const vLines = Math.max(1, linesOf(s.versionName || 'untitled', pcol, 600, 13, 'ui', M.versionClamp))
+  /* ★ padding + its two 1px borders round the taller of the 18px cells and the lines: 30 at one line */
+  h += M.rowGap + M.pickerPadY + 2 + Math.max(M.pickerCell, vLines * M.bodyLine)
+  return { height: Math.round(h * 100) / 100, narrow: c.narrow, titleLines, versionLines: vLines, measured: !!ctx2d }
+}
+
+/** The whole open card, given the height the caller wants the body slot to be.
+ *  `bodyHeight` is the same number passed to the component as `bodyHeight` /
+ *  `slotHeight`, so the box the board reserves and the box the group draws are
+ *  one number with one owner. `bodyTop` is where the slot's content begins,
+ *  from the card's top edge — the slot's own --space-15 padding included. */
+export function openHeight(spec?: GroupSpec): HeadHeight & { bodyTop: number } {
+  const head = headHeight(spec)
+  const s = spec || {}
+  const M = GROUP_METRICS
+  const asked = s.bodyHeight === undefined ? 0 : s.bodyHeight
+  /* ★ an EMPTY version (count 0) draws the dashed zone in the slot, and the zone
+     is taller than the slot it fills — its padding and borders sit outside the
+     34px minimum under the DS's content-box. The board asks for slotHeight and
+     gets the zone; the prediction has to say so. */
+  const body = s.count === 0 ? Math.max(asked, M.emptyZone) : asked
+  /* bodyPadTop: the slot's own --space-15 gap between the picker and the first
+     node. It is part of the card whether the slot is filled or empty, so it is
+     part of the prediction — and it is why a caller passing bodyHeight={0} still
+     gets a taller card than the head alone. */
+  const pad = body > 0 ? M.bodyPadTop : 0
+  /* ★ rowGap: the face is a flex column with --space-1 between its rows, and the
+     body is one of those rows — the gap between the picker and the slot */
+  const top = head.height + M.rowGap + pad
+  return {
+    ...head,
+    bodyTop: Math.round(top * 100) / 100,
+    /* ★ faceBorder: the bottom border closes the card */
+    height: Math.round((top + body + M.padBottom + M.faceBorder) * 100) / 100,
+  }
+}
+
+/** The folded card, peek plate included — the number their FOLD_CHROME and
+ *  FOLD_BASELINE_SLACK were approximating. Height covers the stacked tint the
+ *  shell reserves below and right of itself, so a chain's arrow lands clear of it. */
+export function foldedSize(spec?: GroupSpec): { width: number; height: number; titleLines: number; narrow: boolean; measured: boolean } {
+  const s = spec || {}
+  const M = GROUP_METRICS
+  const width = Math.max(s.width || 190, s.foldedMinWidth || 190)
+  const c = titleColumn(width, s, true)
+  const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampFolded))
+  const tally = M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
+  const h = M.faceBorder * 2 /* ★ */ + M.foldPadTop + Math.max(M.headMinH, titleLines * M.bodyLine)
+    + (c.narrow ? tally : 0) + M.foldPadBottom + M.foldPeekY
+  return { width: width + M.foldPeekX, height: Math.round(h * 100) / 100, titleLines, narrow: c.narrow, measured: !!ctx2d }
+}
+
+/** Reachable from the DS window namespace, where a bare lowercase export is not. */
+export const GroupGeometry = { GROUP_METRICS, headHeight, openHeight, foldedSize }
+
 export function VersionedGroup({
   title = 'untitled', index, description, versions = [], activeId,
-  folded, defaultFolded = false, count, addLabel = 'add new version', defaultOpen = false,
+  folded, defaultFolded = false, selected = false, optional = false, count, addLabel = 'add new version', defaultOpen = false,
   descPlaceholder = 'enter description',
   emptyLabel = 'no nodes in this version — drag one in', numberSteps = true, countLabel = 'nodes',
   onReorderNodes,
@@ -306,7 +594,14 @@ export function VersionedGroup({
   width, bodyHeight, offset, narrow, menuPortal,
   movable = true, onMove, onDeleteVersion, ungroupBlockedLabel, confirmDelete = true,
   onRetitle, onDescribe, onSelect, onRename, onAddVersion, onToggleFold, onClose, children,
+  bodySlot = false, slotHeight, onBodySlot, numberScope = 'local', depth: depthProp,
 }: VersionedGroupProps) {
+  /* the context is still the default, so a group nested the ordinary way counts
+     itself exactly as the DS intends; the prop only answers for a caller that has
+     broken the tree on purpose and therefore has to supply what the tree cannot */
+  const contextDepth = useContext(Depth)
+  const depth = depthProp === undefined ? contextDepth : depthProp
+  const shownIndex = numberScope === 'path' ? index : localIndex(index)
   const [open, setOpen] = useState(defaultOpen)
   const [editing, setEditing] = useState<'title' | 'version' | null>(null)
   const [ownFold, setOwnFold] = useState(defaultFolded)
@@ -319,10 +614,12 @@ export function VersionedGroup({
   const body = useRef<HTMLDivElement | null>(null)
   const pickerRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const slot = useRef<HTMLDivElement | null>(null)
   const [anchor, setAnchor] = useState<{ left: number; width: number; up: boolean; top?: number; bottom?: number } | null>(null)
   const [live, setLive] = useState(false)
   const [ownNarrow, setOwnNarrow] = useState(false)
-  const [refusal, setRefusal] = useState<string | null>(null)
+  const [refusal, setRefusal] = useState<Refusal | null>(null)
+  const [refusalAt, setRefusalAt] = useState<{ top: number; right: number } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
 
   const isFolded = folded === undefined ? ownFold : folded
@@ -385,22 +682,76 @@ export function VersionedGroup({
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key) }
   }, [open])
 
+  /* CHROME-ONLY MODE: the caller draws the body, we draw everything else.
+     A board that floats its step nodes as its OWN siblings — so that a click
+     inside one can never bubble into a parent group, and so one arithmetic pass
+     can place them all — cannot hand those nodes to us as `children`. That was
+     the wall: this component drew a body or nothing, so a board that needed to
+     own the body had to redraw the head, the picker, the menu and the well by
+     hand, and ~230 lines of AuthorRoad are exactly that.
+     `bodySlot` leaves the body area empty and reports where it is, relative to
+     the group's own box, so the caller can position nodes into it. What it does
+     NOT give up is the rail and the empty-version zone: those decorate the body
+     AREA rather than the nodes, so they stay ours and come back on a road that
+     has never had them. The tally must come from `count` in this mode — there
+     are no children to count. `onBodySlot` is called on mount and on any size
+     change; memoize it, or it re-subscribes every render. */
+  useEffect(() => {
+    if (!bodySlot || !onBodySlot || isFolded) return
+    const el = slot.current
+    const sh = shell.current
+    if (!el || !sh) return
+    const report = () => {
+      const a = el.getBoundingClientRect()
+      const b = sh.getBoundingClientRect()
+      onBodySlot({
+        left: Math.round(a.left - b.left), top: Math.round(a.top - b.top),
+        width: Math.round(a.width), height: Math.round(a.height),
+      })
+    }
+    report()
+    const raf = requestAnimationFrame(report)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null
+    if (ro) { ro.observe(el); ro.observe(sh) }
+    return () => { cancelAnimationFrame(raf); if (ro) ro.disconnect() }
+  }, [bodySlot, onBodySlot, isFolded, curW, curH, isNarrow, slotHeight])
+
   const fold = () => {
     setOpen(false)
     if (folded === undefined) setOwnFold((f) => !f)
     if (onToggleFold) onToggleFold(!isFolded)
   }
 
+  /* UNGROUPING WITH SEVERAL VERSIONS IS CONFIRMED, NOT REFUSED — changed by the DS on
+     2026-08-16, and the earlier reasoning is worth keeping because it was half right.
+     Ungrouping spills ONE version's nodes into the parent, so the others go with the
+     group; the old behaviour blocked the act outright on the grounds that a confirmation
+     would be asking the user to approve losing work they cannot see. What that missed is
+     that refusing does not save the work — it only makes the user delete the versions one
+     at a time first, which is the same loss with more steps and no summary. A user who
+     has decided a fork was a mistake is entitled to say so once. */
   const askUngroup = () => {
     if (versions.length > 1) {
-      setRefusal(ungroupBlockedLabel || ('cannot ungroup — ' + versions.length + ' versions live here; delete all but one first'))
+      setRefusal({
+        confirm: true,
+        text: ungroupBlockedLabel || ('This node has ' + versions.length
+          + ' versions currently. Confirm ungrouping of this node and deleting the unselected versions?'),
+      })
       return
     }
     if (onClose) onClose({ versionId: active.id, count: kids.length })
   }
 
+  /* a NOTE dismisses itself — it is telling you something. A QUESTION does not: a
+     confirmation that vanishes on a timer or on the next click either answers itself or
+     makes the user re-open it, and this one is destructive. Escape and "keep" close it. */
   useEffect(() => {
     if (!refusal) return
+    if (refusal.confirm) {
+      const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setRefusal(null) }
+      document.addEventListener('keydown', key)
+      return () => document.removeEventListener('keydown', key)
+    }
     const t = window.setTimeout(() => setRefusal(null), 4500)
     const away = () => setRefusal(null)
     document.addEventListener('pointerdown', away, true)
@@ -464,6 +815,38 @@ export function VersionedGroup({
     }
   }, [open, portalTarget, menuMaxHeight, at, curW, curH, isNarrow])
   const portaled = !!(portalTarget && anchor)
+
+  /* THE CONFIRMATION LEAVES THE CARD, for the reason the menu does — and it matters more
+     here, because this one has buttons. The panel sits inside the card div, which is
+     position:relative + z-index:1 for the folded peek, so its own z-index of 45 is scoped
+     to that context. On a board the caller's slot content is a SIBLING at z-index 2 (it
+     has to be, or a chain in the slot loses its arrows), so the whole card subtree loses
+     to it: the panel's lower half — where the keep/ungroup pair sits — is painted over by
+     the first nodes in the body, and the user can read the question and not be able to
+     answer it. No z-index inside the card fixes that; the trap is the context. Same
+     portalTarget the menu uses, so `menuPortal={null}` still opts out. */
+  useEffect(() => {
+    if (!refusal || !portalTarget) return
+    const place = () => {
+      const el = shell.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const next = { top: Math.round(r.top + 28), right: Math.round(window.innerWidth - r.right + 8) }
+      setRefusalAt((prev) => (prev && prev.top === next.top && prev.right === next.right) ? prev : next)
+    }
+    place()
+    const raf = requestAnimationFrame(place)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null
+    if (ro && shell.current) ro.observe(shell.current)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      cancelAnimationFrame(raf)
+      if (ro) ro.disconnect()
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [refusal, portalTarget])
 
   const startDrag = (axis: 'x' | 'y' | 'both') => (e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation()
@@ -551,15 +934,21 @@ export function VersionedGroup({
 
   const headRow = (
     <div data-grab="" style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-15)', minHeight: 22 }}>
-      {index ? (
-        <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)', fontWeight: 'var(--fw-medium)', marginRight: -2, lineHeight: 'var(--lh-snug)' }}>{index}</span>
+      {shownIndex ? (
+        <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)', fontWeight: 'var(--fw-medium)', marginRight: -2, lineHeight: 'var(--lh-snug)' }}>{shownIndex}</span>
       ) : null}
       {editing === 'title' ? (
         <NameField value={title} family="var(--font-display)" weight="var(--fw-bold)"
           onCommit={(v) => { setEditing(null); if (v && v !== title && onRetitle) onRetitle(v) }}
           onCancel={() => setEditing(null)} />
       ) : (
-        <span data-grab="" style={{ flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2 }}>
+        <span data-grab="" style={{
+          /* a floor, not a share: the head's fixed furniture is what shrinks when the
+             group is narrow, never the name. The control cluster keeps its width even
+             while receded, so the title never jumps — and never has controls land on
+             its tail — when they appear */
+          flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2,
+        }}>
           <span title={title} onClick={(e) => { stop(e); setEditing('title') }}
             style={{
               width: 'fit-content',
@@ -671,13 +1060,46 @@ export function VersionedGroup({
     </div>
   )
 
+  const portaledRefusal = !!(portalTarget && refusalAt)
+  const refusalPanel = refusal ? (
+    <div role={refusal.confirm ? 'dialog' : 'status'} style={{
+      ...(portaledRefusal && refusalAt
+        ? { position: 'fixed' as const, top: refusalAt.top, right: refusalAt.right, zIndex: 60 }
+        : { position: 'absolute' as const, top: 28, right: 8, zIndex: 45 }),
+      maxWidth: 232,
+      padding: '9px 11px', borderRadius: 'var(--radius-md)',
+      background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',
+      boxShadow: 'var(--lift-2)', fontFamily: 'var(--font-ui)',
+      fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)',
+    }}>
+      <div>{refusal.text}</div>
+      {refusal.confirm ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-1)', marginTop: 'var(--space-15)' }}>
+          <ConfirmButton label="keep" onClick={() => setRefusal(null)} />
+          <ConfirmButton label="ungroup" danger onClick={() => {
+            setRefusal(null)
+            if (onClose) onClose({ versionId: active.id, count: kids.length })
+          }} />
+        </div>
+      ) : null}
+    </div>
+  ) : null
+
   return (
+    <Depth.Provider value={depth + 1}>
     <div ref={shell} style={{
       position: 'relative',
       width: curW || undefined,
       maxWidth: curW ? undefined : maxWidth,
       minWidth: isFolded ? foldedMinWidth : undefined,
-      paddingRight: isFolded ? 6 : undefined,
+      /* THE PEEK'S STRIP IS RESERVED IN BOTH STATES, and that is what keeps the title's
+         column the same width folded and open. Reserving it only when folded made the
+         card 6px narrower folded — and the fold's padding was 1px wider a side on top —
+         so a one-line name wrapped to two the moment you collapsed it, which reads as
+         the fold rewriting the title. Open, the 6px is simply empty. The bottom strip
+         stays folded-only: nothing sits below an open card for the peek to overlap, and
+         height is not what a title wraps against. */
+      paddingRight: 6,
       paddingBottom: isFolded ? 7 : undefined,
       transform: at ? 'translate(' + at.x + 'px, ' + at.y + 'px)' : undefined,
       zIndex: carrying ? 40 : undefined,
@@ -687,24 +1109,35 @@ export function VersionedGroup({
       ) : null}
       <div data-grab="" onPointerDown={startMove} style={{
         position: 'relative', zIndex: 1, borderRadius: 'var(--radius-lg)', boxSizing: 'border-box',
-        padding: isFolded ? '8px 9px 9px' : 'var(--space-2) var(--space-2) var(--space-3)',
+        /* the horizontal padding is --space-2 in BOTH states, so the head row is the
+           same width either way; only the vertical padding differs, which the title
+           does not wrap against */
+        padding: isFolded ? '8px var(--space-2) 9px' : 'var(--space-2) var(--space-2) var(--space-3)',
         display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
-        background: isFolded ? 'var(--surface-raised)' : 'var(--surface-sunken)',
+        background: isFolded ? 'var(--surface-raised)' : (depth % 2 ? 'var(--surface-sunken-2)' : 'var(--surface-sunken)'),
         border: '1px solid ' + (isFolded ? 'var(--border-rule)' : 'transparent'),
         boxShadow: carrying ? 'var(--lift-drag)' : isFolded ? 'var(--lift-2)' : 'var(--sink-1)',
+        /* SELECTED: the outline is the CARD's own edge, open or folded — the whole group
+           is what got picked, so the whole group is what is drawn round. It was briefly
+           the head only, on the reasoning that a group's nodes are selectable in their
+           own right and a ring round the well claims them; in use that reads as a stray
+           box inside a card rather than as a card that is picked, and the board's own
+           multi-select box already encloses whole cards. A child that is itself selected
+           wears its own outline inside this one. 2px offset, the same gap NodeChip
+           leaves, so a selected group and a selected chip read as the same act.
+           LOCAL: `optional` is the host's dashed cue on the face in both states,
+           yielding to selection — an OUTLINE either way, so it follows the radius and
+           paints above the lift shadow without taking its slot */
+        outline: selected ? 'var(--stroke-ring) solid var(--state-selected)'
+          : optional ? '1.5px dashed var(--border-dashed)' : undefined,
+        outlineOffset: selected || optional ? 2 : undefined,
         cursor: movable ? 'move' : 'inherit',
         userSelect: 'none', WebkitUserSelect: 'none',
         transition: carrying ? 'none' : 'var(--transition-wash)',
       }}>
-        {refusal ? (
-          <div role="status" style={{
-            position: 'absolute', top: 28, right: 8, zIndex: 45, maxWidth: 216,
-            padding: '8px 11px', borderRadius: 'var(--radius-md)',
-            background: 'var(--surface-raised)', border: '1px solid var(--border-rule)',
-            boxShadow: 'var(--lift-2)', fontFamily: 'var(--font-ui)',
-            fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)',
-          }}>{refusal}</div>
-        ) : null}
+        {refusal ? (portaledRefusal && portalTarget ? createPortal(refusalPanel, portalTarget) : refusalPanel) : null}
+        {/* folded, only the WIDTH edge exists: a folded group has no body to make
+            taller, and the height it does have is its own title wrapping. */}
         {resizable ? edge('right') : null}
         {isFolded || !resizable ? null : edge('bottom')}
         {isFolded || !resizable ? null : edge('corner')}
@@ -722,7 +1155,28 @@ export function VersionedGroup({
             ...(curH ? { height: curH, minHeight: 0 } : { maxHeight: bodyMaxHeight }),
             overflowY: 'auto', overflowX: 'hidden',
           }}>
-            {kids.length === 0 ? (
+            {bodySlot ? (
+              /* the slot. Empty on purpose: the caller's nodes land here, and it
+                 holds `slotHeight` of space for them. `children` still render if
+                 any are passed, so a caller can mix — but they are NOT chained,
+                 because a board that positions nodes itself owns their order and
+                 their arrows too. */
+              <div ref={slot} data-grab="" style={{
+                position: 'relative', flex: curH ? 1 : '0 0 auto',
+                minHeight: curH ? 0 : (slotHeight || 0),
+                paddingTop: 'var(--space-15)', paddingRight: 'var(--space-1)',
+              }}>
+                {tally === 0 ? (
+                  <div data-grab="" style={{
+                    height: '100%', minHeight: 34, display: 'grid', placeItems: 'center',
+                    padding: '11px 12px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px dashed var(--border-dashed)', background: 'transparent',
+                    fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
+                    lineHeight: 'var(--lh-snug)', color: 'var(--text-3)', textAlign: 'center',
+                  }}>{emptyLabel}</div>
+                ) : kids}
+              </div>
+            ) : kids.length === 0 ? (
               <div data-grab="" style={{
                 flex: curH ? 1 : '0 0 auto', minHeight: 0,
                 marginTop: 'var(--space-15)', marginRight: 'var(--space-1)',
@@ -734,7 +1188,7 @@ export function VersionedGroup({
               }}>{emptyLabel}</div>
             ) : (
               <div data-grab="" style={{ paddingTop: 'var(--space-15)', paddingRight: 'var(--space-1)' }}>
-                <NodeChain number={numberSteps && !!index} prefix={index} onReorder={onReorderNodes}>
+                <NodeChain number={numberSteps} prefix={numberScope === 'path' ? shownIndex : ''} onReorder={onReorderNodes}>
                   {kids}
                 </NodeChain>
               </div>
@@ -743,5 +1197,6 @@ export function VersionedGroup({
         )}
       </div>
     </div>
+    </Depth.Provider>
   )
 }
