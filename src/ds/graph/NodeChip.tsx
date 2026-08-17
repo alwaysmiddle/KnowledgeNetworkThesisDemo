@@ -442,9 +442,34 @@ export function NodeChip({
       style={{
         boxSizing: 'border-box',
         position: 'relative', display: 'inline-flex', gap: M.gap,
-        /* a hand-set height centres its content: the extra room is deliberate, and
-           text pinned to the top of it looks like a layout accident instead */
-        alignItems: size && size.h ? 'center' : (wrap ? 'flex-start' : 'center'),
+        /* ★ LOCAL: `wrap` WINS OVER A TOLD HEIGHT. The DS centres the row whenever
+           a height is set — and then nudges every piece of furniture DOWN when `wrap`
+           is on: the dot by M.dotTop, the index by M.indexTop, the ✕ by M.delTop with
+           an `alignSelf: 'flex-start'` of its own. Those nudges are corrections for a
+           TOP-aligned row, so under a told height the two mechanisms contradict inside
+           one chip: the container centres, the ✕'s own alignSelf still tops out (it
+           outranks alignItems), and the nudges push the rest further from where either
+           rule wanted them. The road TELLS every leaf its height, so on the board that
+           is every wrapped chip. `wrap` means the name reads DOWN from its first line
+           — the DS's own contract says "its dot aligns to the first line, and the box
+           grows down" — and a told height is room at the BOTTOM of that. Upstream
+           verbatim as of the 2026-08-16 source; to report on drift-log #74.
+
+           AND THE DESTINATION IS `baseline`, not `flex-start`. Neither of the DS's
+           two branches puts the step number on the title's line, because the two
+           spans have different line boxes — --fs-micro 11 × --lh-snug is 14.85,
+           --fs-body 13 × --lh-snug is 17.55 — and no top- or centre-alignment makes
+           two unequal boxes share a baseline. Measured against the title's FIRST
+           line, which is the line the number belongs on: flex-start is a constant
+           -3px (the number rides high on every chip, wrapped or not); center is
+           -2.14 at one line and DRIFTS with the block, +6.63 at two and +15.41 at
+           three; `baseline` is 0.00 at one, two and three lines, told and natural
+           alike. That is what baseline alignment is for, and it is what the
+           contract already describes ("its dot aligns to the first line"). Safe
+           here because the ✕ carries its own alignSelf and `mark="border"` has no
+           dot — a dot-form chip would need its marginTop revisited, which is the
+           DS's call, not ours. */
+        alignItems: wrap ? 'baseline' : 'center',
         width: (size && size.w) || undefined, height: (size && size.h) || undefined,
         minWidth: 'min-content', minHeight: 'fit-content',
         maxWidth: size && size.w ? 'none' : '100%',

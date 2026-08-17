@@ -64,6 +64,17 @@ export interface VersionedGroupProps {
    *  at whatever depth it sits, because the nesting already says which well you are in.
    *  'path' restores the full dotted address for a surface that needs a citable one */
   numberScope?: 'local' | 'path'
+  /** ★ LOCAL: this well's nesting depth, which picks its tint — `--surface-sunken`
+   *  at even levels, `--surface-sunken-2` at odd. The DS counts this through a React
+   *  context and deliberately offers no prop, because "a group cannot be told its
+   *  depth by a caller that does not know how it is being composed". True, and it
+   *  inverts in `bodySlot` mode: a board that floats its cards as siblings (the case
+   *  the DS built `bodySlot` FOR) is not a React ancestor of them, so the context
+   *  cannot reach them and every card reads depth 0 — which is the one-tint failure
+   *  the alternation exists to prevent. Such a board is also the only thing that DOES
+   *  know the depth. Omit it and the context still wins, so ordinary nesting is
+   *  untouched. Drift-log #74. */
+  depth?: number
   onReorderNodes?: (from: number, to: number) => void
   maxWidth?: number | string
   bodyMaxHeight?: number | string
@@ -583,9 +594,13 @@ export function VersionedGroup({
   width, bodyHeight, offset, narrow, menuPortal,
   movable = true, onMove, onDeleteVersion, ungroupBlockedLabel, confirmDelete = true,
   onRetitle, onDescribe, onSelect, onRename, onAddVersion, onToggleFold, onClose, children,
-  bodySlot = false, slotHeight, onBodySlot, numberScope = 'local',
+  bodySlot = false, slotHeight, onBodySlot, numberScope = 'local', depth: depthProp,
 }: VersionedGroupProps) {
-  const depth = useContext(Depth)
+  /* the context is still the default, so a group nested the ordinary way counts
+     itself exactly as the DS intends; the prop only answers for a caller that has
+     broken the tree on purpose and therefore has to supply what the tree cannot */
+  const contextDepth = useContext(Depth)
+  const depth = depthProp === undefined ? contextDepth : depthProp
   const shownIndex = numberScope === 'path' ? index : localIndex(index)
   const [open, setOpen] = useState(defaultOpen)
   const [editing, setEditing] = useState<'title' | 'version' | null>(null)

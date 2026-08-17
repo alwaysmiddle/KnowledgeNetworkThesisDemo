@@ -65,10 +65,22 @@ const FOLD_MIN_W = 190 // DS foldedMinWidth: the shell's CONTENT is never squeez
 // loses its tail instead of the box lying about how tall it is.
 const NODE_MAXW = 220
 const NODE_MAXH = 66
-/** the step number as the CHIP is handed it. leafSize measures this and the render
- *  below draws it, from one place — the trailing dot is a few px of mono, and a
- *  reservation that missed it would be that much too narrow on every stop. */
-const leafIndex = (outline: string) => `${outline}.`
+/** the step number as the CHIP is handed it — LOCAL to the container it sits in, so
+ *  a leaf shows its position in its own list rather than the path down to it: the
+ *  stop whose outline is `2.1` reads `1.`. The last segment IS that position, since
+ *  placeList builds every outline as `${prefix}.${i + 1}`.
+ *
+ *  This is one scheme rather than two. The cards have always read this way —
+ *  VersionedGroup's `numberScope` defaults to 'local' and truncates whatever it is
+ *  handed — so while the chips carried full paths a nested card said `1.` with
+ *  chips beside it saying `2.1.` and `2.2.`: one level in two schemes, which the DS
+ *  calls worse than either. Numbering follows the nesting, which the reader can
+ *  already see; `numberScope="path"` is there if a citable address is ever the point.
+ *
+ *  leafSize measures this and the render below draws it, from one place — the
+ *  trailing dot is a few px of mono, and a reservation that missed it would be that
+ *  much too narrow on every stop. */
+const leafIndex = (outline: string) => `${outline.slice(outline.lastIndexOf('.') + 1)}.`
 // the selection cue on a LEAF: an OUTLINE, not a ring — it survives the inline
 // box-shadow on pills, and its offset sits OUTSIDE a node's thick coloured border,
 // so selection stays legible where a 1px ring was lost against the border (#72 #10)
@@ -816,6 +828,10 @@ export default function AuthorRoad({
                     optional={!!s.optional}
                     title={s.title ?? ''}
                     index={pl.outline}
+                    /* the road floats its cards as board-level siblings, so the DS's
+                       Depth context never reaches them — `pl.depth` is the same count,
+                       kept by the layout that did the floating */
+                    depth={pl.depth}
                     description={s.description ?? ''}
                     count={shutSteps.length}
                     versions={s.variants.map((v, i) => ({ id: v.id, name: v.label || VERSION_UNNAMED, label: versionCode(i) }))}
@@ -951,6 +967,10 @@ export default function AuthorRoad({
                   narrow={spec.narrow}
                   title={spec.title ?? ''}
                   index={spec.index}
+                  /* the road floats its cards as board-level siblings, so the DS's
+                     Depth context never reaches them — `pl.depth` is the same count,
+                     kept by the layout that did the floating */
+                  depth={pl.depth}
                   description={spec.description}
                   descPlaceholder={spec.descPlaceholder}
                   count={spec.count}

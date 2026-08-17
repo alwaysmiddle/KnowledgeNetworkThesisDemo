@@ -158,6 +158,23 @@ const chipCal = await page.evaluate(() => {
     const spans = [...shell.children].filter((c) => c.tagName === 'SPAN')
     const title = spans[spans.length - 1]
     const lh = title ? parseFloat(getComputedStyle(title).lineHeight) : 0
+    /* THE NUMBER MUST SIT ON THE NAME'S LINE. A zero-height inline-block at
+       `vertical-align: baseline` puts its own bottom edge exactly on the baseline
+       of the line it is in, so one at the START of each span reads the FIRST line
+       — the line the step number belongs on at any title length. The two spans
+       have different line boxes (--fs-micro 11 × --lh-snug = 14.85 against
+       --fs-body 13 × --lh-snug = 17.55), so neither top- nor centre-alignment can
+       make them share a baseline: flex-start is a constant -3, center is -2.14 at
+       one line and drifts to +15.41 at three. Only `baseline` is 0. */
+    const baselineOf = (el) => {
+      const probe = document.createElement('span')
+      probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'
+      el.insertBefore(probe, el.firstChild)
+      const y = probe.getBoundingClientRect().bottom
+      probe.remove()
+      return y
+    }
+    const mono = spans.find((c) => /mono|consol|courier|menlo/i.test(getComputedStyle(c).fontFamily))
     return {
       w: Math.round(r.width * 100) / 100, h: Math.round(r.height * 100) / 100,
       // overflow past the shell's own content box — what `overflow: hidden` eats
@@ -172,6 +189,8 @@ const chipCal = await page.evaluate(() => {
             - parseFloat(getComputedStyle(title).paddingLeft)
             - parseFloat(getComputedStyle(title).paddingRight)) * 100) / 100
         : null,
+      // + means the number sits BELOW the name's baseline, - means it rides high
+      baseline: mono && title ? Math.round((baselineOf(mono) - baselineOf(title)) * 100) / 100 : null,
     }
   }
   return [...document.querySelectorAll('[data-cal-chip]')].map((el) => ({
@@ -216,19 +235,60 @@ for (const c of chipCal) {
   // it is a side-bearing or rounding difference between measureText and inline
   // layout rather than a font mismatch — which lands on the safe side and stays.
   const okCol = dCol <= 0.5 && dCol >= -2
-  const ok = okW && okFit && okLines && okCol
+  // half a pixel either way: the number and the name read as one line or they do not
+  const okBase = c.told.baseline !== null && Math.abs(c.told.baseline) <= 0.5
+    && c.natural.baseline !== null && Math.abs(c.natural.baseline) <= 0.5
+  const ok = okW && okFit && okLines && okCol && okBase
   if (!ok) geomBad++
   const why = [okFit ? '' : `CLIPPED by ${c.told.overY}x${c.told.overX}px`,
     okW ? '' : `width off by ${dW}`, okLines ? '' : `lines off by ${dLines}`,
-    okCol ? '' : `title column off by ${dCol}`].filter(Boolean).join(', ')
+    okCol ? '' : `title column off by ${dCol}`,
+    okBase ? '' : `step number off the title's line by ${c.told.baseline}/${c.natural.baseline} (told/natural)`,
+  ].filter(Boolean).join(', ')
   console.log(`  ${c.idx.padEnd(6)} told=${c.told.w}x${c.told.h} predicted=${c.predW}x${c.predH}`
+    + `  base=${c.told.baseline}`
     + `  natural=${c.natural.w}${clamped ? ' (under the 150 floor)' : ` (${dW >= 0 ? '+' : ''}${dW})`}`
     + `  lines=${c.told.lines}/${c.predLines}  col=${c.told.col}/${c.predCol} (${dCol >= 0 ? '+' : ''}${dCol})  ${ok ? 'ok' : 'DRIFT — ' + why}`
     + `   "${c.title}"`)
+}
+
+// -- the well's tint steps by depth -----------------------------------------
+// A nested card must not be the same colour as the card holding it. The DS
+// delivers this through a React context, which cannot reach a board's floated
+// siblings, so the `depth` prop is what carries it here — and this is the check
+// that the prop is actually wired, not merely present.
+const tints = await page.evaluate(() => {
+  const root = getComputedStyle(document.documentElement)
+  const want = {
+    even: root.getPropertyValue('--surface-sunken').trim(),
+    odd: root.getPropertyValue('--surface-sunken-2').trim(),
+  }
+  // paint both tokens into a probe so they can be compared as resolved rgb()
+  const probe = document.createElement('span')
+  document.body.appendChild(probe)
+  const resolve = (v) => { probe.style.backgroundColor = v; return getComputedStyle(probe).backgroundColor }
+  const res = { even: resolve(want.even), odd: resolve(want.odd) }
+  probe.remove()
+  return [...document.querySelectorAll('[data-cal-open]')].map((host) => {
+    // the well is the card's own face: the descendant painted in either tint
+    const face = [...host.querySelectorAll('*')]
+      .find((n) => { const b = getComputedStyle(n).backgroundColor; return b === res.even || b === res.odd })
+    const got = face ? getComputedStyle(face).backgroundColor : null
+    return { k: host.getAttribute('data-cal-open'), depth: +host.getAttribute('data-cal-depth'), got,
+      want: (+host.getAttribute('data-cal-depth')) % 2 ? res.odd : res.even }
+  })
+})
+const tintBad = tints.filter((t) => t.got !== t.want)
+console.log(`well tint by depth: ${tints.map((t) => `${t.k}@${t.depth}${t.got === t.want ? '' : ' MISMATCH'}`).join(', ')}`)
+console.log(`  even=${tints[0] && tints[0].want}  odd=${tints.find((t) => t.depth % 2) ? tints.find((t) => t.depth % 2).want : 'n/a'}`)
+for (const t of tintBad) {
+  console.log(`TINT DRIFT: ${t.k} sits at depth ${t.depth} and painted ${t.got}, expected ${t.want}`
+    + ' — the depth is not reaching the component, so a nested well is the same colour as the one holding it')
 }
 
 await browser.close()
 vite.kill()
 if (errors.length) { console.log('ERRORS:\n' + errors.join('\n')); process.exit(1) }
 if (geomBad) { console.log(`GEOMETRY DRIFT: ${geomBad} case(s) where the published geometry disagrees with what rendered`); process.exit(1) }
+if (tintBad.length) { console.log(`TINT DRIFT: ${tintBad.length} well(s) painted the wrong depth tint`); process.exit(1) }
 console.log('DONE — GroupGeometry agrees with the rendered card, and ChipGeometry with the rendered chip, in every case')
