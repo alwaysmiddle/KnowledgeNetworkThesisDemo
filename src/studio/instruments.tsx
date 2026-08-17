@@ -170,7 +170,7 @@ const VIEWS = [
     family: 'reading',
     slot: 'column',
     render: (bus) => (
-      <div className="h-full overflow-hidden bg-white">
+      <div className="h-full overflow-hidden">
         <ChildrenPanel bus={bus} />
       </div>
     ),
@@ -188,7 +188,7 @@ const VIEWS = [
     family: 'reading',
     slot: 'column',
     render: (bus) => (
-      <div className="h-full overflow-auto bg-white px-2 py-1">
+      <div className="h-full overflow-auto px-2 py-1">
         <PlexPanel bus={bus} />
       </div>
     ),
