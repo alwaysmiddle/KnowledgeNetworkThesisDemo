@@ -585,14 +585,21 @@ export default function AuthorRoad({
   }
 
   return (
-    // DS PaneHeader.d.ts rule 3: A SCROLLING BODY INSETS 12px FROM THE BOTTOM, as a
-    // margin rather than a radius on the scroller, so the scrollbar's end arrow stays
-    // clear of the pane's corner arc instead of being clipped by it; the pane's own
-    // paper fills the strip. One inset serves both axes.
+    // DS PaneHeader.d.ts rule 3: A SCROLLING BODY INSETS 12px AT BOTH ENDS, as a
+    // margin rather than a radius on the scroller, so the scrollbar's end arrows stay
+    // clear of the pane's corner arcs instead of being clipped by them; the pane's own
+    // paper fills the strips.
+    //
+    // BOTH, not just the bottom. A scroller reserves an arrow square at EACH end of its
+    // gutter and the pane has a rounded corner at each end of its right edge, so one
+    // inset alone leaves the OTHER arrow painting over its arc. The rule read
+    // `marginBottom` alone when we adopted it in #110 — "one inset serves both axes",
+    // which is true of the two AXES and false of the two ENDS — and the DS amended it
+    // on 2026-08-17f after finding the same bug in its own Pane. #113 H2.
     <div
       data-road-root
       className="flex-1 min-h-0 overflow-auto"
-      style={{ marginBottom: 'var(--space-3)' }}
+      style={{ marginTop: 'var(--space-3)', marginBottom: 'var(--space-3)' }}
       onPointerDown={onBoardPointerDown}
       onPointerMove={onBoardPointerMove}
       onPointerUp={onBoardPointerUp}
