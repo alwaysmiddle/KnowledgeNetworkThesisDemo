@@ -26,15 +26,34 @@ const TONE: Record<string, string> = {
 }
 const DASH = '4 4'
 
+/** LOCAL DEVIATION (#113 H4) — the drawn geometry, published so a board that
+ *  positions arrows ITSELF can align them without re-deriving these numbers.
+ *  The DS does not export them, but it does not lay arrows out either: it puts
+ *  one in each gap of a NodeChain, which owns both ends. A board like the road
+ *  computes every box arithmetically in one pass and places each arrow absolutely,
+ *  so it needs the head's length (to turn a gap into a `length`) and the cross-axis
+ *  extent (to centre the shaft on the column). Same shape as NodeChip's `chipSize`
+ *  and VersionedGroup's `GROUP_METRICS`. To report on #74. */
+export const ARROW_METRICS = {
+  /** the head's length along the shaft — an arrow's total span is `length + head` */
+  head: 8,
+  /** the head's half-width, either side of the shaft */
+  halfWidth: 4.4,
+  /** the shaft's stroke width */
+  stroke: 1.5,
+  /** the cross-axis extent of the whole drawing; the shaft sits at `across / 2` */
+  across: 4.4 * 2 + 3,
+} as const
+
 export function NodeArrow({
   direction = 'down', length = 14, tone = 'walk', dashed, color, title,
 }: NodeArrowProps) {
   const paint = color || TONE[tone] || TONE.walk
-  const HEAD = 8
-  const HALF = 4.4
-  const T = 1.5
+  const HEAD = ARROW_METRICS.head
+  const HALF = ARROW_METRICS.halfWidth
+  const T = ARROW_METRICS.stroke
   const span = length + HEAD
-  const across = HALF * 2 + 3
+  const across = ARROW_METRICS.across
   const down = direction === 'down'
   const w = down ? across : span
   const h = down ? span : across
