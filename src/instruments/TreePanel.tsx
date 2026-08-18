@@ -55,7 +55,7 @@ export default function TreePanel({ bus }: { bus: Bus }) {
   const rootChildren = childrenOf.get(treeRootId) ?? []
 
   return (
-    <div className="h-full overflow-auto bg-white" aria-label="tree-panel">
+    <div className="h-full overflow-auto" aria-label="tree-panel">
       <div className="px-3 pt-2.5 pb-1.5 text-[11px] font-bold text-slate-800 border-b border-slate-100 sticky top-0 bg-white z-10">
         Tree — {byId.get(treeRootId)!.title}
       </div>

@@ -318,7 +318,7 @@ export default function LensPane({ bus, type }: LensPaneProps) {
   }
 
   return (
-    <div data-lens={type} className="h-full flex flex-col bg-white">
+    <div data-lens={type} className="h-full flex flex-col">
       <header className="shrink-0 flex items-center gap-2 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
         <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[type] }} />
         <span className="font-bold text-slate-700">{EDGE_LABEL[type]}</span>

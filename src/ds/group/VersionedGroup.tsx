@@ -57,8 +57,13 @@ export interface GroupVersion {
 export interface BodySlot { left: number; top: number; width: number; height: number }
 
 export interface VersionedGroupProps {
+  /** the group's name — rank 4, editable on click. Wraps to two lines open, three
+   *  folded. The number is NOT part of it */
   title: string
+  /** the group's position among its siblings ("2."). Derived, mono, never editable.
+   *  The children's own numbers come from it: 2. contains 2.1, 2.2, 2.3 */
   index?: string
+  /** pass false to stop handing step numbers down to the children */
   numberSteps?: boolean
   /** 'local' (default) — a group shows its own ordinal and numbers its children from it,
    *  at whatever depth it sits, because the nesting already says which well you are in.
@@ -75,28 +80,56 @@ export interface VersionedGroupProps {
    *  know the depth. Omit it and the context still wins, so ordinary nesting is
    *  untouched. Drift-log #74. */
   depth?: number
+  /** the body is a `NodeChain`: pass this and the caller owns the order of the
+   *  version's nodes; omit it and the chain keeps its own */
   onReorderNodes?: (from: number, to: number) => void
+  /** how wide the group may grow. Default 300 */
   maxWidth?: number | string
+  /** how tall the contents may grow before they scroll. Default 260.
+   *  NB (drift-log #74, F2): `openHeight()` does not model this cap, so a `bodySlot`
+   *  host that reserves from it must clear the cap itself or its floated steps hang
+   *  out of the card's bottom while the body grows a scrollbar over nothing */
   bodyMaxHeight?: number | string
+  /** how tall the version menu may grow before it scrolls. Default 240 */
   menuMaxHeight?: number | string
+  /** floor width while folded, so the title cannot be squeezed to one word per
+   *  line. Default 190 — below that the head's index and control cluster leave the
+   *  title too little room to wrap */
   foldedMinWidth?: number | string
+  /** drag the right edge, bottom edge or corner to resize. Default true; folded
+   *  groups are not resizable */
   resizable?: boolean
+  /** drag bounds: width floor 200, width ceiling 680, body-height floor 72 */
   minWidth?: number
   resizeMaxWidth?: number
   minBodyHeight?: number
+  /** drag the group's own background to move it. Default true. The component
+   *  applies a transform; pass `offset` to own the position yourself, or
+   *  `movable={false}` if the container would rather run the drag itself */
   movable?: boolean
+  /** fired on pointer-up with the offset the group was carried to */
   onMove?: (offset: { x: number; y: number }) => void
+  /** fired on pointer-up with the size the user settled on, and on a double-click
+   *  reset with `null` on the axis that went back to automatic */
   onResize?: (size: { width: number | null; height: number | null }) => void
   /** CONTROLLED SIZE, read like `folded`: omit and the group keeps whatever the
-   *  user dragged it to; pass these and the caller's numbers win. The drag itself
-   *  always runs on own state and `onResize` reports on pointer-up; at rest the
-   *  prop is authoritative. `null` on an axis hands it back to automatic */
+   *  user dragged it to; pass these and the caller's numbers win — which is what a
+   *  canvas needs, since a size held in this component's own state cannot be saved
+   *  across a reload, undone, or read by anything that aligns or packs cards. The
+   *  drag itself always runs on own state (routing every pointermove out to a caller
+   *  and back is what makes a controlled drag lag) and `onResize` reports on
+   *  pointer-up; at rest the prop is authoritative, so a caller that ignores the
+   *  report gets the snap-back a controlled input gives. `null` on an axis hands it
+   *  back to automatic, the same as double-clicking that edge */
   width?: number | null
   bodyHeight?: number | null
   /** CONTROLLED POSITION, pairing with `onMove` on the same terms as `width` */
   offset?: { x: number; y: number } | null
   /** the tally drops to its own line below ~250px. Left undefined the group
-   *  measures itself; pass this and the ResizeObserver is never installed */
+   *  measures itself; pass this and the ResizeObserver is never installed. A caller
+   *  that computes its own layout already knows the width, and one that must predict
+   *  this head's height before rendering it cannot also wait on the head to measure
+   *  itself */
   narrow?: boolean
   /** where to render the version menu. **Defaults to `document.body`** — the shell
    *  is position:relative + z-index:1 (the folded peek stacks behind it), so every
@@ -108,40 +141,90 @@ export interface VersionedGroupProps {
    *  resolves against that ancestor rather than the viewport); pass `null` for the
    *  old in-card behaviour, correct only when the group is topmost on screen */
   menuPortal?: Element | null
+  /** the group's description — one editable line under the title, true of every
+   *  version. Optional; omit `onDescribe` to make it read-only, and both to drop
+   *  the line entirely */
   description?: string
+  /** what an empty version says. A new version starts with no nodes, so this is
+   *  the common case, not an error state — a dashed placeholder awaiting a node */
   emptyLabel?: string
+  /** the invitation shown while `description` is empty — italic, --text-3 */
   descPlaceholder?: string
   versions: GroupVersion[]
+  /** the version on screen; falls back to the first */
   activeId?: string
+  /** how many items are inside — defaults to the child count, override when the
+   *  body renders something other than one element per item. REQUIRED in
+   *  `bodySlot` mode: there are no children left to count */
   count?: number
+  /** the word beside the tally, plural. Singular is derived. Default "nodes" */
   countLabel?: string
+  /** controlled fold state; leave undefined and the fold button owns it. One
+   *  component instance persists across fold and open (same key), so a host that
+   *  controls one branch must control BOTH or the DS's own minimize flips state
+   *  the host never hears about */
   folded?: boolean
   defaultFolded?: boolean
-  /** the host's selection cue, drawn by the group: folded, an outline on the
-   *  face (the group IS a node again); open, an outline round the HEAD only —
-   *  name, tally, description, picker — never round the body, whose nodes are
-   *  selectable in their own right. --stroke-ring --state-selected at 1px */
+  /** PICKED. A `--stroke-ring` (2px) `--state-selected` outline at 2px offset around
+   *  the CARD's own edge — head and body, open or folded: the whole group is what got
+   *  picked. An outline rather than a border because it takes no layout, so picking a
+   *  card cannot move it or its neighbours. A child that is itself selected wears its
+   *  own outline inside this one. Drawn at VersionedGroup.tsx:1216.
+   *
+   *  This prop is CONTROLLED-ONLY here. The DS also ships `defaultSelected` and
+   *  `onSelectedChange` so a group can keep its own state; neither is ported, because
+   *  the road holds the selection for every card on the board and a second source of
+   *  truth would fight it. Port them if a surface ever needs a self-selecting group.
+   *
+   *  NB this doc said "an outline round the HEAD only … at 1px" until 2026-08-17, which
+   *  was the reading BEFORE the DS moved it to the whole card on 2026-08-16 — the code
+   *  was re-ported that day and the comment above it was not. Our own contract lag, in
+   *  the same file whose missing prose this pass was written to fill in. */
   selected?: boolean
   /** the HOST's "conditional" cue — LOCAL ADDITION (not in the DS source; drift-log
    *  #74): a dashed ring hugging the face in the host's own dashed recipe, in both
    *  states — a conditional container is conditional as a whole. Folded it yields
    *  to `selected`, which wants the same layer and is the more urgent signal */
   optional?: boolean
-  /** CHROME-ONLY MODE: draw the well, head, description, picker, menu, rail and
-   *  the empty-version zone, leave the body area EMPTY and report where it is
-   *  (relative to the group's own box) through `onBodySlot`, so a board that
-   *  floats its nodes as its own siblings can position them into it. `slotHeight`
-   *  is how much space the slot holds for them; the tally comes from `count` */
+  /** CHROME-ONLY MODE: draw the card but not the body — the head, description,
+   *  picker, menu, well, ancestry rail and empty-version zone are the group's; the
+   *  body area is left EMPTY for the caller to position its own nodes into, and
+   *  `onBodySlot` reports where it is.
+   *
+   *  For a board that CANNOT hand its nodes over as `children` — one that floats
+   *  them as its own siblings so a click inside one never bubbles into a parent
+   *  group, and lays every box out in one arithmetic pass. `AuthorRoad` is that
+   *  board. Without this the only way for it to own the body was to redraw the head
+   *  as well, which is what its ~230 hand-written lines were.
+   *
+   *  `count` becomes REQUIRED — there are no children left to count. Default false */
   bodySlot?: boolean
+  /** how much room to leave for the caller's nodes, in px. Ignored once the user
+   *  drags the bottom edge (`bodyHeight` wins, as it does anyway) */
   slotHeight?: number
+  /** the slot's box, relative to the group's own box: `{ left, top, width, height }`.
+   *  Called on mount, on the next frame, and on any size change of slot or shell.
+   *  MEMOIZE IT — an inline arrow re-subscribes the observers every render.
+   *
+   *  GIVE WHAT YOU RENDER INTO THE SLOT A `z-index` ABOVE 1. The group's shell is
+   *  `z-index: 1` — it has to be, so the folded peek plate can sit behind it — so a
+   *  sibling at `auto` paints behind the card. This bites in a way that looks like
+   *  anything but z-order: a `NodeChain` in the slot kept its chips (the chain gives
+   *  its slots `z-index: 1`) and lost its ARROWS, so the body read as loose nodes */
   onBodySlot?: (slot: BodySlot) => void
+  /** the last row of the menu; lower-case verb phrase, set in italic */
   addLabel?: string
+  /** open the version menu on mount — for specimens and screenshots only */
   defaultOpen?: boolean
   onRetitle?: (title: string) => void
   onDescribe?: (description: string) => void
   onSelect?: (id: string) => void
+  /** fired on Enter or blur after a double-click rename of the live version */
   onRename?: (id: string, name: string) => void
+  /** create a version and select it — the picker then opens its rename field */
   onAddVersion?: () => void
+  /** delete a version. The row's ✕ appears only while the group has more than one,
+   *  and only when this is passed. If the deleted version was live, select another */
   onDeleteVersion?: (id: string) => void
   /** overrides the ungroup confirmation's wording. It is a QUESTION — whatever you
    *  pass has to read sensibly above a "keep" and an "ungroup" button */
@@ -151,7 +234,9 @@ export interface VersionedGroupProps {
    *  that refusal now sits above a button that ungroups, which is how it shipped here
    *  (DS 2026-08-17, found by looking at our screen). Re-word as a question and move */
   ungroupBlockedLabel?: string
+  /** ask before deleting a version, in the row itself. Default true */
   confirmDelete?: boolean
+  /** fired with the next fold state; the component folds itself regardless */
   onToggleFold?: (folded: boolean) => void
   /** ungroup — called with the version to spill and how many nodes it holds; replace
    *  the group with those nodes, in order, in the slot it occupied. With more than one
@@ -159,6 +244,9 @@ export interface VersionedGroupProps {
    *  if the user answers "ungroup". (Until 2026-08-17 the contract still said the act
    *  was refused and this handler not called — our own port reported it.) */
   onClose?: (spill: { versionId: string; count: number }) => void
+  /** the group's contents — one element per item; arrows are drawn between them.
+   *  Ignored as a chain in `bodySlot` mode: a board that positions nodes itself
+   *  owns their order and their arrows too */
   children?: React.ReactNode
 }
 

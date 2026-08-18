@@ -37,7 +37,7 @@ export default function KnowledgePanel({ bus }: { bus: Bus }) {
   })
 
   return (
-    <div className="h-full overflow-auto bg-white" aria-label="knowledge-panel">
+    <div className="h-full overflow-auto" aria-label="knowledge-panel">
       <DocHeader kind={n.topic ? 'topic' : n.kind} title={n.title} domain={domainOf(currentId) as DomainCode} ancestry={ancestry} />
 
       <div className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100">{DOC_BODY[currentId]}</div>
