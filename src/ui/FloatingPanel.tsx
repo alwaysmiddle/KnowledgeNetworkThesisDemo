@@ -203,7 +203,18 @@ export function FloatingPanel({
           onPointerDown={(e) => beginGesture(e, 'move')}
           style={{ position: 'absolute', top: 0, left: 16, zIndex: 2, transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', cursor: 'move' }}
         >
-          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', padding: '0 8px' }}>
+          {/* #113 H5: 0 5px, matching PaneHeader's legend title. This span is a
+              hand-written COPY of that legend — same `cut` mask, same title span,
+              same tokens — and it had drifted to 8px, which widens the notch bitten
+              out of the top border. `cut` is left:0/right:0, so the padding IS the
+              notch width; narrowing one narrows the other.
+
+              Not adopted as PaneHeader outright, and this is the reason: here the
+              legend is ALSO the drag handle (onPointerDown -> beginGesture 'move'),
+              and PaneHeader offers no way to make its title grabbable. That is a
+              host-needs-the-hat gap of the same family as the pane-body rules —
+              reported on #113 rather than worked around by forking the component. */}
+          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', padding: '0 5px' }}>
             <span style={cut} />
             <span style={{ ...over, transform: 'translateY(-1px)', fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
               {title}
