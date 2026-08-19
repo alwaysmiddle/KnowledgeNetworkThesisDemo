@@ -48,8 +48,16 @@ side-by-side checkouts made hand-minted numbers and one overwrite-in-place statu
 file collide). A **port divergence** — a `src/ds/**` port differing from the DS
 source — is a comment on the standing drift-log **#74**; a study, decision, or
 question is its own issue; cite the **real commit sha** in the issue when a diff
-base matters. The design agent reads issues with its GitHub tools and still
-replies through its own project, which we read via `/design-sync`.
+base matters.
+
+As of **2026-08-18** there is a second outbound channel: **receipts written
+straight into the design project**, through the `DesignSync` tool's write methods
+(`finalize_plan` → `write_files`). A receipt answers one obligation — done with a
+commit sha, declined with a reason, blocked, or a question — and lands as
+`receipts/<sha>.md`, one file per sync run. Issues stay the channel for anything
+needing discussion, an attachment, or a third party. Inbound, the design agent
+authors in its own project and marks binding work under `## OBLIGATIONS` in its
+`design-sync.md`: **read that section before starting a run.**
 `design-handoff/PROTOCOL.md` is the whole contract — read it once.
 
 ## This repo's role
