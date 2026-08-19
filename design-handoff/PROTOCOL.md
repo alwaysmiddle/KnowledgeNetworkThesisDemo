@@ -139,14 +139,47 @@ receipts before starting. Neither is optional.
 
 ## The coupling that must not drift
 
-The design project's `tokens/spacing.css` `--road-*` block records the same
-numbers as the `const`s in `src/instruments/walkdesk/AuthorRoad.tsx` (`NODEW`,
-`AGAP`, `PAD`, `HEAD`, `MARGIN`, …) plus `RAIL_W` from `RailroadView.tsx`. The
-road's layout is measure-free arithmetic, so those numbers *are* the layout — a
-token that disagrees is a wrong drawing of a right screen.
+The design project's `tokens/spacing.css` `--road-*` block transcribes layout
+constants from `src/instruments/walkdesk/AuthorRoad.tsx`. The road's layout is
+measure-free arithmetic, so those numbers *are* the layout, and a token that
+disagrees is a wrong drawing of a right screen — **wherever anything still reads
+the token.**
+
+**Re-audited 2026-08-18: the block is inert.** Nothing in `src/` reads any
+`--road-*` token; the only mentions outside `spacing.css` are comments in
+`kn-theme.css`. A disagreement here currently draws nothing wrong. PROVENANCE
+recorded exactly this for `--road-head-h` on 2026-08-11 — "no source reads the
+token" — and this section never caught up. Treat the block as a **record** of
+the road's constants, and re-read this paragraph before trusting it if something
+starts consuming them again.
+
+Two of the anchors it names are gone, which matters before anyone reconciles a
+value against them:
+
+- **`PAD` no longer exists in `AuthorRoad.tsx`.** The only `PAD`s in `src/` are
+  `LensPane.tsx` (44) and `WalkColumns.tsx` (14) — different files, different
+  meanings. `--road-pad: 10px` must not be reconciled against either.
+- **`RAIL_W` no longer exists anywhere in `src/`**, though `spacing.css` still
+  carries `--rail-w: 186px  /* RAIL_W */`.
+- Still live, still correct: `NODEW` 150, `NODEH` 34, `AGAP` 26, `MARGIN` 16,
+  `SLOTH` 18.
+- `--road-head-h` holds a **deliberate local deviation** — 72px here against the
+  DS's 44px, because the head grew a description row in #70/#86. The road owns
+  its own constants; do not adopt 44 back.
 
 Documented coupling drifts; tested coupling does not. The old `tokens.test.ts`
-value-for-value parity guard was removed with #44. Its discipline comes back as
-the design system's own **adherence lint** (`_adherence.oxlintrc.json`), wired
-into `npm run verify` — see #61. Until that lands, this coupling is documented,
-not enforced; treat it as a promise to keep by hand.
+value-for-value parity guard was removed with #44, and the guard that replaced it
+is **not** what this section used to claim. Oxlint was **declined** in #65, so
+there is no `_adherence.oxlintrc.json` in this repo — that file lives in the
+design project as a reference spec only, and it was never wired into
+`npm run verify`. What actually exists:
+
+- **`eslint.config.js`** — #61 authored the DS's raw-hex / raw-px bans as native
+  ESLint `no-restricted-syntax` rules, scoped to token-clean files and growing
+  per migrated file. Not repo-wide.
+- **`src/ds/adherence.test.ts`** — #108 guards the DS host rules: a pane body
+  paints no background, a clipping body rounds all four corners, a switched-off
+  border side uses longhands, and a pinned budget of undocumented props.
+
+Neither covers the `--road-*` numbers. That coupling stays documented, not
+enforced — a promise to keep by hand.

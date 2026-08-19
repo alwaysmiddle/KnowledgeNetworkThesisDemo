@@ -55,9 +55,12 @@ the sources that actually hold it:
   `AuthorRoad.tsx` and the ops in `authordraft.ts` document themselves.
 - **`tools/*-spike/RESULTS.md`** — spike findings, beside the shots that
   produced them.
-- **`skills/`** — packaged procedures. (The former Claude Design mirror here was
-  removed with #44; the **KnowledgeNetwork Design System** Claude Design project
-  is now the source of truth, adopted via the `/design-sync` workflow.)
+- **`.claude/skills/`** — packaged procedures. `design-sync/` is the one that
+  carries weight: the pull-direction sync with the **KnowledgeNetwork Design
+  System** Claude Design project, which is the source of truth for style. (A
+  top-level `skills/` folder used to hold a local mirror of that system. It was
+  removed with #44 and the folder is gone — this bullet described it until
+  2026-08-18.)
 
 ## Scripts
 
