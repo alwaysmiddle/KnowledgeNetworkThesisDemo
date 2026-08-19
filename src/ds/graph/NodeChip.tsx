@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
+import { useRecede } from '../chrome/IconButton'
 
 /** A corpus node as a chip: dot (or border, or nothing), truncating title, raised
  *  on paper. Port of DS components/graph/NodeChip.jsx.
@@ -81,19 +82,6 @@ export interface NodeChipProps {
   /** delete this node — adds a ✕ at the chip's trailing edge that arrives with hover
    *  or focus, berry at rest, and keeps its space reserved so the chip never changes width */
   onDelete?: () => void
-}
-
-function useRecede(): [boolean, () => void, () => void] {
-  const [shown, setShown] = useState(false)
-  const timer = useRef<number | null>(null)
-  useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current) }, [])
-  const show = () => { if (timer.current !== null) clearTimeout(timer.current); setShown(true) }
-  const hide = () => {
-    if (timer.current !== null) clearTimeout(timer.current)
-    const LEAVE = ((window as unknown as { PKT_SB?: { LEAVE: number } }).PKT_SB?.LEAVE) ?? 500
-    timer.current = window.setTimeout(() => setShown(false), LEAVE)
-  }
-  return [shown, show, hide]
 }
 
 interface SizeBounds { minW: number; maxW: number; minH: number; maxH: number }

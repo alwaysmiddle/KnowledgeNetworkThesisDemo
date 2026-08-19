@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import { usePresence } from './IconButton'
 
 /** Every instrument pane wears the same hat: just its title, sitting ON the
  *  pane's own hairline border like a legend — the border is the frame and the
@@ -48,34 +49,10 @@ export interface PaneHeaderProps {
 
 export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend', legendBg = 'var(--surface-canopy)' }: PaneHeaderProps) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [live, setLive] = useState(false)
-  useEffect(() => {
-    const pane = rootRef.current?.parentElement
-    if (!pane) return
-    let t: ReturnType<typeof setTimeout>
-    // same grace period as the scrollbar, read from the script that owns it (when
-    // present), so the ✕ and the bar recede together rather than on two clocks
-    const LEAVE = (window as { PKT_SB?: { LEAVE?: number } }).PKT_SB?.LEAVE ?? 500
-    const on = () => {
-      clearTimeout(t)
-      setLive(true)
-    }
-    const off = () => {
-      clearTimeout(t)
-      t = setTimeout(() => setLive(false), LEAVE)
-    }
-    pane.addEventListener('pointerenter', on)
-    pane.addEventListener('pointerleave', off)
-    pane.addEventListener('focusin', on)
-    pane.addEventListener('focusout', off)
-    return () => {
-      clearTimeout(t)
-      pane.removeEventListener('pointerenter', on)
-      pane.removeEventListener('pointerleave', off)
-      pane.removeEventListener('focusin', on)
-      pane.removeEventListener('focusout', off)
-    }
-  }, [])
+  // the ✕ keeps the scrollbar's grace period, and it is ONE grace period: the clock
+  // lives in IconButton and is read from the script that owns it. `parent` because
+  // this header is rendered BY the pane, so presence is the PANE's, not the hat's.
+  const live = usePresence(rootRef, { parent: true })
   const iconStyle = (over: CSSProperties, box: number): CSSProperties => ({
     ...over,
     width: box,
