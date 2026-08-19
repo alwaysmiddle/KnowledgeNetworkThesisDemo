@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { caretStyle } from '../nav/TreeRow'
 import { bulletStyle } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
+import { IconButton, usePresence, useRecede } from '../chrome/IconButton'
 
 /* HOW DEEP AM I? Counted, not passed: a group cannot be told its depth by a caller that
    does not know how it is being composed, and every level has to step against its parent
@@ -283,28 +284,6 @@ function NameField({ value, onCommit, onCancel, size, weight, family, placeholde
   )
 }
 
-function IconButton({ label, glyph, size = 12, onClick, reachable = true }: {
-  label: string; glyph: React.ReactNode; size?: number
-  onClick?: () => void; reachable?: boolean
-}) {
-  const [hot, setHot] = useState(false)
-  return (
-    <button type="button" title={label} aria-label={label}
-      tabIndex={reachable ? 0 : -1}
-      onClick={(e) => { e.stopPropagation(); if (onClick) onClick() }}
-      onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
-      style={{
-        width: 18, height: 18, flexShrink: 0, display: 'grid', placeItems: 'center', padding: 0,
-        boxSizing: 'border-box',
-        borderRadius: 'var(--radius-pill)', border: '1px solid ' + (hot ? 'var(--border-rule)' : 'transparent'),
-        background: hot ? 'var(--surface-hover)' : 'transparent',
-        color: hot ? 'var(--text-1)' : 'var(--text-2)',
-        fontFamily: 'var(--font-ui)', fontSize: size, lineHeight: 1,
-        cursor: 'pointer', transition: 'var(--transition-wash)',
-      }}>{glyph}</button>
-  )
-}
-
 /** The tick, drawn rather than set — two strokes of a rotated corner. */
 function checkStyle(): CSSProperties {
   return {
@@ -392,15 +371,7 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
   version: GroupVersion; on: boolean; onPick: () => void
   onDelete?: () => void; confirming?: boolean; onCancel?: () => void
 }) {
-  const [hot, setHot] = useState(false)
-  const timer = useRef<number | null>(null)
-  useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current) }, [])
-  const show = () => { if (timer.current !== null) clearTimeout(timer.current); setHot(true) }
-  const hide = () => {
-    if (timer.current !== null) clearTimeout(timer.current)
-    const LEAVE = ((window as unknown as { PKT_SB?: { LEAVE: number } }).PKT_SB?.LEAVE) ?? 500
-    timer.current = window.setTimeout(() => setHot(false), LEAVE)
-  }
+  const [hot, show, hide] = useRecede()
   return (
     <div style={{ position: 'relative', display: 'flex' }}
       onMouseEnter={show} onMouseLeave={hide}
@@ -716,7 +687,8 @@ export function VersionedGroup({
   const menuRef = useRef<HTMLDivElement | null>(null)
   const slot = useRef<HTMLDivElement | null>(null)
   const [anchor, setAnchor] = useState<{ left: number; width: number; up: boolean; top?: number; bottom?: number } | null>(null)
-  const [live, setLive] = useState(false)
+  // ONE grace period, from IconButton — the head controls recede with the scrollbar
+  const live = usePresence(shell)
   const [ownNarrow, setOwnNarrow] = useState(false)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [refusalAt, setRefusalAt] = useState<{ top: number; right: number } | null>(null)
@@ -750,22 +722,6 @@ export function VersionedGroup({
     ro.observe(el)
     return () => ro.disconnect()
   }, [narrow])
-
-  useEffect(() => {
-    const el = shell.current
-    if (!el) return
-    let t: number | undefined
-    const LEAVE = ((window as unknown as { PKT_SB?: { LEAVE: number } }).PKT_SB?.LEAVE) ?? 500
-    const on = () => { clearTimeout(t); setLive(true) }
-    const off = () => { clearTimeout(t); t = window.setTimeout(() => setLive(false), LEAVE) }
-    el.addEventListener('pointerenter', on); el.addEventListener('pointerleave', off)
-    el.addEventListener('focusin', on); el.addEventListener('focusout', off)
-    return () => {
-      clearTimeout(t)
-      el.removeEventListener('pointerenter', on); el.removeEventListener('pointerleave', off)
-      el.removeEventListener('focusin', on); el.removeEventListener('focusout', off)
-    }
-  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -1070,8 +1026,16 @@ export function VersionedGroup({
           opacity: live || open ? 1 : 0, pointerEvents: live || open ? 'auto' : 'none',
           transition: 'opacity var(--dur-fade) var(--ease-soft)',
         }}>
-          <IconButton label={isFolded ? 'maximize' : 'minimize'} glyph={isFolded ? <RestoreMark /> : '–'} onClick={fold} reachable={live || open} />
-          {onClose ? <IconButton label="ungroup nodes" glyph={'✕'} size={10} onClick={askUngroup} reachable={live || open} /> : null}
+          {/* glyphSize is explicit on both: the shared component derives 10px at this
+              box, which is right for the ✕ but leaves – and the restore mark a step
+              light beside it. Optical sizing, and the DS states the same pair. */}
+          <IconButton label={isFolded ? 'maximize' : 'minimize'} glyphSize={12} onClick={fold} reachable={live || open}>
+            {isFolded ? <RestoreMark /> : '–'}
+          </IconButton>
+          {/* tone stays chrome: ungrouping is a SPILL, not a delete — the nodes are
+              spliced back onto the board — so this is a neutral act wearing no stake.
+              The delete case is count: 0, and the component asks first. */}
+          {onClose ? <IconButton label="ungroup nodes" onClick={askUngroup} reachable={live || open} /> : null}
         </span>
       </span>
     </div>

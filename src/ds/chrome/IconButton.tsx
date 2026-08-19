@@ -1,0 +1,209 @@
+import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+
+/** The system's round icon control: a ✕, a chevron, a small glyph act. One shape
+ *  and one set of manners everywhere, in two TONES — chrome for a neutral act
+ *  (close a pane, dismiss a menu), danger for a destructive one (delete a node,
+ *  delete a version).
+ *
+ *  THE BORDER IS RESERVED AT REST. 1px transparent, always, with
+ *  `boxSizing: 'border-box'`, so hovering paints the border IN rather than adding
+ *  it — a border that appears on hover moves the glyph a pixel and the control
+ *  twitches under the pointer. This is the single most-repeated mistake when the
+ *  recipe is hand-written, and it is why this is a component and not prose.
+ *
+ *  DESTRUCTIVE IS BERRY AT REST. `tone="danger"` inks `--state-danger` before
+ *  anyone touches it and hovers within its OWN ramp. Never neutral-until-berry:
+ *  hover in this system is a one-step wash of an element's own family and never a
+ *  hue change, and a warning that arrives on hover arrives too late.
+ *
+ *  `reveal={false}` is the recede: the control keeps its space (so nothing
+ *  reflows when it arrives) but is invisible, untabbable and inert. Every
+ *  hover-revealed control in the system uses this rather than unmounting.
+ *
+ *  Typed port of the DS IconButton.jsx (contract: IconButton.d.ts). Replaces the
+ *  private copy that lived inside VersionedGroup.tsx — the fifth of five
+ *  hand-written copies the DS standardised on 2026-08-17. */
+export interface IconButtonProps {
+  /** `chrome` for a neutral act — close a pane, dismiss a menu: `--text-2` at
+   *  rest, washing to `--surface-hover` / `--border-rule` / `--text-1`.
+   *  `danger` for a destructive one: `--state-danger` AT REST, washing to
+   *  `--state-danger-wash` / `--state-danger` / `--berry-600`. The two tones
+   *  share every other property; the difference is the ramp alone, which is the
+   *  point — the same control, wearing the stake of the act it performs */
+  tone?: 'chrome' | 'danger'
+  /** box in px; 18 is the standard, 24 the filled-bar size. The glyph steps with
+   *  it (10px below 22, 13 at or above) — do not set a font size from outside */
+  size?: number
+  /** the glyph's point size, when the derived one is optically wrong. A cross
+   *  puts far more ink on the page than a single stroke at the same size, so ✕
+   *  sits at 10 in a cluster where – and + sit at 12. Optical sizing, not a
+   *  weight change */
+  glyphSize?: number
+  /** false hides it WITHOUT unmounting: it keeps its space so nothing reflows
+   *  when it arrives, and goes untabbable and inert. Every hover-revealed
+   *  control in the system recedes this way, on `--dur-fade` */
+  reveal?: boolean
+  /** tab order only, appearance untouched — for a control inside a cluster whose
+   *  FADE the parent owns. A receded button that is merely transparent is still
+   *  tabbable and still answers Enter; this is what withdraws it */
+  reachable?: boolean
+  /** the glyph; defaults to ✕. `children` wins over it for anything that is not
+   *  a single character */
+  glyph?: string
+  /** a drawn mark — `<Check />`, `<RestoreMark />` — for anything a character
+   *  cannot carry at this size */
+  children?: ReactNode
+  /** the tooltip, and the accessible name unless `label` overrides it */
+  title?: string
+  /** the accessible name, when it should differ from the tooltip */
+  label?: string
+  /** the act itself */
+  onClick?: (e: MouseEvent<HTMLButtonElement>) => void
+  /** on by default: these sit inside rows and cards that answer to clicks of
+   *  their own */
+  stopPropagation?: boolean
+  /** POSITION ONLY — `marginLeft: auto`, `position: absolute`, `zIndex`,
+   *  `alignSelf`. Do not restyle the face, the border or the ink from here: the
+   *  tones are the component's, and a fifth hand-written variant is what this
+   *  replaced */
+  style?: CSSProperties
+}
+
+export function IconButton({
+  tone = 'chrome', size = 18, glyphSize, reveal = true, reachable = true, glyph = '✕',
+  title, label, onClick, stopPropagation = true, style, children,
+}: IconButtonProps) {
+  const [hot, setHot] = useState(false)
+  const danger = tone === 'danger'
+  const shown = reveal !== false
+  /* the two ramps. Rest ink differs by tone; the hover step is one wash of that
+     tone's own family in both cases, which is what makes them read as the same
+     control. */
+  const restInk = danger ? 'var(--state-danger)' : 'var(--text-2)'
+  const hotInk = danger ? 'var(--berry-600)' : 'var(--text-1)'
+  const hotFace = danger ? 'var(--state-danger-wash)' : 'var(--surface-hover)'
+  const hotEdge = danger ? 'var(--state-danger)' : 'var(--border-rule)'
+  return (
+    <button
+      type="button" title={title} aria-label={label || title}
+      /* a receded button is invisible but still in the tab order and still
+         answers Enter; opacity and pointer-events do not fix that, tabIndex
+         does. `reachable` is the same withdrawal for a cluster whose FADE the
+         parent owns — tab order only, appearance untouched. */
+      tabIndex={shown && reachable ? 0 : -1}
+      onClick={(e) => { if (stopPropagation) e.stopPropagation(); if (onClick) onClick(e) }}
+      onMouseEnter={() => setHot(true)}
+      onMouseLeave={() => setHot(false)}
+      onFocus={() => setHot(true)}
+      onBlur={() => setHot(false)}
+      style={{
+        width: size, height: size, padding: 0, flexShrink: 0,
+        display: 'grid', placeItems: 'center', boxSizing: 'border-box',
+        borderRadius: 'var(--radius-pill)',
+        /* reserved at rest — see the note above */
+        border: '1px solid ' + (hot ? hotEdge : 'transparent'),
+        background: hot ? hotFace : 'transparent',
+        color: hot ? hotInk : restInk,
+        /* the glyph is point-sized SEPARATELY where it has to be: a cross puts
+           far more ink on the page than a single stroke at the same size, so ✕
+           sits at 10 beside – and + at 12. Optical sizing, not a weight change. */
+        fontFamily: 'var(--font-ui)', fontSize: glyphSize || (size >= 22 ? 13 : 10), lineHeight: 1,
+        cursor: 'pointer',
+        opacity: shown ? 1 : 0, pointerEvents: shown ? 'auto' : 'none',
+        transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
+        ...style,
+      }}>{children || glyph}</button>
+  )
+}
+
+/* ── the recede clock ──────────────────────────────────────────────────────
+ * ONE grace period for everything in this product that appears on hover and goes
+ * away again: the scrollbar, a pane's ✕, a chip's ✕, a group's head controls, a
+ * menu row's ✕. Two controls in the same pane receding at two speeds reads as one
+ * of them being broken, and a control that goes the instant the pointer leaves
+ * vanishes under the cursor's heels on the way to it.
+ *
+ * WHAT A CALLER MUST NOT DO: open-code the number. `window.PKT_SB.LEAVE` is
+ * published by `src/ds/assets/scrollbars.js` (imported at src/main.tsx), which is
+ * the owner; `RECEDE_LEAVE_MS` is the FALLBACK for a page that never loaded it,
+ * not a second opinion about the timing. Four files here open-coded `?? 500`
+ * until this landed — four numbers with nothing keeping them equal.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/** the fallback, for a page with no scrollbar script. Capitalised, so it reaches
+ *  `window.<Namespace>` in the DS's own build — a consuming page can read it
+ *  without importing anything */
+export const RECEDE_LEAVE_MS = 500
+
+/** the live grace period: the script's value, or the fallback */
+export function recedeMs(): number {
+  const w = window as { PKT_SB?: { LEAVE?: number } }
+  return w.PKT_SB?.LEAVE ?? RECEDE_LEAVE_MS
+}
+
+/** Presence of the pointer OR the keyboard anywhere in `el`, pushed into `set`.
+ *  Returns its own teardown, so it drops straight into a `useEffect` where the
+ *  element is found by hand. Focus counts: a control reachable only by pointer is
+ *  not reachable. */
+export function subscribePresence(
+  el: HTMLElement | null | undefined,
+  set: (live: boolean) => void,
+): (() => void) | undefined {
+  if (!el) return undefined
+  let t: ReturnType<typeof setTimeout>
+  const on = () => { clearTimeout(t); set(true) }
+  const off = () => { clearTimeout(t); t = setTimeout(() => set(false), recedeMs()) }
+  el.addEventListener('pointerenter', on); el.addEventListener('pointerleave', off)
+  el.addEventListener('focusin', on); el.addEventListener('focusout', off)
+  return () => {
+    clearTimeout(t)
+    el.removeEventListener('pointerenter', on); el.removeEventListener('pointerleave', off)
+    el.removeEventListener('focusin', on); el.removeEventListener('focusout', off)
+  }
+}
+
+/** Which element `usePresence` watches, in order: `resolve()` if given (called
+ *  once, at effect time, so it can read a context that was empty during render);
+ *  `parent` for the ref'd node's `parentElement`, for a header rendered BY its
+ *  container rather than around it; the ref'd node otherwise. */
+export interface PresenceOptions {
+  /** watch the ref'd node's `parentElement` — for a header its container renders */
+  parent?: boolean
+  /** find the element at effect time, when render was too early to know it */
+  resolve?: () => HTMLElement | null
+}
+
+/** The clock as a hook, for a control revealed by presence in a CONTAINER — a
+ *  pane's ✕, a group's head controls. */
+export function usePresence(
+  ref: { current: HTMLElement | null },
+  options?: PresenceOptions,
+): boolean {
+  const optsRef = useRef<PresenceOptions>(options || {})
+  optsRef.current = options || {}
+  const [live, setLive] = useState(false)
+  useEffect(() => {
+    const o = optsRef.current
+    const node = ref && ref.current
+    const el = o.resolve ? o.resolve() : (o.parent ? node?.parentElement : node)
+    return subscribePresence(el, setLive)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return live
+}
+
+/** The clock as a pair of handlers, for a control revealed by its OWN hover or
+ *  focus rather than by presence in a container — a chip's ✕.
+ *  `const [shown, show, hide] = useRecede()`, then `reveal={shown}`. */
+export function useRecede(): [boolean, () => void, () => void] {
+  const [shown, setShown] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  const show = () => { if (timer.current) clearTimeout(timer.current); setShown(true) }
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => setShown(false), recedeMs())
+  }
+  return [shown, show, hide]
+}

@@ -1,5 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import type { CSSProperties, PointerEvent, ReactNode, RefObject } from 'react'
+import { IconButton, usePresence } from './IconButton'
+
+/** THE PANE'S FRAME, handed down rather than found. `Pane` puts a ref to its frame
+ *  in here, so this header knows which element to watch for the pointer WITHOUT
+ *  walking the DOM. It used to reach `parentElement`, which made "PaneHeader must
+ *  be a direct child of the frame" a rule a caller could break silently — a wrapper
+ *  div between the two scoped the reveal to the header strip, so the close control
+ *  simply never appeared and nothing said why. With the context there is no rule
+ *  left: nest it as deep as you like inside a `Pane`. The `parentElement` walk
+ *  survives as the fallback for a pane composed BY HAND, where it is still the right
+ *  answer and still needs the header to be a direct child. */
+export const PaneFrameContext = createContext<RefObject<HTMLElement | null> | null>(null)
 
 /** Every instrument pane wears the same hat: just its title, sitting ON the
  *  pane's own hairline border like a legend — the border is the frame and the
@@ -44,65 +56,53 @@ export interface PaneHeaderProps {
   variant?: 'legend' | 'bar'
   /** what sits BEHIND the pane, so the legend can mask the border it interrupts */
   legendBg?: string
+  /** makes the title a drag handle. THE HEADER OWNS THE AFFORDANCE, THE HOST OWNS
+   *  THE POSITION: the grab cursor, `touch-action`, text-selection and the grabbing
+   *  state are here, because those are what a hand-written copy forgets; where the
+   *  thing ends up is the host's, because only the host knows its coordinate space,
+   *  its bounds and its z-order */
+  grabbable?: boolean
+  /** fires on pointer-down on the title and stops there — this does NOT capture the
+   *  pointer or listen for move/up, so an existing gesture loop is left untouched.
+   *  Begin your drag here */
+  onGrabStart?: (e: PointerEvent<HTMLElement>) => void
 }
 
-export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend', legendBg = 'var(--surface-canopy)' }: PaneHeaderProps) {
+export function PaneHeader({
+  title, glyph, onClose, actions, variant = 'legend',
+  legendBg = 'var(--surface-canopy)', grabbable = false, onGrabStart,
+}: PaneHeaderProps) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [live, setLive] = useState(false)
+  // `grabbing` only swaps the cursor. It clears on the WINDOW rather than on this
+  // element, because the pointer is somewhere else by the time the drag ends — on a
+  // pointerup here the cursor would stay `grabbing` for as long as the panel sat still.
+  const [grabbing, setGrabbing] = useState(false)
   useEffect(() => {
-    const pane = rootRef.current?.parentElement
-    if (!pane) return
-    let t: ReturnType<typeof setTimeout>
-    // same grace period as the scrollbar, read from the script that owns it (when
-    // present), so the ✕ and the bar recede together rather than on two clocks
-    const LEAVE = (window as { PKT_SB?: { LEAVE?: number } }).PKT_SB?.LEAVE ?? 500
-    const on = () => {
-      clearTimeout(t)
-      setLive(true)
-    }
-    const off = () => {
-      clearTimeout(t)
-      t = setTimeout(() => setLive(false), LEAVE)
-    }
-    pane.addEventListener('pointerenter', on)
-    pane.addEventListener('pointerleave', off)
-    pane.addEventListener('focusin', on)
-    pane.addEventListener('focusout', off)
+    if (!grabbing) return
+    const end = () => setGrabbing(false)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
     return () => {
-      clearTimeout(t)
-      pane.removeEventListener('pointerenter', on)
-      pane.removeEventListener('pointerleave', off)
-      pane.removeEventListener('focusin', on)
-      pane.removeEventListener('focusout', off)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
     }
-  }, [])
-  const iconStyle = (over: CSSProperties, box: number): CSSProperties => ({
-    ...over,
-    width: box,
-    height: box,
-    display: 'grid',
-    placeItems: 'center',
-    padding: 0,
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid transparent',
-    background: 'transparent',
-    color: 'var(--text-2)',
-    cursor: 'pointer',
-    boxSizing: 'border-box',
-    transition: 'var(--transition-wash)',
-    lineHeight: 1,
-    fontSize: box === 18 ? 10 : 13,
+  }, [grabbing])
+  // touchAction and userSelect are the two a copy always forgets, and both fail
+  // invisibly: without touchAction the browser scrolls instead of dragging on touch,
+  // without userSelect a slow grab selects the title text mid-drag.
+  const grab: CSSProperties | null = grabbable ? {
+    cursor: grabbing ? 'grabbing' : 'grab',
+    touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
+  } : null
+  const onGrabDown = grabbable
+    ? (e: PointerEvent<HTMLElement>) => { setGrabbing(true); if (onGrabStart) onGrabStart(e) }
+    : undefined
+  // one clock for everything that recedes, owned by IconButton. Prefer the frame
+  // `Pane` handed down; fall back to walking up one level, for a hand-composed pane.
+  const frame = useContext(PaneFrameContext)
+  const live = usePresence(rootRef, {
+    resolve: () => frame?.current ?? rootRef.current?.parentElement ?? null,
   })
-  const hoverOn = (e: MouseEvent<HTMLButtonElement>) => {
-    e.currentTarget.style.background = 'var(--surface-hover)'
-    e.currentTarget.style.borderColor = 'var(--border-rule)'
-    e.currentTarget.style.color = 'var(--text-1)'
-  }
-  const hoverOff = (e: MouseEvent<HTMLButtonElement>) => {
-    e.currentTarget.style.background = 'transparent'
-    e.currentTarget.style.borderColor = 'transparent'
-    e.currentTarget.style.color = 'var(--text-2)'
-  }
   if (variant === 'legend') {
     // The title is transparent: only the 1px border LINE is masked behind it, so
     // the frame reads as interrupted rather than as a filled chip sitting on it.
@@ -128,7 +128,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
             pointerEvents: 'none',
           }}
         >
-          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', minWidth: 0, padding: '0 5px', pointerEvents: 'auto' }}>
+          <span onPointerDown={onGrabDown} style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', minWidth: 0, padding: '0 5px', pointerEvents: 'auto', ...grab }}>
             <span style={cut} />
             <span
               style={{
@@ -166,9 +166,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
               }}
             >
               <span style={{ ...cut, left: 4 }} />
-              <button type="button" onClick={onClose} title="close" tabIndex={live ? 0 : -1} style={iconStyle(over, 18)} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-                {'✕'}
-              </button>
+              <IconButton title="close" label="close" onClick={onClose} reveal={live} style={over} />
             </span>
           ) : null}
         </div>
@@ -191,6 +189,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
       }}
     >
       <span
+        onPointerDown={onGrabDown}
         style={{
           fontFamily: 'var(--font-display)',
           fontSize: 'var(--fs-title)',
@@ -198,6 +197,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
           color: 'var(--text-1)',
           whiteSpace: 'nowrap',
           flexShrink: 0,
+          ...grab,
         }}
       >
         {glyph ? glyph + ' ' : ''}
@@ -205,11 +205,7 @@ export function PaneHeader({ title, glyph, onClose, actions, variant = 'legend',
       </span>
       <span style={{ flex: 1 }} />
       {actions}
-      {onClose ? (
-        <button type="button" onClick={onClose} title="close" style={iconStyle({}, 24)} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-          {'✕'}
-        </button>
-      ) : null}
+      {onClose ? <IconButton title="close" label="close" onClick={onClose} size={24} /> : null}
     </header>
   )
 }

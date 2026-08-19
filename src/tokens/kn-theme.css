@@ -115,7 +115,10 @@
   --color-domain-se: #4aa583;
 
   /* the raw authored hex from src/corpus/graph.ts — only for pixel-matching
-     the current build. New work uses the naturalised values above. */
+     the current build. New work uses the naturalised values above. Never mix the two in
+     one VIEW: a legend keyed to the naturalised value above canvas lines drawn from the
+     raw one is a key that disagrees with its own drawing. Swatches and strokes convert
+     together or not at all (app, 2026-08-18). */
   --color-domain-sys-raw: #008300;
   --color-domain-math-raw: #4a3aa7;
   --color-domain-cs-raw: #2a78d6;
@@ -143,7 +146,7 @@
   --color-paper: #fdfcfa;
   --color-raised: #ffffff;
   --color-sunken: #eae4d9;
-  --color-sunken-2: #e2dbcd;
+  --color-sunken-2: #e2dbcd;      /* a group nested in a group — wells alternate by depth */
   --color-hover: rgba(53, 49, 42, 0.04);
   --color-hover-raised: #faf8f4;   /* a wash can't tint white — swap the face */
   --color-press: rgba(53, 49, 42, 0.07);
@@ -231,7 +234,10 @@
 
    Layout constants are likewise token references, not utilities — they are
    measurements, not a scale:
-       w-[var(--sidebar-w)]  h-[var(--pane-header-h)]  w-[var(--rail-w)]
+       w-[var(--sidebar-w)]  h-[var(--pane-header-h)]
        w-[var(--road-node-w)]  gap-[var(--road-gap)]
-   The --road-* values are LIVE layout constants shared with
-   src/instruments/walkdesk/AuthorRoad.tsx. Change one here, change it there. */
+   The --road-* values are a RECORD of the const-s in
+   src/instruments/walkdesk/AuthorRoad.tsx, not a coupling: nothing in src/
+   reads one. Narrowed 2026-08-18, when --road-pad and --rail-w were removed
+   from tokens/spacing.css for naming constants no longer in src/ (which is why
+   w-[var(--rail-w)] is no longer offered above). See tokens/spacing.css. */
