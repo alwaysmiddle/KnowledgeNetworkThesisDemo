@@ -19,7 +19,9 @@ import type { HoverBinding } from '../../studio/bus'
  *  was 10.5px (--asbuilt-fs-label) to fit the narrow projected-route rail. That
  *  rail (FringeRail) is currently unmounted, so the size change is invisible —
  *  but if it returns, the chip will be chunkier and may want a compact variant.
- *  Flagged to design in msg 0008. */
+ *  Reported to the design agent (the design-handoff/msg channel that carried it was
+ *  retired in #75; the live channels are GitHub issues and receipts/<sha>.md in the
+ *  design project — see design-handoff/PROTOCOL.md). */
 export function NodeChip({ id, sync, dim, note }: { id: string; sync: HoverBinding; dim?: boolean; note?: string }) {
   const n = byId.get(id)!
   return (

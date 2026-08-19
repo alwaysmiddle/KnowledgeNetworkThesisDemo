@@ -6,6 +6,21 @@ import { useRecede } from '../chrome/IconButton'
 /** A corpus node as a chip: dot (or border, or nothing), truncating title, raised
  *  on paper. Port of DS components/graph/NodeChip.jsx.
  *
+ *  TWO AXES, AND THEY DO NOT INTERACT. Keep them apart when reading these props and
+ *  when adding one:
+ *
+ *    1. WHAT THE CHIP IS — `mark`, which of the sanctioned carriers holds the domain
+ *       hue and at which rank. The SURFACE picks it. Plus the states `lit`, `dim` and
+ *       `wrap`, which say how this chip stands right now.
+ *    2. WHAT CAN BE DONE TO IT — `selectable` (a click), `resizable` (an edge drag),
+ *       `onDelete` (a ✕). ALL THREE ARE OPT-IN, ALL THREE DEFAULT OFF, and ALL THREE
+ *       WORK ON EVERY `mark` FORM. `<NodeChip title domain />` is the static chip.
+ *
+ *  So a capability is never a property of a form: there is no resizable form and no
+ *  clickable form, and tying one to `mark` — or giving one a form-dependent default —
+ *  makes two components out of one. If a chip should not be sized in a dense list,
+ *  that is a fact about the LIST, and the list omits the prop.
+ *
  *  Deviations from DS source:
  *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source) */
 
@@ -61,8 +76,15 @@ export interface NodeChipProps {
    *  to --radius-md and top-aligns its furniture so a two-line name reads down */
   wrap?: boolean
   onClick?: () => void
-  /** drag the chip's right edge, bottom edge or corner to size it; double-click an edge
-   *  gives that dimension back to automatic. Default true */
+  /** SIZEABLE OR FIXED — fixed is the default. Pass this and the chip's right edge
+   *  sizes its width, its bottom edge its height and its corner both; double-click an
+   *  edge and that dimension goes back to automatic. Opt-in because three invisible
+   *  grab strips are a promise, and most chips are being read rather than arranged — a
+   *  strip at every edge of a chip in a twenty-row legend takes the pointer near
+   *  something with nothing to answer. Available on EVERY `mark` form: dot, border and
+   *  none resize identically, and a chip's form never decides what can be done to it.
+   *  Default false (**changed 2026-08-18 upstream, OB-015** — it was true, so a caller
+   *  that says nothing now gets the static chip) */
   resizable?: boolean
   minWidth?: number
   maxWidth?: number
@@ -381,7 +403,7 @@ export const ChipGeometry = { CHIP_METRICS, chipSize }
 export function NodeChip({
   title, index, domain, mark = 'dot', dim, optional, lit, note, wrap, onClick, onDelete,
   selectable = false, selected, defaultSelected = false, onSelectedChange,
-  resizable = true,
+  resizable = false,
   minWidth = CHIP_METRICS.minWidth, maxWidth = CHIP_METRICS.maxWidth,
   minHeight = CHIP_METRICS.minHeight, maxHeight = CHIP_METRICS.maxHeight,
   width, height, onResize,
