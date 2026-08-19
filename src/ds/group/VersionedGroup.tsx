@@ -54,8 +54,47 @@ export interface GroupVersion {
   label?: string
 }
 
-/** where the body slot is, relative to the group's shell — see `bodySlot` */
-export interface BodySlot { left: number; top: number; width: number; height: number }
+/** where the body slot is, relative to the group's shell — see `bodySlot`. It is the
+ *  slot's CONTENT area: `top` is where a node should begin and `height` is what can be
+ *  filled, so it equals `openHeight(spec).bodyTop` and the prediction and the DOM place
+ *  content in the same spot. */
+export interface BodySlot {
+  left: number
+  top: number
+  width: number
+  height: number
+  /** THE STACKING FLOOR, handed over rather than described. The card's shell is
+   *  `position: relative; z-index: 1` so the folded peek plate can sit behind it, which
+   *  means anything positioned into the slot at `auto` paints BEHIND the card. It does
+   *  not present as a z-order problem: a `NodeChain` in the slot keeps its chips (the
+   *  chain gives its own slots `z-index: 1`) and silently loses its ARROWS, so the body
+   *  reads as loose nodes. Put this on the wrapper you position. */
+  zIndex: number
+  /** THE DEPTH A GROUP PLACED IN THIS SLOT SHOULD TAKE. The open well's tint steps by
+   *  depth so two nested wells are never one colour, and the group counts depth through
+   *  React context — which reaches a `children` group and never reaches one a board
+   *  positions, since that card is this one's DOM SIBLING. Pass this straight back as
+   *  `depth`. Skip it and the nested well paints the tint of the well it sits in: no
+   *  error, no misplacement, just containment that has stopped being visible. */
+  depth: number
+  /** FALSE WHILE THE CARD IS FOLDED, and the box is zeroed with it. A folded card has no
+   *  body, but the caller's content is the caller's own DOM and the group cannot hide it.
+   *  Before this field the callback simply went quiet on fold, which leaves a caller
+   *  holding the last box it was handed and drawing at it — a folded card with its nodes
+   *  still stacked underneath.
+   *
+   *  NESTED CONTENT IS HIDDEN BY ITS ANCESTORS TOO: a group inside another group's slot
+   *  goes on reporting `visible: true` when the card ABOVE it folds, because it is still
+   *  open and nothing tells it. A caller drawing more than one level deep must AND its
+   *  own box's `visible` with every ancestor slot's. Watch `visibility` in particular —
+   *  it is inherited but re-declarable, so writing `visible` on the inner content
+   *  overrides the `hidden` on the wrapper just hidden. */
+  visible: boolean
+}
+
+/** The shell's own stacking level. It is `position: relative; z-index: 1` so the folded
+ *  peek plate can sit behind it; `SHELL_Z + 1` is the floor handed to a slot's caller. */
+const SHELL_Z = 1
 
 export interface VersionedGroupProps {
   /** the group's name — rank 4, editable on click. Wraps to two lines open, three
@@ -477,13 +516,36 @@ export const GROUP_METRICS = {
   foldPadTop: 8, foldPadX: 8, foldPadBottom: 9, foldPeekX: 6, foldPeekY: 7,
   railIndent: 13, railPadLeft: 10, bodyPadTop: 6, bodyPadRight: 8,
   /* ★ LOCAL: what the DS's own numbers leave out, measured */
-  faceBorder: 1,          /* the face's 1px border, top and bottom, open or folded */
+  faceBorder: 1,          /* the AUTHORED 1px face border. The HEIGHT predictions no longer
+                             read this — they call hairline(), which is what the browser
+                             actually lays a 1px edge out as. It stays because AuthorRoad's
+                             SLOT_LEFT / SLOT_RIGHT are module-level constants built from the
+                             card's horizontal edges, and a constant cannot be dpr-reactive.
+                             That leaves those two out by up to 0.33px at dpr 1.5 — reported,
+                             not fixed here, because it is the board's arithmetic. */
   descStrut: 17.55,       /* the DescLine block's line box: the 13px strut wins over one 12px line */
   descLastDescent: 0.36,  /* wrapped, the last caption line sits on the block's baseline: 4.5 vs 4.14 */
-  pickerCell: 18,         /* the picker's check cell and code are 18 tall — taller than one 17.55 line */
+  pickerMarkLine: 18,     /* the picker row's SHORTEST content, and it is not a line of text:
+                             the state light and the version label are 18px boxes, taller than
+                             --fs-body at --lh-snug (17.55). Was `pickerCell` here — a LOCAL
+                             correction that the DS reached independently and named
+                             `pickerMarkLine` upstream; renamed to theirs, same 18. */
   tallyRow: 18.84,        /* the narrow tally's own row, a strut'd block round an 11px inline-block */
   emptyZone: 58,          /* the empty-version zone in a bodySlot: minHeight 34 + 11px padding twice + 1.5px borders, content-box */
   railStroke: 1.5,        /* the ancestry rail's border-left — between railIndent and railPadLeft, so a host can find the slot sideways */
+}
+
+/** A 1px border is not 1px. The browser lays borders out in whole DEVICE pixels, so at
+ *  dpr 1.5 the card's own 1px edge is USED as 0.667 CSS px, and at dpr 2 as 1. Three such
+ *  edges sit in this card's height — its own top and bottom, and the picker row's two — so
+ *  a prediction that assumes the authored 1 is out by up to 1.33px per card: invisible on
+ *  one, cumulative down a column of them. Measured rather than assumed, like the text: the
+ *  browser doing the laying out is the one being asked.
+ *
+ *  Predict with this, never with 1. */
+export function hairline(): number {
+  const r = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
+  return r >= 1 ? Math.floor(r) / r : 1
 }
 
 /** what the geometry needs to know about a card — the same strings the component
@@ -586,8 +648,10 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
   const width = s.width || 300
   const c = titleColumn(width, s, false)
   const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampOpen))
-  /* ★ faceBorder: the head is measured from the card's outer edge, border included */
-  let h = M.faceBorder + M.padTop + Math.max(M.headMinH, titleLines * M.bodyLine)
+  /* the head is measured from the card's outer edge, border included — and the border
+     is what the browser laid out, not the authored 1 */
+  const hair = hairline()
+  let h = hair + M.padTop + Math.max(M.headMinH, titleLines * M.bodyLine)
   if (c.narrow) h += M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
   const descText = s.description || s.descPlaceholder || ''
   if (descText) {
@@ -600,8 +664,11 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
   let pcol = width - M.padX * 2 - M.pickerPadX - M.pickerCheck - M.pickerCaret - M.pickerGap * 3
   if (s.versionLabel) pcol -= measure(s.versionLabel, 500, 11, 'mono')
   const vLines = Math.max(1, linesOf(s.versionName || 'untitled', pcol, 600, 13, 'ui', M.versionClamp))
-  /* ★ padding + its two 1px borders round the taller of the 18px cells and the lines: 30 at one line */
-  h += M.rowGap + M.pickerPadY + 2 + Math.max(M.pickerCell, vLines * M.bodyLine)
+  /* the row is border-box, so its 1px edge is inside the --hit-min floor and on top of
+     its own padding — and its content is the taller of the text and the 18px marks. The
+     --hit-min floor is the DS's and was missing here; it only bites below dpr 1, so this
+     is identical at dpr 1 to the `+ 2` it replaces and correct where that was not. */
+  h += M.rowGap + Math.max(M.pickerMinH, hair * 2 + M.pickerPadY + Math.max(M.pickerMarkLine, vLines * M.bodyLine))
   return { height: Math.round(h * 100) / 100, narrow: c.narrow, titleLines, versionLines: vLines, measured: !!ctx2d }
 }
 
@@ -620,19 +687,21 @@ export function openHeight(spec?: GroupSpec): HeadHeight & { bodyTop: number } {
      34px minimum under the DS's content-box. The board asks for slotHeight and
      gets the zone; the prediction has to say so. */
   const body = s.count === 0 ? Math.max(asked, M.emptyZone) : asked
-  /* bodyPadTop: the slot's own --space-15 gap between the picker and the first
-     node. It is part of the card whether the slot is filled or empty, so it is
-     part of the prediction — and it is why a caller passing bodyHeight={0} still
-     gets a taller card than the head alone. */
-  const pad = body > 0 ? M.bodyPadTop : 0
-  /* ★ rowGap: the face is a flex column with --space-1 between its rows, and the
-     body is one of those rows — the gap between the picker and the slot */
-  const top = head.height + M.rowGap + pad
+  /* TWO gaps, not one, and they stand or fall TOGETHER. The body is the last child of
+     the same gap-4 column the rows above it sit in, so it is preceded by `rowGap` like
+     every other row — and THEN by `bodyPadTop`, the slot's own --space-15 between the
+     picker and the first node. Counting only the second is 4px light on every open card.
+     ADOPTED FROM THE DS 2026-08-19, and it changes one case here: with no body at all
+     this used to add `rowGap` anyway, for a gap between a row and nothing. A row that is
+     not there has no gap before it. Every case the drivers cover has a body, so nothing
+     they measure moves. */
+  const lead = body > 0 ? M.rowGap + M.bodyPadTop : 0
+  const top = head.height + lead
   return {
     ...head,
     bodyTop: Math.round(top * 100) / 100,
-    /* ★ faceBorder: the bottom border closes the card */
-    height: Math.round((top + body + M.padBottom + M.faceBorder) * 100) / 100,
+    /* the bottom edge closes the card — again as laid out, not as authored */
+    height: Math.round((top + body + M.padBottom + hairline()) * 100) / 100,
   }
 }
 
@@ -646,13 +715,13 @@ export function foldedSize(spec?: GroupSpec): { width: number; height: number; t
   const c = titleColumn(width, s, true)
   const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampFolded))
   const tally = M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
-  const h = M.faceBorder * 2 /* ★ */ + M.foldPadTop + Math.max(M.headMinH, titleLines * M.bodyLine)
+  const h = hairline() * 2 + M.foldPadTop + Math.max(M.headMinH, titleLines * M.bodyLine)
     + (c.narrow ? tally : 0) + M.foldPadBottom + M.foldPeekY
   return { width: width + M.foldPeekX, height: Math.round(h * 100) / 100, titleLines, narrow: c.narrow, measured: !!ctx2d }
 }
 
 /** Reachable from the DS window namespace, where a bare lowercase export is not. */
-export const GroupGeometry = { GROUP_METRICS, headHeight, openHeight, foldedSize }
+export const GroupGeometry = { GROUP_METRICS, headHeight, openHeight, foldedSize, hairline }
 
 export function VersionedGroup({
   title = 'untitled', index, description, versions = [], activeId,
@@ -753,7 +822,17 @@ export function VersionedGroup({
      are no children to count. `onBodySlot` is called on mount and on any size
      change; memoize it, or it re-subscribes every render. */
   useEffect(() => {
-    if (!bodySlot || !onBodySlot || isFolded) return
+    if (!bodySlot || !onBodySlot) return
+    /* FOLDING IS REPORTED, NOT IMPLIED. The slot does not exist while folded, and this
+       effect used to just stop calling back — which leaves the caller holding the last
+       box it was handed, at which it happily goes on drawing: a folded card with its
+       nodes still stacked underneath it. "Stop drawing while folded" was a rule in the
+       contract, and a rule a caller can forget in silence is one the component should
+       hand over as a value. */
+    if (isFolded) {
+      onBodySlot({ left: 0, top: 0, width: 0, height: 0, zIndex: SHELL_Z + 1, depth: depth + 1, visible: false })
+      return
+    }
     const el = slot.current
     const sh = shell.current
     if (!el || !sh) return
@@ -763,6 +842,11 @@ export function VersionedGroup({
       onBodySlot({
         left: Math.round(a.left - b.left), top: Math.round(a.top - b.top),
         width: Math.round(a.width), height: Math.round(a.height),
+        /* THE NUMBER, not the rule — see BodySlot.zIndex and .depth for why each of
+           these is handed over rather than written down somewhere a caller must recall. */
+        zIndex: SHELL_Z + 1,
+        depth: depth + 1,
+        visible: true,
       })
     }
     report()
@@ -770,7 +854,7 @@ export function VersionedGroup({
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null
     if (ro) { ro.observe(el); ro.observe(sh) }
     return () => { cancelAnimationFrame(raf); if (ro) ro.disconnect() }
-  }, [bodySlot, onBodySlot, isFolded, curW, curH, isNarrow, slotHeight])
+  }, [bodySlot, onBodySlot, isFolded, curW, curH, isNarrow, slotHeight, depth])
 
   const fold = () => {
     setOpen(false)
