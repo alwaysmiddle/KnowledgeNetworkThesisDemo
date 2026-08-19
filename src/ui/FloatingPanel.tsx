@@ -1,5 +1,6 @@
 // FloatingPanel (#76) — a reusable overlay that a pane can host: draggable by
-// its legend title OR a bottom move-grip, resizable from any edge/corner,
+// its legend title (a DS PaneHeader with `grabbable`) OR a bottom move-grip,
+// resizable from any edge/corner,
 // optionally auto-hiding, and remembering its size+position across reloads. Its
 // title rides in the top border as a legend, like every Studio pane. It bakes in
 // NO walk-specific
@@ -22,6 +23,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
+import { PaneHeader } from '@/ds'
 import { drag, loadRect, resize, saveRect } from './floatingPanelRect'
 import type { Bounds, Rect, ResizeEdge, SizeLimits } from './floatingPanelRect'
 
@@ -169,12 +171,6 @@ export function FloatingPanel({
     // would be clipped by it. The scroll body below clips its own content instead.
   }
 
-  // The title masks the panel's own top border where it sits, so the frame reads
-  // as INTERRUPTED rather than as a filled bar — the same legend treatment every
-  // Studio pane wears (DS PaneHeader "legend"). The mask is the panel's own fill
-  // colour, and the twin grip at the bottom repeats it on the lower border.
-  const cut: CSSProperties = { position: 'absolute', left: 0, right: 0, top: 'calc(50% - 1px)', height: 2, background: 'var(--surface-raised)', zIndex: 0 }
-  const over: CSSProperties = { position: 'relative', zIndex: 1 }
   // a small drawn four-way move arrow (DS direction: load-bearing marks are drawn
   // geometry, not glyphs) — currentColor so it inherits the grip's text colour.
   const moveIcon = (
@@ -193,35 +189,29 @@ export function FloatingPanel({
       className="flex flex-col min-w-0 min-h-0 select-none"
       style={frame}
     >
-      {/* the title sits ON the top border like a legend AND is the primary drag
-          handle (#54): grabbing the title moves the panel. It carries a higher
-          z-index than the 4px top resize strip beneath it, so the title moves and
-          the bare border resizes — two affordances on one edge. */}
-      <div style={{ position: 'relative', flexShrink: 0, height: 11 }}>
-        <div
-          aria-label="floating-panel-handle"
-          onPointerDown={(e) => beginGesture(e, 'move')}
-          style={{ position: 'absolute', top: 0, left: 16, zIndex: 2, transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', cursor: 'move' }}
-        >
-          {/* #113 H5: 0 5px, matching PaneHeader's legend title. This span is a
-              hand-written COPY of that legend — same `cut` mask, same title span,
-              same tokens — and it had drifted to 8px, which widens the notch bitten
-              out of the top border. `cut` is left:0/right:0, so the padding IS the
-              notch width; narrowing one narrows the other.
+      {/* The title sits ON the top border like a legend AND is the primary drag
+          handle (#54): grabbing the title moves the panel. This WAS a hand-written
+          copy of PaneHeader's legend, forked only because the header had no way to
+          make its title grabbable; `grabbable` + `onGrabStart` landed upstream on
+          2026-08-18 (OB-013), so the copy is deleted and the component owns the
+          notch, the mask, the type and the cursor. We keep the position, which is
+          the whole division of labour — the header supplies the affordance, the host
+          knows its coordinate space.
 
-              Not adopted as PaneHeader outright, and this is the reason: here the
-              legend is ALSO the drag handle (onPointerDown -> beginGesture 'move'),
-              and PaneHeader offers no way to make its title grabbable. That is a
-              host-needs-the-hat gap of the same family as the pane-body rules —
-              reported on #113 rather than worked around by forking the component. */}
-          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', padding: '0 5px' }}>
-            <span style={cut} />
-            <span style={{ ...over, transform: 'translateY(-1px)', fontFamily: 'var(--font-display)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
-              {title}
-            </span>
-          </span>
-        </div>
-      </div>
+          legendBg is REQUIRED here and is not the default: PaneHeader masks the
+          border it interrupts with the colour BEHIND the pane, which for a docked
+          pane is the canopy desk. This panel floats on --surface-raised, and the
+          default would paint a canopy-coloured notch across its own top border.
+
+          The header's inner row carries z-index 2, matching what this fork set, so
+          it still wins over the 4px 'n' resize strip beneath it — the title moves
+          and the bare border resizes, two affordances on one edge. */}
+      <PaneHeader
+        title={title ?? ''}
+        legendBg="var(--surface-raised)"
+        grabbable
+        onGrabStart={(e) => beginGesture(e, 'move')}
+      />
 
       {/* body — the consumer's content (a DS Toolbar, buttons, …); it owns the
           clip so the frame can stay overflow-visible for the straddling title. */}
