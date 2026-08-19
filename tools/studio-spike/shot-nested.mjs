@@ -62,10 +62,17 @@ if (!(await page.locator('[data-railroad]').isVisible())) fail('railroad not vis
 await page.screenshot({ path: `${OUT}/nested-01-initial.png` })
 console.log('nested-01-initial.png taken (fork + group + optional leaf)')
 
-// ── #5 arrowhead shrank ────────────────────────────────────────────────────
-const headW = await page.locator('#wt-road-head').getAttribute('markerWidth')
-console.log('road arrowhead markerWidth =', headW, '(expect 5, was 7)')
-if (headW !== '5') fail(`expected arrowhead markerWidth 5, got ${headW}`)
+// ── #5 arrowhead shrank → re-pointed by #113 H4 ────────────────────────────
+// This guarded a HAND-TUNED markerWidth (5, was 7) on the road's own <marker>.
+// The road now draws with the DS NodeArrow, so there is no marker and no local
+// number — the head's size comes from ARROW_METRICS. Re-pointed rather than
+// deleted: the regression it caught was an arrowhead sized by hand, which is
+// exactly what adopting the component prevents. across = 4.4 * 2 + 3.
+const arrowCount = await page.locator('[data-rarrow]').count()
+const arrowSvgW = await page.locator('[data-rarrow] svg').first().getAttribute('width')
+console.log(`road arrows = ${arrowCount}, NodeArrow across = ${arrowSvgW} (expect 11.8)`)
+if (arrowCount === 0) fail('no [data-rarrow] on the road — arrows did not render')
+if (arrowSvgW !== '11.8') fail(`expected NodeArrow across 11.8, got ${arrowSvgW}`)
 
 // ── #9 optional-active toggles with the selection ──────────────────────────
 const optBtn = page.locator('[data-fly-opt]')

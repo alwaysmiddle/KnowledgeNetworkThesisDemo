@@ -1,5 +1,7 @@
-/* BASE — the smallest possible reset. Element defaults only; no component
-   classes live in the token closure. */
+/* BASE — the smallest possible reset. Element defaults, plus exactly ONE opt-in
+   attribute hook (the hover recipe, at the foot of this file). No component
+   classes live in the token closure, and that stays true: the hook styles a
+   recipe that spans controls with nothing else in common, not a component. */
 :root { color-scheme: light; }
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body {
@@ -108,3 +110,50 @@ a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
 [data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:vertical:end:increment { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M2.4%204.2L6%207.8l3.6-3.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
 [data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:horizontal:start:decrement { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M7.8%202.4L4.2%206l3.6%203.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
 [data-sb-js] [data-sb="near"]::-webkit-scrollbar-button:horizontal:end:increment { background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2012%2012'%3E%3Cpath%20d='M4.2%202.4L7.8%206l-3.6%203.6'%20fill='none'%20stroke='%23c8bfaf'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+
+/* ── The hover recipe ─────────────────────────────────────────────────────
+   THE ONE UTILITY SURFACE IN THIS SYSTEM, and a deliberate exception to the
+   note at the top of this file. Everything else here is an element default;
+   this is an opt-in attribute. It exists because the recipe below governs
+   controls with nothing else in common — icon buttons, list rows, pills, node
+   chips, cards, presets — so no single component can own it, and stated as
+   prose it was the most-often-broken rule in the system.
+
+   The recipe: face one step, border to --border-rule, ink to --text-1, and
+   NOTHING ELSE MOVES. No scale, no translate, no shadow step, no hue change.
+
+   THE BORDER IS RESERVED AT REST — 1px transparent with border-box. A border
+   added on hover moves the glyph a pixel and the control twitches under the
+   pointer; that is the failure this hook exists to make impossible.
+
+   Which "one step" depends on what the control sits on, which is the only
+   variable, hence the three values:
+     [data-kn-hover]           on the desk or anything transparent
+     [data-kn-hover="raised"]  on a raised white surface — a wash cannot tint
+                               white, so raised elements get their own token
+     [data-kn-hover="danger"]  destructive. Berry AT REST, hovering within its
+                               own ramp: a warning that arrives on hover
+                               arrives too late, and hover is never a hue change
+
+   Reach for a COMPONENT first where one exists — IconButton owns the round
+   glyph control and adds tone, reveal and tab-order withdrawal on top of this.
+   This is for everything a component does not cover.
+   ───────────────────────────────────────────────────────────────────────── */
+[data-kn-hover] {
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  transition: var(--transition-wash);
+}
+[data-kn-hover]:hover { background: var(--surface-hover); border-color: var(--border-rule); color: var(--text-1); }
+[data-kn-hover]:active { background: var(--surface-press); }
+/* focus gets the same wash as hover — a control reachable only by pointer is
+   not reachable. The focus RING is :focus-visible's, above, and unaffected. */
+[data-kn-hover]:focus-visible { background: var(--surface-hover); border-color: var(--border-rule); color: var(--text-1); }
+[data-kn-hover="raised"]:hover,
+[data-kn-hover="raised"]:focus-visible { background: var(--surface-hover-raised); }
+[data-kn-hover="danger"] { color: var(--state-danger); }
+[data-kn-hover="danger"]:hover,
+[data-kn-hover="danger"]:focus-visible { background: var(--state-danger-wash); border-color: var(--state-danger); color: var(--berry-600); }
+[data-kn-hover][disabled], [data-kn-hover][aria-disabled="true"] { opacity: var(--opacity-disabled); pointer-events: none; }

@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import { byId, domainOf, topicIds } from '../../corpus/graph'
+import { ARROW_METRICS, NodeArrow } from '../../ds/graph/NodeArrow'
 import { NodeChip, chipSize } from '../../ds/graph/NodeChip'
 import type { DomainCode } from '../../ds/graph/vocab'
 import { VersionedGroup, GroupGeometry, GROUP_METRICS } from '../../ds/group/VersionedGroup'
@@ -585,14 +586,21 @@ export default function AuthorRoad({
   }
 
   return (
-    // DS PaneHeader.d.ts rule 3: A SCROLLING BODY INSETS 12px FROM THE BOTTOM, as a
-    // margin rather than a radius on the scroller, so the scrollbar's end arrow stays
-    // clear of the pane's corner arc instead of being clipped by it; the pane's own
-    // paper fills the strip. One inset serves both axes.
+    // DS PaneHeader.d.ts rule 3: A SCROLLING BODY INSETS 12px AT BOTH ENDS, as a
+    // margin rather than a radius on the scroller, so the scrollbar's end arrows stay
+    // clear of the pane's corner arcs instead of being clipped by them; the pane's own
+    // paper fills the strips.
+    //
+    // BOTH, not just the bottom. A scroller reserves an arrow square at EACH end of its
+    // gutter and the pane has a rounded corner at each end of its right edge, so one
+    // inset alone leaves the OTHER arrow painting over its arc. The rule read
+    // `marginBottom` alone when we adopted it in #110 — "one inset serves both axes",
+    // which is true of the two AXES and false of the two ENDS — and the DS amended it
+    // on 2026-08-17f after finding the same bug in its own Pane. #113 H2.
     <div
       data-road-root
       className="flex-1 min-h-0 overflow-auto"
-      style={{ marginBottom: 'var(--space-3)' }}
+      style={{ marginTop: 'var(--space-3)', marginBottom: 'var(--space-3)' }}
       onPointerDown={onBoardPointerDown}
       onPointerMove={onBoardPointerMove}
       onPointerUp={onBoardPointerUp}
@@ -663,30 +671,42 @@ export default function AuthorRoad({
         <div className="text-[var(--fs-body)] p-3" style={{ color: 'var(--text-3)' }}>drop a node from the palette to start the plan</div>
       ) : (
         <div ref={boardRef} className="relative mx-auto my-2 select-none" style={{ width: W, height: H }}>
-          <svg className="absolute inset-0 pointer-events-none z-10" width={W} height={H}>
-            <defs>
-              <marker id="wt-road-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--accent-walk)' }} />
-              </marker>
-              <marker id="wt-road-ghost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" style={{ fill: 'var(--text-3)' }} />
-              </marker>
-            </defs>
+          {/* #113 H4: the sequence is drawn with the DS NodeArrow, one per gap, instead
+              of the road's own <line>s and two <marker> heads.
+
+              The road still OWNS the layout. It computes every gap arithmetically in one
+              pass, so each arrow is PLACED from ARROW_METRICS rather than handed to a
+              NodeChain — the chain wants to own order and slots as well, which is the
+              same structural reason the open card needs `bodySlot`. Adopting the drawing
+              settles the tone; it does not settle AGAP 26 against the chain's 22, which
+              is a layout constant and stays open on #109.
+
+              Two signals collapse into the DS's model on purpose:
+                · the live shaft goes 2.5 -> 1.5, because NodeArrow strokes one width;
+                · the ghost's own '4 3' dash is DROPPED. The DS reserves dashed for
+                  CONDITIONAL, and on this road that already means `optional` — so a
+                  second dash pattern meaning "off the road" was decoration, and two
+                  dashes for two meanings is the thing the rule exists to stop.
+              Off-road now reads in tone alone: quiet (--bark-400) against walk
+              (--accent-walk). It was --text-3, which IS bark (--bark-500), one step
+              darker than the system's quiet — not the "neutral grey" #113 H4 reports. */}
+          <div className="absolute inset-0 pointer-events-none z-10">
             {arrows.map((a, i) => (
-              <line
+              <div
                 key={`a${i}`}
                 data-rarrow
-                x1={a.x1}
-                y1={a.y1}
-                x2={a.x2}
-                y2={a.y2}
-                style={{ stroke: a.live ? 'var(--accent-walk)' : 'var(--text-3)' }}
-                strokeWidth={a.live ? 2.5 : 1.5}
-                strokeDasharray={a.optional ? '5 4' : a.live ? undefined : '4 3'}
-                markerEnd={a.live ? 'url(#wt-road-head)' : 'url(#wt-road-ghost)'}
-              />
+                data-rarrow-tone={a.live ? 'walk' : 'quiet'}
+                style={{ position: 'absolute', left: a.x1 - ARROW_METRICS.across / 2, top: a.y1 }}
+              >
+                <NodeArrow
+                  direction="down"
+                  length={Math.max(1, a.y2 - a.y1 - ARROW_METRICS.head)}
+                  tone={a.live ? 'walk' : 'quiet'}
+                  dashed={a.optional}
+                />
+              </div>
             ))}
-          </svg>
+          </div>
 
           {items.map((pl) => {
             const key = pathKey(pl.path)

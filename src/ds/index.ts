@@ -8,6 +8,7 @@
 
 export { NodeArrow } from './graph/NodeArrow'
 export type { NodeArrowProps } from './graph/NodeArrow'
+export { ARROW_METRICS } from './graph/NodeArrow'
 export { NodeChip } from './graph/NodeChip'
 export type { NodeChipProps } from './graph/NodeChip'
 export { NodeChain } from './graph/NodeChain'

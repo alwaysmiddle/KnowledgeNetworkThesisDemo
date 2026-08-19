@@ -17,20 +17,29 @@ re-vendor via `/design-sync`. This is issue #57 (roadmap #58); the drift guard
 that enforces "code only reaches these through `var(--token)`" is the DS
 adherence lint (`_adherence.oxlintrc.json`), wired in #61.
 
-## What is imported, and what is held
+## What is imported
 
-`src/index.css` imports the files that only **declare** `:root` variables:
+**All of it, since #64 slice 5.** `src/index.css` takes the closure in
+dependency order:
 
-- `colors.css`, `elevation.css`, `spacing.css`, `typography.css`, `motion.css`
+- the five **definition** files — `colors.css`, `elevation.css`, `spacing.css`,
+  `typography.css`, `motion.css` — which only declare `:root` variables;
+- `fonts.css`, which loads the webfonts those variables name (Quicksand /
+  Nunito / JetBrains Mono);
+- `kn-theme.css` (#93) — not a definition file, but the DS's Tailwind utility
+  surface, the same values turned into real utility classes;
+- `base.css` **last**, because it consumes the vars the others define.
 
-Two files are **vendored but not yet imported**, because they *apply* the tokens
-globally and would re-tint the whole app before its components are migrated:
+`base.css` is the one with reach. It is the element reset: it applies the tokens
+to `body` and `*` — font, colour, background, links, selection, focus ring and
+scrollbars. **A re-vendor of `base.css` changes the running app immediately.**
+Vendored 2026-08-18 (#111): the DS added the `data-kn-hover` recipe to the foot
+of its `base.css` on 2026-08-17, and this copy now carries it. **The hook ships
+inert** — nothing in `src/` sets the attribute yet. Replacing hand-rolled
+`useState` hover state with it is H10, a separate change.
 
-- `base.css` — the element reset. Sets `body` font-family/background/color and
-  the scrollbar styling. Held for the chrome/global adoption step (#64).
-- `fonts.css` — the Quicksand/Nunito/JetBrains Mono webfont loader. Held until
-  something actually applies `var(--font-*)`; imported alongside `base.css`.
-
-Until then, only the road-well containment surfaces re-tint (via the aliases in
-`index.css @theme`); the rest of the app keeps its current look and migrates
-component by component (#62–#64).
+*Corrected 2026-08-18.* Until this edit the section said `base.css` and
+`fonts.css` were "vendored but not yet imported … held for the chrome/global
+adoption step (#64)". That stopped being true when #64 slice 5 landed and the
+note was never updated, so a `base.css` re-vendor read as inert for weeks while
+it was in fact the most far-reaching file in the closure.
