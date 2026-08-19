@@ -33,8 +33,10 @@ dependency order:
 `base.css` is the one with reach. It is the element reset: it applies the tokens
 to `body` and `*` — font, colour, background, links, selection, focus ring and
 scrollbars. **A re-vendor of `base.css` changes the running app immediately.**
-That is live right now: the DS added the `data-kn-hover` recipe to the foot of
-its `base.css` on 2026-08-17 and this copy does not carry it yet (issue #111).
+Vendored 2026-08-18 (#111): the DS added the `data-kn-hover` recipe to the foot
+of its `base.css` on 2026-08-17, and this copy now carries it. **The hook ships
+inert** — nothing in `src/` sets the attribute yet. Replacing hand-rolled
+`useState` hover state with it is H10, a separate change.
 
 *Corrected 2026-08-18.* Until this edit the section said `base.css` and
 `fonts.css` were "vendored but not yet imported … held for the chrome/global
