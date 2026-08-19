@@ -3,17 +3,33 @@
    The generic scale is a 4px grid with a 6px half-step (the round shapes need
    a little more air than a strict 4 gives).
 
-   The --road-* block is different in kind: those are LIVE LAYOUT CONSTANTS
-   from src/instruments/walkdesk/AuthorRoad.tsx. The road does measure-free
-   layout, so the numbers ARE the layout — change one here and change it there.
-   They are recorded verbatim, un-rounded.
+   The --road-* block is different in kind: it is a RECORD of the const-s in
+   src/instruments/walkdesk/AuthorRoad.tsx, which does measure-free layout, so
+   those numbers are the road's real geometry. Recorded verbatim, un-rounded.
 
-   LOCAL DEVIATION, --road-head-h: the DS says 44px as of its 2026-08-09 sync
-   (HEAD_TITLE 24 + HEAD_COMBO 20). That was true on 2026-08-08 and is now one
-   revision stale: #70/#86 added the description row and grew the title, so
-   headH() = HEAD_TITLE(28) + HEAD_DESC(20) + HEAD_COMBO(24) = 72. The road is
-   the source of truth for its own constants — do not adopt 44 back. Reported
-   to the design agent on drift-log #74. */
+   Narrowed 2026-08-18: it is a record, NOT a coupling. Nothing in src/ reads
+   any --road-* token (we established this in receipts/4875ea8.md; the only
+   other mentions anywhere are comments in kn-theme.css). So a disagreement in
+   this block draws nothing wrong — it is an out-of-date note, not a bug, and
+   the right response is to correct a transcription error when you happen to
+   see one, never to "reconcile" a live value into it.
+
+   Corrected upstream 2026-08-10: --road-head-h was 28px, a stale reading of
+   HEAD. --road-question-h and --road-tab-h were removed with it — QUESTION_H
+   and TAB_H are absent from every .ts source file, so those tokens named
+   constants that no longer exist.
+
+   Removed 2026-08-18 (OB-014): --road-pad (PAD) and --rail-w (RAIL_W), for the
+   same reason. PAD is gone from AuthorRoad.tsx — the only PADs left in src/
+   are in LensPane.tsx (44) and WalkColumns.tsx (14), different files and
+   different meanings, so the token invited reconciliation against the wrong
+   one. RAIL_W is gone from src/ entirely.
+
+   LOCAL DEVIATION, --road-head-h: the DS holds 44px (HEAD_TITLE 24 +
+   HEAD_COMBO 20); we hold 72px and the DS agrees we keep it. #70/#86 added the
+   description row and grew the title, so headH() = HEAD_TITLE(28) +
+   HEAD_DESC(20) + HEAD_COMBO(24) = 72. Do not adopt 44 back. Since nothing
+   reads the token the divergence costs nothing either way. */
 :root {
   --space-05: 2px;
   --space-1: 4px;
@@ -60,11 +76,9 @@
   --road-node-w: 150px;      /* NODEW */
   --road-node-h: 34px;       /* NODEH */
   --road-gap: 26px;          /* AGAP — the arrow lives in this gap */
-  --road-pad: 10px;          /* PAD */
-  --road-head-h: 72px;       /* headH() = HEAD_TITLE(28) + HEAD_DESC(20) + HEAD_COMBO(24) — three-row open card header (#70 #86) */
+  --road-head-h: 72px;       /* headH() = HEAD_TITLE(28) + HEAD_DESC(20) + HEAD_COMBO(24) — three-row open card header (#70 #86); DS holds 44, see LOCAL DEVIATION above */
   --road-margin: 16px;       /* MARGIN */
   --road-empty-body-h: 30px; /* EMPTY_BODY_H */
   --road-slot-h: 18px;       /* SLOTH */
   --road-sel-pad: 7px;       /* SELPAD */
-  --rail-w: 186px;           /* RAIL_W — projected-route column */
 }

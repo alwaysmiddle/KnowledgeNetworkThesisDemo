@@ -5,7 +5,9 @@
 
    Containment reads as depth, not hue:
      a node          -> raised   (--lift-1, white face)
-     an open group   -> recessed (--sink-1, --surface-sunken)
+     an open group   -> recessed (--sink-1, --surface-sunken; a well nested in a well
+                                  alternates to --surface-sunken-2 and back, since two
+                                  wells of one tint read as one well)
      a folded group  -> raised again, with the well tint stacked behind it
    Never a lift and a sink on the same element. */
 :root {

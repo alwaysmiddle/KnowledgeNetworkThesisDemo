@@ -8,7 +8,11 @@
       what a node IS. The raw authored hex is preserved as --*-raw; the
       --domain-* / --edge-* values are the P.Kt naturalisation of the SAME hues
       (lower chroma, mid lightness) so they sit on paper instead of shouting.
-      Use --*-raw only when matching the current build pixel for pixel. */
+      Use --*-raw only when matching the current build pixel for pixel — and never in the
+      same VIEW as its naturalised twin. A legend swatch on --edge-uses above canvas lines
+      on --edge-uses-raw is a key that disagrees with its own drawing, which is worse than
+      either palette used whole; a view converts its swatches and its strokes together or
+      not at all (app, 2026-08-18). */
 :root {
   /* ── Bark: the warm neutral ramp. Paper, not slate. ─────────────────── */
   --bark-50:  #faf8f4;
@@ -98,7 +102,10 @@
   --surface-paper: #fdfcfa;    /* a pane */
   --surface-raised: #ffffff;   /* a card / a node: raised, always lightest */
   --surface-sunken: #eae4d9;   /* a well: a group, recessed */
-  --surface-sunken-2: #e2dbcd;
+  --surface-sunken-2: #e2dbcd;  /* the SECOND well: a group nested in a group. Wells step
+                                   by depth (alternating, counted by the components), or a
+                                   well inside a well of one tint reads as a single well
+                                   with loose furniture in it. */
   --surface-hover: rgba(53, 49, 42, 0.04);
   --surface-hover-raised: #faf8f4;  /* the hovered face of a RAISED element — a wash can't tint white */
   --surface-press: rgba(53, 49, 42, 0.07);
