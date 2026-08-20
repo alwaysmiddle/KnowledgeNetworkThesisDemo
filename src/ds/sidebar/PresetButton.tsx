@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { BinMark } from './BinMark'
+import { wrapTip } from '../chrome/IconButton'
 
 /** One row of the preset list: a named instrument composition plus its one-line
  *  hint. Active is a moss (primary) wash, never a colour swap. A user-saved preset
@@ -52,7 +53,7 @@ export function PresetButton({ label, hint, active, onClick, onDelete }: PresetB
       {onDelete ? (
         <button
           type="button"
-          title={'delete “' + label + '”'}
+          title={wrapTip('delete “' + label + '”')}
           onClick={(e) => {
             e.stopPropagation()
             onDelete()

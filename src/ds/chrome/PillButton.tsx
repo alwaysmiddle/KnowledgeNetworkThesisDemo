@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { wrapTip } from './IconButton'
+
 /** The five tones. Each is a {background, border, ink, hover-background} quad;
  *  `selected` overrides all of them with the moss ring wash, so a toggled pill
  *  reads the same regardless of its resting tone. */
@@ -41,7 +43,7 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
   return (
     <button
       type="button"
-      title={title}
+      title={wrapTip(title) || undefined}
       disabled={disabled}
       onClick={onClick}
       onMouseDown={onMouseDown}

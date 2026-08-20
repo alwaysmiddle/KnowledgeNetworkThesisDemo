@@ -1,3 +1,5 @@
+import { wrapTip } from '../chrome/IconButton'
+
 /** A numbered stop on the active walk: done (behind the cursor), current (the
  *  cursor), or ahead (not yet reached). Typed port of the DS StepDot.jsx. */
 export interface StepDotProps {
@@ -20,7 +22,7 @@ export function StepDot({ n, state = 'ahead', onClick, title }: StepDotProps) {
     <button
       type="button"
       onClick={onClick}
-      title={title}
+      title={wrapTip(title) || undefined}
       style={{
         width: 24,
         height: 24,

@@ -4,7 +4,12 @@ import type { CSSProperties } from 'react'
 import { caretStyle } from '../nav/TreeRow'
 import { bulletStyle } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
-import { IconButton, usePresence, useRecede } from '../chrome/IconButton'
+import { IconButton, useClipped, usePresence, useRecede, wrapTip } from '../chrome/IconButton'
+
+/** the one string the three resize grips share. Three copies of a literal is three
+ *  chances to reword one of them, and a tooltip that says a slightly different
+ *  thing on each edge of the same box reads as three different controls. */
+const RESIZE_TIP = 'drag to resize · double-click to reset'
 
 /* HOW DEEP AM I? Counted, not passed: a group cannot be told its depth by a caller that
    does not know how it is being composed, and every level has to step against its parent
@@ -357,7 +362,7 @@ function DescLine({ text, placeholder, indent, onCommit }: {
   }
   return (
     <div data-grab="" style={{ display: 'block', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px', cursor: 'inherit' }}>
-      <span title={onCommit ? 'click to edit' : undefined}
+      <span title={onCommit ? wrapTip('click to edit') : undefined}
         onClick={(e) => { e.stopPropagation(); if (onCommit) setEditing(true) }}
         style={{
           display: 'inline-block', maxWidth: '100%',
@@ -411,6 +416,9 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
   onDelete?: () => void; confirming?: boolean; onCancel?: () => void
 }) {
   const [hot, show, hide] = useRecede()
+  /* the worst clip in the system: the listbox is 220px and a version name can be a
+     whole sentence */
+  const nameClip = useClipped<HTMLSpanElement>(version.name)
   return (
     <div style={{ position: 'relative', display: 'flex' }}
       onMouseEnter={show} onMouseLeave={hide}
@@ -445,10 +453,10 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
             {version.label ? (
               <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: on ? 'var(--accent-primary-ink)' : 'var(--text-2)' }}>{version.label}</span>
             ) : null}
-            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{version.name}</span>
+            <span {...nameClip} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{version.name}</span>
           </button>
           {onDelete ? (
-            <button type="button" title="delete this version" aria-label="delete this version"
+            <button type="button" title={wrapTip('delete this version')} aria-label="delete this version"
               tabIndex={hot ? 0 : -1}
               onClick={(e) => { e.stopPropagation(); onDelete() }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--state-danger-wash)'; e.currentTarget.style.borderColor = 'var(--state-danger)'; e.currentTarget.style.color = 'var(--berry-600)' }}
@@ -1082,14 +1090,14 @@ export function VersionedGroup({
 
   const edge = (side: 'right' | 'bottom' | 'corner') => {
     const common: CSSProperties = { position: 'absolute', zIndex: 2, background: 'transparent', touchAction: 'none' }
-    if (side === 'right') return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('x')} onDoubleClick={resetAxis('x')} style={{ ...common, top: 14, bottom: 14, right: -3, width: 8, cursor: 'ew-resize' }} />
-    if (side === 'bottom') return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('y')} onDoubleClick={resetAxis('y')} style={{ ...common, left: 14, right: 14, bottom: -3, height: 8, cursor: 'ns-resize' }} />
-    return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('both')} onDoubleClick={resetAxis('both')} style={{ ...common, right: -3, bottom: -3, width: 16, height: 16, cursor: 'nwse-resize' }} />
+    if (side === 'right') return <span aria-hidden="true" title={wrapTip(RESIZE_TIP)} onPointerDown={startDrag('x')} onDoubleClick={resetAxis('x')} style={{ ...common, top: 14, bottom: 14, right: -3, width: 8, cursor: 'ew-resize' }} />
+    if (side === 'bottom') return <span aria-hidden="true" title={wrapTip(RESIZE_TIP)} onPointerDown={startDrag('y')} onDoubleClick={resetAxis('y')} style={{ ...common, left: 14, right: 14, bottom: -3, height: 8, cursor: 'ns-resize' }} />
+    return <span aria-hidden="true" title={wrapTip(RESIZE_TIP)} onPointerDown={startDrag('both')} onDoubleClick={resetAxis('both')} style={{ ...common, right: -3, bottom: -3, width: 16, height: 16, cursor: 'nwse-resize' }} />
   }
 
   const word = tally === 1 ? String(countLabel).replace(/s$/, '') : countLabel
   const tallyLine = (
-    <span title={tally + ' ' + word + ' inside this version'} style={{
+    <span title={wrapTip(tally + ' ' + word + ' inside this version')} style={{
       flexShrink: 0, display: 'inline-block', fontFamily: 'var(--font-ui)',
       fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)',
       fontWeight: 'var(--fw-regular)',
@@ -1116,7 +1124,7 @@ export function VersionedGroup({
              its tail — when they appear */
           flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2,
         }}>
-          <span title={title} onClick={(e) => { stop(e); setEditing('title') }}
+          <span title={wrapTip(title) || undefined} onClick={(e) => { stop(e); setEditing('title') }}
             style={{
               width: 'fit-content',
               maxWidth: '100%', lineHeight: 'var(--lh-snug)',
@@ -1216,7 +1224,7 @@ export function VersionedGroup({
             onCancel={() => setEditing(null)} />
         ) : (
           <span style={{ flex: 1, minWidth: 0, display: 'block', cursor: 'inherit' }}>
-            <span title={active.name} onClick={(e) => { stop(e); setOpen(false); setEditing('version') }}
+            <span title={wrapTip(active.name) || undefined} onClick={(e) => { stop(e); setOpen(false); setEditing('version') }}
               style={{
                 width: 'fit-content',
                 maxWidth: '100%', display: '-webkit-box', WebkitBoxOrient: 'vertical',

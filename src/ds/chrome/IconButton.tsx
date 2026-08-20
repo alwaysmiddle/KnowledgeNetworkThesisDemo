@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 
 /** The system's round icon control: a ✕, a chevron, a small glyph act. One shape
@@ -86,7 +86,19 @@ export function IconButton({
   const hotEdge = danger ? 'var(--state-danger)' : 'var(--border-rule)'
   return (
     <button
-      type="button" title={title} aria-label={label || title}
+      /* EVERY TOOLTIP IN THE SYSTEM GOES THROUGH `wrapTip`, the short ones included.
+         Folding HERE rather than at each call site is what makes that true: a short
+         string comes back untouched, so it costs nothing, and no call site is left
+         deciding whether its own label is long enough to bother with.
+         `aria-label` keeps the UNFOLDED string — a screen reader reads a line, not a
+         shape.
+         `|| undefined` is OURS. Upstream is `title={wrapTip(title)}` flat, which emits
+         `title=""` for a button given only a `label` — and an empty title attribute is
+         not the same as no title, since it also suppresses any ancestor's tooltip. Two
+         call sites here do exactly that (VersionedGroup's fold and ungroup buttons), so
+         the guard preserves today's behaviour rather than changing it silently.
+         REPORTED, not silently kept. */
+      type="button" title={wrapTip(title) || undefined} aria-label={label || title}
       /* a receded button is invisible but still in the tab order and still
          answers Enter; opacity and pointer-events do not fix that, tabIndex
          does. `reachable` is the same withdrawal for a cluster whose FADE the
@@ -206,4 +218,91 @@ export function useRecede(): [boolean, () => void, () => void] {
     timer.current = setTimeout(() => setShown(false), recedeMs())
   }
   return [shown, show, hide]
+}
+
+
+/* ── the clipped line ───────────────────────────────────────────
+ * A HOUSE RULE HANDED OVER AS CODE: wherever a "…" can appear, hovering must give
+ * the whole string. It lives here beside the recede clock because it is the same
+ * kind of thing — a behaviour several unrelated controls share, where a rule left
+ * as prose gets restated five ways and drifts apart.
+ * ────────────────────────────────────────────────────────── */
+
+/** A CLIPPED STRING SAYS WHAT IT SAYS, ON HOVER. Spread the result on the element
+ *  that DOES the clipping —
+ *  `<span {...clip} style={{ …, overflow: 'hidden', textOverflow: 'ellipsis' }}>` —
+ *  never on an ancestor, which is not the box that overflows and would therefore
+ *  never report anything.
+ *
+ *  IT IS A HOOK RATHER THAN AN UNCONDITIONAL `title=`, and that is the whole design.
+ *  A tooltip repeating a line you can already read in full fires on every hover of
+ *  every row on a board, and noise at that scale trains people straight past the one
+ *  tooltip that matters. So the title exists only while the text is really cut.
+ *
+ *  MEASURED ON POINTER ENTRY, not at render. Whether a line clips is a fact about
+ *  its laid-out width, and that changes with the pane, the sidebar, a window resize
+ *  and the string itself — a value computed at render is stale by the time anyone
+ *  hovers it. The cost is one measurement per hover, of an element already under the
+ *  pointer.
+ *
+ *  BOTH AXES, because the system clips both ways: `scrollWidth` for a one-line
+ *  `text-overflow` clip, `scrollHeight` for a clamped block. The 1px tolerance is for
+ *  sub-pixel text metrics, which report a 0.3px overflow on plenty of lines that are
+ *  not clipped at all.
+ *
+ *  The type parameter is the element it will be spread on —
+ *  `useClipped<HTMLSpanElement>(name)` — because a ref typed as the base HTMLElement
+ *  is not assignable to a span's. */
+export function useClipped<T extends HTMLElement = HTMLElement>(text?: string | null) {
+  const ref = useRef<T | null>(null)
+  const [cut, setCut] = useState(false)
+  const onPointerEnter = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    setCut(el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)
+  }, [])
+  /* folded into readable lines rather than one screen-wide one — see `wrapTip` */
+  return { ref, onPointerEnter, title: cut && text ? wrapTip(text) : undefined }
+}
+
+/** A TOOLTIP IS NOT A RULER. A native `title` holding a long name draws ONE line the
+ *  width of the screen, which is the hardest shape there is to read — the eye gets no
+ *  return sweep. The platform offers no styling hook for a native tooltip, and
+ *  replacing it with a drawn one would mean a popover that has to escape every
+ *  stacking context in the app (the version menu already needs a portal for exactly
+ *  that) plus its own show delay, hover grace, edge flipping and focus behaviour — a
+ *  component's worth of surface for a line of text. Newlines, though, a native tooltip
+ *  does honour. So the string is folded on word boundaries at about 44 characters, the
+ *  same measure a paragraph of prose wants and well inside every platform's cap.
+ *
+ *  ANYTHING ALREADY SHORTER COMES BACK UNTOUCHED. That is what lets this be applied at
+ *  every `title=` in the system with no judgement left at the call site about whether a
+ *  particular label is "long enough to bother" — the one exception the DS allowed
+ *  lasted an hour before producing the exact defect it was excusing.
+ *
+ *  AND AN UNBROKEN RUN LONGER THAN THE MEASURE IS BROKEN ANYWAY. The first version left
+ *  a long word whole, reasoning that a break inside a word misreports the string; one
+ *  60-character run then drew the screen-wide line this function exists to prevent, so
+ *  the exception swallowed the rule. The reasoning was wrong as well as costly — the
+ *  tooltip shows the same characters either way, only the line breaks are added, and a
+ *  NAME is exactly where such a run turns up (a pasted id, a typo, a URL). Word
+ *  boundaries are still preferred; a run with none is cut into measure-sized pieces. */
+export function wrapTip(text?: string | null, at?: number): string {
+  const s = String(text ?? '').trim()
+  const measure = at || 44
+  if (s.length <= measure) return s
+  const words: string[] = []
+  for (const word of s.split(/\s+/)) {
+    if (word.length <= measure) { words.push(word); continue }
+    for (let i = 0; i < word.length; i += measure) words.push(word.slice(i, i + measure))
+  }
+  const out: string[] = []
+  let line = ''
+  for (const word of words) {
+    if (!line) line = word
+    else if ((line + ' ' + word).length > measure) { out.push(line); line = word }
+    else line += ' ' + word
+  }
+  if (line) out.push(line)
+  return out.join('\n')
 }

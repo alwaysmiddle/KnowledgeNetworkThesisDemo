@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
-import { useRecede } from '../chrome/IconButton'
+import { useRecede, wrapTip } from '../chrome/IconButton'
+
+/** the one string the three resize grips share. Three copies of a literal is three
+ *  chances to reword one of them, and a tooltip that says a slightly different
+ *  thing on each edge of the same box reads as three different controls. */
+const RESIZE_TIP = 'drag to resize · double-click to reset'
 
 /** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
  *  WEIGHT OF WHAT IT CONNECTS AND NEVER ABOVE IT. The nodes are the objects; a line
@@ -567,7 +572,7 @@ export function NodeChip({
          which is why the contract says to pass `note` alongside a non-string title. Falling
          back to `undefined` rather than stringifying: React would render "[object Object]"
          into the attribute, and a tooltip that lies is worse than one that is absent. */
-      title={note || (typeof title === 'string' ? title : undefined)}
+      title={wrapTip(note || (typeof title === 'string' ? title : undefined)) || undefined}
       onClick={() => { if (selectable) toggle(); if (onClick) onClick() }}
       /* both clocks off the same four handlers — the control lingers (`showX`/`hideX` hold
          `hot` through a grace period so a revealed ✕ stays reachable), the wash does not */
@@ -732,19 +737,19 @@ export function NodeChip({
       ) : null}</span>
       {resizable ? (
         <>
-          <span aria-hidden="true" title="drag to resize · double-click to reset"
+          <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
             onPointerDown={startSize('x')} onDoubleClick={resetSize('x')}
             style={{ position: 'absolute', top: 8, bottom: 8, right: 0, width: 7, zIndex: 2, background: 'transparent', cursor: 'ew-resize', touchAction: 'none' }} />
-          <span aria-hidden="true" title="drag to resize · double-click to reset"
+          <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
             onPointerDown={startSize('y')} onDoubleClick={resetSize('y')}
             style={{ position: 'absolute', left: 10, right: 10, bottom: 0, height: 7, zIndex: 2, background: 'transparent', cursor: 'ns-resize', touchAction: 'none' }} />
-          <span aria-hidden="true" title="drag to resize · double-click to reset"
+          <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
             onPointerDown={startSize('both')} onDoubleClick={resetSize('both')}
             style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, zIndex: 3, background: 'transparent', cursor: 'nwse-resize', touchAction: 'none' }} />
         </>
       ) : null}
       {onDelete ? (
-        <button type="button" title="delete this node" aria-label="delete this node"
+        <button type="button" title={wrapTip('delete this node')} aria-label="delete this node"
           tabIndex={hot ? 0 : -1}
           onClick={(e) => { e.stopPropagation(); onDelete() }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--state-danger-wash)'; e.currentTarget.style.borderColor = 'var(--state-danger)'; e.currentTarget.style.color = 'var(--berry-600)' }}

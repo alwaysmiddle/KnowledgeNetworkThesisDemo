@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 
 import type { DomainCode } from '../graph/vocab'
 import { DOMAIN_TOKEN } from '../graph/vocab'
+import { useClipped } from '../chrome/IconButton'
 
 /** The disclosure mark, drawn rather than set: two 1.5px strokes meeting at a
  *  right angle, rotated −45° closed and +45° open. Font chevrons and triangles
@@ -68,6 +69,9 @@ export function TreeRow({
   onZoom,
 }: TreeRowProps) {
   const [hot, setHot] = useState(false)
+  /* a tree row's title is clipped by depth: the deeper the row, the less width is
+     left for it, so the same title clips in one place and not in another */
+  const titleClip = useClipped<HTMLSpanElement>(title)
   return (
     <div
       onClick={onSelect}
@@ -125,6 +129,7 @@ export function TreeRow({
         }}
       />
       <span
+        {...titleClip}
         style={{
           flex: 1,
           minWidth: 0,

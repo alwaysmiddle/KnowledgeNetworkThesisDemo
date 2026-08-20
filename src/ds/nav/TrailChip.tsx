@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { DomainCode } from '../graph/vocab'
 import { DOMAIN_TOKEN } from '../graph/vocab'
+import { wrapTip } from '../chrome/IconButton'
 
 /** One entry of the append-only trail: where a focus landed, and how it got
  *  there. A jump is accented so the divergence from the breadcrumb is visible.
@@ -22,7 +23,7 @@ export function TrailChip({ title, domain, via, jump, onClick }: TrailChipProps)
     <button
       type="button"
       onClick={onClick}
-      title={via ? via + ' · ' + title : title}
+      title={wrapTip(via ? via + ' · ' + title : title) || undefined}
       onMouseEnter={() => setHot(true)}
       onMouseLeave={() => setHot(false)}
       style={{
