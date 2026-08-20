@@ -1,5 +1,32 @@
 import type { DomainCode, EdgeKind } from './vocab'
-import { DOMAIN_TOKEN } from './vocab'
+import { NodeChip } from './NodeChip'
+import { shaftFor } from './NodeArrow'
+
+/** THE SHAFT IS DRAWN AT THE BORDER WEIGHT OF WHAT IT CONNECTS, NEVER ABOVE IT — 1.25,
+ *  against the 1px border of the `NodeChip mark="border-2"` ends this component renders.
+ *  The nodes are the objects; a line between them is a statement ABOUT them, so it does not
+ *  get to be the heaviest mark in the row. The chip form at the ends is what fixes the
+ *  number: `mark="border"` is a `--stroke-rule` border and takes the sequence arrow's 1.5
+ *  (`NodeArrow.SHAFT_STROKE`); `border-2` is 1px and takes this.
+ *
+ *  MATCHING THE NUMBER IS NOT MATCHING THE MARK, which is why this is 1.25 and not a flat 1:
+ *  a 1px CSS border takes the browser's own rounding while a 1px `crispEdges` rect snaps to
+ *  the device grid, and at dpr 1.5 the available steps are about 0.67 / 1.33 / 2.0 css px. A
+ *  flat 1 drops the shaft a step BELOW the border it should match — it reads as a divider,
+ *  and it fades `depends_on`, the quietest of the four hues, out from under
+ *  `implemented_with`.
+ *
+ *  IT WAS 3px HERE UNTIL THIS PORT — triple the border at its ends and off the stroke ladder
+ *  entirely (`--stroke-hair` 1 · `--stroke-rule` 1.5 · `--stroke-node` 2). Run length does
+ *  not set the weight; it sets how badly a mismatch reads, and over a 110px column that is
+ *  eight times the ink of the same error in a 14px gap. It survived because it was only ever
+ *  judged in bulk: down a list of five, shafts calibrate each other and read as a column of
+ *  rules. It took a pane holding a SINGLE relation to see it.
+ *
+ *  DERIVED, not typed: `shaftFor('border-2')` is the rule applied to the form this component
+ *  renders at both ends, so the chip form and the shaft cannot drift apart. Still exported,
+ *  because it was retyped once already and a port needs something to import. */
+export const EDGE_SHAFT_STROKE = shaftFor('border-2')
 
 const EDGE: Record<EdgeKind, { color: string; label: string }> = {
   depends_on: { color: 'var(--edge-depends-on)', label: 'builds on' },
@@ -16,11 +43,12 @@ interface EntryNodeProps {
   onClick?: () => void
 }
 
-/* A node inside an entry wears its domain as a BORDER on paper, not as a dot on a
-   raised chip: an entry sits inside a recessed well, and raised means a node
-   standing on a pane. break-word is the last resort — words wrap at spaces first —
-   because a name whose min-content is wider than the well pushes its border out
-   past the pane edge. */
+/* AN ENTRY'S ENDS ARE `NodeChip mark="border-2"` — the chip's second rank, a mention rather
+   than an object: 1px of domain hue, transparent face, no lift, caption type at --text-2,
+   --radius-md, centred. Until this port THIS FILE DREW THEM ITSELF, which was one recipe in
+   two places and the reason the form was promoted to a chip mark at all. All that is left
+   here is the EMPHASIS, which is entry-specific and belongs to the SENTENCE rather than to
+   the chip — which is also why `NodeChip.title` widened to a ReactNode. */
 /* A path deeper than one step is ELIDED, not wrapped: the node column is a third of
    a pane at best, and "Networking / Protocol Stack / TCP & UDP" set inline there hits
    break-word and comes apart mid-word — five stacked fragments in a pill five times
@@ -31,32 +59,41 @@ interface EntryNodeProps {
 function EntryNode({ title, domain, anchor, within, onClick }: EntryNodeProps) {
   const segs = within ? String(within).split(' / ') : []
   const lead = segs.length > 1 ? segs[0] + ' / …' : within
+  /* Whichever way the end was reached, the ANCHOR is what carries the emphasis:
+     direct, that is the node itself; through a descendant, it is the ancestry prefix, in
+     the system's slash grammar (DocHeader), with the child that actually holds the link
+     set beside it at ordinary weight. So every entry in a list opens on the same bold
+     name — the one at the head of the rail — and the eye reads down the column instead
+     of re-parsing each row. */
+  const label = within ? (
+    <>
+      <span style={{ fontWeight: anchor ? 'var(--fw-bold)' : 'var(--fw-medium)', color: anchor ? 'var(--text-1)' : 'var(--text-3)' }}>{lead}{' / '}</span>{title}
+    </>
+  ) : anchor ? (
+    <span style={{ fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>{title}</span>
+  ) : title
+  /* `note` carries the full path because `title` is now an ELEMENT, and the native tooltip
+     is a string attribute — the chip falls back to `undefined` rather than stringifying a
+     node, so an entry that did not pass this would simply lose its tooltip. */
   return (
-    <span onClick={onClick} title={segs.length ? segs.join(' / ') + ' / ' + title : title}
-      style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, maxWidth: '100%', padding: '2px 9px', borderRadius: 'var(--radius-md)', border: '1px solid ' + (DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)'), background: 'transparent', cursor: onClick ? 'pointer' : 'inherit' }}>
-      {/* Whichever way the end was reached, the ANCHOR is what carries the emphasis:
-          direct, that is the node itself; through a descendant, it is the ancestry
-          prefix, in the system's slash grammar (DocHeader), with the child that
-          actually holds the link set beside it at ordinary weight. So every entry in
-          a list opens on the same bold name — the one at the head of the rail — and
-          the eye reads down the column instead of re-parsing each row. */}
-      <span style={{ minWidth: 0, textAlign: 'center', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', fontWeight: anchor && !within ? 'var(--fw-bold)' : 'var(--fw-medium)', color: anchor && !within ? 'var(--text-1)' : 'var(--text-2)', lineHeight: 'var(--lh-snug)', overflowWrap: 'break-word' }}>
-        {within ? <span style={{ fontWeight: anchor ? 'var(--fw-bold)' : 'var(--fw-medium)', color: anchor ? 'var(--text-1)' : 'var(--text-3)' }}>{lead}{' / '}</span> : null}{title}</span>
-    </span>
+    <NodeChip mark="border-2" wrap domain={domain} title={label} onClick={onClick}
+      note={segs.length ? segs.join(' / ') + ' / ' + title : title} />
   )
 }
 
 /** One relationship, drawn: two nodes and the typed edge between them. The RELATION
- *  is what gets the emphasis — body weight over a 3px rule in the edge's own colour
- *  — and the two nodes recede to caption weight with a domain border and no fill.
+ *  is what gets the emphasis — body weight over a hairline in the edge's own colour, and
+ *  the arrowhead that says which way it runs — while the two nodes recede to the chip's
+ *  second rank: caption weight, a domain border, no fill and no lift.
  *  An entry is a sentence, and both ends are usually already known from whatever it
  *  sits inside; the relation is the only new word.
  *
  *  Typed port of the DS EdgeEntry.jsx (contract: EdgeEntry.d.ts).
  *
  *  Deviations from DS source:
- *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source).
- *    The edge map stays local, as it is in the DS module and in EdgeLegend. */
+ *  - The edge map stays local, as it is in the DS module and in EdgeLegend. The DOMAIN
+ *    lookup this file used to carry is GONE — the hue now arrives through the chip, which
+ *    is the point of OB-016. */
 export interface EdgeEntryProps {
   from: string
   fromDomain: DomainCode
@@ -107,13 +144,19 @@ export function EdgeEntry({
         <span style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, paddingBottom: 1, boxSizing: 'border-box', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', textAlign: 'center', lineHeight: 'var(--lh-snug)', overflowWrap: 'break-word' }}>{label}</span>
         {/* the head goes on the end that RECEIVES */}
         <span style={{ width: '100%', display: 'flex', alignItems: 'center', color: hue, lineHeight: 0.7 }}>
+          {/* the head keeps its 9px against the thinner shaft: it is the only part that says
+              which way the relation runs, so it becomes the connector's emphasis rather
+              than the line being it */}
           {direction !== 'out' ? <span style={{ fontSize: 9, flex: 'none' }}>{'◀'}</span> : null}
-          {/* the shaft is SVG with crispEdges, never a 3px CSS box — EdgeDash's rule.
-              Down a list the line boxes above each entry are fractional, so a CSS bar
-              lands on a different subpixel offset in every row and some antialias
-              across four device rows, reading visibly thicker than their neighbours.
-              crispEdges snaps every shaft to the same device-pixel height. */}
-          <svg height="3" preserveAspectRatio="none" shapeRendering="crispEdges" style={{ flex: 1, minWidth: 0, display: 'block' }} aria-hidden="true"><rect width="100%" height="3" fill={hue} /></svg>
+          {/* THE SHAFT IS `EDGE_SHAFT_STROKE` — see its docblock: 1.25, matching the 1px
+              border of the chips at its ends, because a connector never outweighs what it
+              connects.
+              SVG with crispEdges rather than a CSS box — EdgeDash's rule. Down a list the
+              line boxes above each entry are fractional, so a CSS bar lands on a different
+              subpixel offset in every row and some antialias across an extra device row,
+              reading visibly thicker than their neighbours. crispEdges snaps every shaft to
+              the same device-pixel height. */}
+          <svg height="2" preserveAspectRatio="none" shapeRendering="crispEdges" style={{ flex: 1, minWidth: 0, display: 'block' }} aria-hidden="true"><rect width="100%" y="0.25" height={EDGE_SHAFT_STROKE} fill={hue} /></svg>
           {direction !== 'in' ? <span style={{ fontSize: 9, flex: 'none' }}>{'▶'}</span> : null}
         </span>
       </span>

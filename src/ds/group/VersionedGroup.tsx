@@ -1348,3 +1348,13 @@ export function VersionedGroup({
     </Depth.Provider>
   )
 }
+/** WHAT A LINE MEETING THIS CARD HAS TO MATCH — 1px, NOT the full-rank 1.5. A connector is
+ *  drawn at the border weight of what it connects and never above it, and a `NodeChain` reads
+ *  this static off any child that is not one of our chips. Without it a chain of group cards
+ *  falls through to `shaftFor`'s full-rank fallback and draws a 1.5 shaft against 1px edges —
+ *  the same fault the 3px `EdgeEntry` shaft was, one component over.
+ *  THE OPEN CARD'S EDGE IS TRANSPARENT rather than absent, and it still takes layout, so 1 is
+ *  the honest number in both states. `shaftFor` maps it to 1.25 either way: a borderless box
+ *  is the LEAST able to carry a heavy line beside it, so "no border" is never read as "no
+ *  constraint". */
+VersionedGroup.joinBorder = 1
