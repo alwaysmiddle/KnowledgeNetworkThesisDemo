@@ -20,7 +20,9 @@
 // It shares ONE draft with the palette (its own instrument since #21) through
 // the module-level stores in authordraft.ts — see the note there for why a
 // singleton is the right shape. Everything downstream still receives
-// resolveRoad()'s linear walk; publishing it on bus.route is #14.
+// resolveRoad()'s linear walk, and it IS published on bus.route (#14, closed) —
+// see the effect below. The Map draws it as a path across the territory and
+// Connections highlights along it.
 
 import { useEffect, useMemo, useState } from 'react'
 

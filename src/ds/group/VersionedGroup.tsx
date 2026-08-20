@@ -556,6 +556,14 @@ export interface GroupSpec {
   index?: string
   description?: string
   descPlaceholder?: string
+  /** whether the description line CAN BE EDITED — the spec's half of `onDescribe`.
+   *  Defaults to TRUE, matching the component: `DescLine` drops the row for one
+   *  case only, a card that is both undescribed AND read-only, and
+   *  `descPlaceholder` itself defaults to 'enter description', so an ordinary
+   *  editable card with an empty description still draws a one-line row.
+   *  Pass `false` for a read-only card and the prediction drops the row exactly
+   *  as the drawing does. */
+  describable?: boolean
   versionName?: string
   versionLabel?: string
   count?: number
@@ -653,10 +661,29 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
   const hair = hairline()
   let h = hair + M.padTop + Math.max(M.headMinH, titleLines * M.bodyLine)
   if (c.narrow) h += M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
-  const descText = s.description || s.descPlaceholder || ''
-  if (descText) {
+  /* OB-031 — THE ROW EXISTS WHENEVER THE LINE CAN BE EDITED, not only when the spec
+     carries something to read. This branch used to key on `s.description ||
+     s.descPlaceholder`, which is not the condition the component draws on: `DescLine`
+     drops out for one case only (both undescribed AND read-only) and `descPlaceholder`
+     defaults to 'enter description', so an ordinary editable card with an empty
+     description still draws a one-line row. A spec carrying neither string is the
+     NATURAL spec for an undescribed card, and it was predicted 11.79px short — which an
+     arithmetically stacked board turns into 11.79px of overlap on every card nobody has
+     described.
+     The default is TRUE rather than false because the two errors are not equal:
+     over-reserving leaves a gap, under-reserving puts the next card inside this one.
+     INERT ON THIS BOARD, and recorded so nobody deletes it as dead code: AuthorRoad's
+     `groupSpec` sets `descPlaceholder: 'enter description'` unconditionally
+     (AuthorRoad.tsx:148), so `descText` was never empty here and every road card already
+     reserved the row. This makes the prediction correct BY CONSTRUCTION instead of by a
+     caller happening to pass a placeholder. Proven by shot-cardhead: no number moves. */
+  const describable = s.describable === undefined ? true : !!s.describable
+  const descText = s.description
+    || (describable ? (s.descPlaceholder === undefined ? 'enter description' : s.descPlaceholder) : '')
+  if (s.description || describable) {
     const dcol = width - M.padX * 2 - M.descPadX * 2
-    const dl = linesOf(descText, dcol, 400, 12, 'ui', 0)
+    /* at least one line: an empty editable row is one line tall, and `linesOf('')` is 0 */
+    const dl = Math.max(1, linesOf(descText, dcol, 400, 12, 'ui', 0))
     /* ★ the block's line box: one line is the 13px strut; wrapped, the lines win
        and the last one sits on the block's baseline (+0.36) */
     h += M.rowGap + M.descPadY * 2 + Math.max(M.descStrut, dl * M.capLine + M.descLastDescent)
