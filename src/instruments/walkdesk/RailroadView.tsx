@@ -24,10 +24,11 @@
 // see the effect below. The Map draws it as a path across the territory and
 // Connections highlights along it.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import AuthorRoad from './AuthorRoad'
-import { parsePath, redoDraft, stopAt, undoDraft, useAuthorDraft, useRoad } from './authordraft'
+import { parsePath, redoDraft, saveDraftAsWalk, stopAt, undoDraft, useAuthorDraft, useRoad } from './authordraft'
+import { listWalks, subscribeWalks } from '../../model/walkstore'
 import { chosenIdx, isFork, leafIds, resolveRoad } from './mockwalk'
 import WalkPreview from './WalkPreview'
 import WalkToolbox from './WalkToolbox'
@@ -43,6 +44,36 @@ export default function RailroadView({ bus }: { bus: Bus }) {
   const state = useAuthorDraft()
   const { choices, pickBranch, withOptionals, setWithOptionals } = useRoad()
   const [previewOpen, setPreviewOpen] = useState(false)
+
+  // The walks.ts bridge (#16). Two one-row drawers under the button strip
+  // rather than two floating menus: the header is `shrink-0`, so a row that
+  // opens simply takes its own height and the road below reflows once — no
+  // z-index, no click-outside, and nothing overlapping the plan you are naming.
+  const walks = useSyncExternalStore(subscribeWalks, listWalks)
+  const [naming, setNaming] = useState(false)
+  const [walkName, setWalkName] = useState('')
+  const [picking, setPicking] = useState(false)
+  /** what the last save did, shown until the next one is started. No timer:
+   *  a receipt that erases itself is a receipt you can miss. */
+  const [receipt, setReceipt] = useState<string | null>(null)
+
+  const openNaming = () => {
+    setReceipt(null)
+    setWalkName('')
+    setPicking(false)
+    setNaming(true)
+  }
+
+  const commitWalk = () => {
+    const w = saveDraftAsWalk(walkName)
+    setNaming(false)
+    setWalkName('')
+    setReceipt(
+      w
+        ? `saved “${w.title}” — ${w.stops.length} stops. The Trail can play it now.`
+        : 'nothing on the road to save — the plan is empty, or every stop is still an unbound slot.',
+    )
+  }
 
   // Undo / redo shortcuts (#34). Global so they work wherever focus sits ON the
   // road — but bail inside a text field so a rename keeps its own native undo,
@@ -107,7 +138,9 @@ export default function RailroadView({ bus }: { bus: Bus }) {
         <div className="text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
           railroad — the road can fork and rejoin; ● picks the branch
         </div>
-        <div className="mt-1 flex items-center gap-1">
+        {/* wraps rather than squeezes: with six controls in a pane this narrow,
+            a no-wrap row shrank every button until its label broke in half. */}
+        <div className="mt-1 flex flex-wrap items-center gap-1">
           <button
             data-opt-toggle
             onClick={() => setWithOptionals(!withOptionals)}
@@ -129,6 +162,33 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
           >
             ▶ read the walk
+          </button>
+          {/* #16, the two directions of the walks.ts bridge. Saving PROJECTS:
+              a Walk is a flat reading order, so the road you are looking at is
+              what is stored and the tiers are not. Loading COPIES a walk in as
+              one stage, which is the inverse at the only grain that survives. */}
+          <button
+            data-save-walk
+            onClick={openNaming}
+            title="save the resolved road as a walk the rest of the app can play"
+            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
+            style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
+          >
+            ⤓ save as walk
+          </button>
+          <button
+            data-add-walk
+            onClick={() => {
+              setNaming(false)
+              setPicking(!picking)
+            }}
+            title="drop an existing walk into the plan as one stage"
+            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border"
+            style={picking
+              ? { borderColor: 'var(--border-rule)', color: 'var(--text-1)', background: 'var(--surface-sunken)' }
+              : { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-raised)' }}
+          >
+            ⤒ add a walk
           </button>
           <div className="ml-auto flex items-center gap-1">
             <button
@@ -153,6 +213,65 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             </button>
           </div>
         </div>
+
+        {naming && (
+          <div data-name-walk className="mt-1 flex items-center gap-1">
+            <input
+              autoFocus
+              value={walkName}
+              placeholder="name this walk"
+              onChange={(e) => setWalkName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitWalk()
+                if (e.key === 'Escape') setNaming(false)
+              }}
+              className="flex-1 min-w-0 text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
+              style={{ color: 'var(--text-1)', background: 'var(--surface-paper)' }}
+            />
+            <button
+              data-name-walk-save
+              onClick={commitWalk}
+              className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
+              style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
+            >
+              save
+            </button>
+            <button
+              onClick={() => setNaming(false)}
+              title="back to the road"
+              className="text-[var(--fs-caption)] px-1.5 py-0.5"
+              style={{ color: 'var(--text-3)' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {receipt && (
+          <div data-walk-receipt className="mt-1 text-[var(--fs-caption)]" style={{ color: 'var(--text-3)' }}>
+            {receipt}
+          </div>
+        )}
+
+        {picking && (
+          <div data-walk-picker className="mt-1 flex flex-wrap gap-1">
+            {walks.map((w) => (
+              <button
+                key={w.id}
+                onClick={() => {
+                  state.insertWalkAsStage(w.id)
+                  setPicking(false)
+                }}
+                title={w.description || `${w.stops.length} stops`}
+                className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] max-w-full truncate"
+                style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
+              >
+                {w.title}
+                <span className="ml-1" style={{ color: 'var(--text-3)' }}>{w.stops.length}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* The road, and the walk you slide in over it. The preview OVERLAYS rather

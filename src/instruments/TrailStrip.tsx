@@ -5,13 +5,13 @@
 // visually accented so that divergence is legible in a screenshot, not just
 // in the DOM text a verification script pulls out.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 
 import { StepDot, TrailChip } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
-import { WALKS } from '../corpus/walks'
+import { listWalks, subscribeWalks } from '../model/walkstore'
 import type { TrailVia } from '../model/nav'
 import type { Bus } from '../studio/bus'
 
@@ -28,6 +28,10 @@ const VIA_TAG: Record<TrailVia, string> = {
 
 export default function TrailStrip({ bus }: { bus: Bus }) {
   const { trail, activeWalk } = bus
+  // #16: the built-ins PLUS whatever the desk has saved. Bound here rather than
+  // imported as a const because the list grows while the app is running — save a
+  // walk on the desk and its button must appear in this strip without a reload.
+  const walks = useSyncExternalStore(subscribeWalks, listWalks)
   const onSelectTrailEntry = (id: string) => bus.setFocus(id, 'trail')
   const onActivateWalk = (walkId: string) => bus.activateWalk(walkId, 0)
   const onAdvanceWalk = bus.advanceWalk
@@ -40,7 +44,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
     scroller.current?.scrollTo({ left: scroller.current.scrollWidth, behavior: 'smooth' })
   }, [trail.length])
 
-  const walk = activeWalk ? WALKS.find((w) => w.id === activeWalk.walkId) ?? null : null
+  const walk = activeWalk ? walks.find((w) => w.id === activeWalk.walkId) ?? null : null
   const cursor = activeWalk?.cursor ?? 0
 
   return (
@@ -71,7 +75,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
         <div className="text-[10px] font-bold text-slate-500 mb-1">Walks</div>
         {!walk ? (
           <div className="flex flex-wrap gap-1.5">
-            {WALKS.map((w) => (
+            {walks.map((w) => (
               <button
                 key={w.id}
                 onClick={() => onActivateWalk(w.id)}

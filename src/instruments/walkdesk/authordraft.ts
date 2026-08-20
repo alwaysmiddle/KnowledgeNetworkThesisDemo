@@ -12,8 +12,10 @@
 
 import { useSyncExternalStore } from 'react'
 
+import { mintId, saveWalk, walkById } from '../../model/walkstore'
+import type { Walk } from '../../model/walkstore'
 import { loadDraft, nextIds, saveDraft } from './draftpersist'
-import { forEachStop, isBox, isFork, isLeaf } from './mockwalk'
+import { forEachStop, isBox, isFork, isLeaf, leafStops, resolveRoad } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
 export type Path = number[]
@@ -27,8 +29,10 @@ export type Path = number[]
 //
 // A SINGLETON, deliberately: there is one plan being written. Two Walk·Desk
 // panes should be two views OF that plan, not two plans. The bus is not the
-// right home either — it carries what every instrument shares; a half-built
-// draft is the authoring pair's private business until #16 bridges it.
+// right home either — it carries what every instrument shares, and a half-built
+// draft is the authoring pair's private business. #16 has since bridged it in
+// both directions without moving it: what leaves the desk is a finished WALK
+// (saveDraftAsWalk, below), which every instrument already understood.
 
 interface Store<T> {
   get(): T
@@ -109,6 +113,11 @@ const optionalsStore = store(restored?.withOptionals ?? true)
 // reload cannot be handed a key the plan is already using (draftpersist.nextIds)
 const seq = nextIds(stopsStore.get())
 const nextVid = () => 'v' + (seq.vid++).toString(36)
+/** the twin of nextVid for CONTAINER keys. A function rather than an inline
+ * `seq.box++` at each site: the two counters read the same way, and the ops stay
+ * free of the module mutation react-hooks/immutability objects to seeing inside
+ * a hook's returned callbacks. */
+const nextBoxKey = () => 'draft-' + seq.box++
 
 // Persist on every change to the three durable stores. No debounce: a commit is
 // one JSON.stringify of a tree with tens of stops in it, and the alternative —
@@ -165,6 +174,33 @@ function step(from: Store<Stop[][]>, to: Store<Stop[][]>): void {
 }
 export const undoDraft = (): void => step(pastStore, futureStore)
 export const redoDraft = (): void => step(futureStore, pastStore)
+
+// ── The walks.ts bridge (#16) ───────────────────────────────────────────────
+// The half of #16 that lets authored work LEAVE the desk. A `Walk` is flat by
+// definition — `{ id, title, description, stops: [{ id, note }] }` — so this is
+// a projection, not a save: the draft's tiers do not survive it, and neither do
+// the roads not taken. What is stored is the road as currently resolved, which
+// is exactly what the rest of the app already receives on bus.route.
+//
+// It reads the road stores directly rather than taking them as arguments. They
+// are module-level singletons for the same reason the tree is, and threading
+// them through a call that means "save what I am looking at" would only let a
+// caller pass something other than what the user is looking at.
+
+/** the draft, saved as a corpus walk under `title`. Null when the road resolves
+ * to nothing — an empty plan, or one that is all unbound placeholders. */
+export function saveDraftAsWalk(title: string): Walk | null {
+  const resolved = resolveRoad(stopsStore.get(), choicesStore.get(), optionalsStore.get())
+  const stops = leafStops(resolved).map((s) => ({ id: s.node, note: s.note ?? '' }))
+  if (stops.length === 0) return null
+  const name = title.trim() || 'untitled walk'
+  return saveWalk({
+    id: mintId(name),
+    title: name,
+    description: `${stops.length} stops, authored on the walk desk`,
+    stops,
+  })
+}
 
 /** the road's resolution knobs, shared by the railroad and the projection */
 export function useRoad() {
@@ -282,6 +318,12 @@ export interface AuthorState {
   /** palette insert: at the caret if the drop set one, else after a single
    * selected block, else at the end of the plan */
   insertNode(node: string, at?: Path): void
+  /** drop a whole walk in as ONE STAGE — a container titled after the walk,
+   * holding its stops (#16). Lands where insertNode lands. It is a COPY, not the
+   * reference mockwalk.groupFromWalk builds: that one is fixed mock data read at
+   * module load, this one is about to be edited, and a live reference would mean
+   * renaming a stop here rewrote the source walk. */
+  insertWalkAsStage(walkId: string, at?: Path): void
   /** start over: replace the whole draft with one empty slot to bind. Undoable —
    * it goes through the same commit path as any edit, so Ctrl+Z brings the old
    * plan back. The toolbox "new walk" button (#54). */
@@ -388,6 +430,19 @@ export function useAuthorDraft(): AuthorState {
       const target = at ?? (single ? [...single.slice(0, -1), single[single.length - 1] + 1] : [stops.length])
       commit(insertAt(stops, target, stop))
     },
+    insertWalkAsStage: (walkId, at) => {
+      const w = walkById(walkId)
+      if (!w) return
+      const key = nextBoxKey()
+      const stage: Stop = {
+        key,
+        title: w.title,
+        description: w.description || undefined,
+        variants: [{ id: nextVid(), label: '', steps: w.stops.map((s) => ({ node: s.id, note: s.note, variants: [] })) }],
+      }
+      const target = at ?? (single ? [...single.slice(0, -1), single[single.length - 1] + 1] : [stops.length])
+      commit(insertAt(stops, target, stage))
+    },
     newWalk: () => commit([{ node: '', unset: true, variants: [] }]),
     addSelectionNode: () => {
       const stop: Stop = { node: '', unset: true, variants: [] }
@@ -403,7 +458,7 @@ export function useAuthorDraft(): AuthorState {
     },
     groupSelection: () => {
       if (!run) return
-      const key = `draft-${seq.box++}`
+      const key = nextBoxKey()
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),
@@ -449,7 +504,7 @@ export function useAuthorDraft(): AuthorState {
       // the lifted version keeps its name AS a version; the new group inherits the
       // fork's stage title. Two separate fields, carried through separately —
       // pre-#70 this folded the label into the title, which now reads as "v1".
-      const lifted: Stop = { key: `draft-${seq.box++}`, title: s.title, variants: [{ ...vr }] }
+      const lifted: Stop = { key: nextBoxKey(), title: s.title, variants: [{ ...vr }] }
       const remaining = s.variants.filter((_, k) => k !== idx)
       // the fork stays in place and only loses a variant, so every sibling index
       // before `to` is unchanged — no adjustAfterRemoval needed.
