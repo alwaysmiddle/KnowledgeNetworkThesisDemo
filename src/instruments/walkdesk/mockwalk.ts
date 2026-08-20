@@ -145,17 +145,22 @@ export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry
   return out
 }
 
-/** flat ordered leaf-node IDs from a resolved stop tree. resolveRoad has
- * already collapsed fork choices and dropped skipped optionals, so every
- * container here has exactly one variant — no branching remains. */
-export function leafIds(stops: Stop[]): string[] {
-  const out: string[] = []
+/** flat ordered LEAF STOPS from a resolved stop tree. resolveRoad has already
+ * collapsed fork choices and dropped skipped optionals, so every container here
+ * has exactly one variant — no branching remains. Keeping the whole stop rather
+ * than its id is what lets a note travel with it into a saved walk (#16). */
+export function leafStops(stops: Stop[]): (Stop & { node: string })[] {
+  const out: (Stop & { node: string })[] = []
   for (const s of stops) {
-    if (isLeaf(s)) out.push(s.node)
-    else out.push(...leafIds(s.variants[0]?.steps ?? []))
+    if (isLeaf(s)) out.push(s)
+    else out.push(...leafStops(s.variants[0]?.steps ?? []))
   }
   return out
 }
+
+/** the same fringe as ids alone — what the bus route wants. Expressed through
+ * leafStops so the two can never walk the tree differently. */
+export const leafIds = (stops: Stop[]): string[] => leafStops(stops).map((s) => s.node)
 
 // ── Road resolution ─────────────────────────────────────────────────────────
 // A branching draft still projects to ONE linear walk: at every container pick

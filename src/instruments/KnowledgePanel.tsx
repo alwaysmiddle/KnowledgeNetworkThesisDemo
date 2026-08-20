@@ -15,12 +15,14 @@
 // walks.ts) — nodes above the topic level (domains, modules) and below it
 // (deep layers) just show the document, which is honest: that IS all they have.
 
+import { useSyncExternalStore } from 'react'
+
 import { DocHeader, SectionLabel, WalkCard } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf, pathTo, ROOT_ID } from '../corpus/graph'
 import { DOC_BODY } from '../corpus/docs'
-import { WALKS } from '../corpus/walks'
+import { listWalks, subscribeWalks } from '../model/walkstore'
 import type { Bus } from '../studio/bus'
 
 export default function KnowledgePanel({ bus }: { bus: Bus }) {
@@ -31,7 +33,10 @@ export default function KnowledgePanel({ bus }: { bus: Bus }) {
   const ancestry = pathTo(currentId)
     .map((id) => byId.get(id)!.title)
     .join(' / ')
-  const throughWalks = WALKS.flatMap((w) => {
+  // #16: authored walks count as walks through here too — that is the whole
+  // point of a desk that can save one.
+  const walks = useSyncExternalStore(subscribeWalks, listWalks)
+  const throughWalks = walks.flatMap((w) => {
     const idx = w.stops.findIndex((s) => s.id === currentId)
     return idx >= 0 ? [{ walk: w, idx }] : []
   })

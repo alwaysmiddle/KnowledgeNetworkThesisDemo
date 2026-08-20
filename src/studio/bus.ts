@@ -15,7 +15,7 @@
 import { useCallback, useMemo, useState } from 'react'
 
 import { byId, ROOT_ID } from '../corpus/graph'
-import { WALKS } from '../corpus/walks'
+import { walkById } from '../model/walkstore'
 import { curriculum } from '../model/lens'
 import { HISTORY_EMPTY, isInSubtree, mark, parentOf, step, visit } from '../model/nav'
 import type { ActiveWalkState, History, TrailEntry, TrailVia } from '../model/nav'
@@ -190,7 +190,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   }
 
   const activateWalk = (walkId: string, stopIndex: number) => {
-    const w = WALKS.find((x) => x.id === walkId)
+    const w = walkById(walkId)
     if (!w || stopIndex < 0 || stopIndex >= w.stops.length) return
     setActiveWalk({ walkId, cursor: stopIndex })
     reveal('trail') // the next-stop controls live there
