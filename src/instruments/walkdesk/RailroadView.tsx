@@ -114,7 +114,10 @@ export default function RailroadView({ bus }: { bus: Bus }) {
               ? { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-raised)' }
               : { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }}
           >
-            ◇ optionals: {withOptionals ? 'on the road' : 'bypassed'}
+            {/* NO GLYPH — `◇` is on the list of typed marks this system does not use. The
+                button already says the word, so the diamond was decoration on a label that
+                is explicit without it. */}
+            optionals: {withOptionals ? 'on the road' : 'bypassed'}
           </button>
           <button
             data-read-walk
