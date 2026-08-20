@@ -794,7 +794,6 @@ export default function AuthorRoad({
                     selected={isSelected}
                     width={pl.w}
                     height={pl.h}
-                    resizable={false}
                     onDelete={() => state.deleteAt(pl.path)}
                   />
                 </div>
