@@ -209,7 +209,7 @@ describe('DS TreeRow — a switched-off border side needs longhands, not a short
 // component against the DS's .d.ts, the remainder is at DS parity. The number is
 // a ratchet against silent regression, not a target to drive to 0.
 describe('our DS ports document what the DS documents', () => {
-  const BUDGET = 56
+  const BUDGET = 55
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {
