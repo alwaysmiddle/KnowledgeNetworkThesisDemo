@@ -12,8 +12,22 @@ import { EdgeDash, EdgeEntry, EdgeLegend, LeafMark } from '@/ds'
 //
 // Not listed (rendered, but only via a parent DS component):
 //   NodeChain  — inside VersionedGroup (consumed by AuthorRoad)
-//   NodeArrow  — inside NodeChain
 //   BinMark    — inside PresetButton (consumed by StudioView)
+//
+// GRADUATED — kept here as history so nobody re-adds them:
+//   NodeArrow  — was "inside NodeChain". It is now imported DIRECTLY by app code
+//                (AuthorRoad.tsx:35), which passes it `joins` so each shaft takes
+//                the border weight of what it connects. #109.
+//
+// A caveat on NodeChain worth having in writing, because the line above is true
+// and still misleading. VersionedGroup does import and render it — but only in
+// its DEFAULT body, and our only host renders the card in `bodySlot` mode, where
+// the caller owns the contents. So that branch is reachable and never reached:
+// nothing on any screen draws a NodeChain today. #109 decided to keep it anyway
+// — the road applies the same connector rule from the same source (`chipBorder`,
+// `shaftFor`, `VersionedGroup.joinBorder`) rather than duplicating its code, so
+// the component is the statement of a rule the road is checked against, and the
+// DS is still landing work in it. Retiring it stays cheap if that changes.
 describe('ported but not adopted DS components', () => {
   it('EdgeLegend — waiting on #69 (strokes + key must re-tint together)', () => {
     expect(typeof EdgeLegend).toBe('function')
@@ -23,11 +37,17 @@ describe('ported but not adopted DS components', () => {
     expect(typeof EdgeDash).toBe('function')
   })
 
-  it('EdgeEntry — waiting on #87', () => {
+  // #87 is CLOSED — it asked for the port, and the port landed (#112 verified the
+  // file exists). What is still open is ADOPTION: nothing renders it, and the
+  // connections rail that would is the remaining half of #97.
+  it('EdgeEntry — ported (#87 closed); no host yet, tracked on #97', () => {
     expect(typeof EdgeEntry).toBe('function')
   })
 
-  it('LeafMark — waiting on #89', () => {
+  // #89 is CLOSED — it was blocked on an asset channel for leaf-mask.png, and that
+  // is resolved (the mask ships, and #112 verified LeafMark points at it). No
+  // screen has chosen to draw the mark yet, which is a design call, not a blocker.
+  it('LeafMark — ported and unblocked (#89 closed); no screen draws it yet', () => {
     expect(typeof LeafMark).toBe('function')
   })
 })
