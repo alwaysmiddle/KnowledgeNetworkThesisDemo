@@ -54,6 +54,14 @@
   --pond-400: #6f9dbd;
   --pond-500: #4f80a2;
   --pond-600: #3d6884;
+  /* ONE VIVID BLUE, FOR ONE JOB. The pond ramp is deliberately muted — it sits behind text and
+     under selection washes, where saturation would shout. An open text editor is the opposite
+     case: it is a transient edge the eye has to find at a glance, and the owner asked for the
+     brightness other apps use for a focused field (2026-08-19). This is that step and nothing
+     else uses it. It stays in pond's hue rather than adopting a system blue from elsewhere —
+     #0078d4 and friends are colder than anything in this palette and read as a foreign control
+     dropped onto warm paper. Do not reach for it as a general accent: moss is the primary. */
+  --pond-vivid: #2e86c8;
 
   /* ── Berry: destructive only. ───────────────────────────────────────── */
   --berry-50:  #fbf0ee;
@@ -135,7 +143,34 @@
   --state-selected: var(--pond-500);
   --state-selected-wash: var(--pond-50);
   --state-linked: var(--pond-300);   /* cross-pane hover correspondence only */
+  /* THE LINE YOU ARE TYPING INTO. Pond's third and last meaning, added 2026-08-19 at the owner's
+     ask for "kind of like the windows one, blue" on the in-place text editor — and it belongs in
+     the family rather than beside it: selection is *this is the thing I am acting on*,
+     correspondence is *and here it is again*, editing is *and I am changing it right now*. Pond's
+     HUE, one step brighter than the ramp (`--pond-vivid`), because the owner's follow-up was the
+     right question: an edge you are meant to spot the instant it appears is not the same job as a
+     selection wash you read past. What separates it from selection is both the step and the
+     object. A
+     selection outlines a CHIP or a card at 2px; this outlines a run of TEXT at 1px, and nothing
+     in the system outlines text for any other reason. If a third thing ever wants to outline
+     text, this hue stops being enough and the two need to diverge in weight or dash.
+     Do NOT use it for a keyboard focus ring — that is `--ring-focus`, and an open editor
+     suppresses it so only one edge is ever drawn. */
+  --state-editing: var(--pond-vivid);
   --state-danger: var(--berry-500);
   --state-danger-wash: var(--berry-50);
+  /* NOT THE COLOUR OF AN OPTIONAL NODE, whatever the name says. An optional node is drawn by
+     DASHING its own border — `NodeChip optional`, `NodeArrow dashed`, the group's empty-version
+     zone — because a node's hue is its DOMAIN and is not available for a state. Two reasons
+     this hue could never do that job anyway: it is acorn, which in this system means ON THE
+     AUTHORED WALK, so an optional step painted with it would say the opposite of what it is.
+     WHAT IT ACTUALLY IS, read from the two live call sites (2026-08-19): the border of a
+     walk-tinted TOGGLE in its active state — `AuthorRoad.tsx:653` ("Optional" pressed) and
+     `RailroadView.tsx:115` ("optionals: bypassed"), both over `--accent-walk-wash` with
+     `--text-walk` ink. That is a control in the walk family, not an optional anything, so the
+     name is the thing that is wrong here. Nothing in THIS project reads it.
+     Rename candidate: `--border-walk`, alongside `--border-rule` / `--border-frame`. Not done
+     yet — it needs the two app call sites changed in the same pass, and it is mirrored in
+     tailwind/kn-theme.css. */
   --state-optional: var(--acorn-300);
 }

@@ -98,6 +98,7 @@
   --color-pond-400: #6f9dbd;
   --color-pond-500: #4f80a2;
   --color-pond-600: #3d6884;
+  --color-pond-vivid: #2e86c8;      /* the one saturated blue: an open text editor's edge, nothing else */
 
   --color-berry-50: #fbf0ee;
   --color-berry-100: #f5dcd8;
@@ -176,6 +177,7 @@
   --color-selected: #4f80a2;
   --color-selected-wash: #eef3f7;
   --color-linked: #99bcd5;         /* cross-pane hover correspondence only */
+  --color-editing: #2e86c8;        /* the line you are typing into — pond's vivid step, drawn on TEXT at 1px */
   --color-danger: #b4574a;
   --color-danger-wash: #fbf0ee;
   --color-optional: #ddb26e;
