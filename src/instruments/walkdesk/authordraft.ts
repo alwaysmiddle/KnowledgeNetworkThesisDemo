@@ -12,6 +12,7 @@
 
 import { useSyncExternalStore } from 'react'
 
+import { loadDraft, nextIds, saveDraft } from './draftpersist'
 import { forEachStop, isBox, isFork, isLeaf } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
@@ -89,16 +90,35 @@ const SEED: Stop[] = [
   { node: 'app-authentication-authorization', variants: [] },
 ]
 
-const stopsStore = store<Stop[]>(SEED)
+// ── Restored, or seeded (#16) ───────────────────────────────────────────────
+// The stores are module-level, which since #21 has made the draft SHARED. It did
+// not make it DURABLE — a reload ate the plan. `loadDraft()` reads the one
+// stored payload (see draftpersist.ts for what survives and what is repaired);
+// null means nothing usable is there, and the seed stands in as before.
+const restored = loadDraft()
+
+const stopsStore = store<Stop[]>(restored?.stops ?? SEED)
 const selectedStore = store<ReadonlySet<string>>(new Set())
 const caretStore = store<Path | null>(null)
 /** which variant each container takes, keyed by container key → variant id.
  * Storing the id rather than an index means deletions never silently retarget
  * the active version (#92). The railroad writes it; the projection reads it. */
-const choicesStore = store<Record<string, string>>({})
-const optionalsStore = store(true)
-const seq = { box: 0, vid: 0 }
+const choicesStore = store<Record<string, string>>(restored?.choices ?? {})
+const optionalsStore = store(restored?.withOptionals ?? true)
+// resumed past whatever the restored tree already uses, so a group made after a
+// reload cannot be handed a key the plan is already using (draftpersist.nextIds)
+const seq = nextIds(stopsStore.get())
 const nextVid = () => 'v' + (seq.vid++).toString(36)
+
+// Persist on every change to the three durable stores. No debounce: a commit is
+// one JSON.stringify of a tree with tens of stops in it, and the alternative —
+// a trailing timer — buys nothing measurable while opening a window in which a
+// reload loses the last keystroke. History is not written; see draftpersist.ts.
+const persist = () =>
+  saveDraft({ stops: stopsStore.get(), choices: choicesStore.get(), withOptionals: optionalsStore.get() })
+stopsStore.subscribe(persist)
+choicesStore.subscribe(persist)
+optionalsStore.subscribe(persist)
 
 // ── Undo / redo over the stops tree (#34) ────────────────────────────────────
 // History lives UNDER the store interface: one historic setter records the
