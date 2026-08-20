@@ -33,7 +33,7 @@ import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, Pointe
 
 import { byId, domainOf, topicIds } from '../../corpus/graph'
 import { ARROW_METRICS, NodeArrow } from '../../ds/graph/NodeArrow'
-import { NodeChip, chipSize } from '../../ds/graph/NodeChip'
+import { NodeChip, chipBorder, chipSize } from '../../ds/graph/NodeChip'
 import type { DomainCode } from '../../ds/graph/vocab'
 import { VersionedGroup, GroupGeometry, GROUP_METRICS } from '../../ds/group/VersionedGroup'
 import type { GroupSpec } from '../../ds/group/VersionedGroup'
@@ -235,12 +235,18 @@ function layoutRoad(
   // What stood here counted characters at CHAR_W = 8 against chrome scored at 40
   // when the chip's real chrome is ~83, so every title it scored as one line
   // wrapped to two and was clipped against the height it had been told (#97).
-  const leafSize = (title: string, outline: string): { w: number; h: number } => {
+  const leafSize = (title: string, outline: string, optional: boolean): { w: number; h: number } => {
     const c = chipSize({
       title,
       index: leafIndex(outline),
-      // the road's leaf, in exactly the form the chip is handed below
-      mark: 'border', wrap: true, deletable: true,
+      // the road's leaf, in exactly the form the chip is handed below — and `optional`
+      // BELONGS IN THAT LIST. Since the DS gave the optional chip its "(optional)" line
+      // (OB-025) the form is one --fs-micro line taller and stacked without wrapping, so a
+      // reservation that omitted it was short by a line on exactly the stops that draw one:
+      // the chip overflowed the height it had been told, and the next stop was laid that far
+      // inside it. The prop is passed to the chip five lines down; it has to be passed here
+      // too, which is the whole reason chipSize takes the props that MOVE the box.
+      mark: 'border', wrap: true, deletable: true, optional,
       minWidth: NODEW, maxWidth: NODE_MAXW, maxHeight: NODE_MAXH,
     })
     return { w: c.width, h: c.height }
@@ -257,7 +263,7 @@ function layoutRoad(
     if (isLeaf(s)) {
       // a bound leaf wraps and grows within bounds (#72 #8); an unset slot keeps
       // the fixed pill size
-      return s.unset ? { w: NODEW, h: NODEH } : leafSize(byId.get(s.node)?.title ?? '', outline)
+      return s.unset ? { w: NODEW, h: NODEH } : leafSize(byId.get(s.node)?.title ?? '', outline, !!s.optional)
     }
     const chosen = chosenIdx(s, choices)
     if (collapsed.has(s.key!)) {
@@ -452,6 +458,31 @@ export default function AuthorRoad({
   }, [])
 
   const { items, arrows, slots, W, H } = layoutRoad(state.stops, collapsed, choices, withOptionals)
+
+  /* ONE WEIGHT FOR THE WHOLE ROAD — the lightest member's edge, which is the same rule and
+     the same reasoning `NodeChain` applies to a chain, because the road IS a chain that
+     happens to lay itself out arithmetically. A connector is drawn at the border weight of
+     what it connects and NEVER above it, so a ceiling that holds for one arrow has to hold
+     for the column: the road's arrows read as one interrupted line down one axis, and a
+     per-gap weight would give 1.5 · 1.25 · 1.5 down it, which reads as a rendering fault
+     rather than as three considered weights.
+     ASKED, NOT TYPED, exactly like `chipSize`. A leaf renders `NodeChip mark="border"` and
+     answers through `chipBorder`; a container renders a `VersionedGroup` card and answers
+     through its own `joinBorder` static. Only the UNSET slot is the road's own box — nothing
+     in the design system draws it — so it is the one member that passes a measured number,
+     which is what `joins` takes a number FOR. `shaftFor` turns the winner into the stroke, so
+     no stroke literal appears here at all. */
+  const UNSET_PILL_BORDER = 2 // the dashed picker pill's own `border-2`, measured
+  const roadJoins = (() => {
+    let min: number | undefined
+    for (const pl of items) {
+      const w = !isLeaf(pl.stop) ? VersionedGroup.joinBorder
+        : pl.stop.unset ? UNSET_PILL_BORDER
+        : chipBorder('border')
+      if (min === undefined || w < min) min = w
+    }
+    return min
+  })()
 
   // the SELECTION BOX — the bounding rect of every selected block; the action
   // toolbar pins to it (stable) rather than chasing the cursor. #17.
@@ -653,7 +684,12 @@ export default function AuthorRoad({
             ? { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
             : { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-canopy)' }}
         >
-          ◇ Optional
+          {/* NO GLYPH. `◇` now sits with `▾`/`▸`, `●`/`○` and `✔` on the list of typed marks
+              this system does not use: the drawn vocabulary is a closed set of four (caret,
+              bin, live-version check, restore), and a state does not join it by being typed
+              instead of drawn. This button already says the word, so the diamond was
+              decoration on a label that is explicit without it. */}
+          Optional
         </button>
         <button
           data-fly-del
@@ -703,6 +739,7 @@ export default function AuthorRoad({
                   length={Math.max(1, a.y2 - a.y1 - ARROW_METRICS.head)}
                   tone={a.live ? 'walk' : 'quiet'}
                   dashed={a.optional}
+                  joins={roadJoins}
                 />
               </div>
             ))}

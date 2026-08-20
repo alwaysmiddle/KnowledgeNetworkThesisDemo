@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react'
 import { NodeArrow } from './NodeArrow'
 import type { NodeArrowProps } from './NodeArrow'
+import { chipBorder } from './NodeChip'
 
 /** A chain of nodes and groups — the sequence, its arrows, and its owner of order.
  *  Port of DS components/graph/NodeChain.jsx.
@@ -48,6 +49,52 @@ export function NodeChain({
   const [drag, setDrag] = useState<{ at: number; d: number; to: number; size: number } | null>(null)
   const slots = useRef<(HTMLDivElement | null)[]>([])
   const arrowRef = useRef<HTMLSpanElement | null>(null)
+
+  /* THE CHAIN TELLS EACH ARROW WHAT IT JOINS, so the connector-weight rule is not something
+     anyone has to remember here. A connector is drawn at the border weight of what it
+     connects and never above it; the chain places both chips, so it can read the `mark` off
+     them — the same look at a child's props it already does for `index` — and settle the
+     weight itself. An explicit `arrowProps.joins` wins: a caller who knows better than the
+     inference is rare but real (a chain of wrappers around chips).
+     TWO SIGNALS, IN ORDER OF HOW SPECIFIC THEY ARE. `props.mark` is the exact form this child
+     renders, so it wins. `type.joinBorder` is the component's own declaration of what its
+     edge weighs, which is how a child that is NOT one of our chips answers at all — a
+     `VersionedGroup` card, or anything else that declares one. A chip with no explicit `mark`
+     has no useful prop and falls through to `NodeChip.joinBorder` for the default form's
+     weight. Neither present: undefined, and the arrow keeps its own default. */
+  const joinWeightOf = (kid: React.ReactElement<Record<string, unknown>> | undefined) => {
+    if (!kid) return undefined
+    if (kid.props && typeof kid.props.mark === 'string') return chipBorder(kid.props.mark)
+    const t = kid.type as { joinBorder?: number }
+    if (t && typeof t.joinBorder === 'number') return t.joinBorder
+    return undefined
+  }
+
+  /* ONE WEIGHT FOR THE WHOLE CHAIN — the LIGHTEST member's edge, not each gap's own pair.
+     The arrows are the chain's fixed scaffolding (they do not travel with a dragged node),
+     so they read as one line interrupted by nodes; a mixed column computed per gap gives
+     1.5 · 1.25 · 1.5 down a single axis, which reads as a rendering fault rather than as
+     three considered weights. The same reason the chain owns one arrow LENGTH. Lightest,
+     because "never above what it connects" has to hold for every arrow in the column, and
+     only the lightest member satisfies all of them at once.
+     NOT AN AVERAGE — the obvious improvement, and wrong three times over. (1) A mean matches
+     nothing on screen: 1px and two 2px members give ~1.7, and there is no 1.7 border in the
+     picture, so the line stops matching anything the eye can check. (2) Too light is a small
+     harm and too heavy is the fault being avoided — with the minimum, arrows beside the
+     heavier members are thinner than they could be and still read as connectors; with a mean
+     the two arrows touching the LIGHT member outweigh it, which is the original defect
+     localised to one gap. (3) A mean is unstable under editing, and this chain is editable:
+     delete one node and every arrow's weight changes with no cause a user can see, where the
+     minimum only moves when the lightest member itself leaves. */
+  const chainJoins = (() => {
+    if (arrowProps && arrowProps.joins !== undefined) return arrowProps.joins
+    let min: number | undefined
+    kids.forEach((kid) => {
+      const w = joinWeightOf(kid)
+      if (w !== undefined && (min === undefined || w < min)) min = w
+    })
+    return min
+  })()
 
   const keys = kids.map((kid, i) => (kid.key != null ? String(kid.key) : 'i' + i))
 
@@ -127,7 +174,19 @@ export function NodeChain({
             {arrow && i > 0 ? (
               <span ref={i === 1 ? arrowRef : undefined}
                 style={{ display: 'flex', justifyContent: 'center', pointerEvents: 'none', flexShrink: 0 }}>
-                <NodeArrow direction={down ? 'down' : 'right'} {...arrowProps} />
+                {/* THE ARROW INTO AN OPTIONAL STEP DASHES, and the chain decides it so no call
+                    site has to remember. Read off the member this gap leads INTO — dashed
+                    means conditional, and what is conditional is the step being ARRIVED AT,
+                    not the line as a whole. That is why this is per gap while the WEIGHT is
+                    one number for the whole chain: the weight is a fact about the line (one
+                    interrupted line, one thickness), the dash is a fact about a destination.
+                    Reading it off the member also means a REORDER re-dashes the right gaps by
+                    itself. An explicit `arrowProps.dashed` still wins, since the spread comes
+                    after — but a call site should not pass it for an optional STEP: that prop
+                    dashes every gap, which is right for a whole conditional sequence and
+                    wrong for one step inside a solid one. */}
+                <NodeArrow direction={down ? 'down' : 'right'} joins={chainJoins}
+                  dashed={!!(kid && kid.props && kid.props.optional)} {...arrowProps} />
               </span>
             ) : null}
             <div

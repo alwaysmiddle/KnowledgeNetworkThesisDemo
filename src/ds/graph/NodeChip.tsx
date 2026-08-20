@@ -3,6 +3,39 @@ import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
 import { useRecede } from '../chrome/IconButton'
 
+/** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
+ *  WEIGHT OF WHAT IT CONNECTS AND NEVER ABOVE IT. The nodes are the objects; a line
+ *  between them is a statement about them, so it is never the heaviest mark in the row.
+ *  `NodeArrow.shaftFor(mark)` turns one of these into a shaft weight, so no caller ever
+ *  types 1.5 or 1.25, and `NodeChain` reads the mark off the chips it places and needs no
+ *  help at all. Keep this in step with the `border:` branch in the chip's style below — it
+ *  is the same three cases. The weights travel ONE WAY, from the chip that draws the border
+ *  to the line that answers it: this file must never import back from a connector. */
+export const CHIP_BORDER: Record<string, number> = { dot: 1, border: 1.5, 'border-2': 1, none: 1 }
+
+/** the border weight of a chip form, in px. An unknown or absent form falls back to the
+ *  full-rank 1.5. THAT FALLBACK IS FOR A FORM NAME NOBODY RECOGNISES, not for a non-chip
+ *  neighbour: a `VersionedGroup` card weighs 1px, not 1.5, and answers through its own
+ *  `joinBorder` static. The DS's own docblock claimed otherwise for one afternoon and had a
+ *  chain of group cards taking a 1.5 shaft against 1px edges — the same fault the 3px shaft
+ *  was, one component over. */
+export function chipBorder(mark?: string): number {
+  return mark !== undefined && CHIP_BORDER[mark] !== undefined ? CHIP_BORDER[mark] : CHIP_BORDER.border
+}
+
+/** WHERE THE DISC SITS ON A STACKED CHIP, measured rather than chosen (the DS's
+ *  `guidelines/chip-wrap-alignment.html`, 2026-08-19). A stacked chip aligns on the name's
+ *  FIRST-LINE BASELINE, which is exact for the step number and leaves the disc 0.83px low,
+ *  because a box with no text in it has no baseline and CSS synthesizes one from its border
+ *  box. So the disc opts OUT (`alignSelf: flex-start`) and is placed against the first
+ *  line's TOP, which does not move as the name wraps.
+ *  TWO MECHANISMS THAT DO NOT WORK, both tried in the DS's rig before this one:
+ *  `marginBottom`, because margins do not move a synthesized baseline (it reads 0.83
+ *  unchanged); and `alignSelf: center`, which centres the disc in the whole flex line and so
+ *  drifts with every line the name gains (0.44 → 17.98 across three) — and which looks
+ *  correct on a one-line chip, so do not "simplify" to it. */
+const DOT_FIRST_LINE_INSET = 4.83
+
 /** A corpus node as a chip: dot (or border, or nothing), truncating title, raised
  *  on paper. Port of DS components/graph/NodeChip.jsx.
  *
@@ -25,7 +58,12 @@ import { useRecede } from '../chrome/IconButton'
  *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source) */
 
 export interface NodeChipProps {
-  title: string
+  /** the node's NAME. A `ReactNode` rather than a string since 2026-08-19, so a caller can
+   *  hand in a composed sentence — `EdgeEntry` passes a bold anchor and an elided
+   *  `Parent / … / ` prefix, which belong to the SENTENCE rather than to the chip. Widening
+   *  accepts every string that compiled before. Pass `note` alongside a non-string title:
+   *  the tooltip reads `note` first and cannot render an element. */
+  title: React.ReactNode
   /** the node's step number in its container ("2.1") — derived, mono, tabular,
    *  --fs-micro at --text-3: a figure glanced at beside the name, never level with it */
   index?: string
@@ -34,19 +72,49 @@ export interface NodeChipProps {
    *  trails, legends and rails; 'border' is a 1.5px domain-coloured edge with no disc,
    *  for a node standing on its own — a stop inside a group, a node on the road;
    *  'none' is no disc and no hue at all — for a surface where domain is not the
-   *  channel being read and the edge's only job is to report selection */
-  mark?: 'dot' | 'border' | 'none'
+   *  channel being read and the edge's only job is to report selection;
+   *  'border-2' is THE FORM FOR A NODE BEING NAMED RATHER THAN ACTED ON — the same border
+   *  one rank down (1px of domain hue), a transparent face, NO LIFT, caption type at
+   *  --text-2, --radius-md and centred text. A chip is the object: raised, white, the thing
+   *  being arranged. This is a MENTION of an object that lives somewhere else, and a
+   *  citation set in the same ink as the thing cited reads as a second copy of it.
+   *  `EdgeEntry`'s two ends are this form and it is what the form was invented for — it drew
+   *  them itself as a private node until the DS promoted the recipe. Not to be confused with
+   *  `dim`, which is a STATE on any form (off the resolved path) rather than a rank. */
+  mark?: 'dot' | 'border' | 'border-2' | 'none'
   /** off the resolved path: no lift, no fill, --opacity-off-path */
   dim?: boolean
-  /** LOCAL, not in the DS: this node is CONDITIONAL — an optional stop, one that may
-   *  be bypassed. Dashes its own border and keeps its hue, because "dashed always
-   *  means conditional" is a system rule (readme, Borders and dashes) and the border
-   *  is where a chip says what it is. A prop rather than a stylesheet override from
-   *  the host: the border is written here as an inline shorthand, so the only way in
-   *  from outside is `border-style: dashed !important` on a descendant selector, and
-   *  that stops matching the day this component gains a wrapper element — silently,
-   *  with every optional stop rendering solid and nothing failing. Reported on
-   *  drift-log #74; the DS should own the form. */
+  /** THIS NODE IS CONDITIONAL — an optional stop, one that may be bypassed. A STATE, not a
+   *  form: it works on all four marks and beside every capability, the same as `lit` and
+   *  `dim`. Ours originally, reported on drift-log #74 as a form the DS should own; adopted
+   *  from the DS 2026-08-19, which kept the dashed border and ADDED the word.
+   *
+   *  It says two things at once, on purpose. The border DASHES, which is what dashed already
+   *  means everywhere in this system (`NodeArrow dashed`, the group's empty-version zone):
+   *  conditional, not yet, may not happen. And the chip says the WORD, because a dash is a
+   *  convention and a convention only speaks to a reader who has already learnt it — the
+   *  drawing carries the meaning for someone fluent in the system, the word carries it for
+   *  everyone else.
+   *
+   *  DASHED RATHER THAN A COLOUR because a node's hue is its DOMAIN and its border width is
+   *  what a connector matches (`chipBorder`), so neither channel is free to carry a state;
+   *  the line's style is the only one left. Do NOT reach for `--state-optional` — it is a
+   *  shade of acorn, and acorn means ON THE AUTHORED WALK, so an optional step painted with
+   *  it says the opposite of what it is.
+   *
+   *  THE WORD IS FIXED AT "(optional)" AND THERE IS NO PROP TO REWORD IT. One condition, one
+   *  name: the moment a caller can write its own wording, the same state reads "optional" on
+   *  one screen and "if time allows" on the next, and a reader cannot tell whether those are
+   *  two conditions or one. There is also NO GLYPH — no typed ◇ — which is a deliberate
+   *  removal, not an omission: the drawn vocabulary is a closed set of four marks (caret,
+   *  bin, live-version check, restore), and a state does not join that set by being typed
+   *  instead of drawn.
+   *
+   *  WHERE THE WORD GOES DEPENDS ON THE RANK. A full-rank chip is an object, so the word sits
+   *  UNDER the name on its own line (--fs-micro, italic, --text-3) and the chip drops to
+   *  --radius-md — which makes it ONE --fs-micro LINE TALLER than the same chip without it,
+   *  and `chipSize()` models that. A `border-2` chip is a mention inside a sentence, where a
+   *  second line would outweigh the sentence around it, so there the word follows inline. */
   optional?: boolean
   /** cross-pane hover correspondence — a 1.5px pond ring over the chip's own lift */
   lit?: boolean
@@ -215,9 +283,15 @@ export const CHIP_METRICS = {
   padXFlat: 12, padYFlat: 3,
   /** the dot form reserves a narrower left inset, since the disc sits in it */
   dotPadLeft: 9, dotPadRight: 11, dotPadY: 4,
-  dot: 7, dotTop: 6,
-  /** the step number's optical lift off the first title line */
-  indexTop: 1,
+  /** 'border-2': the mention form. Tighter than the others and 1px rather than --stroke-rule,
+   *  because it is a citation rather than an object */
+  padXQuiet: 9, padYQuiet: 2, quietBorder: 1,
+  dot: 7,
+  /** where the disc sits on a STACKED chip — measured, see DOT_FIRST_LINE_INSET. Replaces
+   *  the old `dotTop: 6`, which was a correction for top alignment and has no job under
+   *  baseline alignment. `indexTop: 1` went with it: the step number now sits on the name's
+   *  own baseline, which is what that nudge was approximating by eye. */
+  dotTop: DOT_FIRST_LINE_INSET,
   /** the gutter the title keeps from the delete button that follows it */
   titlePadRight: 4,
   /** the delete button: an 18px box pulled 2px into the chip's own right padding */
@@ -308,10 +382,15 @@ export interface ChipSpec {
   title?: string
   /** the step number, if one is shown — mono, and it is measured, not counted */
   index?: string
-  mark?: 'dot' | 'border' | 'none'
-  /** the title wraps instead of truncating. A wrapping chip is the only form
-   *  whose height is not a single line, and the only one a board has to think about */
+  mark?: 'dot' | 'border' | 'border-2' | 'none'
+  /** the title wraps instead of truncating. A wrapping chip is STACKED, and a stacked chip
+   *  is the form whose height is not a single line */
   wrap?: boolean
+  /** the chip is conditional, so it carries the "(optional)" line. ON A FULL-RANK CHIP THIS
+   *  MOVES THE BOX — one --fs-micro line taller, and stacked even without `wrap`. A board
+   *  that spaces chips from a predicted height and does not pass this reserves one line too
+   *  few and laps its own next row. On `border-2` the word is inline and costs nothing. */
+  optional?: boolean
   /** a delete button is offered. It reserves its space at rest, so it counts even unhovered */
   deletable?: boolean
   /** the caller's bounds. `maxHeight` becomes a LINE CLAMP rather than a crop:
@@ -339,9 +418,16 @@ export interface ChipSize {
 export function chipSize(spec?: ChipSpec): ChipSize {
   const M = CHIP_METRICS
   const s = spec || {}
-  const bordered = s.mark === 'border'
+  const quiet = s.mark === 'border-2'
+  const bordered = s.mark === 'border' || quiet
   const plain = s.mark === 'none'
   const wrap = !!s.wrap
+  const optional = !!s.optional
+  /* STACKED = baseline-aligned and more than one row. A full-rank optional chip is stacked
+     WITHOUT wrapping, because the word sits under the name — which is the one way this
+     predictor can be wrong in a direction a board notices, so it is named rather than
+     folded into `wrap`. */
+  const stacked = wrap || (optional && !quiet)
 
   const stroke = tokenNum('--stroke-rule', 1.5)
   const snug = tokenNum('--lh-snug', 1.35)
@@ -349,13 +435,20 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   const fsIndex = tokenNum('--fs-micro', 11)
   const fwTitle = tokenNum('--fw-semibold', 600)
   const fwIndex = tokenNum('--fw-regular', 400)
+  /* the mention form sets its own type: caption at medium, not body at semibold */
+  const fsCaption = tokenNum('--fs-caption', 12)
+  const fwMedium = tokenNum('--fw-medium', 500)
+  const fsText = quiet ? fsCaption : fsTitle
+  const fwText = quiet ? fwMedium : fwTitle
 
-  /* the shell is border-box, so its border and padding come out of the width */
-  const edge = (bordered ? stroke : M.plainBorder) * 2
-  const padX = bordered || plain
-    ? (wrap ? M.padXWrap : M.padXFlat) * 2
+  /* the shell is border-box, so its border and padding come out of the width. The mention
+     form is 1px and tighter on both axes — it is a citation, not an object. */
+  const edge = (quiet ? M.quietBorder : bordered ? stroke : M.plainBorder) * 2
+  const padX = quiet ? M.padXQuiet * 2
+    : bordered || plain ? (wrap ? M.padXWrap : M.padXFlat) * 2
     : M.dotPadLeft + M.dotPadRight
-  const padY = (bordered || plain ? (wrap ? M.padYWrap : M.padYFlat) : M.dotPadY) * 2
+  const padY = (quiet ? M.padYQuiet
+    : bordered || plain ? (wrap ? M.padYWrap : M.padYFlat) : M.dotPadY) * 2
 
   /* every flex child except the title, and the gap between each pair. The resize
      handles are position:absolute, so they are out of flow and take no width. */
@@ -370,7 +463,10 @@ export function chipSize(spec?: ChipSpec): ChipSize {
 
   const minW = s.minWidth === undefined ? M.minWidth : s.minWidth
   const maxW = s.maxWidth === undefined ? M.maxWidth : s.maxWidth
-  const oneLine = measure(s.title, fwTitle, fsTitle, 'ui')
+  /* on the mention form the word runs INLINE after the name, so it is part of the one line
+     the chip wants to be. On a full-rank chip it is its own row and costs height, not width. */
+  const oneLine = measure(s.title, fwText, fsText, 'ui')
+    + (optional && quiet ? measure(' (optional)', fwIndex, fsText, 'ui') : 0)
   /* measured LAST of the reads above, so ctx2d has been settled by the call */
   const measured = ctx2d !== false && ctx2d !== null
   const width = Math.max(minW, Math.min(maxW, Math.ceil(chrome + oneLine)))
@@ -379,26 +475,32 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   /* wrapping, the line box is --lh-snug on the shell, inherited unitless so each
      child multiplies its OWN size by it. Truncating, there is no line-height at
      all and CSS falls back to the font's normal metrics, which no canvas reports. */
-  const lh = wrap ? snug : M.normalLh
-  const lineH = fsTitle * lh
+  const lh = stacked || quiet ? snug : M.normalLh
+  const lineH = fsText * lh
   /* the height bound is spent on LINES, so the box never claims a height the
      drawn text does not fill */
   const room = s.maxHeight === undefined ? 0
     : Math.max(1, Math.floor((s.maxHeight - padY - edge) / lineH))
-  const titleLines = wrap ? Math.max(1, linesOf(s.title, titleColumn, fwTitle, fsTitle, 'ui', room)) : 1
+  const titleLines = wrap ? Math.max(1, linesOf(s.title, titleColumn, fwText, fsText, 'ui', room)) : 1
 
-  /* wrapping tops its furniture out (align-items: flex-start, each with its own
-     nudge down); truncating centres everything, so the row is just the tallest child */
-  const rows = [titleLines * lineH]
-  if (s.index) rows.push(fsIndex * lh + (wrap ? M.indexTop : 0))
-  if (s.deletable) rows.push(M.del + (wrap ? M.delTop : 0))
-  if (!bordered && !plain) rows.push(M.dot + (wrap ? M.dotTop : 0))
+  /* THE "(optional)" LINE IS PART OF THE TITLE'S COLUMN, not a fourth flex child: it is a
+     block inside the title span, so it stacks under the name rather than sitting beside it.
+     Full-rank only — on the mention form it is inline and already counted in the width. */
+  const optionalLine = optional && !quiet ? fsIndex * snug : 0
+
+  /* A stacked chip aligns on the name's first-line BASELINE and every other child either
+     sits on that baseline or opts out with a measured inset, so the row is still the tallest
+     child — but with no nudge on the step number, which baseline alignment makes exact. */
+  const rows = [titleLines * lineH + optionalLine]
+  if (s.index) rows.push(fsIndex * lh)
+  if (s.deletable) rows.push(M.del + (stacked ? M.delTop : 0))
+  if (!bordered && !plain) rows.push(M.dot + (stacked ? M.dotTop : 0))
 
   const height = Math.ceil(Math.max.apply(null, rows) + padY + edge)
   return { width, height, titleLines, titleColumn: Math.round(titleColumn * 100) / 100, measured }
 }
 
-export const ChipGeometry = { CHIP_METRICS, chipSize }
+export const ChipGeometry = { CHIP_METRICS, chipSize, CHIP_BORDER, chipBorder }
 
 export function NodeChip({
   title, index, domain, mark = 'dot', dim, optional, lit, note, wrap, onClick, onDelete,
@@ -411,8 +513,11 @@ export function NodeChip({
   /* the SAME table chipSize() above predicts from — read, never copied */
   const M = CHIP_METRICS
   const hue = DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)'
-  const bordered = mark === 'border'
+  const quiet = mark === 'border-2'
+  const bordered = mark === 'border' || quiet
   const plain = mark === 'none'
+  /* see ChipSpec.optional: a full-rank optional chip is two rows without wrapping */
+  const stacked = wrap || (optional && !quiet)
   /* drawn from the prop when there is one, from own state when there is not — and
      drawing follows `isSel` even without `selectable`, so a board that owns the whole
      selection can paint a chip picked without also handing it a gesture it must not have */
@@ -424,6 +529,19 @@ export function NodeChip({
     if (onSelectedChange) onSelectedChange(next)
   }
   const [hot, showX, hideX] = useRecede()
+  /* A SECOND HOVER STATE, AND IT HAS TO BE SEPARATE FROM `hot`. `useRecede` holds `hot` true
+     for a grace period after the pointer leaves, so a revealed ✕ does not vanish from under a
+     pointer travelling towards it. A FACE WASH has no such errand: it must drop the instant
+     you leave, or the chip sits lit beside the one you actually moved to. Same handlers, two
+     clocks — the control lingers, the wash does not. */
+  const [hov, setHov] = useState(false)
+  /* A CHIP WASHES ON HOVER ONLY IF IT IS SOMETHING TO DO. Most chips in this product are
+     being READ — a legend, a trail, an entry's ends, a rail of names — and feedback on those
+     promises an act that is not there. `onClick` or `selectable` is the whole test, the same
+     one `cursor` already uses below. `dim` never washes: off the resolved path is a statement
+     about the node, and lighting it up on the way past contradicts it. */
+  const interactive = !!(onClick || selectable)
+  const washed = interactive && hov && !dim
   const shell = useRef<HTMLSpanElement | null>(null)
   const given: SizeState | null = width === undefined && height === undefined ? null
     : { w: width || null, h: height || null }
@@ -445,10 +563,18 @@ export function NodeChip({
   return (
     <span
       ref={shell}
-      title={note || title}
+      /* the native tooltip is a STRING attribute, so a composed `title` cannot go in it —
+         which is why the contract says to pass `note` alongside a non-string title. Falling
+         back to `undefined` rather than stringifying: React would render "[object Object]"
+         into the attribute, and a tooltip that lies is worse than one that is absent. */
+      title={note || (typeof title === 'string' ? title : undefined)}
       onClick={() => { if (selectable) toggle(); if (onClick) onClick() }}
-      onMouseEnter={showX} onMouseLeave={hideX}
-      onFocus={showX} onBlur={hideX}
+      /* both clocks off the same four handlers — the control lingers (`showX`/`hideX` hold
+         `hot` through a grace period so a revealed ✕ stays reachable), the wash does not */
+      onMouseEnter={() => { showX(); setHov(true) }}
+      onMouseLeave={() => { hideX(); setHov(false) }}
+      onFocus={() => { showX(); setHov(true) }}
+      onBlur={() => { hideX(); setHov(false) }}
       style={{
         boxSizing: 'border-box',
         position: 'relative', display: 'inline-flex', gap: M.gap,
@@ -479,19 +605,55 @@ export function NodeChip({
            here because the ✕ carries its own alignSelf and `mark="border"` has no
            dot — a dot-form chip would need its marginTop revisited, which is the
            DS's call, not ours. */
-        alignItems: wrap ? 'baseline' : 'center',
+        /* ★ LOCAL, AND THE ONE LINE OF OB-027 THIS PORT DOES NOT TAKE VERBATIM. Upstream is
+           `size && size.h ? 'center' : (stacked ? 'baseline' : 'center')` — a told height still
+           switches the whole row to `center`. That is the E1 contradiction we reported on #74
+           in its original form, surviving the very fix that was meant to end it: the DS moved
+           the UNTOLD path from `flex-start` to `baseline` and left the TOLD path centring.
+           It matters here and nowhere else in the system, because A BOARD THAT COMPUTES ITS
+           OWN LAYOUT TELLS EVERY LEAF ITS HEIGHT — `AuthorRoad` asks `chipSize()` and hands
+           back `{w, h}` for every stop, so on our road the told path is the ONLY path.
+           Measured by shot-foldab against the title's first-line baseline, told column:
+           -2.64 at one line, +6.13 at two, +14.91 at three — the same drift the DS's own rig
+           measured for `center` (0.44 → 17.98) and disqualified it for. The natural column
+           reads 0.00 either way, which is why upstream's own specimens do not show it.
+           So `stacked` alone decides, and a told height only centres a chip that is NOT
+           stacked — where there is one line, centring in the extra room is right, and text
+           pinned to the top of a hand-set height would read as a layout accident. */
+        alignItems: stacked ? 'baseline' : 'center',
         width: (size && size.w) || undefined, height: (size && size.h) || undefined,
-        minWidth: 'min-content', minHeight: 'fit-content',
+        /* THE TEXT IS THE FLOOR — but only where the text cannot reflow. A WRAPPING CHIP
+           TAKES 0 INSTEAD, which is not an exception to that rule but the same rule where
+           breaking IS possible. As a flex item, `min-width: min-content` OVERRIDES
+           `max-width: 100%`, so a chip whose longest word is wider than its share of a row
+           spilled straight out of its container (the DS's connections pane, owner-reported
+           2026-08-19). At 0 the box takes its container's width and the title's own
+           `overflow-wrap: break-word` breaks the long word onto another line, with
+           `min-height: fit-content` growing the box to hold it. Nothing is hidden — the words
+           move instead of the border moving. A NOWRAP chip keeps the floor, because there
+           breaking is unavailable and the only thing that could give is the name itself.
+           THE DIAGNOSTIC, for next time: a wrapping failure looks like TEXT overflowing; a
+           min-content floor looks like the BOX overflowing, with the text already wrapped and
+           still not fitting. Resize is unaffected — the drag's floor is the `minWidth` PROP
+           inside useSizeDrag, not this. */
+        minWidth: wrap ? 0 : 'min-content', minHeight: 'fit-content',
         maxWidth: size && size.w ? 'none' : '100%',
         userSelect: 'none', WebkitUserSelect: 'none',
         /* no disc means no room reserved for one: 'none' takes the bordered padding,
            which is symmetric, rather than the dot form's narrower left inset */
-        padding: bordered || plain
+        padding: quiet ? `${M.padYQuiet}px ${M.padXQuiet}px`
+          : bordered || plain
           ? (wrap ? `${M.padYWrap}px ${M.padXWrap}px` : `${M.padYFlat}px ${M.padXFlat}px`)
           : `${M.dotPadY}px ${M.dotPadRight}px ${M.dotPadY}px ${M.dotPadLeft}px`,
-        borderRadius: wrap ? 'var(--radius-md)' : 'var(--radius-pill)',
-        /* LOCAL `optional`: dashed, hue kept — dashed always means conditional */
-        border: bordered
+        borderRadius: stacked || quiet ? 'var(--radius-md)' : 'var(--radius-pill)',
+        /* DASHED, NEVER A DIFFERENT COLOUR OR WEIGHT. The hue is the domain and the width is
+           what a connector matches (`chipBorder`), so neither is available to say `optional`;
+           the line's STYLE is the free channel. On the dot form the border is neutral and the
+           hue lives in the disc, so the neutral line is what dashes — same statement, same
+           place, whichever form the chip takes. */
+        border: quiet
+          ? M.quietBorder + 'px ' + (optional ? 'dashed ' : 'solid ') + (dim ? 'var(--border-hair)' : hue)
+          : bordered
           ? 'var(--stroke-rule) ' + (optional ? 'dashed ' : 'solid ') + (dim ? 'var(--border-hair)' : hue)
           : M.plainBorder + 'px ' + (optional ? 'dashed ' : 'solid ') + (dim ? 'var(--border-hair)' : 'var(--border-rule)'),
         /* takes no layout and leaves the chip's own border readable under it */
@@ -502,11 +664,27 @@ export function NodeChip({
            read as a different shape from a selected group, which has no border under
            its ring. 2px of paper between them and both strokes read as themselves. */
         outlineOffset: isSel ? 2 : undefined,
-        background: dim ? 'transparent' : 'var(--surface-raised)',
-        color: dim ? 'var(--text-3)' : 'var(--text-1)',
-        boxShadow: isSel ? 'var(--lift-1)' : lit ? 'var(--ring-linked), var(--lift-1)' : dim ? 'none' : 'var(--lift-1)',
-        fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)',
-        lineHeight: wrap ? 'var(--lh-snug)' : undefined,
+        /* THE FACE STEP, AND NOTHING ELSE. The border is not touched: it carries the DOMAIN,
+           and a hue is never a state in this system — nor is the geometry, the lift, or the
+           type. `quiet` has no face of its own, so its step is the plain wash over whatever it
+           sits on; a filled chip takes the RAISED token, because a wash cannot tint white.
+           Hover is deliberately a WEAKER VERSION OF SELECTED rather than a mark of its own, so
+           pointing at a chip previews what a click would do. And it lights the CHIP, never the
+           row around it — the DS tried a row-wide band in the connections pane on 2026-08-19
+           and pulled it the same day. Where the ROW is the object (a TreeRow) the row is right
+           to wash; a chip on a rail is the object. */
+        background: dim ? 'transparent'
+          : quiet ? (washed ? 'var(--surface-hover)' : 'transparent')
+          : washed ? 'var(--surface-hover-raised)' : 'var(--surface-raised)',
+        color: dim ? 'var(--text-3)' : quiet ? 'var(--text-2)' : 'var(--text-1)',
+        /* the second rank takes NO LIFT at all: a mention is not standing on the pane, and a
+           ring on it would claim it is the object rather than a reference to one */
+        boxShadow: quiet ? (isSel ? 'none' : lit ? 'var(--ring-linked)' : 'none')
+          : isSel ? 'var(--lift-1)' : lit ? 'var(--ring-linked), var(--lift-1)' : dim ? 'none' : 'var(--lift-1)',
+        fontFamily: 'var(--font-ui)',
+        fontSize: quiet ? 'var(--fs-caption)' : 'var(--fs-body)',
+        fontWeight: quiet ? 'var(--fw-medium)' : 'var(--fw-semibold)',
+        lineHeight: stacked || quiet ? 'var(--lh-snug)' : undefined,
         whiteSpace: wrap ? 'normal' : 'nowrap', overflow: 'hidden',
         /* 'inherit', not 'default': a chip inside a NodeChain sits on a slot that says
            move, and a chip that reasserted the plain arrow hid the one affordance the
@@ -516,13 +694,23 @@ export function NodeChip({
       }}
     >
       {bordered || plain ? null : (
-        <span style={{ width: M.dot, height: M.dot, borderRadius: 'var(--radius-pill)', flexShrink: 0, background: hue, marginTop: wrap ? M.dotTop : 0 }} />
+        <span style={{
+          width: M.dot, height: M.dot, borderRadius: 'var(--radius-pill)', flexShrink: 0,
+          background: hue,
+          /* opts OUT of baseline alignment — a box with no text has no baseline, so CSS
+             synthesizes one from its border box and the disc reads 0.83px low. Placed against
+             the first line's TOP instead, which does not move as the name wraps. */
+          alignSelf: stacked ? 'flex-start' : undefined,
+          marginTop: stacked ? M.dotTop : 0,
+        }} />
       )}
       {index ? (
         <span style={{
           flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)',
           fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-regular)',
-          color: 'var(--text-3)', marginTop: wrap ? M.indexTop : 0, opacity: dim ? 0.8 : 1,
+          /* NO VERTICAL CORRECTION: baseline alignment puts this on the name's own baseline,
+             which is what the old `marginTop: 1` was approximating by eye. */
+          color: 'var(--text-3)', opacity: dim ? 0.8 : 1,
         }}>{index}</span>
       ) : null}
       {/* 'break-word', not 'anywhere': anywhere breaks mid-word at the first
@@ -530,11 +718,30 @@ export function NodeChip({
           the border. Word boundaries first; only split a word that cannot fit. */}
       <span style={{
         minWidth: 0, flex: onDelete ? 1 : '0 1 auto',
+        /* block, so the name and the (optional) line below it are two rows rather than one
+           inline run with a block in the middle of it */
+        display: optional && !quiet ? 'block' : undefined,
         overflow: 'hidden',
+        textAlign: quiet ? 'center' : undefined,
         overflowWrap: wrap ? 'break-word' : undefined, wordBreak: wrap ? 'normal' : undefined,
         textOverflow: wrap ? 'clip' : 'ellipsis',
         paddingRight: onDelete ? M.titlePadRight : 0,
-      }}>{title}</span>
+      }}>{title}{optional && quiet ? (
+        <span style={{ fontStyle: 'italic', fontWeight: 'var(--fw-regular)', color: 'var(--text-3)' }}> (optional)</span>
+      ) : null}{optional && !quiet ? (
+        /* ITALIC AT REGULAR WEIGHT, and that pairing is not a taste call: Nunito is loaded at
+           `ital,wght 1,400` only, so an italic string asked for medium or semibold is
+           SYNTHESISED by the browser — a slanted upright, heavier and blurrier than the real
+           face beside it. Italic already carries one meaning here (the group's empty
+           description): a thing that is not there yet. An optional step is exactly that, so
+           the register is borrowed rather than overloaded.
+           A separate element, never part of `title`: `title` is the node's NAME, reproduced
+           verbatim, and a caller appending "(optional)" to it would be editing the name. */
+        <span style={{
+          display: 'block', fontSize: 'var(--fs-micro)', fontWeight: 'var(--fw-regular)',
+          fontStyle: 'italic', color: 'var(--text-3)', lineHeight: 'var(--lh-snug)',
+        }}>(optional)</span>
+      ) : null}</span>
       {resizable ? (
         <>
           <span aria-hidden="true" title="drag to resize · double-click to reset"
@@ -560,10 +767,23 @@ export function NodeChip({
             borderRadius: 'var(--radius-pill)', border: '1px solid transparent', background: 'transparent',
             color: 'var(--state-danger)', fontFamily: 'var(--font-ui)', fontSize: 10, lineHeight: 1,
             cursor: 'pointer', opacity: hot ? 1 : 0, pointerEvents: hot ? 'auto' : 'none',
-            alignSelf: wrap ? 'flex-start' : 'center', marginTop: wrap ? M.delTop : 0,
+            /* opts out of the row's baseline alignment and pins to the FIRST LINE, the same
+               reference the disc uses. `stacked`, not `wrap`: an optional chip is two lines
+               tall without wrapping and the ✕ belongs beside the name either way. */
+            alignSelf: stacked ? 'flex-start' : 'center', marginTop: stacked ? M.delTop : 0,
             transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
           }}>{'✕'}</button>
       ) : null}
     </span>
   )
 }
+
+/** WHAT A LINE MEETING THIS COMPONENT HAS TO MATCH, declared on the component so a container
+ *  can read it without knowing what the component is. Set to the DEFAULT form's weight, for
+ *  `<NodeChip title domain />` with no explicit `mark`: `props.mark` is undefined there, so a
+ *  container reading props alone would learn nothing and fall back to full rank — a 1.5 shaft
+ *  against a 1px dot-form border, which is the bug this whole thread is about. A container
+ *  reads `props.mark` FIRST (it is the more specific fact) and this second.
+ *  Anything new an arrow can meet should declare one; `VersionedGroup` does. Only a host's own
+ *  box, which cannot declare anything to us, passes a number itself. */
+NodeChip.joinBorder = CHIP_BORDER.dot
