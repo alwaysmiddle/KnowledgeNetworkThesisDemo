@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { PaneScroller, StepDot, TrailChip, wrapTip } from '@/ds'
+import { IconButton, PaneScroller, StepDot, TrailChip, wrapTip } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -98,9 +98,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
                 next ▶
               </button>
             )}
-            <button onClick={onDeactivateWalk} className="px-1.5 py-0.5 rounded border border-slate-300 text-slate-500 hover:bg-slate-100 shrink-0">
-              ✕
-            </button>
+            <IconButton onClick={onDeactivateWalk} title="stop this walk" />
           </div>
         )}
         {walk && (
