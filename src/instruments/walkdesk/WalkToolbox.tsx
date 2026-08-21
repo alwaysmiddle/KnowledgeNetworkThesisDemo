@@ -6,7 +6,7 @@
 // The ⏏ EXTRACT button is a stopgap home (#70): retiring the comparator columns
 // removed the drag-a-version-tab-out gesture that fed extractVariant, so the
 // capability rides here until it earns a real place in the card UI. It needs the
-// ACTIVE version, which is the road's `choices` — resolved in RailroadView and
+// ACTIVE version, which is the road's `choices` — resolved in WalkEditorView and
 // passed down as onExtract/canExtract, so this tray stays choices-free.
 //
 // Every bit of panel BEHAVIOUR — drag by the title or the bottom move-grip,

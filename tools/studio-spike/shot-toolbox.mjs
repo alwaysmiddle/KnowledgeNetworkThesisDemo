@@ -1,11 +1,11 @@
 // Verification for the Walk Editor Toolbox (#54): the floating tray of four
-// authoring actions that mounts on the railroad under the Plan preset
-// (src/instruments/walkdesk/WalkToolbox.tsx, mounted in RailroadView.tsx).
+// authoring actions that mounts on the walk editor under the Plan preset
+// (src/instruments/walkdesk/WalkToolbox.tsx, mounted in WalkEditorView.tsx).
 //
 // Same idiom as shots.mjs beside this file — own the vite lifecycle (backgrounded
 // dev servers die on this machine), msedge headless, collect pageerror/console
 // errors, exit nonzero on any. What this driver provokes:
-//   1. MOUNT — switch to the Plan preset; the railroad pane appears and the
+//   1. MOUNT — switch to the Plan preset; the walk editor pane appears and the
 //      toolbox (a FloatingPanel, role=dialog aria-label="Toolbox") rides on it
 //      with exactly four buttons carrying their alt-tag titles.
 //   2. ADD A NODE — clicking "add a node" inserts one fresh slot on the road
@@ -61,12 +61,12 @@ const fail = (msg) => {
 await page.goto(`http://localhost:${PORT}/`)
 await page.waitForTimeout(600)
 
-// ── 1. Plan preset → railroad + toolbox mount ──────────────────────────────
+// ── 1. Plan preset → walk editor + toolbox mount ───────────────────────────
 await page.locator('[aria-label="studio-preset-plan"]').click()
 await page.waitForTimeout(500)
 
-const railroad = page.locator('[data-railroad]')
-if (!(await railroad.isVisible())) fail('railroad pane not visible under the Plan preset')
+const walkEditor = page.locator('[data-walk-editor]')
+if (!(await walkEditor.isVisible())) fail('walk editor pane not visible under the Plan preset')
 
 // the toolbox rides ON the road; wake it (auto-hide fades on idle) by moving the
 // pointer over the road before we look, so it is opaque and interactive.

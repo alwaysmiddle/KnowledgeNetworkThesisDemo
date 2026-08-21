@@ -56,7 +56,7 @@ await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(500)
 
 const search = page.locator('[data-pal-search]')
-const road = page.locator('[data-railroad]')
+const road = page.locator('[data-walk-editor]')
 if ((await search.count()) !== 1) errors.push('palette: the search input did not mount in the Plan preset')
 
 // 0 — EMPTY STATE: nothing typed, no history yet → the cold prompt, zero result
@@ -112,8 +112,8 @@ await page.waitForTimeout(600) // let the look flight finish centering os
 const mbox = await map.boundingBox()
 // aim the drop at a specific road NODE (its onDragOver gives a before/after
 // caret), not the road centre — that lands on empty board where no caret shows.
-const target = await page.locator('[data-railroad] [data-rnode]').first().boundingBox()
-const beforeStops = await page.locator('[data-railroad] [data-rnode]').count()
+const target = await page.locator('[data-walk-editor] [data-rnode]').first().boundingBox()
+const beforeStops = await page.locator('[data-walk-editor] [data-rnode]').count()
 const cx = mbox.x + mbox.width / 2
 const cy = mbox.y + mbox.height / 2
 await page.mouse.move(cx, cy)
@@ -125,19 +125,19 @@ await page.screenshot({ path: OUT + '/p1c-drag-ghost-shape.png' }) // still over
 await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 })
 await page.waitForTimeout(60)
 // the road shows a live PREVIEW CARET under the ghost — driven by the road's own
-// onDragOver via synthetic events, no railroad refactor. data-rmark is the caret
+// onDragOver via synthetic events, no editor refactor. data-rmark is the caret
 // (a node's before/after band or a between-node gap slot).
-if ((await page.locator('[data-railroad] [data-rmark]').count()) === 0)
+if ((await page.locator('[data-walk-editor] [data-rmark]').count()) === 0)
   errors.push('map-drag: no preview caret on the road while the ghost hovers it')
 await page.screenshot({ path: OUT + '/p1d-drag-ghost.png' })
 await page.mouse.up()
 await page.waitForTimeout(180)
 if ((await page.locator('[data-dragghost]').count()) !== 0) errors.push('map-drag: the ghost lingered after release')
-if ((await page.locator('[data-railroad] [data-rmark]').count()) !== 0)
+if ((await page.locator('[data-walk-editor] [data-rmark]').count()) !== 0)
   errors.push('map-drag: the preview caret lingered on the road after release')
-if (!((await page.locator('[data-railroad] [data-rnode]').count()) > beforeStops))
+if (!((await page.locator('[data-walk-editor] [data-rnode]').count()) > beforeStops))
   errors.push('map-drag: dragging the selected cell onto the road added no stop')
-if ((await page.locator('[data-railroad] [data-rnode][data-node="os"]').count()) === 0)
+if ((await page.locator('[data-walk-editor] [data-rnode][data-node="os"]').count()) === 0)
   errors.push('map-drag: the dropped stop is not the dragged node (os)')
 // the map's own gestures survive: a double-click still dives a level — the
 // pointerdown gate yields ONLY on the selected cell, the rest of the map pans

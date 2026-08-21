@@ -1,5 +1,5 @@
 // Verification for the Walk Editor nested-node / subgroup fixes (#72), on the
-// railroad under the Plan preset. The draft SEED already paints the states these
+// walk editor under the Plan preset. The draft SEED already paints the states these
 // bugs live in — a fork (seed-sec, 2 versions), a plain group (seed-net), an
 // optional leaf (web-sockets-apis), and plain leaves — so no authoring is needed
 // to reach them; the Plan preset mount is enough.
@@ -58,7 +58,7 @@ await page.waitForTimeout(600)
 await page.locator('[aria-label="studio-preset-plan"]').click()
 await page.waitForTimeout(500)
 
-if (!(await page.locator('[data-railroad]').isVisible())) fail('railroad not visible under Plan')
+if (!(await page.locator('[data-walk-editor]').isVisible())) fail('walk editor not visible under Plan')
 await page.screenshot({ path: `${OUT}/nested-01-initial.png` })
 console.log('nested-01-initial.png taken (fork + group + optional leaf)')
 

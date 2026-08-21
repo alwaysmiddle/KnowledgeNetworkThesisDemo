@@ -166,7 +166,7 @@
      AUTHORED WALK, so an optional step painted with it would say the opposite of what it is.
      WHAT IT ACTUALLY IS, read from the two live call sites (2026-08-19): the border of a
      walk-tinted TOGGLE in its active state — `AuthorRoad.tsx:653` ("Optional" pressed) and
-     `RailroadView.tsx:115` ("optionals: bypassed"), both over `--accent-walk-wash` with
+     `WalkEditorView.tsx:115` ("optionals: bypassed"), both over `--accent-walk-wash` with
      `--text-walk` ink. That is a control in the walk family, not an optional anything, so the
      name is the thing that is wrong here. Nothing in THIS project reads it.
      Rename candidate: `--border-walk`, alongside `--border-rule` / `--border-frame`. Not done

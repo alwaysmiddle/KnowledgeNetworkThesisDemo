@@ -1,4 +1,4 @@
-// Verification for the DS-head merge on the Railroad's open container card (#91).
+// Verification for the DS-head merge on the Walk Editor's open container card (#91).
 // The card's head is now the DS VersionedGroup head — mono outline, display-font
 // title wrapping to two lines, an always-visible tally, the DescLine, and the DS
 // version picker with its drawn tick and caret.
@@ -64,7 +64,7 @@ await page.waitForTimeout(600)
 await page.locator('[aria-label="studio-preset-plan"]').click()
 await page.waitForTimeout(500)
 
-if (!(await page.locator('[data-railroad]').isVisible())) fail('railroad not visible under Plan')
+if (!(await page.locator('[data-walk-editor]').isVisible())) fail('walk editor not visible under Plan')
 await page.screenshot({ path: `${OUT}/cardhead-01-board.png` })
 console.log('cardhead-01-board.png taken (the whole road, DS heads throughout)')
 
@@ -246,7 +246,7 @@ await page.screenshot({ path: `${OUT}/cardhead-03-picker-open.png` })
 console.log('cardhead-03-picker-open.png taken (fork picker open, caret rotated)')
 
 await page.keyboard.press('Escape')
-await page.locator('[data-railroad]').click({ position: { x: 8, y: 200 } })
+await page.locator('[data-walk-editor]').click({ position: { x: 8, y: 200 } })
 await page.waitForTimeout(200)
 
 // ── the tally reads off the active version ─────────────────────────────────

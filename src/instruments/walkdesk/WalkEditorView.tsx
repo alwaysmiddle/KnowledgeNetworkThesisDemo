@@ -1,5 +1,18 @@
-// The Railroad (#21) — the surface you WRITE the plan on, and, parallel to it,
-// the flat route that plan projects to. One view, two lanes:
+// The WALK EDITOR (#21) — the surface you WRITE the plan on, and, parallel to it,
+// the flat route that plan projects to.
+//
+// WAS `RailroadView.tsx`, instrument id `railroad`, until 2026-08-20. The old
+// name was the DRAWING — a railroad diagram — and not the job. What this is, is
+// where a walk gets written. The line is kept because two dated notes in
+// `src/ds/PROVENANCE.json` cite the old filename, and a dated record is not a
+// thing to rewrite — it would then lie about its own moment. This is what makes
+// them resolve. `tools/walk-tiers-spike/RESULTS.md` is left alone for the same
+// reason: it records what was decided in July, under July's name.
+// The ROAD keeps its name throughout (`AuthorRoad`, `layoutRoad`,
+// `data-road-root`): the road is the drawing this editor hosts, which is a
+// different noun doing a different job.
+//
+// One view, two lanes:
 //
 //   the ROAD is the only view in the Studio that ever sees a branch. Forks fan
 //   out into labelled lanes that rejoin below, optionals wear a bypass rail, and
@@ -40,7 +53,7 @@ import { wrapTip } from '../../ds/chrome/IconButton'
  *  the pane, so it takes no width from the layout and the road never reflows. */
 const PREVIEW_W = 344
 
-export default function RailroadView({ bus }: { bus: Bus }) {
+export default function WalkEditorView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)
   const state = useAuthorDraft()
   const { choices, pickBranch, withOptionals, setWithOptionals } = useRoad()
@@ -134,10 +147,10 @@ export default function RailroadView({ bus }: { bus: Bus }) {
     // pane's --surface-paper shows through. Painting canopy here started the fill
     // INSIDE the pane's 20px corner arc with square corners, biting two square
     // notches of desk colour out of the rounded top where the content starts.
-    <div data-railroad className="h-full flex flex-col">
+    <div data-walk-editor className="h-full flex flex-col">
       <div className="shrink-0 px-2 py-1.5 border-b border-[var(--border-hair)]">
         <div className="text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
-          railroad — the road can fork and rejoin; ● picks the branch
+          walk editor — the road can fork and rejoin; ● picks the branch
         </div>
         {/* wraps rather than squeezes: with six controls in a pane this narrow,
             a no-wrap row shrank every button until its label broke in half. */}

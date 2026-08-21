@@ -32,7 +32,7 @@ export function NodeChip({ id, sync, dim, note }: { id: string; sync: HoverBindi
 }
 
 /** the flat route the bus would read at this expansion state, running TOP-DOWN
- * beside the railroad it projects (#21). It was a wrapping bottom strip while it
+ * beside the walk editor it projects (#21). It was a wrapping bottom strip while it
  * lived on the desk; parallel to the road it reads as what it is — the same walk
  * in the same direction, with the branching resolved away. That parallel is the
  * whole point: you can put a finger on a fork above and see which stops survived
