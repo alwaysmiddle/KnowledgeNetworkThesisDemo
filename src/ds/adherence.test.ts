@@ -100,7 +100,7 @@ describe('DS PaneHeader rule 2 — a pane body paints no background', () => {
   }
 
   const BG = /\bbg-(?!transparent\b)[a-z]+(?:-\d{2,3})?(?:\/\d+)?\b/
-  // an inline `background` counts too. MapView:528 sets one and carries no
+  // an inline `background` counts too. MapView:530 sets one and carries no
   // bg-* class at all — a className-only scan called that pane clean, and only a
   // computed-style read off the running page caught it.
   // the whitespace lives INSIDE the lookahead on purpose: written as `:\s*(?!…)`
