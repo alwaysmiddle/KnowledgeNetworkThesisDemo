@@ -9,6 +9,7 @@
 
 import { useMemo, useState } from 'react'
 
+import { PaneCanvas } from '@/ds'
 import { byId, domainOf, DOMAIN_COLOR, domainIds, edges, topicsUnder } from '../corpus/graph'
 import {
   FLAT_W,
@@ -87,7 +88,7 @@ export default function ContoursView() {
       : null
 
   return (
-    <div className="relative h-full bg-slate-50">
+    <PaneCanvas>
       <svg viewBox={`-40 -40 ${FLAT_W + 80} ${FLAT_H + 80}`} className="w-full h-full" onClick={() => setPinned(null)}>
         <EdgeMarkers />
 
@@ -188,6 +189,6 @@ export default function ContoursView() {
           </>
         )}
       </div>
-    </div>
+    </PaneCanvas>
   )
 }

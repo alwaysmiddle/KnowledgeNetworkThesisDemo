@@ -25,6 +25,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
+import { PaneScroller } from '@/ds'
 import { byId, nodes, pathTo } from '../../corpus/graph'
 import { DomainDot } from '../../ds/graph/DomainDot'
 import { domainCodeOf } from '../../model/domaincode'
@@ -181,7 +182,7 @@ export default function Palette({
   }
 
   return (
-    <div className="min-w-0 flex flex-col bg-white">
+    <div className="min-w-0 flex flex-col">
       <div className="shrink-0 px-2 py-1.5 border-b border-slate-100">
         <div className="text-[10px] font-bold text-slate-500 mb-1">search the corpus — drag a hit onto the road, or + to append</div>
         <input
@@ -214,7 +215,7 @@ export default function Palette({
         />
       </div>
 
-      <div className="overflow-auto py-1 max-h-[42vh]">
+      <PaneScroller style={{ padding: '4px 0', maxHeight: '42vh' }}>
         {!ql ? (
           <RecentsEmptyState recent={recent} onPick={setQ} onForget={removeRecent} />
         ) : hits.length === 0 ? (
@@ -281,7 +282,7 @@ export default function Palette({
             })}
           </div>
         )}
-      </div>
+      </PaneScroller>
     </div>
   )
 }

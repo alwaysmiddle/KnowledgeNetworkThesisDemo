@@ -23,7 +23,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { PaneHeader, wrapTip } from '@/ds'
+import { PaneHeader, PaneScroller, wrapTip } from '@/ds'
 import { drag, loadRect, resize, saveRect } from './floatingPanelRect'
 import type { Bounds, Rect, ResizeEdge, SizeLimits } from './floatingPanelRect'
 
@@ -215,7 +215,7 @@ export function FloatingPanel({
 
       {/* body — the consumer's content (a DS Toolbar, buttons, …); it owns the
           clip so the frame can stay overflow-visible for the straddling title. */}
-      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+      <PaneScroller>{children}</PaneScroller>
 
       {/* the SECOND drag affordance the spec names (#54): a move grip straddling
           the bottom-centre border, a twin of the title notch. z-index over the

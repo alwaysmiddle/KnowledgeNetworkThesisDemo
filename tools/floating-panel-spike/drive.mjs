@@ -75,12 +75,13 @@ await page.reload()
 await page.waitForTimeout(400)
 
 const panel = page.locator('[aria-label="Toolbox"]')
-// The drag handle is now the DS PaneHeader's legend title (OB-013): the panel's
-// hand-written copy of that hat is gone, and with it the aria-label this used to
-// address. PaneHeader offers a host no stable hook of its own, so we locate the
-// title by its text. Pointer-down on the text span bubbles to the grab span that
-// carries onGrabStart, so a press anywhere on the title still begins the move.
-const handle = page.locator('[aria-label="Toolbox"] span').filter({ hasText: /^Toolbox$/ }).last()
+// The drag handle is the DS PaneHeader's legend title (OB-013): the panel's
+// hand-written copy of that hat is gone, and with it the aria-label this used
+// to address. OB-023 gave PaneHeader a stable hook of its own — data-grab on
+// the grabbable title's own span — so this locates the handle by that
+// attribute rather than by the title's text, which breaks the moment the
+// panel's name changes.
+const handle = page.locator('[aria-label="Toolbox"] [data-grab]')
 const seCorner = page.locator('[aria-label="Toolbox"] [aria-label="floating-panel-resize-se"]')
 const wEdge = page.locator('[aria-label="Toolbox"] [aria-label="floating-panel-resize-w"]')
 const hostMove = page.locator('[aria-label="host-move"]')

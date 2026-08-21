@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { EdgeDash, EdgeEntry, EdgeLegend, LeafMark, NodeRail, RailStop } from '@/ds'
+import { EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NodeRail, RailStop } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -58,5 +58,22 @@ describe('ported but not adopted DS components', () => {
   // screen has chosen to draw the mark yet, which is a design call, not a blocker.
   it('LeafMark — ported and unblocked (#89 closed); no screen draws it yet', () => {
     expect(typeof LeafMark).toBe('function')
+  })
+
+  // OB-039 (#126) named both of these as exactly the gap this file exists to catch:
+  // "Pane, PaneScroller and IconButton all became unconsumed exports the day after
+  // this file was written and none was added." Pane/PaneScroller are adopted as of
+  // #126 (StudioView, FloatingPanel, AuthorRoad, most instruments); IconButton is
+  // still only rendered from inside other DS components (PaneHeader's close
+  // control, VersionedGroup's fold/ungroup, NodeRail's expand/collapse acts) and
+  // has no app-code importer of its own. Grip is new in #126 and in the same
+  // position — Pane and PaneHeader place it, and no host file should render it
+  // directly (its own docblock says so).
+  it('IconButton — no app-code importer; rendered only from inside other DS components', () => {
+    expect(typeof IconButton).toBe('function')
+  })
+
+  it('Grip — ported (#126); Pane/PaneHeader place it, no direct app importer', () => {
+    expect(typeof Grip).toBe('function')
   })
 })

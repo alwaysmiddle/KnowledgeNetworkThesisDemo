@@ -6,6 +6,7 @@
 // It owns only its drill path. The road it reads comes from presented.ts and is
 // not the desk's yet — see that file for why, and #14 for the wire.
 
+import { PaneScroller } from '@/ds'
 import LayerStack from './LayerStack'
 import { useDrill, PRESENTED_ROAD } from './presented'
 import { useHover } from '../../studio/bus'
@@ -16,10 +17,10 @@ export default function WalkStackView({ bus }: { bus: Bus }) {
   const { path, pick } = useDrill()
 
   return (
-    <div data-walkstack className="h-full flex flex-col bg-slate-50/40">
-      <div className="flex-1 min-h-0 overflow-auto">
+    <div data-walkstack className="h-full flex flex-col">
+      <PaneScroller>
         <LayerStack stops={PRESENTED_ROAD} path={path} pick={pick} sync={sync} />
-      </div>
+      </PaneScroller>
     </div>
   )
 }

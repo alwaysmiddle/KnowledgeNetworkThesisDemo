@@ -13,6 +13,7 @@
 
 import type { ReactNode } from 'react'
 
+import { PaneCanvas } from '@/ds'
 import { EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { EDGE_TYPES } from '../model/nav'
@@ -56,6 +57,13 @@ export interface Instrument {
    * its own content and hands the slack to its stack-mates — a search pane that
    * is empty most of the time should not reserve half a column of white space. */
   stackGrow?: boolean
+  /** which of the two shapes the pane's BODY is (DS `Pane.scroll`). `'y'` (default):
+   * the instrument returns bare content and `Pane` supplies its own `PaneScroller`.
+   * `'none'`: the instrument owns a chrome row above its own scrolling or cropping
+   * region (or has no scroll of its own at all) and renders `PaneScroller` /
+   * `PaneCanvas` itself — set this whenever the instrument's root would otherwise
+   * be double-wrapped in two nested scrollers. */
+  body?: 'y' | 'none'
   /** the pane's BODY. The title bar and the ✕ are the shell's job, not the
    * instrument's — which is why an instrument that reads nothing from the bus
    * (Unfold, Contours, EVoC) simply does not take it. */
@@ -80,6 +88,7 @@ const VIEWS = [
     family: 'walks',
     slot: 'strip',
     height: 240,
+    body: 'none',
     render: (bus) => <WalkView bus={bus} />,
   },
   {
@@ -95,6 +104,7 @@ const VIEWS = [
     // grows to a capped, scrollable list. Either way the document below it takes
     // the room the old even split wasted (#28 feedback).
     stackGrow: false,
+    body: 'none',
     render: (bus) => <WalkPaletteView bus={bus} />,
   },
   {
@@ -105,6 +115,7 @@ const VIEWS = [
     label: 'Walk·Editor',
     family: 'walks',
     slot: 'column',
+    body: 'none',
     render: (bus) => <WalkEditorView bus={bus} />,
   },
   {
@@ -115,6 +126,7 @@ const VIEWS = [
     label: 'Walk·Columns',
     family: 'walks',
     slot: 'column',
+    body: 'none',
     render: (bus) => <WalkColumnsView bus={bus} />,
   },
   {
@@ -126,6 +138,7 @@ const VIEWS = [
     family: 'walks',
     slot: 'column',
     flex: { fixed: 372 },
+    body: 'none',
     render: (bus) => <WalkStackView bus={bus} />,
   },
   {
@@ -133,6 +146,7 @@ const VIEWS = [
     label: 'Unfold',
     family: 'maps',
     slot: 'column',
+    body: 'none',
     render: () => <UnfoldView />,
   },
   {
@@ -140,6 +154,7 @@ const VIEWS = [
     label: 'Unfold·Graph',
     family: 'maps',
     slot: 'column',
+    body: 'none',
     render: (bus) => <UnfoldGraphView bus={bus} />,
   },
   {
@@ -147,6 +162,7 @@ const VIEWS = [
     label: 'Contours',
     family: 'maps',
     slot: 'column',
+    body: 'none',
     render: () => <ContoursView />,
   },
   {
@@ -154,6 +170,7 @@ const VIEWS = [
     label: 'Clusters',
     family: 'maps',
     slot: 'column',
+    body: 'none',
     render: () => <ClustersView />,
   },
   {
@@ -169,10 +186,11 @@ const VIEWS = [
     label: 'Connections',
     family: 'reading',
     slot: 'column',
+    body: 'none',
     render: (bus) => (
-      <div className="h-full overflow-hidden">
+      <PaneCanvas>
         <ConnectionsPane bus={bus} />
-      </div>
+      </PaneCanvas>
     ),
   },
   {
@@ -187,11 +205,7 @@ const VIEWS = [
     label: 'Neighborhood',
     family: 'reading',
     slot: 'column',
-    render: (bus) => (
-      <div className="h-full overflow-auto px-2 py-1">
-        <NeighborhoodPanel bus={bus} />
-      </div>
-    ),
+    render: (bus) => <NeighborhoodPanel bus={bus} />,
   },
   {
     id: 'trail',

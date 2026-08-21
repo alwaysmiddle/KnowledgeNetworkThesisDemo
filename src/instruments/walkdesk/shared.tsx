@@ -5,7 +5,7 @@
 // the Studio has the real DocumentPanel.
 
 import { byId, domainOf } from '../../corpus/graph'
-import { NodeChip as DsNodeChip, type DomainCode } from '@/ds'
+import { NodeChip as DsNodeChip, PaneScroller, type DomainCode } from '@/ds'
 import type { RouteEntry } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
 
@@ -47,36 +47,38 @@ export function FringeRail({ entries, sync }: { entries: RouteEntry[]; sync: Hov
   // callback is a render-time mutation, which the compiler rightly rejects.
   const stepAt = (i: number) => entries.slice(0, i + 1).filter((e) => e.kind !== 'group').length
   return (
-    <div className="h-full min-h-0 flex flex-col bg-slate-50/80" data-fringe-count={entries.length}>
+    <div className="h-full min-h-0 flex flex-col" data-fringe-count={entries.length}>
       <div className="shrink-0 px-2 py-1.5 border-b border-slate-100">
         <div className="text-[10px] font-bold text-slate-500 leading-tight">projected route</div>
         <div className="text-[9.5px] text-slate-400 leading-tight">
           the flat `route` the bus would read · {entries.length} entries
         </div>
       </div>
-      <ol className="flex-1 min-h-0 overflow-auto px-1.5 py-1.5 flex flex-col gap-1">
-        {entries.map((e, i) => {
-          if (e.kind === 'group')
+      <PaneScroller style={{ padding: '6px' }}>
+        <ol className="flex flex-col gap-1">
+          {entries.map((e, i) => {
+            if (e.kind === 'group')
+              return (
+                <li key={`${i}-${e.key}`} className="flex items-center gap-1">
+                  <span className="w-4 shrink-0" />
+                  <span className="min-w-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dashed border-amber-400 bg-amber-50 text-[10.5px] text-amber-700">
+                    <span className="truncate">⊞ {e.title}</span>
+                    <span className="text-amber-500/70 shrink-0">{e.visits}</span>
+                  </span>
+                </li>
+              )
+            const revisit = seen.has(e.id)
+            seen.add(e.id)
             return (
-              <li key={`${i}-${e.key}`} className="flex items-center gap-1">
-                <span className="w-4 shrink-0" />
-                <span className="min-w-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dashed border-amber-400 bg-amber-50 text-[10.5px] text-amber-700">
-                  <span className="truncate">⊞ {e.title}</span>
-                  <span className="text-amber-500/70 shrink-0">{e.visits}</span>
-                </span>
+              <li key={`${i}-${e.id}`} className="flex items-center gap-1">
+                <span className="w-4 shrink-0 text-right text-[9px] text-slate-300 tabular-nums">{stepAt(i)}</span>
+                <NodeChip id={e.id} sync={sync} note={e.note} />
+                {revisit && <span className="text-[10px] text-slate-400 shrink-0">↺</span>}
               </li>
             )
-          const revisit = seen.has(e.id)
-          seen.add(e.id)
-          return (
-            <li key={`${i}-${e.id}`} className="flex items-center gap-1">
-              <span className="w-4 shrink-0 text-right text-[9px] text-slate-300 tabular-nums">{stepAt(i)}</span>
-              <NodeChip id={e.id} sync={sync} note={e.note} />
-              {revisit && <span className="text-[10px] text-slate-400 shrink-0">↺</span>}
-            </li>
-          )
-        })}
-      </ol>
+          })}
+        </ol>
+      </PaneScroller>
     </div>
   )
 }

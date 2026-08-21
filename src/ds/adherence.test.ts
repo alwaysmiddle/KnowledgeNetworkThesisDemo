@@ -79,25 +79,16 @@ const show = (hits: Hit[]) => hits.map((h) => `${h.file}:${h.line}  ${h.text}`)
 // every `bg-white/95` chip floating over a canvas is correctly untouched, and it
 // SHOULD keep its background: it is not the body, it sits on top of one.
 describe('DS PaneHeader rule 2 — a pane body paints no background', () => {
-  // The un-migrated alt-visualizations (#69) are still on the cool slate palette
-  // and draw white overlay chips onto a slate canvas. Stripping the canvas there
-  // would leave near-white chips on near-white paper — a regression, not a fix.
-  // They come off this list as each instrument is migrated, never by widening it.
-  const MIGRATION_DEBT: Record<string, number> = {
-    'src/instruments/ContoursView.tsx': 1,
-    'src/instruments/ClustersView.tsx': 1,
-    'src/instruments/UnfoldGraphView.tsx': 1,
-    'src/instruments/UnfoldView.tsx': 2,
-    'src/instruments/WalkView.tsx': 2,
-    'src/instruments/walkdesk/WalkColumnsView.tsx': 1,
-    'src/instruments/walkdesk/WalkStackView.tsx': 1,
-    'src/instruments/walkdesk/shared.tsx': 1,
-    // not palette debt: the atlas paints #eef4f8 because that colour is its WATER
-    // — the map's own drawing, not chrome. Stripping it would leave the land
-    // floating on paper. It is listed because the rule cannot tell the two apart,
-    // and a body that means to paint should have to say so here. Raised on #108.
-    'src/instruments/MapView.tsx': 1,
-  }
+  // CLEARED by OB-039 (#126). Every debt this list ever carried is now either a
+  // PaneScroller/PaneCanvas body with no face of its own (ContoursView,
+  // ClustersView, UnfoldGraphView, UnfoldView, WalkView, WalkColumnsView,
+  // WalkStackView, walkdesk/shared.tsx) or a PaneCanvas with `face="none"`
+  // drawing its own field on purpose (MapView's water, #eef4f8 — the one entry
+  // that was never really debt, just a rule this scan could not tell apart from
+  // it until PaneCanvas existed to say so explicitly). Kept as an empty ratchet
+  // rather than deleted: a future instrument re-introducing a painted `h-full`
+  // body will show up here again, at 1, not silently.
+  const MIGRATION_DEBT: Record<string, number> = {}
 
   const BG = /\bbg-(?!transparent\b)[a-z]+(?:-\d{2,3})?(?:\/\d+)?\b/
   // an inline `background` counts too. MapView:530 sets one and carries no

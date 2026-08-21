@@ -10,6 +10,7 @@
 // Everything is laid out arithmetically (fixed box/column sizes), so the
 // SVG arrows and edges need no DOM measurement.
 
+import { PaneScroller } from '@/ds'
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { columnsFor } from './columns'
 import { isBox, isLeaf, visitCount } from './mockwalk'
@@ -43,7 +44,7 @@ export default function WalkColumns({
   const height = TOP + Math.max(...cols.map((c) => c.stops.length), 1) * (BOXH + VGAP) + 20
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto">
+    <PaneScroller>
       <div className="relative" style={{ width, height }}>
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height}>
           <defs>
@@ -145,6 +146,6 @@ export default function WalkColumns({
           </div>
         ))}
       </div>
-    </div>
+    </PaneScroller>
   )
 }
