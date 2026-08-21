@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { useClipped } from './IconButton'
+
 import { DOMAIN_TOKEN } from '../graph/vocab'
 import type { DomainCode } from '../graph/vocab'
 
@@ -21,6 +23,9 @@ export interface AppHeaderProps {
 }
 
 export function AppHeader({ brand = 'P.Kt', product, corpusLine, focus, children }: AppHeaderProps) {
+  /* the corpus line is the header's one clipping string — it sits between a fixed
+     wordmark and a flexible spacer, so it is the piece that gives way first */
+  const corpusClip = useClipped<HTMLSpanElement>(corpusLine)
   return (
     <div
       style={{
@@ -38,7 +43,7 @@ export function AppHeader({ brand = 'P.Kt', product, corpusLine, focus, children
         <span style={{ fontFamily: 'var(--font-display)', fontWeight: 'var(--fw-bold)', fontSize: 'var(--fs-title)', color: 'var(--text-1)' }}>{product}</span>
       </span>
       {corpusLine ? (
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{corpusLine}</span>
+        <span {...corpusClip} style={{ fontSize: 'var(--fs-caption)', color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{corpusLine}</span>
       ) : null}
       <span style={{ flex: 1 }} />
       {focus ? (

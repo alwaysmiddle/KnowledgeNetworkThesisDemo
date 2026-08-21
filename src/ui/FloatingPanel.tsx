@@ -23,7 +23,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { PaneHeader } from '@/ds'
+import { PaneHeader, wrapTip } from '@/ds'
 import { drag, loadRect, resize, saveRect } from './floatingPanelRect'
 import type { Bounds, Rect, ResizeEdge, SizeLimits } from './floatingPanelRect'
 
@@ -222,7 +222,7 @@ export function FloatingPanel({
           's' resize strip so the centre moves and the flanks still resize. */}
       <div
         aria-label="floating-panel-move"
-        title="drag to move"
+        title={wrapTip('drag to move')}
         onPointerDown={(e) => beginGesture(e, 'move')}
         style={{ position: 'absolute', left: '50%', bottom: 0, zIndex: 3, transform: 'translate(-50%, 50%)', display: 'grid', placeItems: 'center', width: 18, height: 14, borderRadius: 'var(--radius-pill)', background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', color: 'var(--text-3)', cursor: 'move' }}
       >

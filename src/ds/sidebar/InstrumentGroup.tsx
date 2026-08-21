@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { caretStyle } from '../nav/TreeRow'
+import { useClipped } from '../chrome/IconButton'
 
 /** A family of instruments in the palette. Collapsible, and it reports how many
  *  of its members are on screen so a folded group still tells you something.
@@ -47,6 +48,9 @@ export function FamilyColumn(labels: string[]): string {
 
 export function InstrumentGroup({ label, open = true, onToggle, count = 0, labelWidth = 76, children }: InstrumentGroupProps) {
   const [hot, setHot] = useState(false)
+  /* the family head is `flex: 0 1 auto` against a count badge, so it is the half of
+     the row that gives way — and `labelWidth` is a floor, not a guarantee */
+  const labelClip = useClipped<HTMLSpanElement>(label)
   return (
     <div>
       <button
@@ -84,6 +88,7 @@ export function InstrumentGroup({ label, open = true, onToggle, count = 0, label
           <span style={caretStyle(open)} />
         </span>
         <span
+          {...labelClip}
           style={{
             flex: '0 1 auto',
             minWidth: labelWidth,

@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
-import { useRecede } from '../chrome/IconButton'
+import { useRecede, wrapTip } from '../chrome/IconButton'
+
+/** the one string the three resize grips share. Three copies of a literal is three
+ *  chances to reword one of them, and a tooltip that says a slightly different
+ *  thing on each edge of the same box reads as three different controls. */
+const RESIZE_TIP = 'drag to resize · double-click to reset'
 
 /** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
  *  WEIGHT OF WHAT IT CONNECTS AND NEVER ABOVE IT. The nodes are the objects; a line
@@ -567,7 +572,7 @@ export function NodeChip({
          which is why the contract says to pass `note` alongside a non-string title. Falling
          back to `undefined` rather than stringifying: React would render "[object Object]"
          into the attribute, and a tooltip that lies is worse than one that is absent. */
-      title={note || (typeof title === 'string' ? title : undefined)}
+      title={wrapTip(note || (typeof title === 'string' ? title : undefined)) || undefined}
       onClick={() => { if (selectable) toggle(); if (onClick) onClick() }}
       /* both clocks off the same four handlers — the control lingers (`showX`/`hideX` hold
          `hot` through a grace period so a revealed ✕ stays reachable), the wash does not */
@@ -578,48 +583,36 @@ export function NodeChip({
       style={{
         boxSizing: 'border-box',
         position: 'relative', display: 'inline-flex', gap: M.gap,
-        /* ★ LOCAL: `wrap` WINS OVER A TOLD HEIGHT. The DS centres the row whenever
-           a height is set — and then nudges every piece of furniture DOWN when `wrap`
-           is on: the dot by M.dotTop, the index by M.indexTop, the ✕ by M.delTop with
-           an `alignSelf: 'flex-start'` of its own. Those nudges are corrections for a
-           TOP-aligned row, so under a told height the two mechanisms contradict inside
-           one chip: the container centres, the ✕'s own alignSelf still tops out (it
-           outranks alignItems), and the nudges push the rest further from where either
-           rule wanted them. The road TELLS every leaf its height, so on the board that
-           is every wrapped chip. `wrap` means the name reads DOWN from its first line
-           — the DS's own contract says "its dot aligns to the first line, and the box
-           grows down" — and a told height is room at the BOTTOM of that. Upstream
-           verbatim as of the 2026-08-16 source; to report on drift-log #74.
+        /* A STACKED CHIP ALIGNS ON THE NAME'S FIRST-LINE BASELINE, told a height or
+           not. This was OURS first — reported as OB-027, adopted by the DS verbatim
+           on 2026-08-19 and handed back as OB-035 — so the line is unchanged and it
+           is no longer a deviation. What follows is why it is the rule, kept because
+           both alternatives are what a flex row reaches for first.
 
-           AND THE DESTINATION IS `baseline`, not `flex-start`. Neither of the DS's
-           two branches puts the step number on the title's line, because the two
-           spans have different line boxes — --fs-micro 11 × --lh-snug is 14.85,
-           --fs-body 13 × --lh-snug is 17.55 — and no top- or centre-alignment makes
-           two unequal boxes share a baseline. Measured against the title's FIRST
-           line, which is the line the number belongs on: flex-start is a constant
-           -3px (the number rides high on every chip, wrapped or not); center is
-           -2.14 at one line and DRIFTS with the block, +6.63 at two and +15.41 at
-           three; `baseline` is 0.00 at one, two and three lines, told and natural
-           alike. That is what baseline alignment is for, and it is what the
-           contract already describes ("its dot aligns to the first line"). Safe
-           here because the ✕ carries its own alignSelf and `mark="border"` has no
-           dot — a dot-form chip would need its marginTop revisited, which is the
-           DS's call, not ours. */
-        /* ★ LOCAL, AND THE ONE LINE OF OB-027 THIS PORT DOES NOT TAKE VERBATIM. Upstream is
-           `size && size.h ? 'center' : (stacked ? 'baseline' : 'center')` — a told height still
-           switches the whole row to `center`. That is the E1 contradiction we reported on #74
-           in its original form, surviving the very fix that was meant to end it: the DS moved
-           the UNTOLD path from `flex-start` to `baseline` and left the TOLD path centring.
-           It matters here and nowhere else in the system, because A BOARD THAT COMPUTES ITS
-           OWN LAYOUT TELLS EVERY LEAF ITS HEIGHT — `AuthorRoad` asks `chipSize()` and hands
-           back `{w, h}` for every stop, so on our road the told path is the ONLY path.
-           Measured by shot-foldab against the title's first-line baseline, told column:
-           -2.64 at one line, +6.13 at two, +14.91 at three — the same drift the DS's own rig
-           measured for `center` (0.44 → 17.98) and disqualified it for. The natural column
-           reads 0.00 either way, which is why upstream's own specimens do not show it.
-           So `stacked` alone decides, and a told height only centres a chip that is NOT
-           stacked — where there is one line, centring in the extra room is right, and text
-           pinned to the top of a hand-set height would read as a layout accident. */
+           The two spans have DIFFERENT LINE BOXES: the index at --fs-micro 11 x
+           --lh-snug is 14.85, the title at --fs-body 13 x --lh-snug is 17.55. No top-
+           or centre-alignment makes two unequal boxes share a line. Measured against
+           the title's FIRST line, which is the line the number belongs on at any
+           length: `flex-start` is a constant -3px, `center` is -2.14 at one line and
+           DRIFTS with the block (+6.63 at two, +15.41 at three), `baseline` is 0.00 at
+           one, two and three lines.
+
+           AND A TOLD HEIGHT GETS NO BRANCH OF ITS OWN. The first upstream fix read
+           `size && size.h ? 'center' : (stacked ? 'baseline' : 'center')`, which put
+           the drift straight back for any caller that sets a height — and that is
+           every caller here. A BOARD THAT LAYS ITSELF OUT ARITHMETICALLY TELLS EVERY
+           LEAF ITS HEIGHT: `AuthorRoad` asks `chipSize()` and hands back `{w, h}` for
+           every stop, so the told path is the ONLY path on our road, and the branch
+           upstream treated as the exception is our rule. Told column, measured by
+           shot-foldab: -2.64 / +6.13 / +14.91 at one, two and three lines — the same
+           drift their own rig had already disqualified `center` for. Their specimens
+           all size themselves, which is why none of them showed it.
+
+           A told height still centres a chip that is NOT stacked, and that is right:
+           one line in a hand-set box has real slack, and text pinned to its top reads
+           as a layout accident. Safe here because the X carries its own alignSelf and
+           `mark="border"` has no dot — a dot-form chip would need its marginTop
+           revisited, which is the DS's call. */
         alignItems: stacked ? 'baseline' : 'center',
         width: (size && size.w) || undefined, height: (size && size.h) || undefined,
         /* THE TEXT IS THE FLOOR — but only where the text cannot reflow. A WRAPPING CHIP
@@ -744,19 +737,19 @@ export function NodeChip({
       ) : null}</span>
       {resizable ? (
         <>
-          <span aria-hidden="true" title="drag to resize · double-click to reset"
+          <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
             onPointerDown={startSize('x')} onDoubleClick={resetSize('x')}
             style={{ position: 'absolute', top: 8, bottom: 8, right: 0, width: 7, zIndex: 2, background: 'transparent', cursor: 'ew-resize', touchAction: 'none' }} />
-          <span aria-hidden="true" title="drag to resize · double-click to reset"
+          <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
             onPointerDown={startSize('y')} onDoubleClick={resetSize('y')}
             style={{ position: 'absolute', left: 10, right: 10, bottom: 0, height: 7, zIndex: 2, background: 'transparent', cursor: 'ns-resize', touchAction: 'none' }} />
-          <span aria-hidden="true" title="drag to resize · double-click to reset"
+          <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
             onPointerDown={startSize('both')} onDoubleClick={resetSize('both')}
             style={{ position: 'absolute', right: 0, bottom: 0, width: 11, height: 11, zIndex: 3, background: 'transparent', cursor: 'nwse-resize', touchAction: 'none' }} />
         </>
       ) : null}
       {onDelete ? (
-        <button type="button" title="delete this node" aria-label="delete this node"
+        <button type="button" title={wrapTip('delete this node')} aria-label="delete this node"
           tabIndex={hot ? 0 : -1}
           onClick={(e) => { e.stopPropagation(); onDelete() }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--state-danger-wash)'; e.currentTarget.style.borderColor = 'var(--state-danger)'; e.currentTarget.style.color = 'var(--berry-600)' }}

@@ -20,6 +20,7 @@ import { domainCodeOf } from '../model/domaincode'
 import type { Bus } from '../studio/bus'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, HUB_IDS } from '../model/flat'
+import { wrapTip } from '../ds/chrome/IconButton'
 
 interface Choice {
   target: string
@@ -53,7 +54,7 @@ for (const e of edges) {
 const typeChips = (types: [EdgeType, number][]) => (
   <span className="flex items-center gap-0.5 shrink-0">
     {types.map(([t, n]) => (
-      <span key={t} title={EDGE_LABEL[t]} className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: EDGE_COLOR[t] }}>
+      <span key={t} title={wrapTip(EDGE_LABEL[t])} className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: EDGE_COLOR[t] }}>
         {n > 1 && <span className="sr-only">×{n}</span>}
       </span>
     ))}
@@ -142,7 +143,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
                 {/* the step card — part of the amber route */}
                 <button
                   onClick={() => setRoute(route.slice(0, i + 1))}
-                  title={i < route.length - 1 ? 'backtrack to this step' : 'current tip'}
+                  title={wrapTip(i < route.length - 1 ? 'backtrack to this step' : 'current tip')}
                   className={[
                     'shrink-0 rounded-lg border-2 border-amber-400 bg-amber-50 px-3 py-2 text-left',
                     i < route.length - 1 ? 'hover:bg-amber-100' : 'cursor-default',
@@ -183,7 +184,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
                         </span>
                         <span className="flex-1" />
                         {revisitAt >= 0 && revisitAt <= i && (
-                          <span className="text-slate-400 shrink-0" title={`already step ${revisitAt + 1} — topics interlink, walks can circle back`}>
+                          <span className="text-slate-400 shrink-0" title={wrapTip(`already step ${revisitAt + 1} — topics interlink, walks can circle back`)}>
                             ↺ {revisitAt + 1}
                           </span>
                         )}

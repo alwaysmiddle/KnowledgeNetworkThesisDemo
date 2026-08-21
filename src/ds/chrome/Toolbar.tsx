@@ -1,6 +1,8 @@
 import { Fragment, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { wrapTip } from './IconButton'
+
 /** One action in a toolbar group. Toolbar items are glyph-only by default; a
  *  `label` is the rare exception where a mark cannot carry the meaning. */
 export interface ToolbarItemSpec {
@@ -115,7 +117,7 @@ function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense }
   return (
     <button
       type="button"
-      title={title || label}
+      title={wrapTip(title || label) || undefined}
       disabled={disabled}
       onClick={onClick}
       onMouseEnter={() => setHot(true)}

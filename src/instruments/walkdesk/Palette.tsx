@@ -31,6 +31,7 @@ import { domainCodeOf } from '../../model/domaincode'
 import type { AuthorState } from './authordraft'
 import { DT } from './authordnd'
 import type { HoverBinding } from '../../studio/bus'
+import { wrapTip } from '../../ds/chrome/IconButton'
 
 // ── Recent searches — a module-level ring so it survives a remount within the
 // session (the pane can unmount when the preset changes). Last ~8, most recent
@@ -270,7 +271,7 @@ export default function Palette({
                       e.stopPropagation()
                       appendToRoad(id)
                     }}
-                    title="append to the end of the road"
+                    title={wrapTip('append to the end of the road')}
                     className="shrink-0 mt-0.5 w-4 h-4 flex items-center justify-center rounded text-[13px] leading-none text-slate-300 hover:bg-sky-100 hover:text-sky-600"
                   >
                     +
@@ -346,7 +347,7 @@ function RecentsEmptyState({
             <button
               data-pal-recent-del={r}
               onClick={() => onForget(r)}
-              title="forget this search"
+              title={wrapTip('forget this search')}
               className="shrink-0 pr-1.5 pl-0.5 py-0.5 text-slate-300 hover:text-rose-500"
             >
               ✕

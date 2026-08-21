@@ -44,6 +44,7 @@ import type { Band } from './authordnd'
 import { chosenIdx, chosenSteps, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
+import { wrapTip } from '../../ds/chrome/IconButton'
 
 const NODEW = 150
 // an UNSET slot is the road's own picker — a dashed pill round a <select> — so
@@ -661,7 +662,7 @@ export default function AuthorRoad({
             data-fly-group
             disabled={!state.canGroup}
             onClick={state.groupSelection}
-            title="group into stage"
+            title={wrapTip('group into stage')}
             className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--accent-primary)] bg-[var(--accent-primary-wash)] disabled:opacity-30 hover:bg-[var(--moss-100)]"
             style={{ color: 'var(--accent-primary-ink)' }}
           >
@@ -678,7 +679,7 @@ export default function AuthorRoad({
           disabled={!state.canOptional}
           aria-pressed={state.optionalActive}
           onClick={state.toggleOptionalSelection}
-          title={state.optionalActive ? 'optional — click to make required' : 'toggle optional'}
+          title={wrapTip(state.optionalActive ? 'optional — click to make required' : 'toggle optional')}
           className="text-[var(--fs-body)] px-2 py-1 rounded border disabled:opacity-30"
           style={state.optionalActive
             ? { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
@@ -695,7 +696,7 @@ export default function AuthorRoad({
           data-fly-del
           disabled={!state.canDelete}
           onClick={state.deleteSelection}
-          title="delete — a group takes everything inside it (undoable)"
+          title={wrapTip('delete — a group takes everything inside it (undoable)')}
           className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--border-rule)] disabled:opacity-30 hover:bg-[var(--surface-hover)]"
           style={{ color: 'var(--text-2)' }}
         >
@@ -871,11 +872,22 @@ export default function AuthorRoad({
                   {...gestures(pl)}
                   data-rstage-closed={s.key}
                   data-rord={pl.outline}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation()
-                    toggle(s.key!)
+                  /* REOPEN IS TAKEN IN THE CAPTURE PHASE, not as an onDoubleClick.
+                     A folded card's whole face is the DS card, and its title line
+                     stops React's synthetic dblclick from reaching any ancestor —
+                     measured on 2026-08-20, and NOT caused by the component's own
+                     handler: it still happened with that handler removed. The native
+                     event bubbles the whole way; only React's dispatch stops. So the
+                     gesture is taken before any descendant can be involved, which
+                     also stops it depending on the internals of a component the road
+                     does not own. `useCapture` is the third argument. */
+                  ref={(el) => {
+                    if (!el) return undefined
+                    const reopen = (e: MouseEvent) => { e.stopPropagation(); toggle(s.key!) }
+                    el.addEventListener('dblclick', reopen, true)
+                    return () => el.removeEventListener('dblclick', reopen, true)
                   }}
-                  title="double-click to open"
+                  title={wrapTip('double-click to open')}
                   // the DS's own box model applies inside (see [data-ds-host] in
                   // index.css): everything under this wrapper is the DS card
                   data-ds-host=""
@@ -1000,7 +1012,7 @@ export default function AuthorRoad({
                   if (marqueeDragRef.current) return
                   selectOn(pl)(e)
                 }}
-                title="drag to move"
+                title={wrapTip('drag to move')}
                 className={[
                   'group absolute z-[5] cursor-grab',
                   // #72 #2: only a TOP-LEVEL card lifts; a nested one is part of its

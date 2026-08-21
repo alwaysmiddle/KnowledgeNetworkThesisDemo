@@ -65,6 +65,7 @@ import { fitLabel, fitRegionLabel } from '../model/labelfit'
 import type { FitLine } from '../model/labelfit'
 import { parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
+import { wrapTip } from '../ds/chrome/IconButton'
 
 const VB_X = -40
 const VB_Y = -40
@@ -1199,7 +1200,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
               aria-label={`nested-level-${l}`}
               onClick={() => flyToLevel(l)}
               className={`px-2 py-0.5 ${level === l ? 'bg-slate-700 text-white font-semibold' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
-              title={`L${l} · ${name}`}
+              title={wrapTip(`L${l} · ${name}`)}
             >
               L{l}
             </button>
@@ -1207,7 +1208,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
         </div>
         <span className="text-slate-400">×{view.s.toFixed(2)}</span>
         <span className="w-px h-4 bg-slate-200" />
-        <span className="text-slate-400" title="every frame is a designed level — there is no in-between zoom">
+        <span className="text-slate-400" title={wrapTip('every frame is a designed level — there is no in-between zoom')}>
           wheel steps levels · double-click dives
         </span>
         {sel ? (

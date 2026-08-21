@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
+import { useClipped } from '../chrome/IconButton'
+
 /** THE selection bullet, drawn rather than typed for the same reason as the
  *  disclosure caret: ● and ○ are wildly different weights in the same face, sit
  *  off the text baseline, and rescale with the font. This is an 8px disc — filled
@@ -41,6 +43,7 @@ export interface InstrumentRowProps {
 
 export function InstrumentRow({ label, on, swatch, disabled, onClick }: InstrumentRowProps) {
   const [hot, setHot] = useState(false)
+  const labelClip = useClipped<HTMLSpanElement>(label)
   return (
     <button
       type="button"
@@ -72,7 +75,7 @@ export function InstrumentRow({ label, on, swatch, disabled, onClick }: Instrume
         <span style={bulletStyle(on)} />
       </span>
       {swatch ? <span style={{ width: 8, height: 8, borderRadius: 3, background: swatch, flexShrink: 0 }} /> : null}
-      <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span {...labelClip} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </button>
   )
 }

@@ -56,7 +56,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { SectionLabel } from '@/ds'
+import { SectionLabel, wrapTip } from '@/ds'
 
 import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
 import type { GEdge } from '../corpus/graph'
@@ -436,7 +436,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
         // the lit tint is the counterpart's OWN tree color — the row, the star
         // node and the map territory all say the same thing in the same hue
         style={lit ? { borderColor: colorOf(cp), background: fillOf(cp) } : undefined}
-        title={`${out ? anchorTitle : byId.get(cp)!.title} ${EDGE_LABEL[e.type]} ${out ? byId.get(cp)!.title : anchorTitle} — click to show on the map · double-click to re-root`}
+        title={wrapTip(`${out ? anchorTitle : byId.get(cp)!.title} ${EDGE_LABEL[e.type]} ${out ? byId.get(cp)!.title : anchorTitle} — click to show on the map · double-click to re-root`)}
       >
         <span className="text-slate-400 shrink-0">{out ? '→' : '←'}</span>
         <span className="truncate font-medium" style={{ color: colorOf(cp) }}>
@@ -470,7 +470,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                     onClick={() => lookAt(id)}
                     className="font-bold hover:underline"
                     style={{ color: colorOf(id) }}
-                    title={`${byId.get(id)!.title} — click to show on the map`}
+                    title={wrapTip(`${byId.get(id)!.title} — click to show on the map`)}
                   >
                     {byId.get(id)!.title}
                   </button>
@@ -484,7 +484,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                       lookAt(id)
                     }}
                     className="text-slate-500 hover:text-slate-800 hover:underline"
-                    title={`${byId.get(id)!.title} — re-root here; the map follows`}
+                    title={wrapTip(`${byId.get(id)!.title} — re-root here; the map follows`)}
                   >
                     {byId.get(id)!.title}
                   </button>
@@ -520,7 +520,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               disabled={!bus.canBack}
               onClick={bus.back}
               className="px-1.5 py-0.5 bg-white text-slate-600 enabled:hover:bg-slate-100 disabled:text-slate-300"
-              title="back — the previous focus"
+              title={wrapTip('back — the previous focus')}
             >
               ◀
             </button>
@@ -529,7 +529,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               disabled={!bus.canForward}
               onClick={bus.forward}
               className="px-1.5 py-0.5 bg-white text-slate-600 enabled:hover:bg-slate-100 disabled:text-slate-300 border-l border-slate-200"
-              title="forward — the focus you stepped back from"
+              title={wrapTip('forward — the focus you stepped back from')}
             >
               ▶
             </button>
@@ -541,11 +541,11 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                 aria-label={`children-mode-${m}`}
                 onClick={() => setMode(m)}
                 className={`px-1.5 py-0.5 ${mode === m ? 'bg-slate-700 text-white font-semibold' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
-                title={
+                title={wrapTip(
                   m === 'wheel'
                     ? 'internal — the containment wheel: what is INSIDE this node'
                     : "external — the topic's typed relations OUT to other topics, at their map bearings"
-                }
+                )}
               >
                 {m === 'wheel' ? 'internal' : 'external'}
               </button>
@@ -557,7 +557,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                 aria-label="children-open-all"
                 onClick={openAll}
                 className="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                title="open every container in the subtree"
+                title={wrapTip('open every container in the subtree')}
               >
                 open all
               </button>
@@ -566,7 +566,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                   aria-label="children-close-all"
                   onClick={() => setOpen(new Set())}
                   className="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                  title="back to direct children only"
+                  title={wrapTip('back to direct children only')}
                 >
                   close all
                 </button>
@@ -603,7 +603,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               onClick={() => onSelect(viaTopic)}
               className="not-italic font-semibold hover:underline"
               style={{ color: colorOf(viaTopic) }}
-              title={`re-root on ${byId.get(viaTopic)!.title}`}
+              title={wrapTip(`re-root on ${byId.get(viaTopic)!.title}`)}
             >
               {byId.get(viaTopic)!.title}
             </button>
@@ -624,11 +624,11 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                       aria-label={`ext-grain-${m}`}
                       onClick={() => setExtMode(m)}
                       className={`px-1.5 py-0.5 ${extMode === m ? 'bg-slate-700 text-white font-semibold' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
-                      title={
+                      title={wrapTip(
                         m === 'summary'
                           ? 'summary — one bundled arrow per other area, with an ×n count (matches the map)'
                           : 'detailed — every outside topic, one line per real link'
-                      }
+                      )}
                     >
                       {m}
                     </button>
@@ -1128,7 +1128,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                     // lit tint is the child's OWN tree color — the row, its wheel
                     // node and its map territory all say it in the same hue
                     style={lit ? { borderColor: colorOf(k.id), background: fillOf(k.id) } : undefined}
-                    title={`${byId.get(k.id)!.title} — click to show on the map · double-click to re-root`}
+                    title={wrapTip(`${byId.get(k.id)!.title} — click to show on the map · double-click to re-root`)}
                   >
                     <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: colorOf(k.id) }} />
                     <span className="truncate font-medium" style={{ color: colorOf(k.id) }}>
@@ -1181,7 +1181,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                       lit ? 'border-slate-400 font-semibold' : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50',
                     ].join(' ')}
                     style={lit ? { borderColor: colorOf(sn.id), background: fillOf(sn.id) } : undefined}
-                    title={`${byId.get(sn.id)!.title} — ${sn.n} link${sn.n === 1 ? '' : 's'} · click to show on the map · double-click to re-root`}
+                    title={wrapTip(`${byId.get(sn.id)!.title} — ${sn.n} link${sn.n === 1 ? '' : 's'} · click to show on the map · double-click to re-root`)}
                   >
                     <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: colorOf(sn.id) }} />
                     <span className="truncate font-medium" style={{ color: colorOf(sn.id) }}>
@@ -1192,7 +1192,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
                         <span
                           key={s.key}
                           className="flex items-center gap-0.5 text-[10px] text-slate-500"
-                          title={`${EDGE_LABEL[s.type]}${s.n > 1 ? ` ×${s.n}` : ''} · ${s.dir === 'out' ? 'outgoing' : s.dir === 'in' ? 'incoming' : 'both ways'}`}
+                          title={wrapTip(`${EDGE_LABEL[s.type]}${s.n > 1 ? ` ×${s.n}` : ''} · ${s.dir === 'out' ? 'outgoing' : s.dir === 'in' ? 'incoming' : 'both ways'}`)}
                         >
                           <span className="w-2 h-2 rounded-sm inline-block" style={{ background: EDGE_COLOR[s.type] }} />
                           {s.n > 1 && <span className="font-semibold">×{s.n}</span>}

@@ -1,10 +1,15 @@
-import React, { useState, useRef, useEffect, useContext, createContext } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useContext, createContext } from 'react'
 import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 import { caretStyle } from '../nav/TreeRow'
 import { bulletStyle } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
-import { IconButton, usePresence, useRecede } from '../chrome/IconButton'
+import { IconButton, useClipped, usePresence, useRecede, wrapTip } from '../chrome/IconButton'
+
+/** the one string the three resize grips share. Three copies of a literal is three
+ *  chances to reword one of them, and a tooltip that says a slightly different
+ *  thing on each edge of the same box reads as three different controls. */
+const RESIZE_TIP = 'drag to resize · double-click to reset'
 
 /* HOW DEEP AM I? Counted, not passed: a group cannot be told its depth by a caller that
    does not know how it is being composed, and every level has to step against its parent
@@ -292,34 +297,289 @@ export interface VersionedGroupProps {
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-function NameField({ value, onCommit, onCancel, size, weight, family, placeholder }: {
-  value: string; onCommit: (v: string) => void; onCancel: () => void
-  size?: string; weight?: string; family?: string; placeholder?: string
-}) {
-  const ref = useRef<HTMLInputElement | null>(null)
-  const [draft, setDraft] = useState(value)
-  useEffect(() => { const el = ref.current; if (el) { el.focus(); el.select() } }, [])
-  return (
-    <input ref={ref} value={draft} spellCheck={false}
-      onChange={(e) => setDraft(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
+/** THE CARET GOES WHERE THE POINTER WAS. Opening a line used to select all of it,
+ *  which is right for a field whose contents you are replacing and wrong for a line
+ *  you are correcting: a click halfway through a sentence means "here", and
+ *  select-all answers "start again", one keystroke from losing the text.
+ *
+ *  The click point is a viewport coordinate and it maps cleanly because NOTHING
+ *  MOVES between the click and the caret — a property of editing in place, not luck.
+ *  A field would have re-laid the text out first, which is why this could not have
+ *  been done with one.
+ *
+ *  `caretRangeFromPoint` is the Chrome spelling and `caretPositionFromPoint` the
+ *  standard one; if neither lands inside the element (an empty line, a click in its
+ *  trailing space) the caret goes to the END, never back to select-all. */
+function caretAt(el: HTMLElement, point: { x: number; y: number } | null): void {
+  const sel = window.getSelection()
+  if (!sel) return
+  const doc = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+  }
+  let range: Range | null = null
+  if (point) {
+    if (doc.caretRangeFromPoint) {
+      range = doc.caretRangeFromPoint(point.x, point.y)
+    } else if (doc.caretPositionFromPoint) {
+      const p = doc.caretPositionFromPoint(point.x, point.y)
+      if (p) { range = document.createRange(); range.setStart(p.offsetNode, p.offset) }
+    }
+    if (range && !el.contains(range.startContainer)) range = null
+  }
+  if (range) {
+    range.collapse(true)
+  } else {
+    range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+  }
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
+/** WHAT EDITING ADDS TO A LINE: a blue edge around the words, and almost nothing
+ *  else. No fill, no change of type or position — a caret in the accent, the clamp
+ *  released so the whole string is legible while it is being changed, and text
+ *  selection turned back on (the well disables it so dragging a label never paints
+ *  a selection).
+ *
+ *  THE EDGE IS AN OUTLINE, NOT A BORDER, and that distinction is why this can exist
+ *  at all. An outline paints outside the box without joining the layout: it cannot
+ *  grow the row, cannot shift the picker under it, and has no used border width to
+ *  cancel — which is exactly what three passes at a bordered `<input>` failed on
+ *  (a `1px` rule resolves to 0.667px on a scaled board, so the counter-margin was a
+ *  sub-pixel bet). A background would be the other half of a field and is
+ *  deliberately absent: the words stay on the surface they were read on.
+ *
+ *  Exported so a port reads what an open line differs by rather than reconstructing
+ *  it from prose — the same move as `RECEDE_LEAVE_MS`. Read it; do not spread it. */
+export const INLINE_EDIT_STYLE: React.CSSProperties = {
+  /* BLUE, ONE STEP BRIGHTER THAN SELECTION. `--state-editing` is `--pond-vivid` —
+     pond already means "the thing I am acting on", and the vivid step exists for
+     this one edge, because a transient outline has to be found at a glance where a
+     selection wash is read past. A named token rather than a reach into
+     `--state-selected`, whose name would then be lying on a line being typed into.
+     What keeps the two apart on screen is the step and the object: selection
+     outlines a chip or a card at 2px, this outlines a run of TEXT at 1px. */
+  outline: '1px solid var(--state-editing)', outlineOffset: 3,
+  /* THE ROOM AT THE ENDS IS ASYMMETRIC, because the row is. The head leaves exactly
+     4px between the index's last glyph and the title's first, so the whole left
+     inset has to fit inside it — the outline's own 3px offset is that inset, 1px
+     clear of the number, and there is no left padding at all. The right end takes
+     4px of padding handed straight back as an equal negative margin, so the wrap
+     width and the row's height are untouched. Widening the head's index gap to
+     balance the two ends is refused: that gap is published geometry
+     (`titleColumn`, and the description's indent reads the same expression), so a
+     transient editing state would be reshaping the resting card for every caller. */
+  boxSizing: 'content-box',
+  padding: '0 4px 0 0', margin: '0 -4px 0 0',
+  /* AND THE ROOM IS TAKEN OUTSIDE THE WRAP WIDTH, NOT OUT OF IT. `base.css` puts
+     everything in `border-box` and all three of these lines are capped at
+     `maxWidth: 100%`, so in border-box that 4px comes off the width the TEXT wraps
+     in: a name ending within 4px of the wrap point gained a line on the click that
+     opened it — and where the clamp already allowed two lines the card's height did
+     not change at all, so nothing reported it. `content-box` makes `maxWidth: 100%`
+     mean the text's 100% again. The rule: an in-place editor may not change the box
+     the text wraps in, and `box-sizing` is part of that box. */
+  borderRadius: 'var(--radius-xs)',
+  caretColor: 'var(--accent-primary)',
+  /* AND NOT THE FOCUS RING. `base.css` rings every `:focus-visible` element with
+     `--ring-focus` at a `--radius-sm` corner, and Chrome counts an editable element
+     as focus-visible even when a CLICK opened it — so an open line wore a second
+     edge from a global rule rather than from this file. A port hits this too: it
+     comes from the theme, so reading the component's own styles and concluding
+     there is no box is exactly the wrong check. */
+  boxShadow: 'none',
+  background: 'transparent',
+  cursor: 'text', userSelect: 'text', WebkitUserSelect: 'text',
+  /* pre-wrap so a trailing space under the caret does not collapse as it is typed */
+  whiteSpace: 'pre-wrap',
+  /* an emptied line is still one line tall, and still has to hold a caret */
+  minHeight: '1lh', minWidth: 8,
+  /* THE CLAMP COMES OFF WHILE EDITING. A display compromise has no business hiding
+     characters from the person typing them — the same rule that releases the height
+     clamp. This can grow the head for a name longer than its cap, which is the
+     TEXT's own doing and the one movement here that earns itself. */
+  maxHeight: 'none', overflow: 'visible',
+}
+
+interface InlineTextProps {
+  /** the true string — what an OPEN line always shows, and what commit compares against */
+  value: string
+  /** the resting, ellipsised form when the cap cut it (OB-033). Never shown while editing */
+  display?: string
+  /** the invitation drawn while the line is blank — an overlay, never text in the element */
+  placeholder?: string
+  editing: boolean
+  onOpen?: () => void
+  onCommit: (v: string) => void
+  onCancel: () => void
+  tooltip?: string
+  style: React.CSSProperties
+  /** what the OPEN line adds on top of `style` and the shared recipe */
+  editStyle?: React.CSSProperties
+  /** a caller whose open line fills its ROW writes the click point here instead */
+  pointRef?: React.MutableRefObject<{ x: number; y: number } | null>
+  /** Shift+Enter breaks the line. Prose only — a hand-typed break in a NAME is a
+   *  layout decision taken in the wrong place */
+  multiline?: boolean
+}
+
+/** EVERY EDITABLE STRING IN THE GROUP IS THIS: the line itself, made editable in
+ *  place. No field, no box — see `INLINE_EDIT_STYLE` for the whole of what changes.
+ *
+ *  The short version of why the `<input>` this replaces could not be saved: a
+ *  field's box cannot be made to match the line it replaces (its border resolves
+ *  sub-pixel, so the counter-margin is a bet), and NO SINGLE-LINE FIELD CAN HOLD A
+ *  STRING THAT WRAPS — which the description, the title and a version name all do.
+ *  Clicking a wrapped description collapsed its row by 14.46px and jumped back on
+ *  blur. The length of the value, not the tidiness of the row, is what decides
+ *  whether a field is admissible at all.
+ *
+ *  Controlled, because two of the three live in the group's own `editing` state
+ *  (one line open at a time, and opening the version name also closes the picker).
+ *  Commit sends the text whitespace-normalised and trimmed; the caller decides what
+ *  an empty string means — it clears a description and is refused for a name. */
+function InlineText({
+  value, display, placeholder, editing, onOpen, onCommit, onCancel,
+  tooltip, style, editStyle, pointRef, multiline,
+}: InlineTextProps) {
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const ownPoint = useRef<{ x: number; y: number } | null>(null)
+  /* WHERE THE POINTER WAS. Usually this element's own click writes it — but a
+     caller whose open line FILLS ITS ROW (the description) opens the editor from
+     the row as well and hands the same ref in, so a click on the empty part of the
+     row places the caret exactly as a click on the words does. */
+  const point = pointRef || ownPoint
+  /* IS THE LINE BLANK RIGHT NOW? Tracked rather than derived from `value`, because
+     it changes as the user types and `value` cannot: the DOM text is deliberately
+     uncontrolled here (React must not patch the words under the caret). This is the
+     only state that follows the typing, it holds a boolean rather than the text, and
+     a re-render from it leaves the DOM alone — the rendered child is still `value`,
+     so there is nothing for React to patch. */
+  const [blank, setBlank] = useState(!value)
+  useEffect(() => {
+    if (!editing) return
+    const el = ref.current
+    if (!el) return
+    setBlank(!el.textContent?.trim())
+    el.focus()
+    caretAt(el, point.current)
+    point.current = null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
+  /* READ BACK WHAT IS DRAWN, NOT WHAT IS IN THE NODES. A Shift+Enter break is a
+     `<br>` and `textContent` cannot see one, so the line the user typed would
+     arrive as if it were never there. `innerText` is the rendered text, breaks
+     included. Single-line strings keep `textContent`, which is cheaper and cannot
+     surprise: a name has no breaks to preserve.
+     Normalisation differs too — every line has its runs of spaces collapsed and its
+     ends trimmed; a multiline value keeps single breaks and collapses blank runs, a
+     single-line value loses breaks entirely. */
+  const readBack = (): string => {
+    const el = ref.current
+    if (!el) return ''
+    if (!multiline) return (el.textContent || '').replace(/\s+/g, ' ').trim()
+    return el.innerText.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ')
+      .split('\n').map((l) => l.trim()).join('\n').replace(/\n{2,}/g, '\n').trim()
+  }
+  const commit = () => onCommit(readBack())
+  const line = (
+    <span ref={ref}
+      /* REMOUNTED ON EVERY OPEN AND CLOSE. React renders the same string either side
+         of the transition, so it would see nothing to patch — and the words typed
+         into the DOM would survive an Escape. The key makes each state its own
+         element, so closing rebuilds the line from the prop, which is the only copy
+         that is true. */
+      key={editing ? 'edit' : 'rest'}
+      contentEditable={editing || undefined}
+      suppressContentEditableWarning={editing || undefined}
+      /* nothing while editing: a tooltip over a line you are typing into is noise,
+         and it would sit on top of the caret */
+      title={editing ? undefined : (wrapTip(tooltip) || undefined)}
+      onClick={(e) => {
         e.stopPropagation()
-        if (e.key === 'Enter') onCommit(draft.trim())
-        if (e.key === 'Escape') onCancel()
+        if (editing || !onOpen) return
+        point.current = { x: e.clientX, y: e.clientY }
+        onOpen()
       }}
-      onBlur={() => onCommit(draft.trim())}
-      placeholder={placeholder}
-      style={{
-        flex: 1, minWidth: 0, padding: '2px 6px', margin: '-2px 0',
-        borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-strong)',
-        background: 'var(--surface-raised)', color: 'var(--text-1)',
-        fontFamily: family || 'var(--font-ui)', fontSize: size || 'var(--fs-body)',
-        fontWeight: weight || 'var(--fw-medium)',
-        cursor: 'text', userSelect: 'text', WebkitUserSelect: 'text',
-        outline: 'none', boxShadow: 'var(--ring-focus)',
-      }} />
+      /* A DOUBLE-CLICK ON THE WORDS IS A WORD SELECTION AND NOTHING ELSE — it must not
+         also reach whatever the card is sitting in. Verbatim from the DS.
+         WHAT A HOST NEEDS TO KNOW, because it cost a driver failure to find: React
+         stops dispatching its synthetic dblclick somewhere inside this component's
+         subtree, so a host handler on an ANCESTOR never runs when the double-click
+         lands on this line — even with this handler removed entirely (measured). The
+         native event does still bubble all the way. So a host that wants a
+         double-click gesture over the card must take it in the CAPTURE phase;
+         `AuthorRoad`'s folded card does exactly that, and says so. */
+      onDoubleClick={(e) => e.stopPropagation()}
+      /* the words are a DRAG surface at rest and a TEXT surface while editing:
+         without this a select-drag across them picks the card up instead of the
+         sentence */
+      onMouseDown={editing ? (e: React.MouseEvent) => e.stopPropagation() : undefined}
+      onInput={editing && placeholder ? (e: React.FormEvent<HTMLSpanElement>) => setBlank(!e.currentTarget.textContent?.trim()) : undefined}
+      onKeyDown={editing ? (e: React.KeyboardEvent) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') {
+          /* SHIFT+ENTER BREAKS THE LINE, ENTER COMMITS IT — and only where breaks
+             are legal. On a NAME both spellings commit. `insertLineBreak` gives a
+             real `<br>` rather than a paragraph, which is why the read-back uses
+             innerText. */
+          if (multiline && e.shiftKey) {
+            e.preventDefault()
+            document.execCommand('insertLineBreak')
+            return
+          }
+          e.preventDefault()
+          commit()
+        }
+        /* Escape reverts, and the remount above is what restores the words */
+        if (e.key === 'Escape') { e.preventDefault(); onCancel() }
+      } : undefined}
+      onBlur={editing ? commit : undefined}
+      /* a line takes WORDS from the clipboard, never markup — and never more
+         structure than it can hold: a pasted newline is a break where breaks are
+         legal and a space where they are not */
+      onPaste={editing ? (e: React.ClipboardEvent) => {
+        e.preventDefault()
+        const raw = (e.clipboardData.getData('text/plain') || '').replace(/\r\n?/g, '\n')
+        document.execCommand('insertText', false,
+          multiline ? raw.replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n') : raw.replace(/\s+/g, ' '))
+      } : undefined}
+      /* THE OPEN LINE IS ALWAYS THE WHOLE STRING — `display` is the resting,
+         ellipsised form of a name too long for its cap. */
+      style={editing ? { ...style, ...INLINE_EDIT_STYLE, ...editStyle } : style}>
+      {editing ? value : (display || value || placeholder)}
+    </span>
+  )
+  /* NO PLACEHOLDER, NO WRAPPER. The title and a version name always have text, so
+     they get the bare line and their layout is untouched — both sit in tuned flex
+     rows where an extra box is a risk for nothing. */
+  if (!placeholder) return line
+  /* THE INVITATION HAS TO SURVIVE THE CLICK. "enter description" IS the empty line's
+     only content, so opening the editor replaced the one thing on screen with an
+     empty 8px box and a caret in blank space — reported as the click bugging out.
+     It stays, as a real placeholder: drawn BEHIND the caret, never as text in the
+     editable element, where it would be selectable and committable ("enter
+     description" is the last thing anyone means to save). It takes no pointer
+     events, so a click still lands on the line under it.
+
+     The wrapper is present in BOTH states, deliberately. If it only appeared while
+     editing, the editable span would change parents on the first character typed,
+     remount, and lose focus and caret mid-word. Only the overlay is conditional. */
+  return (
+    <span style={{ position: 'relative', display: 'block', maxWidth: '100%' }}>
+      {line}
+      {editing && blank ? (
+        <span aria-hidden="true" style={{
+          position: 'absolute', left: 0, top: 0, pointerEvents: 'none',
+          fontFamily: style.fontFamily, fontSize: style.fontSize, lineHeight: style.lineHeight,
+          /* the same italic --text-3 it wears at rest: still an invitation, not content */
+          fontStyle: 'italic', color: 'var(--text-3)', whiteSpace: 'nowrap',
+        }}>{placeholder}</span>
+      ) : null}
+    </span>
   )
 }
 
@@ -341,30 +601,94 @@ function RestoreMark() {
   )
 }
 
-function DescLine({ text, placeholder, indent, onCommit }: {
+/** An optional description line, edited IN PLACE. Empty, it is the invitation —
+ *  italic --text-3, the same register as "add new version": an action sitting among
+ *  names. Filled, it is prose at --text-2 and stops being italic, because italic is
+ *  the mark of a thing that isn't there yet. Committing an empty line clears it back
+ *  to the invitation; a description is optional both ways.
+ *
+ *  THERE IS ONE ROW, NOT TWO. Editing does not swap the row for a differently-built
+ *  one: same element, same type, same wrapping, with the words made editable in
+ *  place. Nothing about the box can change on the click because nothing about the
+ *  box is re-decided — which is what three passes at cancelling a field's chrome
+ *  could not achieve, and what no amount of cancelling could achieve for a WRAPPED
+ *  description, since a single-line input cannot be two lines tall.
+ *
+ *  THE ROW'S METRICS ARE OURS, NOT THE DS's, AND THAT IS DELIBERATE (OB-028 is not
+ *  in this batch). Upstream this row is set tighter than every other — `--lh-tight`,
+ *  no vertical padding, and it absorbs 4px of the head's row gap above and 2px
+ *  below — and it is indented to the title rather than to the card. All of that is
+ *  one 10.4px move on every card, with a shot re-baseline behind it, so it lands on
+ *  its own. What is ported here is the EDITING; the padding and line-height below
+ *  are unchanged from before this run to the pixel. */
+function DescLine({ text, placeholder, indent, onCommit, rowOpens = false, multiline = false }: {
   text?: string; placeholder?: string; indent?: number; onCommit?: (v: string) => void
+  /** the whole row opens the line, and the I-beam runs the whole row with it */
+  rowOpens?: boolean
+  /** Shift+Enter breaks the line; Enter still commits */
+  multiline?: boolean
 }) {
   const [editing, setEditing] = useState(false)
+  const point = useRef<{ x: number; y: number } | null>(null)
   if (!onCommit && !text) return null
-  if (editing) {
-    return (
-      <div style={{ display: 'flex', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px' }}>
-        <NameField value={text || ''} size="var(--fs-caption)"
-          onCommit={(v) => { setEditing(false); if (v !== (text || '') && onCommit) onCommit(v) }}
-          onCancel={() => setEditing(false)} />
-      </div>
-    )
-  }
   return (
-    <div data-grab="" style={{ display: 'block', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px', cursor: 'inherit' }}>
-      <span title={onCommit ? 'click to edit' : undefined}
-        onClick={(e) => { e.stopPropagation(); if (onCommit) setEditing(true) }}
+    <div style={{
+      display: 'block', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px',
+      /* THE WHOLE ROW OPENS THE EDITOR, and the I-beam runs the whole row with it.
+         This used to be the group's drag surface with the text carrying the only
+         caret, on the rule that a caret over empty background promises a field that
+         is not there. The rule was right and its boundary moved: the open line FILLS
+         this row now, so the empty stretch to the right of the words is exactly
+         where the edit box will be — clicking it and getting a drag was the promise
+         being broken the other way round.
+         It applies HERE and not to the title or a version name, whose open lines are
+         sized to their own text: the rule is still "the I-beam belongs wherever the
+         editor will be", which is not always the whole row.
+         THE ROW LOSES `data-grab` IN EXCHANGE — this strip is no longer part of the
+         card's drag surface. The head row, the picker and the card's own padding
+         still are. */
+      cursor: rowOpens && onCommit && !editing ? 'text' : 'inherit',
+    }}
+      /* a click anywhere on the row opens the line and puts the caret where the
+         pointer was — past the last word that is the end of the line clicked, which
+         for the usual one-line description is the end of the text. The words' own
+         click gets there first and stops propagating, so this handles exactly the
+         empty stretch. */
+      onClick={rowOpens && onCommit && !editing ? (e: React.MouseEvent) => {
+        e.stopPropagation()
+        point.current = { x: e.clientX, y: e.clientY }
+        setEditing(true)
+      } : undefined}>
+      <InlineText value={text || ''} placeholder={placeholder} pointRef={point} multiline={multiline}
+        editing={editing}
+        onOpen={onCommit ? () => setEditing(true) : undefined}
+        /* an empty commit is meaningful here and only here: it clears the line back
+           to its invitation. A description is optional both ways. */
+        onCommit={(v) => { setEditing(false); if (v !== (text || '') && onCommit) onCommit(v) }}
+        onCancel={() => setEditing(false)}
+        tooltip={onCommit ? 'click to edit' : undefined}
         style={{
           display: 'inline-block', maxWidth: '100%',
           fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
           lineHeight: 'var(--lh-snug)', color: text ? 'var(--text-2)' : 'var(--text-3)',
+          /* italic is the mark of a thing that is not there yet, so it goes the
+             moment there is something to read — including while an empty line is
+             being typed into */
           fontStyle: text ? 'normal' : 'italic', cursor: onCommit ? 'text' : 'inherit',
-        }}>{text || placeholder}</span>
+          overflowWrap: 'break-word',
+          /* THE RESTING LINE HONOURS THE BREAKS IT WAS GIVEN. `pre-wrap` is what
+             draws a committed Shift+Enter — without it a two-line description
+             collapses back to one the moment it is committed, and `headHeight()`,
+             which counts the breaks, predicts a row taller than the one drawn. */
+          whiteSpace: 'pre-wrap',
+        }}
+        /* WHILE OPEN, THE LINE IS THE WHOLE ROW. At rest it is sized to its own
+           words; an OPEN line 8px wide would leave the invitation drawn over ground
+           that does not belong to it, so a click on the words it is showing would
+           land on the card and drag it. Full width while editing costs nothing
+           visually — there is no box to see — and makes the whole line clickable,
+           which is what an open editor should be. */
+        editStyle={{ color: 'var(--text-1)', fontStyle: 'normal', width: '100%' }} />
     </div>
   )
 }
@@ -411,6 +735,9 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
   onDelete?: () => void; confirming?: boolean; onCancel?: () => void
 }) {
   const [hot, show, hide] = useRecede()
+  /* the worst clip in the system: the listbox is 220px and a version name can be a
+     whole sentence */
+  const nameClip = useClipped<HTMLSpanElement>(version.name)
   return (
     <div style={{ position: 'relative', display: 'flex' }}
       onMouseEnter={show} onMouseLeave={hide}
@@ -445,10 +772,10 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
             {version.label ? (
               <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: on ? 'var(--accent-primary-ink)' : 'var(--text-2)' }}>{version.label}</span>
             ) : null}
-            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{version.name}</span>
+            <span {...nameClip} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{version.name}</span>
           </button>
           {onDelete ? (
-            <button type="button" title="delete this version" aria-label="delete this version"
+            <button type="button" title={wrapTip('delete this version')} aria-label="delete this version"
               tabIndex={hot ? 0 : -1}
               onClick={(e) => { e.stopPropagation(); onDelete() }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--state-danger-wash)'; e.currentTarget.style.borderColor = 'var(--state-danger)'; e.currentTarget.style.color = 'var(--berry-600)' }}
@@ -609,10 +936,10 @@ function measure(text: unknown, weight: number, size: number, kind: FontKind): n
 /** lines a label takes at a given width, honouring `overflow-wrap: anywhere` —
  *  a single unbreakable word longer than the column wraps INSIDE itself rather
  *  than overhanging, which is what the drawn label does. */
-function linesOf(text: unknown, width: number, weight: number, size: number, kind: FontKind, clamp: number): number {
+/** the wrapping half of `linesOf`, for one run of text with no breaks in it */
+function wrappedLines(text: unknown, width: number, weight: number, size: number, kind: FontKind): number {
   const str = String(text == null ? '' : text).trim()
-  if (!str) return 0
-  if (!(width > 0)) return clamp || 1
+  if (!str) return 1
   const words = str.split(/\s+/)
   let lines = 1
   let cur = ''
@@ -628,7 +955,64 @@ function linesOf(text: unknown, width: number, weight: number, size: number, kin
       cur = ''
     }
   }
+  return lines
+}
+
+/** lines a label takes at a given width, honouring `overflow-wrap: anywhere` — a
+ *  single unbreakable word longer than the column wraps INSIDE itself rather than
+ *  overhanging, which is what the drawn label does.
+ *
+ *  EXPLICIT LINE BREAKS COUNT AS LINES. A description may hold them (Shift+Enter),
+ *  and the drawn row honours them through `white-space: pre-wrap` — so a prediction
+ *  that only measured WRAPPING runs one whole line light per break, which on a
+ *  board is a card overlapping the next one. Each segment between breaks takes at
+ *  least one line even when empty: a blank line the user typed is a line they can
+ *  see. */
+function linesOf(text: unknown, width: number, weight: number, size: number, kind: FontKind, clamp: number): number {
+  const whole = String(text == null ? '' : text).trim()
+  if (!whole) return 0
+  if (!(width > 0)) return clamp || 1
+  let lines = 0
+  for (const segment of whole.split('\n')) lines += wrappedLines(segment, width, weight, size, kind)
   return clamp ? Math.min(lines, clamp) : lines
+}
+
+/** THE ELLIPSIS IS DRAWN INTO THE TEXT, because the CSS that would draw it does not
+ *  work here. A title cut by its cap has to show that it was cut — and the obvious
+ *  mechanism is the one this file already abandoned once: `display: -webkit-box`
+ *  computes `flow-root` in this nesting, so `-webkit-line-clamp` goes inert,
+ *  silently and font-dependently. All three routes were re-measured in Chrome 148 on
+ *  2026-08-19: the box still computes `flow-root`, `-webkit-line-clamp` on a plain
+ *  block draws no ellipsis, and standard `line-clamp` is unsupported. None of them
+ *  draws a "…". So a port must not "simplify" this back to CSS.
+ *
+ *  The string is cut where the TEXT will be cut, and the "…" is a character like any
+ *  other. It measures with `wrappedLines` — the same canvas measurement the published
+ *  geometry wraps with — so the drawn text and `headHeight()`'s line count come from
+ *  one expression rather than two that agree by luck. The CSS cap stays exactly as it
+ *  was: this decides what to DRAW and never how tall the box is, which is the only
+ *  reason a measured cut is safe in a component whose geometry is published — a
+ *  measurement one word out cannot move a card.
+ *
+ *  Binary search over the prefix rather than a per-character walk: a title is short,
+ *  but this runs on every card of a board on every resize. */
+function clampToLines(text: unknown, lines: number, col: number, weight: number, size: number, kind: FontKind): string {
+  const whole = String(text == null ? '' : text)
+  if (!whole || !col || !lines) return whole
+  if (wrappedLines(whole, col, weight, size, kind) <= lines) return whole
+  let lo = 0
+  let hi = whole.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (wrappedLines(whole.slice(0, mid).replace(/\s+$/, '') + '\u2026', col, weight, size, kind) <= lines) lo = mid
+    else hi = mid - 1
+  }
+  /* one word is better than half a word: back up to the last space when trimming to
+     it costs little, so the line ends "…" after a whole word rather than mid-run */
+  const cut = whole.slice(0, lo).replace(/\s+$/, '')
+  const lastSpace = cut.lastIndexOf(' ')
+  const tidy = lastSpace > cut.length - 12 && lastSpace > 0 ? cut.slice(0, lastSpace) : cut
+  return tidy.replace(/[\s,;:]+$/, '') + '\u2026'
 }
 
 function titleColumn(width: number, spec: GroupSpec, folded: boolean): { col: number; narrow: boolean } {
@@ -805,6 +1189,90 @@ export function VersionedGroup({
   const kids = React.Children.toArray(children).filter(React.isValidElement) as React.ReactElement[]
   const tally = count === undefined ? kids.length : count
 
+  /* THE WIDTH THE TITLE IS ACTUALLY LAID OUT AT, which is not `curW`: a card left to
+     size itself has no `curW` at all. Measured, so the ellipsis is decided against
+     the column the browser wraps in. No feedback loop — a card only clips a title
+     once it is at a fixed or maxed width, and at that width a shorter title cannot
+     make the shell narrower. */
+  const [shellW, setShellW] = useState(0)
+  useEffect(() => {
+    const el = shell.current
+    if (!el || typeof ResizeObserver === 'undefined') return undefined
+    const read = () => setShellW(Math.round(el.getBoundingClientRect().width))
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  /* THE TITLE'S COLUMN IS ASKED OF THE ROW, NOT COMPUTED FROM THE CARD. The obvious
+     move is `titleColumn(shellW, …)` — the published expression, so that the drawn
+     cut and the predicted line count come from one place. Measured on the card, that
+     is wrong: the arithmetic column is WIDER than the room the flex row actually
+     leaves (a 300px card leaves ~159px of real column), so a title the arithmetic
+     thinks fits in two lines can draw three, and the CSS cap then clips the third
+     with no ellipsis at all — the exact defect the ellipsis exists to remove. The
+     published column is right for the HEIGHT it is used for and wrong for this;
+     where the two disagree, what the browser laid out wins.
+
+     TWO PASSES, AND THEY CANNOT OSCILLATE. The measurement is only ever taken while
+     the FULL string is shown: the title box is `width: fit-content`, so with an
+     over-long name it sits at the available width (what we want) and with a short
+     one at its own max-content width (which cannot make a fitting title be cut —
+     `wrappedLines` of a string at its own natural width is one line). Cutting the
+     string narrows the box, which is exactly why the measurement is not repeated
+     until the name, the card's width or the fold state changes. */
+  const titleBox = useRef<HTMLSpanElement | null>(null)
+  const [titleCol, setTitleCol] = useState(0)
+  const colKey = title + '|' + shellW + '|' + (isFolded ? 'f' : 'o') + '|' + (isNarrow ? 'n' : 'w')
+  const colKeyRef = useRef<string | null>(null)
+  /* THE CASCADE IS THE MECHANISM, so react-hooks/set-state-in-effect is switched off
+     for this effect alone. The rule is right in general and wrong here: the cut can
+     only be decided from a measurement, the measurement is only valid while the FULL
+     string is on screen, and showing the full string is itself a render. So it is two
+     passes by construction, not by an accidental dependency — and it is BOUNDED: the
+     second pass sets a column and stops, and nothing runs again until `colKey` (the
+     name, the shell width, the fold or narrow state) actually changes. */
+  useLayoutEffect(() => {
+    const el = titleBox.current
+    if (!el) return
+    /* WHEN THE NAME OR THE CARD CHANGES, drop the cut and let the next pass measure
+       the full string. The reset only re-renders if there was a cut to drop —
+       `setTitleCol(0)` on a column already 0 renders nothing, so returning here
+       meant the measurement never ran at all and every over-long title drew clipped
+       with no ellipsis. Fall through instead. */
+    if (colKeyRef.current !== colKey) {
+      colKeyRef.current = colKey
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see the note above
+      if (titleCol !== 0) { setTitleCol(0); return }
+    }
+    /* `titleCol === 0` means the FULL string is on screen, which is the only state
+       this may be measured in — see the note above. */
+    if (titleCol === 0) {
+      const w = Math.round(el.getBoundingClientRect().width)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see the note above
+      if (w > 0) setTitleCol(w)
+    }
+  }, [colKey, titleCol])
+
+  /* THE PICKER'S NAME CLIPS THE SAME WAY, and needs none of the two-pass care: its
+     wrapper is `flex: 1`, so its width is the room the row leaves whatever the text
+     says, and cutting the string cannot change it. (The title's wrapper is
+     `flex: 0 1 auto` — it shrinks to its content, which is the whole reason that one
+     has to be measured while the full string is showing.) One observer, read
+     straight. */
+  const verRO = useRef<ResizeObserver | null>(null)
+  const [verCol, setVerCol] = useState(0)
+  const verBox = useCallback((el: HTMLSpanElement | null) => {
+    if (verRO.current) { verRO.current.disconnect(); verRO.current = null }
+    if (!el) return
+    const read = () => setVerCol(Math.round(el.getBoundingClientRect().width))
+    read()
+    if (typeof ResizeObserver === 'undefined') return
+    verRO.current = new ResizeObserver(read)
+    verRO.current.observe(el)
+  }, [])
+
   useEffect(() => {
     const el = shell.current
     /* told, never measured: a caller that predicts this head's height before it
@@ -925,7 +1393,6 @@ export function VersionedGroup({
     return () => { clearTimeout(t); document.removeEventListener('pointerdown', away, true) }
   }, [refusal])
 
-  const stop = (e: React.MouseEvent) => e.stopPropagation()
 
   /* THE MENU LEAVES THE CARD BY DEFAULT. The shell below is position:relative +
      z-index:1 — a stacking context — so the in-card listbox's z-index only ranks
@@ -1082,14 +1549,14 @@ export function VersionedGroup({
 
   const edge = (side: 'right' | 'bottom' | 'corner') => {
     const common: CSSProperties = { position: 'absolute', zIndex: 2, background: 'transparent', touchAction: 'none' }
-    if (side === 'right') return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('x')} onDoubleClick={resetAxis('x')} style={{ ...common, top: 14, bottom: 14, right: -3, width: 8, cursor: 'ew-resize' }} />
-    if (side === 'bottom') return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('y')} onDoubleClick={resetAxis('y')} style={{ ...common, left: 14, right: 14, bottom: -3, height: 8, cursor: 'ns-resize' }} />
-    return <span aria-hidden="true" title="drag to resize · double-click to reset" onPointerDown={startDrag('both')} onDoubleClick={resetAxis('both')} style={{ ...common, right: -3, bottom: -3, width: 16, height: 16, cursor: 'nwse-resize' }} />
+    if (side === 'right') return <span aria-hidden="true" title={wrapTip(RESIZE_TIP)} onPointerDown={startDrag('x')} onDoubleClick={resetAxis('x')} style={{ ...common, top: 14, bottom: 14, right: -3, width: 8, cursor: 'ew-resize' }} />
+    if (side === 'bottom') return <span aria-hidden="true" title={wrapTip(RESIZE_TIP)} onPointerDown={startDrag('y')} onDoubleClick={resetAxis('y')} style={{ ...common, left: 14, right: 14, bottom: -3, height: 8, cursor: 'ns-resize' }} />
+    return <span aria-hidden="true" title={wrapTip(RESIZE_TIP)} onPointerDown={startDrag('both')} onDoubleClick={resetAxis('both')} style={{ ...common, right: -3, bottom: -3, width: 16, height: 16, cursor: 'nwse-resize' }} />
   }
 
   const word = tally === 1 ? String(countLabel).replace(/s$/, '') : countLabel
   const tallyLine = (
-    <span title={tally + ' ' + word + ' inside this version'} style={{
+    <span title={wrapTip(tally + ' ' + word + ' inside this version')} style={{
       flexShrink: 0, display: 'inline-block', fontFamily: 'var(--font-ui)',
       fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)',
       fontWeight: 'var(--fw-regular)',
@@ -1104,31 +1571,61 @@ export function VersionedGroup({
       {shownIndex ? (
         <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'var(--tnum)', color: 'var(--text-2)', fontWeight: 'var(--fw-medium)', marginRight: -2, lineHeight: 'var(--lh-snug)' }}>{shownIndex}</span>
       ) : null}
-      {editing === 'title' ? (
-        <NameField value={title} family="var(--font-display)" weight="var(--fw-bold)"
+      <span data-grab="" ref={titleBox} style={{
+        /* a floor, not a share: the head's fixed furniture is what shrinks when the
+           group is narrow, never the name. The control cluster keeps its width even
+           while receded, so the title never jumps — and never has controls land on
+           its tail — when they appear */
+        flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2,
+      }}>
+        {/* THE TITLE IS EDITED IN PLACE, for a second reason beyond the
+            description's: it WRAPS to two lines (three folded), and the field it
+            used to open was a single line, so clicking a two-line name collapsed the
+            head row under the pointer. Same instrument as the description now — the
+            words themselves, a caret, no box. */}
+        <InlineText value={title}
+          /* AND THE RESTING TITLE ENDS IN "…" WHEN ITS CAP CUT IT (OB-033). Cut
+             against `titleCol`, the column the row really leaves — never
+             `titleColumn()`'s arithmetic, which is computed for the HEIGHT and runs
+             wider than the room the row hands over. Before the box has been measured
+             there is nothing to decide against, so the full string stands: a card's
+             first paint shows a clipped title without its "…" for one frame, which
+             is the right way round — inventing an ellipsis from a guessed column
+             would put one on a title that fits. */
+          display={clampToLines(title, isFolded ? GROUP_METRICS.titleClampFolded : GROUP_METRICS.titleClampOpen,
+            titleCol, 700, 13, 'display')}
+          editing={editing === 'title'}
+          onOpen={() => setEditing('title')}
+          /* a group must have a name: an empty commit is refused and the old one stands */
           onCommit={(v) => { setEditing(null); if (v && v !== title && onRetitle) onRetitle(v) }}
-          onCancel={() => setEditing(null)} />
-      ) : (
-        <span data-grab="" style={{
-          /* a floor, not a share: the head's fixed furniture is what shrinks when the
-             group is narrow, never the name. The control cluster keeps its width even
-             while receded, so the title never jumps — and never has controls land on
-             its tail — when they appear */
-          flex: '0 1 auto', minWidth: 96, display: 'block', cursor: 'inherit', marginRight: 2,
-        }}>
-          <span title={title} onClick={(e) => { stop(e); setEditing('title') }}
-            style={{
-              width: 'fit-content',
-              maxWidth: '100%', lineHeight: 'var(--lh-snug)',
-              display: '-webkit-box',
-              WebkitBoxOrient: 'vertical', WebkitLineClamp: isFolded ? 3 : 2,
-              whiteSpace: 'normal', overflowWrap: 'anywhere',
-              overflow: 'hidden',
-              fontFamily: 'var(--font-display)', fontSize: 'var(--fs-body)',
-              fontWeight: 'var(--fw-bold)', color: 'var(--text-1)', cursor: 'text',
-            }}>{title}</span>
-        </span>
-      )}
+          onCancel={() => setEditing(null)}
+          tooltip={title}
+          style={{
+            /* NO -webkit-box AND NO -webkit-line-clamp. The wrapper was made a block
+               to stop the label being blockified and it STILL computed to flow-root
+               in the shipped card, which leaves the clamp inert: the box stayed one
+               line tall and `overflow: hidden` ate the rest, so a long title read
+               "Reach the" with nothing to say it had been cut. Worse, it was
+               font-dependent — with the fallback face the string fitted the column
+               and looked correct, and only with Quicksand actually loaded did it
+               clip. A legacy display value three different ancestors can silently
+               cancel is not a mechanism to depend on.
+               A line CAP does the same job with none of that: the text wraps
+               normally and the box is at most N lines tall. What CSS gives up is the
+               ellipsis, and `clampToLines` above is what puts it back — in the
+               string, where no ancestor can cancel it. N × the body line is read
+               from GROUP_METRICS, so the height the geometry predicts and the height
+               the title takes cannot diverge. */
+            width: 'fit-content',
+            maxWidth: '100%', lineHeight: 'var(--lh-snug)',
+            display: 'block',
+            maxHeight: (isFolded ? GROUP_METRICS.titleClampFolded : GROUP_METRICS.titleClampOpen) * GROUP_METRICS.bodyLine,
+            whiteSpace: 'normal', overflowWrap: 'anywhere',
+            overflow: 'hidden',
+            fontFamily: 'var(--font-display)', fontSize: 'var(--fs-body)',
+            fontWeight: 'var(--fw-bold)', color: 'var(--text-1)', cursor: 'text',
+          }} />
+      </span>
       <span style={{ flex: 1 }} />
       {isNarrow ? null : tallyLine}
       <span style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, height: 18, alignSelf: 'flex-start', marginTop: -1 }}>
@@ -1210,23 +1707,39 @@ export function VersionedGroup({
         {active.label ? (
           <span style={{ flexShrink: 0, lineHeight: '18px', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: 'var(--accent-primary-ink)', fontWeight: 'var(--fw-medium)' }}>{active.label}</span>
         ) : null}
-        {editing === 'version' ? (
-          <NameField value={active.name} weight="var(--fw-semibold)"
+        <span ref={verBox} style={{ flex: 1, minWidth: 0, display: 'block', cursor: 'inherit' }}>
+          {/* the live version's name, edited in place like the other two. It wraps to
+              two lines, so the single-line field it used to open had the same
+              collapse the title's did. */}
+          <InlineText value={active.name}
+            /* AND IT ENDS IN "…" WHEN ITS CAP CUT IT, for the same reason the title
+               does: a name stopping mid-sentence with nothing to say so is
+               indistinguishable from a short name. This row is where it matters most
+               — a version name is often the only thing telling two versions apart.
+               Cut against `verCol`, the column the row really leaves, never the
+               `pcol` arithmetic inside `headHeight()`. */
+            display={clampToLines(active.name, GROUP_METRICS.versionClamp, verCol, 600, 13, 'ui')}
+            editing={editing === 'version'}
+            onOpen={() => { setOpen(false); setEditing('version') }}
+            /* a version must keep a name: an empty commit is refused */
             onCommit={(v) => { setEditing(null); if (v && v !== active.name && onRename) onRename(active.id, v) }}
-            onCancel={() => setEditing(null)} />
-        ) : (
-          <span style={{ flex: 1, minWidth: 0, display: 'block', cursor: 'inherit' }}>
-            <span title={active.name} onClick={(e) => { stop(e); setOpen(false); setEditing('version') }}
-              style={{
-                width: 'fit-content',
-                maxWidth: '100%', display: '-webkit-box', WebkitBoxOrient: 'vertical',
-                WebkitLineClamp: 2, overflow: 'hidden', whiteSpace: 'normal',
-                overflowWrap: 'anywhere', lineHeight: 'var(--lh-snug)',
-                fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)',
-                fontWeight: 'var(--fw-semibold)', color: 'var(--accent-primary-ink)', cursor: 'text',
-              }}>{active.name}</span>
-          </span>
-        )}
+            onCancel={() => setEditing(null)}
+            tooltip={active.name}
+            style={{
+              width: 'fit-content',
+              /* A version name is authored text and can run long, so it WRAPS — to
+                 two lines, then the tail is clipped. Truncating at one line hid the
+                 end of every descriptive name, which is the only thing distinguishing
+                 one version from another; wrapping without a limit let a paragraph
+                 pushed into the line shove the whole body down the pane. */
+              maxWidth: '100%', display: 'block',
+              maxHeight: GROUP_METRICS.versionClamp * GROUP_METRICS.bodyLine,
+              overflow: 'hidden', whiteSpace: 'normal',
+              overflowWrap: 'anywhere', lineHeight: 'var(--lh-snug)',
+              fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)',
+              fontWeight: 'var(--fw-semibold)', color: 'var(--accent-primary-ink)', cursor: 'text',
+            }} />
+        </span>
         <span style={{ width: 16, height: 16, flexShrink: 0, display: 'grid', placeItems: 'center', marginTop: 1, color: open ? 'var(--text-2)' : 'var(--text-3)', transition: 'color var(--dur-hover) var(--ease-soft)' }}>
           <span style={caretStyle(open)} />
         </span>
@@ -1320,6 +1833,12 @@ export function VersionedGroup({
         {isNarrow ? <div data-grab="" style={{ padding: '0 2px 0 7px' }}>{tallyLine}</div> : null}
         {isFolded ? null : (
           <DescLine text={description} placeholder={descPlaceholder}
+            /* THE ROW OPENS THE LINE, and the caller is what knows it should: the
+               rule is that the I-beam belongs wherever the editor will be, and only
+               the caller knows this line's editor fills its row. `multiline` is the
+               same shape of decision — only the caller knows a description is prose
+               and a name is not. */
+            rowOpens multiline
             onCommit={onDescribe ? (v) => onDescribe(v) : undefined} />
         )}
         {isFolded ? null : picker}
