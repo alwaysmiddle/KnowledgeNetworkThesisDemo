@@ -25,7 +25,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
-import { DomainDot, PaneScroller, wrapTip } from '@/ds'
+import { DomainDot, IconButton, PaneScroller, wrapTip } from '@/ds'
 import { byId, nodes, pathTo } from '../../corpus/graph'
 import { domainCodeOf } from '../../model/domaincode'
 import type { AuthorState } from './authordraft'
@@ -343,14 +343,7 @@ function RecentsEmptyState({
               <span className="text-slate-300">↻</span>
               {r}
             </button>
-            <button
-              data-pal-recent-del={r}
-              onClick={() => onForget(r)}
-              title={wrapTip('forget this search')}
-              className="shrink-0 pr-1.5 pl-0.5 py-0.5 text-slate-300 hover:text-rose-500"
-            >
-              ✕
-            </button>
+            <IconButton tone="danger" size={16} onClick={() => onForget(r)} title="forget this search" />
           </span>
         ))}
       </div>
