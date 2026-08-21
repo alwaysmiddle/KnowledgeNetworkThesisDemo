@@ -234,3 +234,65 @@ describe('our DS ports document what the DS documents', () => {
     expect(undocumented.length, `\n${undocumented.join('\n')}\n`).toBe(BUDGET)
   })
 })
+
+
+// ─── rule 5 ──────────────────────────────────────────────────────────
+// IconButton.d.ts: "a native `title` holding a long name draws ONE line the width
+// of the screen — the hardest shape there is to read. Fold it at the element that
+// sets the attribute." (OB-032 in the DS, OB-034 for the host screens.)
+//
+// A component port cannot reach this rule: `/design-sync` rewrites `src/ds/**` and
+// never opens a screen file, and the screens are exactly where the unbounded
+// strings live — a corpus title interpolated into a sentence, a walk's whole
+// description. So it is the host's rule, and this is the machine half of it.
+//
+// A title PROP handed to a DS component is NOT a violation: that one is folded
+// inside the component, and `Pane title=` is a pane HEADING rather than a tooltip.
+// The two are told apart by the tag name, which is exact rather than a heuristic —
+// JSX spells a DOM element lowercase (`button`, `span`) and a component
+// capitalised (`PillButton`, `PaneHeader`). So the scan walks back from each
+// `title=` to the `<` that opens its tag.
+describe('DS IconButton — every tooltip on a DOM element is folded', () => {
+  const TREES = ['src/ds', 'src/instruments', 'src/studio', 'src/ui']
+
+  /** the JSX tag whose attribute list contains index `i` */
+  function tagAt(src: string, i: number): string | null {
+    const open = src.lastIndexOf('<', i)
+    if (open < 0) return null
+    const m = /^<\s*([A-Za-z][\w.]*)/.exec(src.slice(open, i))
+    return m ? m[1] : null
+  }
+
+  /** the whole attribute value, brace-matched. Several of these tooltips are
+   *  multi-line ternaries, so a fixed-size window would read half a value and
+   *  report a folded one as raw. */
+  function valueAt(src: string, i: number): string {
+    if (src[i] === '"') return src.slice(i, src.indexOf('"', i + 1) + 1)
+    let depth = 0
+    for (let k = i; k < src.length; k++) {
+      if (src[k] === '{') depth++
+      else if (src[k] === '}' && --depth === 0) return src.slice(i, k + 1)
+    }
+    return src.slice(i, i + 80)
+  }
+
+  const raw: string[] = []
+  for (const f of tsxUnder(...TREES)) {
+    const src = stripComments(readFileSync(f, 'utf8'))
+    for (const m of src.matchAll(/\btitle=(["{])/g)) {
+      const tag = tagAt(src, m.index)
+      if (!tag || tag[0] !== tag[0].toLowerCase()) continue // a prop, not a tooltip
+      const value = valueAt(src, m.index + 6)
+      // `wrapTip` need not be the OUTERMOST call. A value that only sometimes
+      // carries a string folds inside its branch and stays undefined otherwise,
+      // which is the right shape rather than a violation.
+      if (value.includes('wrapTip(')) continue
+      const line = src.slice(0, m.index).split('\n').length
+      raw.push(`${rel(f)}:${line}  title=${value.replace(/\s+/g, ' ').slice(0, 70)}`)
+    }
+  }
+
+  it('sets no raw title= on a DOM element', () => {
+    expect(raw).toEqual([])
+  })
+})

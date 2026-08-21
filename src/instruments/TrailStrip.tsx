@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { StepDot, TrailChip } from '@/ds'
+import { StepDot, TrailChip, wrapTip } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -80,7 +80,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
                 key={w.id}
                 onClick={() => onActivateWalk(w.id)}
                 className="px-2 py-1 rounded border border-amber-300 text-amber-700 hover:bg-amber-50 text-[11px] font-medium"
-                title={w.description}
+                title={wrapTip(w.description)}
               >
                 ▶ {w.title}
               </button>
@@ -110,7 +110,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
                 key={s.id + i}
                 n={i + 1}
                 state={i === cursor ? 'current' : i < cursor ? 'done' : 'ahead'}
-                title={s.note}
+                title={wrapTip(s.note)}
                 onClick={() => onJumpToStop(i)}
               />
             ))}

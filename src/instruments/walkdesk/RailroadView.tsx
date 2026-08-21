@@ -34,6 +34,7 @@ import WalkPreview from './WalkPreview'
 import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
+import { wrapTip } from '../../ds/chrome/IconButton'
 
 /** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting
  *  the pane, so it takes no width from the layout and the road never reflows. */
@@ -157,7 +158,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
           <button
             data-read-walk
             onClick={() => setPreviewOpen(true)}
-            title="read the resolved walk as chapters"
+            title={wrapTip('read the resolved walk as chapters')}
             className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
             style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
           >
@@ -170,7 +171,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
           <button
             data-save-walk
             onClick={openNaming}
-            title="save the resolved road as a walk the rest of the app can play"
+            title={wrapTip('save the resolved road as a walk the rest of the app can play')}
             className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
             style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
           >
@@ -182,7 +183,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
               setNaming(false)
               setPicking(!picking)
             }}
-            title="drop an existing walk into the plan as one stage"
+            title={wrapTip('drop an existing walk into the plan as one stage')}
             className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border"
             style={picking
               ? { borderColor: 'var(--border-rule)', color: 'var(--text-1)', background: 'var(--surface-sunken)' }
@@ -195,7 +196,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
               data-undo
               disabled={!state.canUndo}
               onClick={state.undo}
-              title="undo (Ctrl/Cmd+Z)"
+              title={wrapTip('undo (Ctrl/Cmd+Z)')}
               className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] disabled:opacity-30"
               style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
             >
@@ -205,7 +206,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
               data-redo
               disabled={!state.canRedo}
               onClick={state.redo}
-              title="redo (Ctrl/Cmd+Shift+Z)"
+              title={wrapTip('redo (Ctrl/Cmd+Shift+Z)')}
               className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] disabled:opacity-30"
               style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
             >
@@ -238,7 +239,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             </button>
             <button
               onClick={() => setNaming(false)}
-              title="back to the road"
+              title={wrapTip('back to the road')}
               className="text-[var(--fs-caption)] px-1.5 py-0.5"
               style={{ color: 'var(--text-3)' }}
             >
@@ -262,7 +263,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
                   state.insertWalkAsStage(w.id)
                   setPicking(false)
                 }}
-                title={w.description || `${w.stops.length} stops`}
+                title={wrapTip(w.description || `${w.stops.length} stops`)}
                 className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] max-w-full truncate"
                 style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
               >
@@ -318,7 +319,7 @@ export default function RailroadView({ bus }: { bus: Bus }) {
             <button
               data-preview-close
               onClick={() => setPreviewOpen(false)}
-              title="back to the road"
+              title={wrapTip('back to the road')}
               className="text-[var(--fs-body)] leading-none"
               style={{ color: 'var(--text-3)' }}
             >

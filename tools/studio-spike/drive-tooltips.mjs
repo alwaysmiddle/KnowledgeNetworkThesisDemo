@@ -125,22 +125,53 @@ await page.waitForTimeout(600)
 await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(500)
 
-// ── 2. wrapTip: no tooltip anywhere draws as one screen-wide line ───────────
-const wide = await page.evaluate((measure) => {
+// ── 2. wrapTip: no tooltip anywhere draws as one screen-wide line ─────────
+// This walks EVERY element carrying a title rather than a list someone has to
+// remember to update, which is what makes it cheap to keep true. It is swept over
+// every preset and every instrument, because a tooltip only exists in the DOM
+// while its instrument is on screen — a single-screen sweep passes by not looking.
+const overLong = (measure) => page.evaluate((m) => {
   const bad = []
   for (const el of document.querySelectorAll('[title]')) {
     const t = el.getAttribute('title')
     if (!t) continue
     for (const line of t.split('\n')) {
-      if (line.length > measure) { bad.push({ tag: el.tagName.toLowerCase(), len: line.length, line: line.slice(0, 60) }); break }
+      if (line.length > m) { bad.push({ tag: el.tagName.toLowerCase(), len: line.length, line: line.slice(0, 60) }); break }
     }
   }
   return bad
-}, MEASURE)
-ok(`every tooltip in the DOM folds at ${MEASURE}`, wide.length === 0,
-  wide.length ? JSON.stringify(wide.slice(0, 4)) : 'no over-long lines')
+}, measure)
 
-const tipCount = await page.$$eval('[title]', (els) => els.length)
+const PRESETS = ['present', 'explore', 'plan']
+const INSTRUMENTS = ['nested', 'walk', 'palette', 'railroad', 'walkcolumns', 'walkstack',
+  'unfold', 'unfoldg', 'contours', 'evoc', 'tree', 'children', 'doc', 'plex', 'trail']
+
+let swept = 0
+let tipCount = 0
+const wide = []
+for (const preset of PRESETS) {
+  await page.getByLabel(`studio-preset-${preset}`).click()
+  await page.waitForTimeout(400)
+  wide.push(...(await overLong(MEASURE)))
+  tipCount += await page.$$eval('[title]', (els) => els.length)
+  swept++
+}
+// then every instrument on its own, so nothing is missed by never being composed
+for (const inst of INSTRUMENTS) {
+  const row = page.getByLabel(`studio-inst-${inst}`, { exact: true })
+  if (!(await row.count())) continue
+  await row.click()
+  await page.waitForTimeout(350)
+  wide.push(...(await overLong(MEASURE)))
+  tipCount += await page.$$eval('[title]', (els) => els.length)
+  swept++
+  await row.click()
+  await page.waitForTimeout(150)
+}
+
+ok(`every tooltip folds at ${MEASURE}, across ${swept} screens`, wide.length === 0,
+  wide.length ? JSON.stringify(wide.slice(0, 5)) : 'no over-long lines')
+
 ok('there are tooltips on the page to have checked', tipCount > 0, `${tipCount} titled elements`)
 
 // ── 3. aria-label keeps the UNFOLDED string ─────────────────────────────────

@@ -44,6 +44,7 @@ import type { Band } from './authordnd'
 import { chosenIdx, chosenSteps, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
+import { wrapTip } from '../../ds/chrome/IconButton'
 
 const NODEW = 150
 // an UNSET slot is the road's own picker — a dashed pill round a <select> — so
@@ -661,7 +662,7 @@ export default function AuthorRoad({
             data-fly-group
             disabled={!state.canGroup}
             onClick={state.groupSelection}
-            title="group into stage"
+            title={wrapTip('group into stage')}
             className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--accent-primary)] bg-[var(--accent-primary-wash)] disabled:opacity-30 hover:bg-[var(--moss-100)]"
             style={{ color: 'var(--accent-primary-ink)' }}
           >
@@ -678,7 +679,7 @@ export default function AuthorRoad({
           disabled={!state.canOptional}
           aria-pressed={state.optionalActive}
           onClick={state.toggleOptionalSelection}
-          title={state.optionalActive ? 'optional — click to make required' : 'toggle optional'}
+          title={wrapTip(state.optionalActive ? 'optional — click to make required' : 'toggle optional')}
           className="text-[var(--fs-body)] px-2 py-1 rounded border disabled:opacity-30"
           style={state.optionalActive
             ? { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
@@ -695,7 +696,7 @@ export default function AuthorRoad({
           data-fly-del
           disabled={!state.canDelete}
           onClick={state.deleteSelection}
-          title="delete — a group takes everything inside it (undoable)"
+          title={wrapTip('delete — a group takes everything inside it (undoable)')}
           className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--border-rule)] disabled:opacity-30 hover:bg-[var(--surface-hover)]"
           style={{ color: 'var(--text-2)' }}
         >
@@ -875,7 +876,7 @@ export default function AuthorRoad({
                     e.stopPropagation()
                     toggle(s.key!)
                   }}
-                  title="double-click to open"
+                  title={wrapTip('double-click to open')}
                   // the DS's own box model applies inside (see [data-ds-host] in
                   // index.css): everything under this wrapper is the DS card
                   data-ds-host=""
@@ -1000,7 +1001,7 @@ export default function AuthorRoad({
                   if (marqueeDragRef.current) return
                   selectOn(pl)(e)
                 }}
-                title="drag to move"
+                title={wrapTip('drag to move')}
                 className={[
                   'group absolute z-[5] cursor-grab',
                   // #72 #2: only a TOP-LEVEL card lifts; a nested one is part of its

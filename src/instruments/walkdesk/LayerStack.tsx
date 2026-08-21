@@ -13,6 +13,7 @@ import { columnsFor } from './columns'
 import { isBox, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
+import { wrapTip } from '../../ds/chrome/IconButton'
 
 const PLANE_STEP = 92
 const PLANE_TOP = 44
@@ -90,7 +91,7 @@ export default function LayerStack({
                       key={s.key}
                       data-pick-stack={s.key}
                       onClick={() => pick(t, s)}
-                      title={s.title}
+                      title={wrapTip(s.title)}
                       className={['absolute w-3.5 h-3.5 border-2 rotate-45', picked ? 'bg-amber-400 border-amber-600 ring-2 ring-amber-300 scale-125' : 'bg-amber-200 border-amber-500 hover:scale-125'].join(' ')}
                       style={{ left, top: 50 }}
                     />
@@ -102,7 +103,7 @@ export default function LayerStack({
                     key={`${i}-${s.node}`}
                     {...sync.bind(s.node)}
                     onClick={() => pick(t, s)}
-                    title={byId.get(s.node)!.title}
+                    title={wrapTip(byId.get(s.node)!.title)}
                     className={['absolute grid place-items-center', sync.lit(s.node) ? 'ring-2 ring-sky-400 rounded-full scale-150' : ''].join(' ')}
                     style={{ left, top: 51 }}
                   >
