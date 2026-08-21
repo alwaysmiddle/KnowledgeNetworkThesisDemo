@@ -209,7 +209,10 @@ describe('DS TreeRow — a switched-off border side needs longhands, not a short
 // component against the DS's .d.ts, the remainder is at DS parity. The number is
 // a ratchet against silent regression, not a target to drive to 0.
 describe('our DS ports document what the DS documents', () => {
-  const BUDGET = 55
+  // +4 for NodeRail.tsx (#127): onToggleStop, onToggleRail, onExpandAll and
+  // onCollapseAll are bare in the DS's own NodeRail.d.ts too — checked line by
+  // line against it, which is DS parity and not new debt.
+  const BUDGET = 59
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
+import { caretStyle, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
 import { useRecede, wrapTip } from '../chrome/IconButton'
 
 /** the one string the three resize grips share. Three copies of a literal is three
@@ -48,8 +49,9 @@ const DOT_FIRST_LINE_INSET = 4.83
  *  when adding one:
  *
  *    1. WHAT THE CHIP IS — `mark`, which of the sanctioned carriers holds the domain
- *       hue and at which rank. The SURFACE picks it. Plus the states `lit`, `dim` and
- *       `wrap`, which say how this chip stands right now.
+ *       hue and at which rank. The SURFACE picks it. Plus the states `lit`, `dim`,
+ *       `optional`, `open` and `wrap`, which say how this chip stands right now — each
+ *       one works on every form, which is what makes it a state.
  *    2. WHAT CAN BE DONE TO IT — `selectable` (a click), `resizable` (an edge drag),
  *       `onDelete` (a ✕). ALL THREE ARE OPT-IN, ALL THREE DEFAULT OFF, and ALL THREE
  *       WORK ON EVERY `mark` FORM. `<NodeChip title domain />` is the static chip.
@@ -60,7 +62,12 @@ const DOT_FIRST_LINE_INSET = 4.83
  *  that is a fact about the LIST, and the list omits the prop.
  *
  *  Deviations from DS source:
- *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source) */
+ *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source)
+ *  - Draws the disclosure mark via `caretStyle()` directly rather than through a shared
+ *    `Caret` component — `../nav/TreeRow` does not export one yet (OB-041)
+ *  - `chipSize()`'s border edge is still the authored stroke width, not `usedStroke()`'s
+ *    device-pixel value — the DS's newly published geometry contract (2026-08-21) is
+ *    not yet adopted here; flagged on #74 rather than folded into this port silently */
 
 export interface NodeChipProps {
   /** the node's NAME. A `ReactNode` rather than a string since 2026-08-19, so a caller can
@@ -123,6 +130,54 @@ export interface NodeChipProps {
   optional?: boolean
   /** cross-pane hover correspondence — a 1.5px pond ring over the chip's own lift */
   lit?: boolean
+  /** THE SUBJECT OF ITS PANE — the one node everything else on screen is relative to,
+   *  not a state it passes through. `--fw-bold` on the title and one step up the lift
+   *  ladder (`--lift-1` → `--lift-2`). Off by default: most chips are one of many.
+   *
+   *  IT OUTRANKS THE RANK, on weight and on ink. `border-2` sets its own quieter type —
+   *  caption at `--fw-medium`, `--text-2` — and `focus` overrides both to `--fw-bold` /
+   *  `--text-1`; if the rank won, `focus` would silently do nothing on the form
+   *  `EdgeEntry` uses for every relationship end. `chipSize()` must be told this prop
+   *  too: `--fw-bold` is wider than either resting weight, and a focus chip predicted at
+   *  semibold clips its own name.
+   *
+   *  Use it for ONE chip per pane — two subjects is no subject. Not `selected`, not
+   *  `lit`: those are things a user does or a pointer causes and change while the pane
+   *  stays put; this is a fact about what the pane is FOR, decided when it is built. */
+  focus?: boolean
+  /** THIS CHIP HEADS A DISCLOSURE — an opt-in capability, like `selectable`, `resizable`
+   *  and `onDelete`: the surface asks for it and the chip grows a control. Draws the
+   *  shared disclosure mark (`caretStyle` from `../nav/TreeRow`) at the chip's LEADING
+   *  edge, before the dot, and reserves its width — 12px on the title, the 6px mark plus
+   *  the chip's own 6px gap. `open` only says which way it points.
+   *
+   *  THE CHIP DOES NOT OWN THE GESTURE — the one way this differs from the other three.
+   *  A disclosure is almost always toggled by something bigger than the chip (a whole
+   *  row, a header), so the host keeps the click and passes `open` back. `chipSize()`
+   *  takes this prop and never `open`: the mark is present in both positions, so
+   *  toggling changes a rotation and an ink value and never the box. */
+  disclosable?: boolean
+  /** WHICH WAY THE MARK POINTS — down when open, right when closed. The drawn half of
+   *  `disclosable`, exactly as `selected` is the drawn half of `selectable`. Ink alone
+   *  carries it: `--text-3` closed, `--text-1` open. No face, no border, no lift, no
+   *  type, no geometry — and WITHOUT `disclosable` it draws nothing.
+   *
+   *  Two clean booleans rather than one tristate: forwarding an absent `open` straight
+   *  through (as `RailStop` does for every closed row) now just means closed, where a
+   *  tristate made every closed row arrive `undefined` and silently lose its caret. */
+  open?: boolean
+  /** THE WASH, DRIVEN FROM OUTSIDE — for the one case where a PARENT owns the click. A
+   *  `RailStop`'s whole row is the button, so its chip has no handler of its own and
+   *  would never wash by the `onClick`/`selectable` test below, leaving the only
+   *  clickable thing in the row giving nothing back. Passing the row's handler to the
+   *  chip as well is not the fix — the click would fire on the chip and again on the row
+   *  it bubbles to, toggling twice to no effect.
+   *
+   *  An INPUT, never a second source of truth: an interactive chip still washes on its
+   *  own pointer, and this only ever adds. `dim` still refuses. Named `hovered`, not
+   *  `hot` — this file's own recede clock already binds `hot`, and a second one shadowed
+   *  into it upstream once and dropped every export in the module to a parse error. */
+  hovered?: boolean
   /** SELECTABLE OR STATIC — static is the default, and most chips in this product are:
    *  a legend, a trail, a rail and an entry all show nodes being READ. Pass this for a
    *  chip that answers a click, which is what the road's stops and a group's children
@@ -252,9 +307,14 @@ function useSizeDrag(
  *  so a title scored as one line wrapped to two and was clipped against the
  *  height it had been told.
  *
- *  The DS ships no geometry for this component and keeps its own measuring
- *  module-private, so this is the group's own pattern applied here (reported on
- *  drift-log #74). Two rules are what make it hold:
+ *  This table was built LOCAL because the DS shipped no geometry for this component
+ *  (reported on drift-log #74). As of 2026-08-21 it has published its own —
+ *  `NodeChip.d.ts`'s own PUBLISHED GEOMETRY section, written to REPLACE this table
+ *  rather than merge with it. This port takes only what `disclosable` and `focus` need
+ *  to be predicted correctly; `usedStroke()`, the rest of that contract, moves the
+ *  predicted box of every chip on screen and not just these two props, so it is its own
+ *  pass rather than a rider on this one — flagged back on #74. Two rules are what make
+ *  what IS here hold:
  *
  *  1. CSS OWNS WHAT CSS DECLARES. The stroke, the line height, the font sizes
  *     and the weights are read from the stylesheet at measure time — the very
@@ -297,6 +357,14 @@ export const CHIP_METRICS = {
    *  baseline alignment. `indexTop: 1` went with it: the step number now sits on the name's
    *  own baseline, which is what that nudge was approximating by eye. */
   dotTop: DOT_FIRST_LINE_INSET,
+  /** THE DISCLOSURE MARK'S LAYOUT BOX IS 6, NOT 8.49. `caretStyle` rotates a 6px box
+   *  45°, and transforms are invisible to layout: the wrapper reserves 6px of column and
+   *  the flex row sees a 6px-tall child, whatever the ink's bounding box measures. */
+  caret: 6,
+  /** where THAT mark sits on a stacked chip — a different number from the disc's, since
+   *  it is a different shape (see TreeRow's `CARET_FIRST_LINE_INSET`). A centred caret
+   *  takes no correction at all. */
+  caretTop: CARET_FIRST_LINE_INSET,
   /** the gutter the title keeps from the delete button that follows it */
   titlePadRight: 4,
   /** the delete button: an 18px box pulled 2px into the chip's own right padding */
@@ -396,6 +464,10 @@ export interface ChipSpec {
    *  that spaces chips from a predicted height and does not pass this reserves one line too
    *  few and laps its own next row. On `border-2` the word is inline and costs nothing. */
   optional?: boolean
+  /** heads a disclosure, so it reserves the caret column. 12px, paid once */
+  disclosable?: boolean
+  /** the emphasis end of a relationship: --fw-bold, and therefore WIDER */
+  focus?: boolean
   /** a delete button is offered. It reserves its space at rest, so it counts even unhovered */
   deletable?: boolean
   /** the caller's bounds. `maxHeight` becomes a LINE CLAMP rather than a crop:
@@ -444,7 +516,9 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   const fsCaption = tokenNum('--fs-caption', 12)
   const fwMedium = tokenNum('--fw-medium', 500)
   const fsText = quiet ? fsCaption : fsTitle
-  const fwText = quiet ? fwMedium : fwTitle
+  /* FOCUS OUTRANKS THE RANK, on weight and therefore here too: --fw-bold is wider than
+     either resting weight, so a focus chip predicted at semibold clips its own name. */
+  const fwText = s.focus ? tokenNum('--fw-bold', 700) : quiet ? fwMedium : fwTitle
 
   /* the shell is border-box, so its border and padding come out of the width. The mention
      form is 1px and tighter on both axes — it is a citation, not an object. */
@@ -458,6 +532,7 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   /* every flex child except the title, and the gap between each pair. The resize
      handles are position:absolute, so they are out of flow and take no width. */
   const furniture: number[] = []
+  if (s.disclosable) furniture.push(M.caret)
   if (!bordered && !plain) furniture.push(M.dot)
   if (s.index) furniture.push(measure(s.index, fwIndex, fsIndex, 'mono'))
   /* marginRight: -2 pulls the delete button back into the chip's own right padding */
@@ -500,6 +575,7 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   if (s.index) rows.push(fsIndex * lh)
   if (s.deletable) rows.push(M.del + (stacked ? M.delTop : 0))
   if (!bordered && !plain) rows.push(M.dot + (stacked ? M.dotTop : 0))
+  if (s.disclosable) rows.push(M.caret + (stacked ? M.caretTop : 0))
 
   const height = Math.ceil(Math.max.apply(null, rows) + padY + edge)
   return { width, height, titleLines, titleColumn: Math.round(titleColumn * 100) / 100, measured }
@@ -508,7 +584,8 @@ export function chipSize(spec?: ChipSpec): ChipSize {
 export const ChipGeometry = { CHIP_METRICS, chipSize, CHIP_BORDER, chipBorder }
 
 export function NodeChip({
-  title, index, domain, mark = 'dot', dim, optional, lit, note, wrap, onClick, onDelete,
+  title, index, domain, mark = 'dot', dim, optional, lit, focus, note, wrap, onClick, onDelete,
+  disclosable, open, hovered,
   selectable = false, selected, defaultSelected = false, onSelectedChange,
   resizable = false,
   minWidth = CHIP_METRICS.minWidth, maxWidth = CHIP_METRICS.maxWidth,
@@ -523,6 +600,18 @@ export function NodeChip({
   const plain = mark === 'none'
   /* see ChipSpec.optional: a full-rank optional chip is two rows without wrapping */
   const stacked = wrap || (optional && !quiet)
+  /* OPEN DRAWS A CARET AND MOVES NO OTHER CHANNEL. Every other one is spoken for — the
+     FACE is hover and `selected`; the border WEIGHT is read back by `NodeChain` and
+     `NodeArrow` through `chipBorder`, so thickening it on open would re-weight every
+     arrow through an expanded stop's chain; the border STYLE is `optional`; the OUTLINE
+     is `selected`; the RING is `lit`; type weight belongs to the rank ladder. Elevation
+     was tried for this state and every rung of it (a recess, a recess with a face tint,
+     `--lift-1` through `--lift-3`) read as no change at all — `tokens/elevation.css`
+     calls its shadows "soft, wide and low-contrast" by design, and a channel built not
+     to shout cannot carry a state on a 28px object. So `depth` here answers to `focus`
+     alone: one step up the lift ladder, none at all for the quiet or dim forms unless
+     focused too. */
+  const depth = quiet || dim ? (focus ? 'var(--lift-1)' : 'none') : (focus ? 'var(--lift-2)' : 'var(--lift-1)')
   /* drawn from the prop when there is one, from own state when there is not — and
      drawing follows `isSel` even without `selectable`, so a board that owns the whole
      selection can paint a chip picked without also handing it a gesture it must not have */
@@ -546,7 +635,11 @@ export function NodeChip({
      one `cursor` already uses below. `dim` never washes: off the resolved path is a statement
      about the node, and lighting it up on the way past contradicts it. */
   const interactive = !!(onClick || selectable)
-  const washed = interactive && hov && !dim
+  /* `hovered` IS THE WASH DRIVEN FROM OUTSIDE, for the one case the test above gets
+     wrong: a parent that owns the click (a RailStop's row). An INPUT, never a second
+     source of truth — an interactive chip still washes on its own pointer, and
+     `hovered` only ever adds. `dim` refuses either way. */
+  const washed = (interactive || hovered) && (hov || hovered) && !dim
   const shell = useRef<HTMLSpanElement | null>(null)
   const given: SizeState | null = width === undefined && height === undefined ? null
     : { w: width || null, h: height || null }
@@ -573,6 +666,10 @@ export function NodeChip({
          back to `undefined` rather than stringifying: React would render "[object Object]"
          into the attribute, and a tooltip that lies is worse than one that is absent. */
       title={wrapTip(note || (typeof title === 'string' ? title : undefined)) || undefined}
+      /* announced, not just drawn — only when the chip is actually the control:
+         `aria-expanded` on a span nothing can activate promises a keyboard behaviour
+         that is not there. */
+      aria-expanded={disclosable && (selectable || onClick) ? !!open : undefined}
       onClick={() => { if (selectable) toggle(); if (onClick) onClick() }}
       /* both clocks off the same four handlers — the control lingers (`showX`/`hideX` hold
          `hot` through a grace period so a revealed ✕ stays reachable), the wash does not */
@@ -669,14 +766,22 @@ export function NodeChip({
         background: dim ? 'transparent'
           : quiet ? (washed ? 'var(--surface-hover)' : 'transparent')
           : washed ? 'var(--surface-hover-raised)' : 'var(--surface-raised)',
-        color: dim ? 'var(--text-3)' : quiet ? 'var(--text-2)' : 'var(--text-1)',
+        color: dim ? 'var(--text-3)' : focus ? 'var(--text-1)' : quiet ? 'var(--text-2)' : 'var(--text-1)',
         /* the second rank takes NO LIFT at all: a mention is not standing on the pane, and a
-           ring on it would claim it is the object rather than a reference to one */
-        boxShadow: quiet ? (isSel ? 'none' : lit ? 'var(--ring-linked)' : 'none')
-          : isSel ? 'var(--lift-1)' : lit ? 'var(--ring-linked), var(--lift-1)' : dim ? 'none' : 'var(--lift-1)',
+           ring on it would claim it is the object rather than a reference to one. `depth`
+           already folds in `focus`, `quiet` and `dim`; `selected` replaces the `lit` ring —
+           one ring per meaning, never stacked — drawn as an outline outside the border. */
+        boxShadow: isSel ? depth
+          : lit ? (depth === 'none' ? 'var(--ring-linked)' : 'var(--ring-linked), ' + depth)
+          : depth,
         fontFamily: 'var(--font-ui)',
         fontSize: quiet ? 'var(--fs-caption)' : 'var(--fs-body)',
-        fontWeight: quiet ? 'var(--fw-medium)' : 'var(--fw-semibold)',
+        /* FOCUS OUTRANKS THE RANK, on both weight and ink: `border-2` sets its own quieter
+           type (caption at --fw-medium, --text-2), and if the rank won here, `focus` would
+           silently do nothing on the one form that most needs it — `EdgeEntry` draws both
+           ends of a relationship as border-2 chips and marks the focus end with exactly
+           this emphasis. */
+        fontWeight: focus ? 'var(--fw-bold)' : quiet ? 'var(--fw-medium)' : 'var(--fw-semibold)',
         lineHeight: stacked || quiet ? 'var(--lh-snug)' : undefined,
         whiteSpace: wrap ? 'normal' : 'nowrap', overflow: 'hidden',
         /* 'inherit', not 'default': a chip inside a NodeChain sits on a slot that says
@@ -686,6 +791,24 @@ export function NodeChip({
         opacity: dim ? 'var(--opacity-off-path)' : 1, transition: 'var(--transition-wash)',
       }}
     >
+      {disclosable ? (
+        /* THE DISCLOSURE MARK, FIRST CHILD — leading, matching TreeRow's own and the
+           rail head's, and leaving the trailing edge to onDelete's ✕. A consistent 12px
+           shift on every disclosable chip's title (the 6px mark plus this chip's own 6px
+           gap) is not a misalignment. Colour sits on this wrapper because the mark itself
+           is `currentColor`; a centred caret takes no vertical correction, a stacked one
+           takes `caretTop` (TreeRow's `CARET_FIRST_LINE_INSET` — a different shape from
+           the dot's inset, not interchangeable with it). */
+        <span style={{
+          flexShrink: 0, display: 'flex', width: M.caret, justifyContent: 'center',
+          color: open ? 'var(--text-1)' : 'var(--text-3)',
+          alignSelf: stacked ? 'flex-start' : undefined,
+          marginTop: stacked ? M.caretTop : 0,
+          transition: 'color var(--dur-fade) var(--ease-soft)',
+        }}>
+          <span style={caretStyle(open)} />
+        </span>
+      ) : null}
       {bordered || plain ? null : (
         <span style={{
           width: M.dot, height: M.dot, borderRadius: 'var(--radius-pill)', flexShrink: 0,

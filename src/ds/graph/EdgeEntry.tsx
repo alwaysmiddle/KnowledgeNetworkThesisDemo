@@ -64,19 +64,27 @@ function EntryNode({ title, domain, anchor, within, onClick }: EntryNodeProps) {
      the system's slash grammar (DocHeader), with the child that actually holds the link
      set beside it at ordinary weight. So every entry in a list opens on the same bold
      name — the one at the head of the rail — and the eye reads down the column instead
-     of re-parsing each row. */
+     of re-parsing each row.
+
+     THE DIRECT CASE IS `NodeChip focus`, NOT A STYLED TITLE. It used to pass a
+     pre-styled span with --fw-bold/--text-1 written in — the same statement `focus` now
+     makes on the chip's own behalf, so there is one implementation of "this is the
+     subject of the pane" instead of two agreeing by coincidence.
+
+     THE `within` CASE KEEPS ITS OWN MARKUP. Its emphasis falls on PART of the string —
+     the ancestry prefix, not the child name after it — and `focus` is a statement about
+     a whole chip; bolding the entire title there would erase the distinction the
+     elision exists to draw. */
   const label = within ? (
     <>
       <span style={{ fontWeight: anchor ? 'var(--fw-bold)' : 'var(--fw-medium)', color: anchor ? 'var(--text-1)' : 'var(--text-3)' }}>{lead}{' / '}</span>{title}
     </>
-  ) : anchor ? (
-    <span style={{ fontWeight: 'var(--fw-bold)', color: 'var(--text-1)' }}>{title}</span>
   ) : title
   /* `note` carries the full path because `title` is now an ELEMENT, and the native tooltip
      is a string attribute — the chip falls back to `undefined` rather than stringifying a
      node, so an entry that did not pass this would simply lose its tooltip. */
   return (
-    <NodeChip mark="border-2" wrap domain={domain} title={label} onClick={onClick}
+    <NodeChip mark="border-2" wrap domain={domain} title={label} focus={!!anchor && !within} onClick={onClick}
       note={segs.length ? segs.join(' / ') + ' / ' + title : title} />
   )
 }
