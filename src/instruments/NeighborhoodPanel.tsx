@@ -66,7 +66,7 @@ export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
   const incoming = roads.filter((e) => e.target === currentId)
 
   return (
-    <div aria-label="plex-panel">
+    <div aria-label="neighborhood-panel">
       <svg viewBox="0 0 640 300" className="w-full h-[260px]">
         <defs>
           {EDGE_TYPES.map((type) => (

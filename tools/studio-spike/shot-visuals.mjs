@@ -136,7 +136,7 @@ if (conn.includes(picked)) errors.push('neighbourhood: the selected cell tinted 
 if (new Set(conn).size !== conn.length) errors.push('neighbourhood: a counterpart tinted twice')
 
 // 3 — wheel, everything open: sqrt sectors + label lanes + leaders
-await page.getByLabel('children-open-all').click()
+await page.getByLabel('connections-open-all').click()
 await page.waitForTimeout(500)
 await page.screenshot({ path: OUT + '/3-wheel-open-all.png' })
 
@@ -165,23 +165,23 @@ await page.screenshot({ path: OUT + '/3-wheel-open-all.png' })
   })
   if (zFloor > needZ + 0.03)
     errors.push(`wheel floor: opened rings need z=${needZ.toFixed(2)} to fit but the floor stops at ${zFloor}`)
-  await page.getByLabel('children-panel').screenshot({ path: OUT + '/3b-wheel-fit-floor.png' })
+  await page.getByLabel('connections-pane').screenshot({ path: OUT + '/3b-wheel-fit-floor.png' })
   await wheel.dblclick({ position: { x: 8, y: 8 } }) // water — back to home framing
   await page.waitForTimeout(200)
 }
 
 // 4 — relations star. Also shot CLOSE UP: the star's type labels are ~8px on a
 // 1750px frame, far too small to judge from the full page — crop to the pane.
-await page.getByLabel('children-mode-relations').click()
+await page.getByLabel('connections-mode-relations').click()
 await page.waitForTimeout(400)
 await page.screenshot({ path: OUT + '/4-relations-star.png' })
-await page.getByLabel('children-panel').screenshot({ path: OUT + '/4a-star-closeup.png' })
+await page.getByLabel('connections-pane').screenshot({ path: OUT + '/4a-star-closeup.png' })
 
 // SelfNotes audit: the list window is HALF its old height — a fixed ~24% of
 // the pane, scrolling inside — so the graph reading above it gets the room.
 {
-  const paneBox = await page.getByLabel('children-panel').boundingBox()
-  const listBox = await page.locator('[aria-label="children-relationships"]').boundingBox()
+  const paneBox = await page.getByLabel('connections-pane').boundingBox()
+  const listBox = await page.locator('[aria-label="connections-relationships"]').boundingBox()
   const frac = listBox.height / paneBox.height
   if (frac < 0.2 || frac > 0.28) errors.push(`list window: ${(frac * 100).toFixed(1)}% of the pane, expected ~24%`)
 }
@@ -197,7 +197,7 @@ await page.getByLabel('children-panel').screenshot({ path: OUT + '/4a-star-close
   await page.waitForTimeout(250)
   const zIn = parseFloat(await star.getAttribute('data-cvz'))
   if (!(zIn > 1)) errors.push(`canvas zoom: wheel-in left z at ${zIn}`)
-  await page.getByLabel('children-panel').screenshot({ path: OUT + '/4a2-star-zoomed.png' })
+  await page.getByLabel('connections-pane').screenshot({ path: OUT + '/4a2-star-zoomed.png' })
   await page.mouse.wheel(0, 8000)
   await page.waitForTimeout(250)
   const zf1 = parseFloat(await star.getAttribute('data-cvz'))
@@ -259,7 +259,7 @@ if ((await getCam()) !== camBefore) errors.push('look: hovering a relationship r
 // CLICK = LOOK: the map flies to the counterpart's territory at its tier and
 // keeps it highlighted; the SELECTION must not change. And the highlight must
 // survive the cursor leaving — a look holds until superseded.
-const panel = page.locator('[aria-label="children-panel"]')
+const panel = page.locator('[aria-label="connections-pane"]')
 const focusBefore = await panel.getAttribute('data-focus')
 await page.locator('[data-relrow]').first().click()
 await page.waitForTimeout(1000) // the look flight is 750ms (LOOK_FLY_MS)
@@ -281,13 +281,13 @@ await page.locator('[data-relrow]').first().dblclick()
 await page.waitForTimeout(400)
 const hopped = await panel.getAttribute('data-focus')
 if (hopped === picked) errors.push('nav: clicking a relationship row did not move the focus')
-await page.getByLabel('children-nav-back').click()
+await page.getByLabel('connections-nav-back').click()
 await page.waitForTimeout(300)
 if ((await panel.getAttribute('data-focus')) !== picked) errors.push('nav: back did not return to the previous focus')
-await page.getByLabel('children-nav-forward').click()
+await page.getByLabel('connections-nav-forward').click()
 await page.waitForTimeout(300)
 if ((await panel.getAttribute('data-focus')) !== hopped) errors.push('nav: forward did not re-walk the hop')
-await page.getByLabel('children-nav-back').click()
+await page.getByLabel('connections-nav-back').click()
 await page.waitForTimeout(300)
 if ((await panel.getAttribute('data-focus')) !== picked) errors.push('nav: second back did not land on the picked topic')
 
@@ -415,13 +415,13 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
   if (sumNodes < 1) errors.push('region star: no counterpart areas ringed')
   const sumRows = await page.locator('[data-regionrow]').count()
   if (sumRows !== sumNodes) errors.push(`region star: ${sumRows} list rows vs ${sumNodes} ringed areas`)
-  await page.getByLabel('children-panel').screenshot({ path: OUT + '/5c-region-star.png' })
+  await page.getByLabel('connections-pane').screenshot({ path: OUT + '/5c-region-star.png' })
   await page.getByLabel('ext-grain-detailed').click()
   await page.waitForTimeout(300)
   const detNodes = await page.locator('[data-regionnode]').count()
   // every summary area bundles ≥1 outside topic, so detailed can only widen
   if (detNodes < sumNodes) errors.push(`region star: detailed (${detNodes}) narrower than summary (${sumNodes})`)
-  await page.getByLabel('children-panel').screenshot({ path: OUT + '/5d-region-star-detailed.png' })
+  await page.getByLabel('connections-pane').screenshot({ path: OUT + '/5d-region-star-detailed.png' })
   await page.getByLabel('ext-grain-summary').click()
   await page.waitForTimeout(200)
 }
@@ -429,12 +429,12 @@ if (rollupDups.length) errors.push('rollup collapse: pair drawn more than once �
 // 5e — SelfNotes: Esc DESELECTS for real now (focus cleared with the overlay),
 // and ◀ back restores exactly the node you deselected.
 {
-  const panel = page.locator('[aria-label="children-panel"]')
+  const panel = page.locator('[aria-label="connections-pane"]')
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
-  if ((await page.locator('[aria-label="children-panel"][data-focus]').count()) !== 0)
+  if ((await page.locator('[aria-label="connections-pane"][data-focus]').count()) !== 0)
     errors.push('deselect: Esc left the focus standing')
-  await page.getByLabel('children-nav-back').click()
+  await page.getByLabel('connections-nav-back').click()
   await page.waitForTimeout(300)
   if ((await panel.getAttribute('data-focus')) !== domain)
     errors.push('deselect: back did not restore the deselected domain')

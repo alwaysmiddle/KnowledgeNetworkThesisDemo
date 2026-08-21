@@ -528,7 +528,7 @@ export default function MapView({ bus }: { bus: Bus }) {
   const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
 
   return (
-    <div aria-label="nested-atlas" className="relative h-full" style={{ background: '#eef4f8' }}>
+    <div aria-label="map-view" className="relative h-full" style={{ background: '#eef4f8' }}>
       <svg
         ref={svgRef}
         data-nested
