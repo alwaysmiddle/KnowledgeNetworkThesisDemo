@@ -1,5 +1,5 @@
 // Driver for #26 — walk path drawn on the map.
-// The Plan preset mounts both the railroad (which publishes bus.route) and the
+// The Plan preset mounts both the walk editor (which publishes bus.route) and the
 // nested atlas (which draws the route as an ordered path). Assertions:
 //   1. data-routepath is visible in the SVG after Plan loads.
 //   2. data-step-count > 0 — the route has stops.

@@ -1,4 +1,4 @@
-// The RAILROAD editor — a top-down node chart where the road may fork. A fork
+// The WALK EDITOR's road — a top-down node chart where the road may fork. A fork
 // is a GROUP CARD with more than one variant. Its history: a tab strip (#19),
 // then side-by-side comparator COLUMNS (#18). Since #70 the card shows ONE
 // version at a time — the ACTIVE one — as a single column. The comparator and

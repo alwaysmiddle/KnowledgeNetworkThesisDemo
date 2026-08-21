@@ -121,7 +121,7 @@
 }
 
 /* The version namecard track can overflow when a card is narrower than its
-   chips. There is no scroll button (the whole railroad scrolls left/right), so
+   chips. There is no scroll button (the whole editor scrolls left/right), so
    hide the native scrollbar and let the rare overflow scroll by wheel/trackpad. */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }

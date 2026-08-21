@@ -143,7 +143,7 @@ const overLong = (measure) => page.evaluate((m) => {
 }, measure)
 
 const PRESETS = ['present', 'explore', 'plan']
-const INSTRUMENTS = ['nested', 'walk', 'palette', 'railroad', 'walkcolumns', 'walkstack',
+const INSTRUMENTS = ['nested', 'walk', 'palette', 'walkeditor', 'walkcolumns', 'walkstack',
   'unfold', 'unfoldg', 'contours', 'evoc', 'tree', 'children', 'doc', 'plex', 'trail']
 
 let swept = 0

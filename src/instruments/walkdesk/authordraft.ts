@@ -22,9 +22,9 @@ export type Path = number[]
 
 // ── One draft, shared (#21) ─────────────────────────────────────────────────
 // The draft used to be component state inside WalkDeskView, which worked while
-// the palette and the railroad were two zones of one component. #21 split them
+// the palette and the walk editor were two zones of one component. #21 split them
 // into separate instruments, and a palette that inserts into a draft the
-// railroad cannot see is useless — so the draft moved into module-level stores
+// walk editor cannot see is useless — so the draft moved into module-level stores
 // both subscribe to.
 //
 // A SINGLETON, deliberately: there is one plan being written. Two Walk·Desk
@@ -106,7 +106,7 @@ const selectedStore = store<ReadonlySet<string>>(new Set())
 const caretStore = store<Path | null>(null)
 /** which variant each container takes, keyed by container key → variant id.
  * Storing the id rather than an index means deletions never silently retarget
- * the active version (#92). The railroad writes it; the projection reads it. */
+ * the active version (#92). The walk editor writes it; the projection reads it. */
 const choicesStore = store<Record<string, string>>(restored?.choices ?? {})
 const optionalsStore = store(restored?.withOptionals ?? true)
 // resumed past whatever the restored tree already uses, so a group made after a
@@ -202,7 +202,7 @@ export function saveDraftAsWalk(title: string): Walk | null {
   })
 }
 
-/** the road's resolution knobs, shared by the railroad and the projection */
+/** the road's resolution knobs, shared by the walk editor and the projection */
 export function useRoad() {
   const [choices, setChoices] = useStore(choicesStore)
   const [withOptionals, setWithOptionals] = useStore(optionalsStore)

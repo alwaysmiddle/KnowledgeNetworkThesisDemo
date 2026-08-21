@@ -4,7 +4,7 @@
 // reachable by typing, and `n.topic` is a ranking BOOST, not a gate.
 //
 // Putting a stop on the road is ALWAYS an explicit gesture: drag a hit onto the
-// railroad (the `pal:<nodeId>` feed the road and the map already speak), or hit
+// walk editor (the `pal:<nodeId>` feed the road and the map already speak), or hit
 // the row's + to append it to the end. A plain click never drops a stop — it
 // SELECTS the hit on the map instead: the camera flies to its territory and
 // lights it as the selection, so search and map stay in sync (#28). Acting on a
@@ -315,7 +315,7 @@ function RecentsEmptyState({
           // are siblings inside a bordered span that plays the chip's part. The
           // span is also the DRAG HANDLE: it resolves its title back to a node
           // (nodeForTerm) and feeds the road the same `pal:<id>` a hit row does,
-          // so a search you already ran drags straight onto the railroad. If the
+          // so a search you already ran drags straight onto the road. If the
           // title no longer resolves, the drag is cancelled rather than empty.
           <span
             key={r}

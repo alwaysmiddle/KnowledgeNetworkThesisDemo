@@ -57,7 +57,7 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push('console: ' + m.text())
 })
 
-/** the Plan preset is where the railroad lives; the preset is NOT persisted, so
+/** the Plan preset is where the walk editor lives; the preset is NOT persisted, so
  *  every reload has to pick it again */
 const openPlan = async () => {
   await page.getByLabel('studio-preset-plan').click()
@@ -82,7 +82,7 @@ ok('opens on the seed', stages0 === 2 && text0.includes('Secure the channel'), `
 // ── 2. load a walk in as a stage (#16, the inbound half) ─────────────────────
 await page.click('[data-add-walk]')
 await page.waitForTimeout(200)
-await page.locator('[aria-label="studio-pane-railroad"]').screenshot({ path: OUT + '/persistence-picker.png' })
+await page.locator('[aria-label="studio-pane-walkeditor"]').screenshot({ path: OUT + '/persistence-picker.png' })
 const offered = await page.$$eval('[data-walk-picker] button', (els) => els.map((e) => e.textContent))
 ok('the picker offers the built-in walks', offered.length >= 2, JSON.stringify(offered))
 await page.click('[data-walk-picker] button')
@@ -107,7 +107,7 @@ await page.click('[data-save-walk]')
 await page.fill('[data-name-walk] input', NAME)
 await page.click('[data-name-walk-save]')
 await page.waitForTimeout(300)
-await page.locator('[aria-label="studio-pane-railroad"]').screenshot({ path: OUT + '/persistence-receipt.png' })
+await page.locator('[aria-label="studio-pane-walkeditor"]').screenshot({ path: OUT + '/persistence-receipt.png' })
 const receipt = await page.$eval('[data-walk-receipt]', (el) => el.innerText)
 ok('saving reports what it stored', receipt.startsWith('saved'), receipt)
 

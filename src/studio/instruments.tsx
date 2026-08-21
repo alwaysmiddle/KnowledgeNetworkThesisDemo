@@ -31,7 +31,7 @@ import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
 import PaletteView from '../instruments/walkdesk/PaletteView'
-import RailroadView from '../instruments/walkdesk/RailroadView'
+import WalkEditorView from '../instruments/walkdesk/WalkEditorView'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
@@ -101,11 +101,11 @@ const VIEWS = [
     // #21: the writing surface, with the route it projects running down beside
     // it. The only view in the Studio that ever sees a branch. Shares one draft
     // with the palette through authordraft.ts's stores.
-    id: 'railroad',
-    label: 'Railroad',
+    id: 'walkeditor',
+    label: 'Walk·Editor',
     family: 'walks',
     slot: 'column',
-    render: (bus) => <RailroadView bus={bus} />,
+    render: (bus) => <WalkEditorView bus={bus} />,
   },
   {
     // #20: the desk's two reading zones, now instruments in their own right.
@@ -288,9 +288,9 @@ export const PRESETS: Preset[] = [
     // and Walk·Stack stay one sidebar click away rather than crowding the row.
     id: 'plan',
     label: 'Plan',
-    hint: 'palette over document, then the railroad and its route, then the map',
-    active: [['palette', 'doc'], 'railroad', 'nested'],
-    flex: { palette: 1, railroad: 1.6, nested: 2 },
+    hint: 'palette over document, then the walk editor and its route, then the map',
+    active: [['palette', 'doc'], 'walkeditor', 'nested'],
+    flex: { palette: 1, walkeditor: 1.6, nested: 2 },
   },
 ]
 
