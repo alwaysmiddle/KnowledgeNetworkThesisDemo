@@ -14,6 +14,7 @@
 //   the closing top-level leaf has no group, so it is a CODA: it runs on after the
 //     last chapter with no break and no heading.
 
+import { PaneScroller } from '@/ds'
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { isLeaf, type Stop } from './mockwalk'
 
@@ -79,8 +80,8 @@ export default function WalkPreview({ walk }: { walk: Stop[] }) {
   render(walk, 0)
 
   return (
-    <div className="h-full overflow-auto px-4 py-3">
+    <PaneScroller style={{ padding: '12px 16px' }}>
       {rows.length ? rows : <div className="text-[11px] text-slate-400">the road is empty — nothing to read yet.</div>}
-    </div>
+    </PaneScroller>
   )
 }

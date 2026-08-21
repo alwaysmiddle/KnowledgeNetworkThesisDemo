@@ -7,6 +7,7 @@
 // root and tools/evoc-spike/RESULTS.md for the experiment and its verdict.
 
 import { useEffect, useRef, useState } from 'react'
+import { PaneCanvas } from '@/ds'
 import rawRun from './data/evocRun.json'
 
 interface EvocRun {
@@ -92,7 +93,7 @@ export default function ClustersView() {
   const hoveredCluster = hovered !== null ? run.evoc.layers[evocLayerForTooltip].labels[hovered] : null
 
   return (
-    <div className="relative h-full bg-slate-50">
+    <PaneCanvas>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
@@ -236,6 +237,6 @@ export default function ClustersView() {
           <div className="mt-1 text-slate-500">{hoveredItem.text.slice(0, 160)}</div>
         </div>
       )}
-    </div>
+    </PaneCanvas>
   )
 }

@@ -55,6 +55,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { PaneCanvas } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR, pathTo } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
@@ -528,7 +529,7 @@ export default function MapView({ bus }: { bus: Bus }) {
   const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
 
   return (
-    <div aria-label="map-view" className="relative h-full" style={{ background: '#eef4f8' }}>
+    <PaneCanvas aria-label="map-view" face="none" style={{ background: '#eef4f8' }}>
       <svg
         ref={svgRef}
         data-nested
@@ -1240,6 +1241,6 @@ export default function MapView({ bus }: { bus: Bus }) {
           </span>
         )}
       </div>
-    </div>
+    </PaneCanvas>
   )
 }

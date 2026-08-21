@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { StepDot, TrailChip, wrapTip } from '@/ds'
+import { PaneScroller, StepDot, TrailChip, wrapTip } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -53,7 +53,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
         <div className="px-3 pt-1.5 text-[10px] font-bold text-slate-500 shrink-0">
           Trail — {trail.length} visited (append-only; ⤳ marks a jump)
         </div>
-        <div ref={scroller} className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-3 pb-2">
+        <PaneScroller axis="x" forwardRef={scroller} style={{ padding: '0 12px 8px' }}>
           <div className="flex items-center gap-1.5 h-full">
             {trail.map((t, i) => (
               <TrailChip
@@ -66,12 +66,12 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
               />
             ))}
           </div>
-        </div>
+        </PaneScroller>
       </div>
 
       <div className="w-px bg-slate-200 shrink-0" />
 
-      <div className="w-[420px] shrink-0 px-3 py-1.5 overflow-y-auto">
+      <PaneScroller style={{ width: 420, flex: 'none', padding: '6px 12px' }}>
         <div className="text-[10px] font-bold text-slate-500 mb-1">Walks</div>
         {!walk ? (
           <div className="flex flex-wrap gap-1.5">
@@ -116,7 +116,7 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
             ))}
           </div>
         )}
-      </div>
+      </PaneScroller>
     </div>
   )
 }

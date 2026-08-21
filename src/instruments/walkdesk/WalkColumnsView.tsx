@@ -17,7 +17,7 @@ export default function WalkColumnsView({ bus }: { bus: Bus }) {
   const { path, pick } = useDrill()
 
   return (
-    <div data-walkcolumns className="h-full flex flex-col bg-slate-50/50">
+    <div data-walkcolumns className="h-full flex flex-col">
       <div className="shrink-0 px-3 py-1.5 border-b border-slate-100">
         <span className="text-[10px] font-bold text-slate-500">
           columns — a RESOLVED road, one column per open tier · reading only

@@ -16,7 +16,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, PaneHeader, PillButton, PresetButton, SectionLabel } from '@/ds'
+import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PaneHeader, PillButton, PresetButton, SectionLabel } from '@/ds'
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -92,47 +92,27 @@ export default function StudioView() {
   // A pane does not decide its own size: where it sits does. A lone column, one
   // half of a stacked column and a bottom strip need three different styles, so
   // the caller supplies them and this only owns the chrome.
+  //
+  // OB-039: this is now the DS Pane rather than a hand-rolled <section> +
+  // PaneHeader + clip div. Pane's own frame defaults to flex:1 (it did not
+  // used to have a default at all — sizing was 100% the caller's), so a strip
+  // with no explicit flex of its own now needs one passed: see the strips
+  // mapping below.
   const pane = (inst: Instrument, on: boolean, style: CSSProperties, extra: string) => (
-    <section
+    <Pane
       key={inst.id}
       aria-label={`studio-pane-${inst.id}`}
       data-slot={on ? 'on' : 'benched'}
-      className={`flex-col min-w-0 min-h-0 border ${extra}`}
-      style={{
-        display: on ? 'flex' : 'none',
-        position: 'relative',
-        // #77: each pane is a bordered, rounded box floating on the canopy desk —
-        // the frame the legend title straddles. Fill is --surface-paper (a pane),
-        // distinct from the --surface-raised cards that sit INSIDE it. The 1px
-        // width comes from Tailwind's `border` utility (DS-adherence forbids a raw
-        // px literal); only the token colour is set here. overflow stays visible
-        // so the title's top half, which floats ABOVE this top border, is not
-        // clipped; the content div below clips its own corners.
-        borderColor: 'var(--border-frame)',
-        borderStyle: 'solid',
-        background: 'var(--surface-paper)',
-        borderRadius: 'var(--radius-lg)',
-        ...style,
-      }}
+      className={extra}
+      title={inst.label}
+      variant="legend"
+      legendBg="var(--surface-canopy)"
+      onClose={() => toggle(inst.id as InstrumentId)}
+      scroll={inst.body === 'none' ? 'none' : 'y'}
+      style={{ display: on ? 'flex' : 'none', ...style }}
     >
-      {/* #77: the pane's hat is the DS PaneHeader "legend" variant — the title
-          sits ON this box's top hairline and masks it against the desk
-          (--surface-canopy), so the frame reads as interrupted by the label
-          rather than as a filled bar. legendBg MUST equal the desk color behind
-          the pane for the mask to blend. */}
-      <PaneHeader title={inst.label} variant="legend" legendBg="var(--surface-canopy)" onClose={() => toggle(inst.id as InstrumentId)} />
-      {/* content clips to ALL FOUR of the box's corners, never the bottom two alone
-          (DS PaneHeader.d.ts rule 2, 2026-08-17): the header is 11px tall, so the
-          content still starts inside the 20px corner arc and has to follow it, or
-          anything it paints squares off the pane's rounded top. A strip with no
-          declared height sizes itself to its content. */}
-      <div
-        className={inst.slot === 'strip' && !inst.height ? 'shrink-0' : 'flex-1 min-h-0'}
-        style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}
-      >
-        {inst.render(bus)}
-      </div>
-    </section>
+      {inst.render(bus)}
+    </Pane>
   )
 
   /** how wide a column is: a pinned pixel width, or a flex weight the preset may
@@ -304,7 +284,15 @@ export default function StudioView() {
             pane(
               i,
               onScreen.includes(i.id as InstrumentId),
-              { order: onScreen.indexOf(i.id as InstrumentId), height: i.height ? `${i.height}px` : undefined },
+              {
+                order: onScreen.indexOf(i.id as InstrumentId),
+                // a strip is never stretched by the desk's own flex column — Pane's
+                // frame defaults to flex:1 (the hand-rolled <section> it replaces
+                // had no default at all), so an explicit height pins it and a
+                // heightless one still hugs its own content instead of growing
+                flex: 'none',
+                height: i.height ? `${i.height}px` : undefined,
+              },
               'w-full',
             ),
           )}

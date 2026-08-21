@@ -13,6 +13,7 @@
 
 import { useEffect, useRef } from 'react'
 
+import { PaneScroller } from '@/ds'
 import { byId, domainIds, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
 import { DomainDot } from '../ds/graph/DomainDot'
 import { DOMAIN_TOKEN } from '../ds/graph/vocab'
@@ -72,7 +73,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
 
   if (route.length === 0) {
     return (
-      <div className="h-full overflow-auto bg-slate-50 p-6">
+      <PaneScroller style={{ padding: 24 }}>
         <div className="max-w-[900px] mx-auto">
           <div className="text-[13px] font-bold text-slate-800">Start a walk</div>
           <div className="text-[11px] text-slate-500 mt-0.5 mb-4">
@@ -115,12 +116,12 @@ export default function WalkView({ bus }: { bus: Bus }) {
             ))}
           </div>
         </div>
-      </div>
+      </PaneScroller>
     )
   }
 
   return (
-    <div className="relative h-full bg-slate-50 flex flex-col">
+    <div className="relative h-full flex flex-col">
       <div className="shrink-0 px-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600">
         <span className="font-bold text-slate-800 text-[12px]">Walk — step-by-step downstream</span>
         <span className="text-slate-400">
@@ -133,7 +134,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
         </button>
       </div>
 
-      <div ref={scroller} className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
+      <PaneScroller axis="x" forwardRef={scroller}>
         <div className="flex gap-3 px-4 pb-4 h-full items-stretch">
           {route.map((stepId, i) => {
             const choices = outgoing.get(stepId) ?? []
@@ -197,7 +198,7 @@ export default function WalkView({ bus }: { bus: Bus }) {
             )
           })}
         </div>
-      </div>
+      </PaneScroller>
     </div>
   )
 }

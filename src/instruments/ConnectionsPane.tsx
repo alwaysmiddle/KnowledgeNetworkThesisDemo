@@ -58,7 +58,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { SectionLabel, wrapTip } from '@/ds'
+import { PaneScroller, SectionLabel, wrapTip } from '@/ds'
 
 import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
 import type { GEdge } from '../corpus/graph'
@@ -1108,7 +1108,8 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
           the pane's main reading and gets the room). Empty states still say
           so out loud rather than collapsing the frame to blank. */}
       {mode === 'wheel' ? (
-        <div aria-label="connections-contained" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-contained" className="shrink-0 h-[24%] border-t-2 border-slate-300">
+        <PaneScroller style={{ padding: '8px 12px 6px' }}>
           <SectionLabel count={containedKids.length}>contained</SectionLabel>
           {containedKids.length === 0 ? (
             <div className="text-[11px] text-slate-400">no children — {node.title} is a leaf</div>
@@ -1142,9 +1143,11 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
               })}
             </div>
           )}
+        </PaneScroller>
         </div>
       ) : !anchorTopic ? (
-        <div aria-label="connections-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-relationships" className="shrink-0 h-[24%] border-t-2 border-slate-300">
+        <PaneScroller style={{ padding: '8px 12px 6px' }}>
           <SectionLabel
             count={regionStar ? regionStar.edges.length : 0}
             action={
@@ -1207,17 +1210,21 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
               })}
             </div>
           )}
+        </PaneScroller>
         </div>
       ) : viaTopic ? (
-        <div aria-label="connections-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-relationships" className="shrink-0 h-[24%] border-t-2 border-slate-300">
+        <PaneScroller style={{ padding: '8px 12px 6px' }}>
           <SectionLabel count={0}>relationships</SectionLabel>
           <div className="text-[11px] text-slate-400">no relationships to display</div>
           <div className="text-[10.5px] text-slate-400 italic mt-0.5">
             relations live at the topic grain — see {byId.get(viaTopic)!.title}
           </div>
+        </PaneScroller>
         </div>
       ) : (
-        <div aria-label="connections-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-relationships" className="shrink-0 h-[24%] border-t-2 border-slate-300">
+        <PaneScroller style={{ padding: '8px 12px 6px' }}>
           <SectionLabel count={rels.length}>relationships</SectionLabel>
           {rels.length === 0 ? (
             <div className="text-[11px] text-slate-400">no relationships to display</div>
@@ -1243,6 +1250,7 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
               })}
             </div>
           )}
+        </PaneScroller>
         </div>
       )}
     </div>
