@@ -2,8 +2,8 @@
 // Every node (including the start) reveals its typed links on click as a
 // pickable list; picking one MATERIALIZES it as a real node, connected by a
 // labelled, directed edge, and it becomes clickable the same way. You choose
-// which branch to grow, one click at a time — the opposite of the plex's
-// fixed first-order ring (cockpit/PlexPanel.tsx), which shows everything at
+// which branch to grow, one click at a time — the opposite of the Neighborhood
+// pane's fixed first-order ring (cockpit/PlexPanel.tsx), which shows everything at
 // once but only one level deep.
 //
 // OverviewDetailView.tsx calls expand-in-place out BY NAME as its

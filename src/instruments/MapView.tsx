@@ -1,5 +1,7 @@
-// Map·Nested — the "territory at every level" instrument. Same geography as
-// the Map (same embedding, same countries and provinces), but EVERY node owns
+// Map — the "territory at every level" instrument, and the Studio's only map.
+// It ABSORBED the flat MapView in 25734fa ("one map"), which is why this file
+// carries that name again: same geography as that one (same embedding, same
+// countries and provinces), but EVERY node owns
 // a convex territory that its children tile exactly (model/nested.ts), so
 // zooming discloses region tiers in place.
 //
@@ -117,7 +119,7 @@ interface View {
   s: number
 }
 
-export default function NestedAtlasView({ bus }: { bus: Bus }) {
+export default function MapView({ bus }: { bus: Bus }) {
   const onFocus = (id: string) => bus.setFocus(id, 'map')
 
   const svgRef = useRef<SVGSVGElement>(null)
@@ -304,7 +306,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   const [dragging, setDragging] = useState(false)
 
   // Selecting a container used to OPEN the Connections pane — a 350ms-delayed
-  // bus.reveal('children'), delayed because a newly-mounting pane reflowed the
+  // bus.reveal('connections'), delayed because a newly-mounting pane reflowed the
   // grid mid-gesture and the second click of a zoom double-click would land on
   // a map that had moved. Cut (#21): the map now only publishes focus, and what
   // is on screen stays the composition's business. A pane that appears under
@@ -526,7 +528,7 @@ export default function NestedAtlasView({ bus }: { bus: Bus }) {
   const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
 
   return (
-    <div aria-label="nested-atlas" className="relative h-full" style={{ background: '#eef4f8' }}>
+    <div aria-label="map-view" className="relative h-full" style={{ background: '#eef4f8' }}>
       <svg
         ref={svgRef}
         data-nested

@@ -76,7 +76,7 @@ const sector = (id: string) => Math.sqrt(weight(id))
 
 /** descendants beneath a node, excluding itself — the pane's "n of N beneath"
  * counter. Shares the memo with the sector weights (weight = self + descendants)
- * rather than walking the tree a second time, which is what ChildrenPanel used
+ * rather than walking the tree a second time, which is what ConnectionsPane used
  * to do with its own private copy. */
 export const subtreeSize = (id: string) => weight(id) - 1
 

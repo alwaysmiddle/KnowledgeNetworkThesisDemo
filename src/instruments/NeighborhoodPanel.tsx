@@ -1,9 +1,10 @@
-// Plex — the current node's local neighborhood as a small radial diagram,
+// Neighborhood — the current node's local neighborhood as a small radial
+// diagram (named PlexPanel.tsx until 2026-08-20; "Plex" named nothing),
 // embedded in the Knowledge panel. Containment is vertical (parent above,
 // children below — the tree's own axis, just point-sized here) and, for
 // leaves, typed links fan out left/right: incoming on the left, outgoing on
 // the right, each edge type on its own ring so same-type neighbors read as a
-// group by radius AND color, not just by list order. KnowledgePanel pairs
+// group by radius AND color, not just by list order. DocumentPanel pairs
 // this with a regrouped text list right below it — the diagram carries
 // shape (how many, which type, in vs. out) at a glance; the list carries
 // names. Neither replaces the other, matching what a flat Jira-style link
@@ -50,7 +51,7 @@ const childX = (i: number, count: number) => {
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-export default function PlexPanel({ bus }: { bus: Bus }) {
+export default function NeighborhoodPanel({ bus }: { bus: Bus }) {
   const currentId = bus.focus ?? ROOT_ID
   // two writers, two vias: stepping into a child is tree movement; crossing a
   // typed road is a JUMP, and the trail chip says so
@@ -65,7 +66,7 @@ export default function PlexPanel({ bus }: { bus: Bus }) {
   const incoming = roads.filter((e) => e.target === currentId)
 
   return (
-    <div aria-label="plex-panel">
+    <div aria-label="neighborhood-panel">
       <svg viewBox="0 0 640 300" className="w-full h-[260px]">
         <defs>
           {EDGE_TYPES.map((type) => (

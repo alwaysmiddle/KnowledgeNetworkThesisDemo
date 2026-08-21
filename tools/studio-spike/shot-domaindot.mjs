@@ -82,9 +82,9 @@ await page.waitForTimeout(500)
 await page.locator('[data-pal-search]').fill('network')
 await page.waitForTimeout(300)
 if ((await page.locator('[data-pal]').count()) === 0) fail('palette: "network" matched nothing, so there are no dots to check')
-await page.locator('[aria-label="studio-pane-palette"]').screenshot({ path: `${OUT}/dot-${TAG}-01-palette.png` })
+await page.locator('[aria-label="studio-pane-walkpalette"]').screenshot({ path: `${OUT}/dot-${TAG}-01-palette.png` })
 console.log(`dot-${TAG}-01-palette.png taken`)
-const palDots = await swatchesIn('[aria-label="studio-pane-palette"]')
+const palDots = await swatchesIn('[aria-label="studio-pane-walkpalette"]')
 
 // ── 2 · the layer stack's planes ───────────────────────────────────────────
 await page.locator('[data-pal-search]').fill('')

@@ -1,4 +1,6 @@
-// Children — the subtree GRAPH of where you're standing (2026-07-12: the
+// Connections — the subtree GRAPH of where you're standing (named
+// ChildrenPanel.tsx until 2026-08-20; the old name is kept in this line so
+// its citations still grep). (2026-07-12: the
 // in-map flip retired into this pane — the map stays territory at every
 // depth, and this is the node-link reading of the focused region). ONE
 // layout: the radial wheel (model/panegraph.ts; the 2026-07-12 nest
@@ -236,7 +238,7 @@ function PanZoomCanvas({
   )
 }
 
-export default function ChildrenPanel({ bus }: { bus: Bus }) {
+export default function ConnectionsPane({ bus }: { bus: Bus }) {
   const onSelect = (id: string) => bus.setFocus(id, 'tree')
   // the guarded enter/leave that used to be hand-rolled here (and again in the
   // atlas, and again in the document pane) is the bus's job now
@@ -447,7 +449,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
   }
 
   return (
-    <div aria-label="children-panel" data-focus={bus.focus ?? undefined} className="h-full flex flex-col">
+    <div aria-label="connections-pane" data-focus={bus.focus ?? undefined} className="h-full flex flex-col">
       <div className="shrink-0 px-3 pt-2">
         {/* breadcrumb — the containment path; every chip above the tip goes up.
             ONE line, never wraps (SelfNotes audit: a preview sweeping across
@@ -516,7 +518,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               anywhere (star node, map cell, tree row) can be walked back */}
           <div className="flex rounded border border-slate-300 overflow-hidden">
             <button
-              aria-label="children-nav-back"
+              aria-label="connections-nav-back"
               disabled={!bus.canBack}
               onClick={bus.back}
               className="px-1.5 py-0.5 bg-white text-slate-600 enabled:hover:bg-slate-100 disabled:text-slate-300"
@@ -525,7 +527,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               ◀
             </button>
             <button
-              aria-label="children-nav-forward"
+              aria-label="connections-nav-forward"
               disabled={!bus.canForward}
               onClick={bus.forward}
               className="px-1.5 py-0.5 bg-white text-slate-600 enabled:hover:bg-slate-100 disabled:text-slate-300 border-l border-slate-200"
@@ -538,7 +540,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
             {(['wheel', 'relations'] as const).map((m) => (
               <button
                 key={m}
-                aria-label={`children-mode-${m}`}
+                aria-label={`connections-mode-${m}`}
                 onClick={() => setMode(m)}
                 className={`px-1.5 py-0.5 ${mode === m ? 'bg-slate-700 text-white font-semibold' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
                 title={wrapTip(
@@ -554,7 +556,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           {mode === 'wheel' && pg.depthAvail > 1 && (
             <span className="flex items-center gap-1">
               <button
-                aria-label="children-open-all"
+                aria-label="connections-open-all"
                 onClick={openAll}
                 className="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
                 title={wrapTip('open every container in the subtree')}
@@ -563,7 +565,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
               </button>
               {expanded.size > 0 && (
                 <button
-                  aria-label="children-close-all"
+                  aria-label="connections-close-all"
                   onClick={() => setOpen(new Set())}
                   className="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
                   title={wrapTip('back to direct children only')}
@@ -1106,7 +1108,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           the pane's main reading and gets the room). Empty states still say
           so out loud rather than collapsing the frame to blank. */}
       {mode === 'wheel' ? (
-        <div aria-label="children-contained" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-contained" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
           <SectionLabel count={containedKids.length}>contained</SectionLabel>
           {containedKids.length === 0 ? (
             <div className="text-[11px] text-slate-400">no children — {node.title} is a leaf</div>
@@ -1142,7 +1144,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           )}
         </div>
       ) : !anchorTopic ? (
-        <div aria-label="children-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
           <SectionLabel
             count={regionStar ? regionStar.edges.length : 0}
             action={
@@ -1207,7 +1209,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           )}
         </div>
       ) : viaTopic ? (
-        <div aria-label="children-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
           <SectionLabel count={0}>relationships</SectionLabel>
           <div className="text-[11px] text-slate-400">no relationships to display</div>
           <div className="text-[10.5px] text-slate-400 italic mt-0.5">
@@ -1215,7 +1217,7 @@ export default function ChildrenPanel({ bus }: { bus: Bus }) {
           </div>
         </div>
       ) : (
-        <div aria-label="children-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
+        <div aria-label="connections-relationships" className="shrink-0 h-[24%] overflow-y-auto border-t-2 border-slate-300 px-3 pt-2 pb-1.5">
           <SectionLabel count={rels.length}>relationships</SectionLabel>
           {rels.length === 0 ? (
             <div className="text-[11px] text-slate-400">no relationships to display</div>
