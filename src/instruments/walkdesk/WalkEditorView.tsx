@@ -47,7 +47,7 @@ import WalkPreview from './WalkPreview'
 import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
-import { wrapTip } from '@/ds'
+import { IconButton, wrapTip } from '@/ds'
 
 /** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting
  *  the pane, so it takes no width from the layout and the road never reflows. */
@@ -250,14 +250,7 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
             >
               save
             </button>
-            <button
-              onClick={() => setNaming(false)}
-              title={wrapTip('back to the road')}
-              className="text-[var(--fs-caption)] px-1.5 py-0.5"
-              style={{ color: 'var(--text-3)' }}
-            >
-              ✕
-            </button>
+            <IconButton onClick={() => setNaming(false)} title="back to the road" />
           </div>
         )}
 
@@ -329,15 +322,7 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
         >
           <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-[var(--border-hair)]">
             <span className="text-[var(--fs-caption)] font-bold uppercase tracking-wide" style={{ color: 'var(--text-3)', letterSpacing: 'var(--ls-caps)' }}>the walk</span>
-            <button
-              data-preview-close
-              onClick={() => setPreviewOpen(false)}
-              title={wrapTip('back to the road')}
-              className="text-[var(--fs-body)] leading-none"
-              style={{ color: 'var(--text-3)' }}
-            >
-              ✕
-            </button>
+            <IconButton onClick={() => setPreviewOpen(false)} title="back to the road" />
           </div>
           <div className="flex-1 min-h-0">
             <WalkPreview walk={resolved} />
