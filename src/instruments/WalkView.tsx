@@ -13,15 +13,12 @@
 
 import { useEffect, useRef } from 'react'
 
-import { PaneScroller } from '@/ds'
+import { DomainDot, DOMAIN_TOKEN, PaneScroller, wrapTip } from '@/ds'
 import { byId, domainIds, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
-import { DomainDot } from '../ds/graph/DomainDot'
-import { DOMAIN_TOKEN } from '../ds/graph/vocab'
 import { domainCodeOf } from '../model/domaincode'
 import type { Bus } from '../studio/bus'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, HUB_IDS } from '../model/flat'
-import { wrapTip } from '../ds/chrome/IconButton'
 
 interface Choice {
   target: string

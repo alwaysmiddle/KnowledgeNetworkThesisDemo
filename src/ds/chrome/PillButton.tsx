@@ -19,8 +19,9 @@ const TONES: Record<Tone, { bg: string; bd: string; ink: string; hoverBg: string
 /** A small round-cornered action. Labels name a STATE or an action in lower
  *  case. Typed port of the DS PillButton.jsx (contract: PillButton.d.ts). */
 export interface PillButtonProps {
-  /** quiet = the default bordered pill; primary = moss; walk = acorn (the
-   *  authored path); danger = berry; ghost = no resting border */
+  /** quiet = the default bordered pill; primary = moss; walk = acorn
+   *  (movement — a walk, a stop, a jump); danger = berry; ghost = no resting
+   *  border */
   tone?: Tone
   size?: 'sm' | 'md'
   /** a Unicode glyph from the house set, e.g. '▶' or '✦'. Never an emoji. */

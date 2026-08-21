@@ -29,7 +29,7 @@ import { useClipped } from '../chrome/IconButton'
  *  toggle. Do not re-tune these per state: a mark that needs to sit lower next to text
  *  wants the CALLER's inset (`CARET_FIRST_LINE_INSET` below), not the glyph's own
  *  centring. */
-export function caretStyle(open?: boolean): CSSProperties {
+function caretStyle(open?: boolean): CSSProperties {
   const INK = 0.964
   return {
     width: 6,
@@ -41,6 +41,15 @@ export function caretStyle(open?: boolean): CSSProperties {
     transform: `rotate(${open ? 45 : -45}deg) translate(-${INK}px, -${INK}px)`,
     transition: 'transform var(--dur-hover) var(--ease-soft)',
   }
+}
+
+/** The disclosure mark itself, drawn — never a style object handed to a caller. A
+ *  spread of `caretStyle()` invites the border-longhand trap (see above); a
+ *  component that always renders both sides does not. `style` is a POSITION/
+ *  TRANSFORM override only (e.g. the rail's stacked up-arrow), applied after the
+ *  drawn geometry — never a second way to draw the mark itself. */
+export function Caret({ open, style }: { open?: boolean; style?: CSSProperties }) {
+  return <span style={style ? { ...caretStyle(open), ...style } : caretStyle(open)} />
 }
 
 /** WHERE A CARET'S TOP GOES when it is pinned to the FIRST LINE of a name rather than
@@ -58,6 +67,12 @@ export function caretStyle(open?: boolean): CSSProperties {
  *  box rather than a misalignment. "Fixing" the 1.92 would push the mark 1.4px low. */
 export const CARET_FIRST_LINE_INSET = 6.29
 
+/** The system's one nesting number: a caret slot this wide, an indent this deep per
+ *  level. `TreeRow` is the REFERENCE — anywhere else that nests (the instrument
+ *  palette's `InstrumentGroup`) matches this constant rather than picking its own
+ *  step, so the system does not invent a second way to nest things. */
+export const NESTING = 16
+
 /** One indented row of the containment tree — the literal list reading of the
  *  corpus. Single click selects, double click re-roots; a container draws the
  *  ▾/▸ disclosure. Presentation only: the consumer owns the bus wiring, the
@@ -66,11 +81,9 @@ export const CARET_FIRST_LINE_INSET = 6.29
 export interface TreeRowProps {
   title: string
   domain: DomainCode
-  /** indentation level; 16px per step. This component is the REFERENCE for nesting
-   *  anywhere in the system — a 16px caret slot plus 16px of indent per level. Anything
-   *  else that nests matches those two numbers rather than picking its own step */
+  /** indentation level; NESTING px per step — see NESTING's own docblock */
   depth?: number
-  /** has children — draws the disclosure caret (`caretStyle`, rotated when open)
+  /** has children — draws the disclosure caret (`Caret`, rotated when open)
    *  and answers to double-click. Never a typed ▾/▸, never an SVG chevron */
   container?: boolean
   expanded?: boolean
@@ -110,7 +123,7 @@ export function TreeRow({
         alignItems: 'center',
         gap: 7,
         minHeight: 'var(--hit-min)',
-        padding: '4px 10px 4px ' + (10 + depth * 16) + 'px',
+        padding: '4px 10px 4px ' + (10 + depth * NESTING) + 'px',
         marginInline: 6,
         borderRadius: 'var(--radius-sm)',
         cursor: 'pointer',
@@ -128,8 +141,8 @@ export function TreeRow({
             onToggle?.()
           }}
           style={{
-            width: 16,
-            height: 16,
+            width: NESTING,
+            height: NESTING,
             flexShrink: 0,
             display: 'grid',
             placeItems: 'center',
@@ -141,10 +154,10 @@ export function TreeRow({
             lineHeight: 1,
           }}
         >
-          <span style={caretStyle(expanded)} />
+          <Caret open={expanded} />
         </button>
       ) : (
-        <span style={{ width: 16, flexShrink: 0 }} />
+        <span style={{ width: NESTING, flexShrink: 0 }} />
       )}
       <span
         style={{

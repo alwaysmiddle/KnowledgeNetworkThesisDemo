@@ -25,14 +25,12 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
-import { PaneScroller } from '@/ds'
+import { DomainDot, PaneScroller, wrapTip } from '@/ds'
 import { byId, nodes, pathTo } from '../../corpus/graph'
-import { DomainDot } from '../../ds/graph/DomainDot'
 import { domainCodeOf } from '../../model/domaincode'
 import type { AuthorState } from './authordraft'
 import { DT } from './authordnd'
 import type { HoverBinding } from '../../studio/bus'
-import { wrapTip } from '../../ds/chrome/IconButton'
 
 // ── Recent searches — a module-level ring so it survives a remount within the
 // session (the pane can unmount when the preset changes). Last ~8, most recent

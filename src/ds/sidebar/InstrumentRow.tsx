@@ -10,7 +10,7 @@ import { useClipped } from '../chrome/IconButton'
  *  DomainDot's diameter so a list can carry both marks in one column without them
  *  arguing. It is a state light: not a checkbox (no third state), not a radio
  *  (rows are independent). */
-export function bulletStyle(on?: boolean): CSSProperties {
+function bulletStyle(on?: boolean): CSSProperties {
   return {
     width: 8,
     height: 8,
@@ -20,6 +20,11 @@ export function bulletStyle(on?: boolean): CSSProperties {
     boxShadow: on ? 'none' : 'inset 0 0 0 1.5px var(--text-3)',
     transition: 'var(--transition-wash)',
   }
+}
+
+/** The state bullet itself, drawn — never a style object handed to a caller. */
+export function Bullet({ on }: { on?: boolean }) {
+  return <span style={bulletStyle(on)} />
 }
 
 /** One instrument in the palette: toggles its pane on or off the composition.
@@ -72,7 +77,7 @@ export function InstrumentRow({ label, on, swatch, disabled, onClick }: Instrume
       }}
     >
       <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-        <span style={bulletStyle(on)} />
+        <Bullet on={on} />
       </span>
       {swatch ? <span style={{ width: 8, height: 8, borderRadius: 3, background: swatch, flexShrink: 0 }} /> : null}
       <span {...labelClip} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>

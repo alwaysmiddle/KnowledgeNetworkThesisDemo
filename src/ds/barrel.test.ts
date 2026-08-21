@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NodeRail, RailStop } from '@/ds'
+import { Bullet, Caret, Check, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -75,5 +75,24 @@ describe('ported but not adopted DS components', () => {
 
   it('Grip — ported (#126); Pane/PaneHeader place it, no direct app importer', () => {
     expect(typeof Grip).toBe('function')
+  })
+
+  // OB-041 (#129) turned four private style-getters into drawn components so a
+  // caller has nothing left to spread (the border-longhand trap). Each mark's
+  // only renderer is still inside src/ds itself — TreeRow places Caret,
+  // InstrumentRow places Bullet, VersionedGroup places Check and RestoreMark —
+  // so none has an app-code importer of its own, same position as Grip above.
+  it('Caret / Bullet / Check / RestoreMark — drawn marks, placed only from inside src/ds', () => {
+    expect(typeof Caret).toBe('function')
+    expect(typeof Bullet).toBe('function')
+    expect(typeof Check).toBe('function')
+    expect(typeof RestoreMark).toBe('function')
+  })
+
+  // NESTING is a number, not a component — grouped here anyway since it crossed
+  // the boundary in the same obligation and for the same reason: TreeRow is the
+  // reference for nesting, and no app code needs the raw constant yet.
+  it('NESTING — the system nesting step; TreeRow and InstrumentGroup are its only readers so far', () => {
+    expect(NESTING).toBe(16)
   })
 })

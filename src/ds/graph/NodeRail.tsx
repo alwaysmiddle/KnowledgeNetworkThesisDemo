@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DomainCode } from './vocab'
 import { NodeChip } from './NodeChip'
-import { caretStyle } from '../nav/TreeRow'
+import { Caret } from '../nav/TreeRow'
 import { IconButton, wrapTip } from '../chrome/IconButton'
 
 /** THE RAIL'S GEOMETRY, published rather than described — the group's and the chip's own
@@ -231,12 +231,12 @@ export function NodeRail({
                 collapse all, so the pair cannot read as a new icon */}
             <IconButton size={M.caretSlot} reveal={railOpen && acts} title="expand all" onClick={onExpandAll}>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                <span style={caretStyle(true)} /><span style={caretStyle(true)} />
+                <Caret open /><Caret open />
               </span>
             </IconButton>
             <IconButton size={M.caretSlot} reveal={railOpen && acts} title="collapse all" onClick={onCollapseAll}>
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                <span style={{ ...caretStyle(true), ...UP }} /><span style={{ ...caretStyle(true), ...UP }} />
+                <Caret open style={UP} /><Caret open style={UP} />
               </span>
             </IconButton>
           </span>

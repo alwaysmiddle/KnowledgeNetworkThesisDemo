@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { caretStyle } from '../nav/TreeRow'
+import { Caret, NESTING } from '../nav/TreeRow'
 import { useClipped } from '../chrome/IconButton'
 
 /** A family of instruments in the palette. Collapsible, and it reports how many
@@ -77,7 +77,7 @@ export function InstrumentGroup({ label, open = true, onToggle, count = 0, label
       >
         <span
           style={{
-            width: 16,
+            width: NESTING,
             flexShrink: 0,
             display: 'grid',
             placeItems: 'center',
@@ -85,7 +85,7 @@ export function InstrumentGroup({ label, open = true, onToggle, count = 0, label
             transition: 'color var(--dur-hover) var(--ease-soft)',
           }}
         >
-          <span style={caretStyle(open)} />
+          <Caret open={open} />
         </span>
         <span
           {...labelClip}
@@ -122,7 +122,7 @@ export function InstrumentGroup({ label, open = true, onToggle, count = 0, label
         ) : null}
         <span style={{ flex: 1 }} />
       </button>
-      {open ? <div style={{ paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 1 }}>{children}</div> : null}
+      {open ? <div style={{ paddingLeft: NESTING, display: 'flex', flexDirection: 'column', gap: 1 }}>{children}</div> : null}
     </div>
   )
 }

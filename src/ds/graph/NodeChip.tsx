@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
-import { caretStyle, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
+import { Caret, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
 import { useRecede, wrapTip } from '../chrome/IconButton'
 
 /** the one string the three resize grips share. Three copies of a literal is three
@@ -63,8 +63,6 @@ const DOT_FIRST_LINE_INSET = 4.83
  *
  *  Deviations from DS source:
  *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source)
- *  - Draws the disclosure mark via `caretStyle()` directly rather than through a shared
- *    `Caret` component — `../nav/TreeRow` does not export one yet (OB-041)
  *  - `chipSize()`'s border edge is still the authored stroke width, not `usedStroke()`'s
  *    device-pixel value — the DS's newly published geometry contract (2026-08-21) is
  *    not yet adopted here; flagged on #74 rather than folded into this port silently */
@@ -147,7 +145,7 @@ export interface NodeChipProps {
   focus?: boolean
   /** THIS CHIP HEADS A DISCLOSURE — an opt-in capability, like `selectable`, `resizable`
    *  and `onDelete`: the surface asks for it and the chip grows a control. Draws the
-   *  shared disclosure mark (`caretStyle` from `../nav/TreeRow`) at the chip's LEADING
+   *  shared disclosure mark (`Caret` from `../nav/TreeRow`) at the chip's LEADING
    *  edge, before the dot, and reserves its width — 12px on the title, the 6px mark plus
    *  the chip's own 6px gap. `open` only says which way it points.
    *
@@ -806,7 +804,7 @@ export function NodeChip({
           marginTop: stacked ? M.caretTop : 0,
           transition: 'color var(--dur-fade) var(--ease-soft)',
         }}>
-          <span style={caretStyle(open)} />
+          <Caret open={open} />
         </span>
       ) : null}
       {bordered || plain ? null : (

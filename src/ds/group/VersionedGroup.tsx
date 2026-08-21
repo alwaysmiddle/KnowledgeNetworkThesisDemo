@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useContext, createContext } from 'react'
 import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
-import { caretStyle } from '../nav/TreeRow'
-import { bulletStyle } from '../sidebar/InstrumentRow'
+import { Caret } from '../nav/TreeRow'
+import { Bullet } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
 import { IconButton, useClipped, usePresence, useRecede, wrapTip } from '../chrome/IconButton'
 
@@ -592,7 +592,12 @@ function checkStyle(): CSSProperties {
   }
 }
 
-function RestoreMark() {
+/** The tick itself, drawn — never a style object handed to a caller. */
+export function Check() {
+  return <span style={checkStyle()} />
+}
+
+export function RestoreMark() {
   return (
     <span style={{ position: 'relative', width: 10, height: 10, display: 'block' }}>
       <span style={{ position: 'absolute', top: 0, right: 0, width: 7, height: 7, boxSizing: 'border-box', borderTop: '1.25px solid currentColor', borderRight: '1.25px solid currentColor', borderTopRightRadius: 1.5 }} />
@@ -779,7 +784,7 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
               cursor: 'pointer', transition: 'var(--transition-wash)',
             }}>
             <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0, color: 'var(--accent-primary-ink)' }}>
-              {on ? <span style={checkStyle()} /> : <span style={bulletStyle(false)} />}
+              {on ? <Check /> : <Bullet />}
             </span>
             {version.label ? (
               <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: on ? 'var(--accent-primary-ink)' : 'var(--text-2)' }}>{version.label}</span>
@@ -1753,7 +1758,7 @@ export function VersionedGroup({
           cursor: editing ? 'default' : 'pointer', transition: 'var(--transition-wash)',
         }}>
         <span style={{ width: 12, display: 'grid', placeItems: 'center', flexShrink: 0, height: 18, color: 'var(--accent-primary-ink)' }}>
-          <span style={checkStyle()} />
+          <Check />
         </span>
         {active.label ? (
           <span style={{ flexShrink: 0, lineHeight: '18px', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: 'var(--accent-primary-ink)', fontWeight: 'var(--fw-medium)' }}>{active.label}</span>
@@ -1792,7 +1797,7 @@ export function VersionedGroup({
             }} />
         </span>
         <span style={{ width: 16, height: 16, flexShrink: 0, display: 'grid', placeItems: 'center', marginTop: 1, color: open ? 'var(--text-2)' : 'var(--text-3)', transition: 'color var(--dur-hover) var(--ease-soft)' }}>
-          <span style={caretStyle(open)} />
+          <Caret open={open} />
         </span>
       </div>
       {open ? (portalTarget ? createPortal(menuList, portalTarget) : menuList) : null}
