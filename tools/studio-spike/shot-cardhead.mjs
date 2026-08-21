@@ -104,8 +104,22 @@ const overlaps = await page.evaluate(() => {
 console.log(`head/step overlaps = ${overlaps.length} (expect 0)`)
 if (overlaps.length) fail(`the head reservation is wrong:\n  ${overlaps.join('\n  ')}`)
 
-const SLOT_LEFT = 33.5 // faceBorder 1 + padX 8 + railIndent 13 + railStroke 1.5 + railPadLeft 10
-const SLOT_RIGHT = 17 // bodyPadRight 8 + padX 8 + faceBorder 1
+// THE TWO INSETS ARE DERIVED HERE, NOT WRITTEN DOWN. They used to be the literals 33.5
+// and 17, each built on a `GROUP_METRICS.faceBorder: 1` that no longer exists (OB-024):
+// a 1px border is not 1px, because the browser lays borders out in whole DEVICE pixels,
+// so at dpr 1.5 the card's own edge is USED as 0.667 CSS px. That is `hairline()` in
+// VersionedGroup.tsx, and the only honest way to get it is to ask the page that is doing
+// the laying out — a driver that hard-codes dpr-1 numbers passes on a dpr-1 machine and
+// silently checks the wrong card anywhere else.
+const [SLOT_LEFT, SLOT_RIGHT] = await page.evaluate(() => {
+  const r = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
+  const hair = r >= 1 ? Math.floor(r) / r : 1
+  return [
+    hair + 8 + 13 + 1.5 + 10, // hairline + padX + railIndent + railStroke + railPadLeft
+    8 + 8 + hair,             // bodyPadRight + padX + hairline
+  ]
+})
+console.log(`slot insets from the page: left ${SLOT_LEFT}, right ${SLOT_RIGHT} (33.5 / 17 at dpr 1)`)
 
 // -- the CHAIN sits on one axis, and so does every card's SLOT ---------------
 // The road is a vertical spine and the arrows are drawn on the column axis, so

@@ -633,7 +633,9 @@ function DescLine({ text, placeholder, indent, onCommit, rowOpens = false, multi
   if (!onCommit && !text) return null
   return (
     <div style={{
-      display: 'block', padding: '1px 7px 1px ' + (7 + (indent || 0)) + 'px',
+      display: 'block',
+      marginTop: -GROUP_METRICS.descPullUp, marginBottom: -GROUP_METRICS.descPullUnder,
+      padding: '0 7px 0 ' + (7 + (indent || 0)) + 'px',
       /* THE WHOLE ROW OPENS THE EDITOR, and the I-beam runs the whole row with it.
          This used to be the group's drag surface with the text carrying the only
          caret, on the rule that a caret over empty background promises a field that
@@ -648,6 +650,16 @@ function DescLine({ text, placeholder, indent, onCommit, rowOpens = false, multi
          card's drag surface. The head row, the picker and the card's own padding
          still are. */
       cursor: rowOpens && onCommit && !editing ? 'text' : 'inherit',
+      /* THE ROW CARRIES THE SAME TYPE AS ITS TEXT. Without this the block's strut comes
+         from the card (--fs-body at --lh-snug = 17.55) and the line box is 17.55 tall
+         around a 16.2 line, so the row draws taller than every published number says and
+         `headHeight()` runs light on every card. A line box is set by the containing
+         block's font, not by the inline that happens to sit in it.
+         AND IT IS THE ONE ROW SET TIGHTER THAN SNUG: --lh-tight, no vertical padding, and
+         it absorbs the head's 4px row gap above it and 2px of the gap below — see
+         `descLine`, `descPullUp` and `descPullUnder` in GROUP_METRICS for why. A
+         description is one line under the name it describes, not a paragraph. */
+      fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-tight)',
     }}
       /* a click anywhere on the row opens the line and puts the caret where the
          pointer was — past the last word that is the end of the line clicked, which
@@ -670,7 +682,7 @@ function DescLine({ text, placeholder, indent, onCommit, rowOpens = false, multi
         style={{
           display: 'inline-block', maxWidth: '100%',
           fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)',
-          lineHeight: 'var(--lh-snug)', color: text ? 'var(--text-2)' : 'var(--text-3)',
+          lineHeight: 'var(--lh-tight)', color: text ? 'var(--text-2)' : 'var(--text-3)',
           /* italic is the mark of a thing that is not there yet, so it goes the
              moment there is something to read — including while an empty line is
              being typed into */
@@ -822,10 +834,14 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
  *
  *  LOCAL CORRECTIONS (marked ★ below, reported on drift-log #74): the DS's
  *  functions as shipped on 2026-08-16 predict a few px short of what the DS
- *  component itself renders — the face's two 1px borders are not counted; the
- *  DescLine block is a 13px strut's line box (19.55 at one line, not 2 + 16.2);
- *  the picker floors at 30 (padding + borders + its 18px cells), not 28; and the
- *  narrow tally row is 18.84, not 14.85. Measured by tools/studio-spike/shot-foldab.mjs
+ *  component itself renders — the picker floors at 30 (padding + borders + its
+ *  18px cells), not 28; and the narrow tally row is 18.84, not 14.85. Two more
+ *  corrections that used to be listed here are GONE, fixed at the source rather
+ *  than patched: the card's two side edges are now asked of the display by
+ *  `hairline()` in the layout pass (OB-024, no `faceBorder` constant survives
+ *  it), and the description row carries its own font-size and line-height, so
+ *  its line box is exactly `lines × descLine` with no strut to compensate for
+ *  (OB-028). Measured by tools/studio-spike/shot-foldab.mjs
  *  ("headRows() calibration" / bodySlot cases), which also checks these
  *  functions against the rendered card so a drift shows up as a number. */
 
@@ -833,25 +849,42 @@ export const GROUP_METRICS = {
   padX: 8, padTop: 8, padBottom: 12, rowGap: 4,       /* --space-2 / --space-3 / --space-1 */
   headPadLeft: 7, headPadRight: 2, headMinH: 22, titleMinW: 96,
   bodyLine: 17.55,                                     /* --fs-body 13 × --lh-snug 1.35 */
-  capLine: 16.2,                                       /* --fs-caption 12 × 1.35 */
   microLine: 14.85,                                    /* --fs-micro 11 × 1.35 */
   titleClampOpen: 2, titleClampFolded: 3, versionClamp: 2,
-  descPadY: 1, descPadX: 7,
+  descPadY: 0, descPadX: 7,
+  /* THE DESCRIPTION IS THE ONE ROW SET TIGHTER THAN --lh-snug, and it carries the head's
+     only two negative numbers. The head is a 4px-gap column; this row absorbs that gap on
+     BOTH sides — `descPullUp` takes all 4 above, `descPullUnder` 2 of the 4 below — and
+     drops to --lh-tight with no padding of its own. A description is one line under the
+     name it describes, so the space around it is distance from its subject rather than
+     readability. Empty, that space was the whole problem: 22.2px of reserved void between
+     the title and the picker, as tall as the title row itself. The row now contributes
+     11.8px whether it is filled or empty, so nothing moves on hover and a board can still
+     predict a card it has not pointed at.
+     `descLine` is this row's ONLY line metric, and three older names went out with it —
+     the snug caption line it replaces, and the two struts that used to patch the row at
+     one line and at the last wrapped one. Those two were a COMPENSATION, not a
+     measurement: the row took the card's 13px strut, so its line box was 17.55 round a
+     12px line and the patch made up the difference. Giving the row its own font-size and
+     line-height removes the defect they patched, so the row is exactly `lines × descLine`
+     with nothing to make up — and a port that carried the patch forward anyway would
+     double-count it. A line box is set by the containing block's font, not by the inline
+     that happens to sit in it. Do not reintroduce a second line metric here. */
+  descLine: 13.8,                                      /* --fs-caption 12 × --lh-tight 1.15 */
+  descPullUp: 4, descPullUnder: 2,
   pickerMinH: 28, pickerPadY: 10, pickerPadX: 13,       /* --hit-min; 5+5; 7+6 */
   pickerCheck: 12, pickerCaret: 16, pickerGap: 6,
   narrowAt: 250, ctlCluster: 37,                       /* two 18px buttons + 1px */
   foldPadTop: 8, foldPadX: 8, foldPadBottom: 9, foldPeekX: 6, foldPeekY: 7,
   railIndent: 13, railPadLeft: 10, bodyPadTop: 6, bodyPadRight: 8,
-  /* ★ LOCAL: what the DS's own numbers leave out, measured */
-  faceBorder: 1,          /* the AUTHORED 1px face border. The HEIGHT predictions no longer
-                             read this — they call hairline(), which is what the browser
-                             actually lays a 1px edge out as. It stays because AuthorRoad's
-                             SLOT_LEFT / SLOT_RIGHT are module-level constants built from the
-                             card's horizontal edges, and a constant cannot be dpr-reactive.
-                             That leaves those two out by up to 0.33px at dpr 1.5 — reported,
-                             not fixed here, because it is the board's arithmetic. */
-  descStrut: 17.55,       /* the DescLine block's line box: the 13px strut wins over one 12px line */
-  descLastDescent: 0.36,  /* wrapped, the last caption line sits on the block's baseline: 4.5 vs 4.14 */
+  /* ★ LOCAL: what the DS's own numbers leave out, measured.
+     THERE IS NO HORIZONTAL CONSTANT HERE, and that is the point. `faceBorder: 1` used to
+     be, holding the card's authored 1px side edge for AuthorRoad's SLOT_LEFT / SLOT_RIGHT.
+     It is gone with OB-024: devicePixelRatio is not fixed for the life of a page — a window
+     moved to a second display, or a browser zoom, changes it — so a number computed once at
+     module load is right for whatever was attached at import time and silently wrong
+     afterwards. That is the whole reason `hairline()` asks instead of assuming, and it has
+     to be asked inside the layout pass. Never hoist an edge back into this table. */
   pickerMarkLine: 18,     /* the picker row's SHORTEST content, and it is not a line of text:
                              the state light and the version label are 18px boxes, taller than
                              --fs-body at --lh-snug (17.55). Was `pickerCell` here — a LOCAL
@@ -1018,7 +1051,16 @@ function clampToLines(text: unknown, lines: number, col: number, weight: number,
 function titleColumn(width: number, spec: GroupSpec, folded: boolean): { col: number; narrow: boolean } {
   const M = GROUP_METRICS
   const shellPad = folded ? M.foldPadX * 2 : M.padX * 2
-  let col = width - shellPad - M.headPadLeft - M.headPadRight
+  /* THE CARD'S OWN TWO SIDE EDGES, asked of the display rather than assumed — the
+     horizontal half of what `hairline()` already fixes vertically, and for a long time the
+     term that was simply missing. The shell is `box-sizing: border-box` with a 1px edge in
+     both states (--border-rule folded, transparent open, and a transparent border still
+     takes layout), so a column computed from `width` without it is ~2px wider than the one
+     the browser wraps in. Harmless until a title sits inside that 2px, and then `linesOf()`
+     counts one line where the card draws two, `openHeight()` runs a whole `bodyLine`
+     (17.55px) light, and a board stacking arithmetically overlaps the next card by that
+     much. Never hoist this into a module constant — see `faceBorder` in GROUP_METRICS. */
+  let col = width - hairline() * 2 - shellPad - M.headPadLeft - M.headPadRight
   if (spec.index) col -= measure(spec.index, 500, 12, 'mono') + M.pickerGap - 2
   col -= M.ctlCluster + M.pickerGap
   const narrow = spec.narrow === undefined ? width < M.narrowAt : spec.narrow
@@ -1065,14 +1107,23 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
   const descText = s.description
     || (describable ? (s.descPlaceholder === undefined ? 'enter description' : s.descPlaceholder) : '')
   if (s.description || describable) {
-    const dcol = width - M.padX * 2 - M.descPadX * 2
+    /* the shell's two side edges come off every column inside it — see titleColumn — and so
+       does the indent that aligns this line with the TITLE rather than the card edge: the
+       same index-width expression titleColumn subtracts, so a wrapped description wraps
+       where it draws. No index, no indent. */
+    const dIndent = s.index ? measure(s.index, 500, 12, 'mono') + M.pickerGap - 2 : 0
+    const dcol = width - hair * 2 - M.padX * 2 - M.descPadX * 2 - dIndent
     /* at least one line: an empty editable row is one line tall, and `linesOf('')` is 0 */
     const dl = Math.max(1, linesOf(descText, dcol, 400, 12, 'ui', 0))
-    /* ★ the block's line box: one line is the 13px strut; wrapped, the lines win
-       and the last one sits on the block's baseline (+0.36) */
-    h += M.rowGap + M.descPadY * 2 + Math.max(M.descStrut, dl * M.capLine + M.descLastDescent)
+    /* the row is exactly its own lines, with nothing to patch: it carries its own font-size
+       and line-height, so its line box no longer takes the card's 13px strut. It absorbs the
+       head's row gap on both sides — all 4 above, 2 of the 4 below. */
+    h += M.rowGap - M.descPullUp + M.descPadY * 2 + dl * M.descLine - M.descPullUnder
   }
-  let pcol = width - M.padX * 2 - M.pickerPadX - M.pickerCheck - M.pickerCaret - M.pickerGap * 3
+  /* the shell's two side edges, and the picker row's own two: the row is border-box and
+     carries a 1px border in every state (transparent at rest, and transparent still takes
+     layout), so FOUR edges sit between the card's width and the version name's column. */
+  let pcol = width - hair * 4 - M.padX * 2 - M.pickerPadX - M.pickerCheck - M.pickerCaret - M.pickerGap * 3
   if (s.versionLabel) pcol -= measure(s.versionLabel, 500, 11, 'mono')
   const vLines = Math.max(1, linesOf(s.versionName || 'untitled', pcol, 600, 13, 'ui', M.versionClamp))
   /* the row is border-box, so its 1px edge is inside the --hit-min floor and on top of
@@ -1839,6 +1890,14 @@ export function VersionedGroup({
                same shape of decision — only the caller knows a description is prose
                and a name is not. */
             rowOpens multiline
+            /* INDENTED TO THE TITLE, NOT TO THE CARD. The description describes the NAME,
+               so it starts where the name starts — past the derived index in the head row
+               above it. Left at the card's own padding it lined up under the number
+               instead, which reads as a second thing in the head rather than as a line
+               belonging to the title. The offset is measured from the same string the head
+               draws and with the same expression `titleColumn()` already subtracts for it,
+               so the two cannot drift. No index, no indent. */
+            indent={shownIndex ? measure(shownIndex, 500, 12, 'mono') + GROUP_METRICS.pickerGap - 2 : 0}
             onCommit={onDescribe ? (v) => onDescribe(v) : undefined} />
         )}
         {isFolded ? null : picker}
