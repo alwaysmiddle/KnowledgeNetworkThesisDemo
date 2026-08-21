@@ -107,11 +107,19 @@ const AGAP = 26 // vertical space between siblings — the arrow lives here
 //   against the rendered card and the slot the component REPORTS (onBodySlot), and
 //   fails on any drift.
 const M = GROUP_METRICS
-const SLOT_LEFT = M.faceBorder + M.padX + M.railIndent + M.railStroke + M.railPadLeft // 33.5
-const SLOT_RIGHT = M.bodyPadRight + M.padX + M.faceBorder // 17
+// THE CARD'S OWN SIDE EDGES ARE ASKED, NOT ASSUMED, which is why these two are functions
+// and not constants (OB-024). They used to be module-level numbers built from a
+// `GROUP_METRICS.faceBorder: 1` — the authored edge written as a constant, right at dpr 1
+// and wrong above it. devicePixelRatio is not fixed for the life of a page: move the
+// window to a second display, or zoom the browser, and a number frozen at import time is
+// silently wrong from then on. `hairline()` is what the browser actually lays a 1px edge
+// out as, so it has to be called in the pass that positions the cards. Never hoist either
+// of these back into a constant.
+const slotLeft = () => GroupGeometry.hairline() + M.padX + M.railIndent + M.railStroke + M.railPadLeft // 33.5 at dpr 1
+const slotRight = () => M.bodyPadRight + M.padX + GroupGeometry.hairline() // 17 at dpr 1
 // The two are the card's own asymmetry: the ancestry rail hangs on the left, so the
-// slot is inset further that side, and its centre therefore sits (SLOT_LEFT -
-// SLOT_RIGHT) / 2 = 8.25px RIGHT of the card's own centre. The SLOT sits on the road's
+// slot is inset further that side, and its centre therefore sits (slotLeft() -
+// slotRight()) / 2 = 8.25px RIGHT of the card's own centre. The SLOT sits on the road's
 // axis (see reachOf), so an open card hangs that 8.25px left of it — the same amount at
 // every width, which is what lets two cards of one width share their edges. Both are
 // also how far the DS's own empty zone reaches, which is what the road's transparent
@@ -275,8 +283,8 @@ function layoutRoad(
       const spec = groupSpec(s, outline, NODEW, 0, chosen)
       return { w: NODEW, h: Math.ceil(GroupGeometry.foldedSize({ ...spec, foldedMinWidth: FOLD_MIN_W, narrow: true }).height), spec }
     }
-    // the OPEN card wraps its slot ASYMMETRICALLY — SLOT_LEFT of ancestry rail on one
-    // side, SLOT_RIGHT on the other — because the SLOT, not the card, is what sits on
+    // the OPEN card wraps its slot ASYMMETRICALLY — slotLeft() of ancestry rail on one
+    // side, slotRight() on the other — because the SLOT, not the card, is what sits on
     // the road's axis. That is the DS's own rule (VersionedGroup.prompt.md, "Filling the
     // body slot" point 7): the chain continues THROUGH the body, so the arrows into and
     // out of a card must land on the body's axis, and a chain whose arrows sit on two
@@ -287,7 +295,7 @@ function layoutRoad(
     // fields wrap against the width, so this order is what keeps openHeight() an
     // answer rather than a circular question.
     const body = bodyColOf(s, outline)
-    const w = Math.max(CARD_MIN_W, SLOT_LEFT + body.w + SLOT_RIGHT)
+    const w = Math.max(CARD_MIN_W, slotLeft() + body.w + slotRight())
     const spec = groupSpec(s, outline, w, body.h, chosen)
     const g = GroupGeometry.openHeight(spec)
     return { w, h: Math.ceil(g.height), body, bodyTop: g.bodyTop, spec }
@@ -300,7 +308,7 @@ function layoutRoad(
    *  the BODY SLOT rather than on the card. So a leaf or a fold is centred on it and
    *  reaches half its painted width each way (a fold's DS shell overhangs the NODEW
    *  slot it keeps in the column, which is why `painted` is not always `m.w`), while
-   *  an OPEN CARD reaches to its SLOT's centre — (w + SLOT_LEFT - SLOT_RIGHT) / 2,
+   *  an OPEN CARD reaches to its SLOT's centre — (w + slotLeft() - slotRight()) / 2,
    *  since the slot is inset further on the rail side — and so hangs 8.25px left of
    *  the axis at every width.
    *
@@ -320,7 +328,7 @@ function layoutRoad(
       return { left: painted / 2, right: painted / 2, painted }
     }
     if (isLeaf(s)) return { left: m.w / 2, right: m.w / 2, painted: m.w }
-    const left = (m.w + SLOT_LEFT - SLOT_RIGHT) / 2
+    const left = (m.w + slotLeft() - slotRight()) / 2
     return { left, right: m.w - left, painted: m.w }
   }
 
@@ -1102,7 +1110,7 @@ export default function AuthorRoad({
                       handleDrop(e, [...pl.path, chosen, 0], state)
                     }}
                     className="absolute z-30"
-                    style={{ left: SLOT_LEFT, top: bodyTop, width: pl.w - SLOT_LEFT - SLOT_RIGHT, height: M.emptyZone }}
+                    style={{ left: slotLeft(), top: bodyTop, width: pl.w - slotLeft() - slotRight(), height: M.emptyZone }}
                   />
                 )}
               </div>
