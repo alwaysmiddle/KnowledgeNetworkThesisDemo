@@ -212,7 +212,10 @@ describe('our DS ports document what the DS documents', () => {
   // +4 for NodeRail.tsx (#127): onToggleStop, onToggleRail, onExpandAll and
   // onCollapseAll are bare in the DS's own NodeRail.d.ts too — checked line by
   // line against it, which is DS parity and not new debt.
-  const BUDGET = 59
+  // +3 for the re-ported Pane.tsx (#126): PaneCanvasProps.forwardRef,
+  // PaneCanvasProps.children and PaneProps.children are bare in the DS's own
+  // Pane.d.ts too — same DS-parity reasoning.
+  const BUDGET = 62
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {
