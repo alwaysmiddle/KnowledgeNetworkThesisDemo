@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { EdgeDash, EdgeEntry, EdgeLegend, LeafMark } from '@/ds'
+import { EdgeDash, EdgeEntry, EdgeLegend, LeafMark, NodeRail, RailStop } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -42,6 +42,15 @@ describe('ported but not adopted DS components', () => {
   // connections rail that would is the remaining half of #97.
   it('EdgeEntry — ported (#87 closed); no host yet, tracked on #97', () => {
     expect(typeof EdgeEntry).toBe('function')
+  })
+
+  // #127 shipped this port (OB-037 for NodeChip's disclosure mark, OB-038 for the rail
+  // itself — which also folds in OB-019 and OB-020, both satisfied by construction).
+  // What is still open is ADOPTION: nothing renders it, and the connections rail that
+  // would is the remaining half of #97 — the same wait EdgeEntry is in, just above.
+  it('NodeRail / RailStop — ported (#127); no host yet, tracked on #97', () => {
+    expect(typeof NodeRail).toBe('function')
+    expect(typeof RailStop).toBe('function')
   })
 
   // #89 is CLOSED — it was blocked on an asset channel for leaf-mask.png, and that
