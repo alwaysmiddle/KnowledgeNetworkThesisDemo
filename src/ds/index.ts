@@ -63,5 +63,5 @@ export type { AppHeaderProps } from './chrome/AppHeader'
 export { LeafMark } from './chrome/LeafMark'
 export type { LeafMarkProps } from './chrome/LeafMark'
 
-export { VersionedGroup } from './group/VersionedGroup'
+export { VersionedGroup, INLINE_EDIT_STYLE } from './group/VersionedGroup'
 export type { VersionedGroupProps, GroupVersion } from './group/VersionedGroup'

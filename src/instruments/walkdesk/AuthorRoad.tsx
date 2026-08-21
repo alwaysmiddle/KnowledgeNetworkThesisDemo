@@ -872,9 +872,20 @@ export default function AuthorRoad({
                   {...gestures(pl)}
                   data-rstage-closed={s.key}
                   data-rord={pl.outline}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation()
-                    toggle(s.key!)
+                  /* REOPEN IS TAKEN IN THE CAPTURE PHASE, not as an onDoubleClick.
+                     A folded card's whole face is the DS card, and its title line
+                     stops React's synthetic dblclick from reaching any ancestor —
+                     measured on 2026-08-20, and NOT caused by the component's own
+                     handler: it still happened with that handler removed. The native
+                     event bubbles the whole way; only React's dispatch stops. So the
+                     gesture is taken before any descendant can be involved, which
+                     also stops it depending on the internals of a component the road
+                     does not own. `useCapture` is the third argument. */
+                  ref={(el) => {
+                    if (!el) return undefined
+                    const reopen = (e: MouseEvent) => { e.stopPropagation(); toggle(s.key!) }
+                    el.addEventListener('dblclick', reopen, true)
+                    return () => el.removeEventListener('dblclick', reopen, true)
                   }}
                   title={wrapTip('double-click to open')}
                   // the DS's own box model applies inside (see [data-ds-host] in
