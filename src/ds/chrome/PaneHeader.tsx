@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent, ReactNode, RefObject } from 'react'
 import { IconButton, usePresence } from './IconButton'
+import { Grip } from './Grip'
 
 /** THE PANE'S FRAME, handed down rather than found. `Pane` puts a ref to its frame
  *  in here, so this header knows which element to watch for the pointer WITHOUT
@@ -22,21 +23,42 @@ export const PaneFrameContext = createContext<RefObject<HTMLElement | null> | nu
  *  present the moment the pointer (or the keyboard) is inside it, so a dormant
  *  pane wears an unbroken border rather than a hole where a control used to be.
  *  WHAT THE PANE AROUND IT MUST DO — three rules this header's geometry depends on
- *  that no prop can express. They lived only in the DS readme until 2026-08-17, where a
- *  port could not see them, and all three were missed here:
+ *  that no prop can express. PREFER `Pane`, which owns the frame and the body and
+ *  makes all three unstateable-wrong; these apply when something composes a frame
+ *  by hand. They lived only in the DS readme until 2026-08-17, where a port could
+ *  not see them, and all three were missed here:
  *
  *   1. `position: relative`, the `--border-frame` hairline on the pane itself, and
  *      `--radius-lg` (20px) corners. The legend masks the border with a straight 2px
  *      bar, which cannot erase a curve — a tighter radius leaves a stub beside the ✕.
+ *      This rule is NOT satisfied by clipping: a frame that is correctly `visible`
+ *      with an `overflow: hidden` + radius div immediately inside it has all of the
+ *      cost and none of the rule — it re-traps the ✕'s notch and any menu a body
+ *      opens, and it bites the scroller's gutter with the corner arc. Delete the
+ *      body's background; do not add a clip. The only pane that legitimately clips
+ *      is one whose CONTENT must be cropped (`PaneCanvas`), and it rounds all four
+ *      corners at `--radius-lg`, never the bottom two alone.
  *   2. THE BODY TAKES NO BACKGROUND OF ITS OWN; the pane's `--surface-paper` shows
  *      through. This header is 11px tall, so a body that paints its own colour starts
  *      INSIDE the 20px corner arc with square corners and bites two square notches out
  *      of the pane's rounded top — worst when that colour is `--surface-canopy`, which
- *      reads as a hole in the sheet. A body that must clip rounds ALL FOUR corners at
- *      `--radius-lg`, never the bottom two alone.
- *   3. A SCROLLING BODY INSETS ITSELF 12px FROM THE BOTTOM (`marginBottom`, not a radius
- *      on the scroller), so the scrollbar's end arrow stays clear of the corner arc
- *      instead of being clipped by it; the pane's own paper fills the strip.
+ *      reads as a hole in the sheet.
+ *   3. A SCROLLING BODY INSETS ITSELF `SCROLLER_INSET` FROM THE TOP **AND** THE BOTTOM
+ *      (`marginTop` and `marginBottom`, not a radius on the scroller), so the
+ *      scrollbar's end arrow stays clear of the corner arc at EITHER end instead of
+ *      being clipped by it or painting out over it; the pane's own paper fills both
+ *      strips. One inset serves both axes and both ends — a scroller reserves an
+ *      arrow square at each end of its gutter, and a pane has a rounded corner at
+ *      each end of its right edge. Better still, take `PaneScroller`, which applies
+ *      both automatically.
+ *
+ *  A GRABBABLE TITLE WEARS A `Grip`, because a cursor is feedback and not an
+ *  affordance: it arrives only once you are already hovering the exact strip, so a
+ *  draggable pane and a fixed one otherwise look identical at rest. Four dots in a
+ *  square, AFTER the title, inside the same span that carries the grab — so the
+ *  mark sits in the hit area it advertises rather than beside it. One flat
+ *  `--bark-400`, no hover step: the cursor already answers the hover, and a mark
+ *  that also darkens is asking to be noticed twice.
  *
  *  Typed port of the DS PaneHeader.jsx (contract: PaneHeader.d.ts). */
 export interface PaneHeaderProps {
@@ -60,7 +82,10 @@ export interface PaneHeaderProps {
    *  THE POSITION: the grab cursor, `touch-action`, text-selection and the grabbing
    *  state are here, because those are what a hand-written copy forgets; where the
    *  thing ends up is the host's, because only the host knows its coordinate space,
-   *  its bounds and its z-order */
+   *  its bounds and its z-order. It also puts a `Grip` after the title — see above —
+   *  and marks the title `data-grab=""`, the stable hook `VersionedGroup`'s own grab
+   *  surface already uses, so `[data-grab]` finds every drag handle in the system
+   *  instead of an interaction driver matching the title's TEXT. */
   grabbable?: boolean
   /** fires on pointer-down on the title and stops there — this does NOT capture the
    *  pointer or listen for move/up, so an existing gesture loop is left untouched.
@@ -97,6 +122,12 @@ export function PaneHeader({
   const onGrabDown = grabbable
     ? (e: PointerEvent<HTMLElement>) => { setGrabbing(true); if (onGrabStart) onGrabStart(e) }
     : undefined
+  // A STABLE HOOK FOR WHOEVER HAS TO FIND THIS HANDLE. `data-grab` is the same
+  // attribute VersionedGroup's card puts on its own grab surface, so one selector
+  // finds every drag handle in the system. It hands over an IDENTIFIER, not
+  // behaviour — nothing about the cursor, touch-action or text-selection becomes
+  // the caller's.
+  const grabAttr = grabbable ? { 'data-grab': '' } : undefined
   // one clock for everything that recedes, owned by IconButton. Prefer the frame
   // `Pane` handed down; fall back to walking up one level, for a hand-composed pane.
   const frame = useContext(PaneFrameContext)
@@ -128,7 +159,7 @@ export function PaneHeader({
             pointerEvents: 'none',
           }}
         >
-          <span onPointerDown={onGrabDown} style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', minWidth: 0, padding: '0 5px', pointerEvents: 'auto', ...grab }}>
+          <span onPointerDown={onGrabDown} {...grabAttr} style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', gap: grabbable ? 5 : 0, minWidth: 0, padding: '0 5px', pointerEvents: 'auto', ...grab }}>
             <span style={cut} />
             <span
               style={{
@@ -145,6 +176,7 @@ export function PaneHeader({
               {glyph ? glyph + ' ' : ''}
               {title}
             </span>
+            {grabbable ? <Grip style={{ ...over, alignSelf: 'center' }} /> : null}
           </span>
           <span style={{ flex: 1 }} />
           {actions ? (
@@ -190,7 +222,9 @@ export function PaneHeader({
     >
       <span
         onPointerDown={onGrabDown}
+        {...grabAttr}
         style={{
+          display: 'inline-flex', alignItems: 'center', gap: grabbable ? 6 : 0,
           fontFamily: 'var(--font-display)',
           fontSize: 'var(--fs-title)',
           fontWeight: 'var(--fw-bold)',
@@ -200,8 +234,8 @@ export function PaneHeader({
           ...grab,
         }}
       >
-        {glyph ? glyph + ' ' : ''}
-        {title}
+        <span>{glyph ? glyph + ' ' : ''}{title}</span>
+        {grabbable ? <Grip /> : null}
       </span>
       <span style={{ flex: 1 }} />
       {actions}
