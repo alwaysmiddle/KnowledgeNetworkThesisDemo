@@ -15,7 +15,7 @@ export interface ToolbarItemSpec {
   /** this toggle is currently on — draws a moss (or acorn) wash, never a hue swap */
   on?: boolean
   disabled?: boolean
-  /** walk = acorn (the authored path); primary = moss */
+  /** walk = acorn (movement through the corpus); primary = moss */
   tone?: 'quiet' | 'walk' | 'primary'
   onClick?: () => void
 }

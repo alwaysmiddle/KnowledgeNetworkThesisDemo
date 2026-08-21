@@ -180,7 +180,8 @@
   --color-editing: #2e86c8;        /* the line you are typing into — pond's vivid step, drawn on TEXT at 1px */
   --color-danger: #b4574a;
   --color-danger-wash: #fbf0ee;
-  --color-optional: #ddb26e;
+  --color-border-walk: #ddb26e;
+  --color-optional: #ddb26e;       /* @deprecated — same value as --color-border-walk; alias only */
 
   /* ══ Radii — the brand is ROUND. Nothing in a P.Kt UI is square. ══════════ */
   --radius-xs: 6px;

@@ -32,11 +32,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
 import { byId, domainOf, topicIds } from '../../corpus/graph'
-import { ARROW_METRICS, NodeArrow } from '../../ds/graph/NodeArrow'
-import { NodeChip, chipBorder, chipSize } from '../../ds/graph/NodeChip'
-import type { DomainCode } from '../../ds/graph/vocab'
-import { VersionedGroup, GroupGeometry, GROUP_METRICS } from '../../ds/group/VersionedGroup'
-import type { GroupSpec } from '../../ds/group/VersionedGroup'
+import {
+  ARROW_METRICS, NodeArrow, NodeChip, chipBorder,
+  VersionedGroup, GroupGeometry, GROUP_METRICS,
+  wrapTip, PaneScroller,
+} from '@/ds'
+import type { DomainCode, GroupSpec } from '@/ds'
+import { chipSize } from '../../ds/graph/NodeChip'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
@@ -44,8 +46,6 @@ import type { Band } from './authordnd'
 import { chosenIdx, chosenSteps, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
-import { wrapTip } from '../../ds/chrome/IconButton'
-import { PaneScroller } from '../../ds/chrome/Pane'
 
 const NODEW = 150
 // an UNSET slot is the road's own picker — a dashed pill round a <select> — so
@@ -682,7 +682,7 @@ export default function AuthorRoad({
           title={wrapTip(state.optionalActive ? 'optional — click to make required' : 'toggle optional')}
           className="text-[var(--fs-body)] px-2 py-1 rounded border disabled:opacity-30"
           style={state.optionalActive
-            ? { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
+            ? { borderColor: 'var(--border-walk)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
             : { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-canopy)' }}
         >
           {/* NO GLYPH. `◇` now sits with `▾`/`▸`, `●`/`○` and `✔` on the list of typed marks

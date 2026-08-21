@@ -37,7 +37,8 @@
   --moss-700: #33512d;
   --moss-800: #263c22;
 
-  /* ── Acorn: the walk. Reserved — it means "on the authored path". ───── */
+  /* ── Acorn: the hue of MOVEMENT through the corpus — a walk, a stop, a jump, ─
+     the road — never a state of something standing still. Reserved. ──────── */
   --acorn-50:  #fbf4e8;
   --acorn-100: #f5e6cb;
   --acorn-200: #eccfa0;
@@ -159,18 +160,16 @@
   --state-editing: var(--pond-vivid);
   --state-danger: var(--berry-500);
   --state-danger-wash: var(--berry-50);
-  /* NOT THE COLOUR OF AN OPTIONAL NODE, whatever the name says. An optional node is drawn by
-     DASHING its own border — `NodeChip optional`, `NodeArrow dashed`, the group's empty-version
-     zone — because a node's hue is its DOMAIN and is not available for a state. Two reasons
-     this hue could never do that job anyway: it is acorn, which in this system means ON THE
-     AUTHORED WALK, so an optional step painted with it would say the opposite of what it is.
-     WHAT IT ACTUALLY IS, read from the two live call sites (2026-08-19): the border of a
-     walk-tinted TOGGLE in its active state — `AuthorRoad.tsx:653` ("Optional" pressed) and
-     `WalkEditorView.tsx:115` ("optionals: bypassed"), both over `--accent-walk-wash` with
-     `--text-walk` ink. That is a control in the walk family, not an optional anything, so the
-     name is the thing that is wrong here. Nothing in THIS project reads it.
-     Rename candidate: `--border-walk`, alongside `--border-rule` / `--border-frame`. Not done
-     yet — it needs the two app call sites changed in the same pass, and it is mirrored in
-     tailwind/kn-theme.css. */
-  --state-optional: var(--acorn-300);
+  /* THE BORDER OF A WALK-TINTED TOGGLE IN ITS ACTIVE STATE — `AuthorRoad.tsx`'s and
+     `WalkEditorView.tsx`'s "optional" toggle, both over `--accent-walk-wash` with
+     `--text-walk` ink. NOT the colour of an optional NODE, whatever the old name said: a
+     node's hue is its DOMAIN, so an optional node is drawn by DASHING its own border instead
+     (`NodeChip optional`, `NodeArrow dashed`, the group's empty-version zone). Acorn means
+     movement, so painting an optional STEP with it would claim the opposite of what it is —
+     this is a control in the walk family, not an optional anything, which is why the old name
+     was wrong rather than the value.
+     @deprecated `--state-optional` — same value, kept only as an alias until every reader of
+     the old name is gone. */
+  --border-walk: var(--acorn-300);
+  --state-optional: var(--border-walk);
 }

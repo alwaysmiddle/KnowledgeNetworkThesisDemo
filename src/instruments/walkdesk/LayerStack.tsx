@@ -7,13 +7,12 @@
 // reach it, skipped optionals are already gone.
 
 import { byId } from '../../corpus/graph'
-import { DomainDot } from '../../ds/graph/DomainDot'
+import { DomainDot, wrapTip } from '@/ds'
 import { domainCodeOf } from '../../model/domaincode'
 import { columnsFor } from './columns'
 import { isBox, isLeaf } from './mockwalk'
 import type { Stop } from './mockwalk'
 import type { HoverBinding } from '../../studio/bus'
-import { wrapTip } from '../../ds/chrome/IconButton'
 
 const PLANE_STEP = 92
 const PLANE_TOP = 44

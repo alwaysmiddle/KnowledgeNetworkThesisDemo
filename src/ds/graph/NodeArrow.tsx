@@ -65,8 +65,8 @@ export interface NodeArrowProps {
   direction?: 'down' | 'right'
   /** the shaft, in px, before the head. Default 14 */
   length?: number
-  /** 'walk' (acorn — on the authored path, the default), 'quiet' (bark-400),
-   *  'hint' (bark-300). Never a --domain-* or --edge-* hue */
+  /** 'walk' (acorn — movement through the corpus, the default), 'quiet'
+   *  (bark-400), 'hint' (bark-300). Never a --domain-* or --edge-* hue */
   tone?: 'walk' | 'quiet' | 'hint'
   /** conditional: an optional step, a gap awaiting a node. Dashed never decorates */
   dashed?: boolean

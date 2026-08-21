@@ -55,7 +55,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { PaneCanvas } from '@/ds'
+import { PaneCanvas, wrapTip } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR, pathTo } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
@@ -68,7 +68,6 @@ import { fitLabel, fitRegionLabel } from '../model/labelfit'
 import type { FitLine } from '../model/labelfit'
 import { parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
-import { wrapTip } from '../ds/chrome/IconButton'
 
 const VB_X = -40
 const VB_Y = -40

@@ -47,7 +47,7 @@ import WalkPreview from './WalkPreview'
 import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
-import { wrapTip } from '../../ds/chrome/IconButton'
+import { wrapTip } from '@/ds'
 
 /** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting
  *  the pane, so it takes no width from the layout and the road never reflows. */
@@ -161,7 +161,7 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
             className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border"
             style={withOptionals
               ? { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-raised)' }
-              : { borderColor: 'var(--state-optional)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }}
+              : { borderColor: 'var(--border-walk)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }}
           >
             {/* NO GLYPH — `◇` is on the list of typed marks this system does not use. The
                 button already says the word, so the diamond was decoration on a label that
