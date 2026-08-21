@@ -1,8 +1,9 @@
-// Knowledge instrument — the current node's document. Reading happens here;
+// Document — the current node's document (named KnowledgePanel.tsx until
+// 2026-08-20). Reading happens here;
 // the other instruments are for moving. The one navigation aid left is "Walks
 // through here" — walks-as-content, made visible instead of staying implicit
 // history. The radial neighborhood diagram that used to sit above the lists is
-// now its own Studio instrument (PlexPanel) — compose them side by side instead.
+// now its own Studio instrument (NeighborhoodPanel) — compose them side by side.
 //
 // NAVIGATION LISTS ARE NOT HERE (2026-07-14). "Roads from here" (typed
 // relations) left first, then "Contained" (the child list) followed it; both
@@ -25,7 +26,7 @@ import { DOC_BODY } from '../corpus/docs'
 import { listWalks, subscribeWalks } from '../model/walkstore'
 import type { Bus } from '../studio/bus'
 
-export default function KnowledgePanel({ bus }: { bus: Bus }) {
+export default function DocumentPanel({ bus }: { bus: Bus }) {
   const currentId = bus.focus ?? ROOT_ID
   const onActivateWalkAtStop = bus.activateWalk
 

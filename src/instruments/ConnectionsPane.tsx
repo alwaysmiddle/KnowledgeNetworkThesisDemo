@@ -1,4 +1,6 @@
-// Children — the subtree GRAPH of where you're standing (2026-07-12: the
+// Connections — the subtree GRAPH of where you're standing (named
+// ChildrenPanel.tsx until 2026-08-20; the old name is kept in this line so
+// its citations still grep). (2026-07-12: the
 // in-map flip retired into this pane — the map stays territory at every
 // depth, and this is the node-link reading of the focused region). ONE
 // layout: the radial wheel (model/panegraph.ts; the 2026-07-12 nest
@@ -236,7 +238,7 @@ function PanZoomCanvas({
   )
 }
 
-export default function ChildrenPanel({ bus }: { bus: Bus }) {
+export default function ConnectionsPane({ bus }: { bus: Bus }) {
   const onSelect = (id: string) => bus.setFocus(id, 'tree')
   // the guarded enter/leave that used to be hand-rolled here (and again in the
   // atlas, and again in the document pane) is the bus's job now

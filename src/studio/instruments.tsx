@@ -19,18 +19,18 @@ import { EDGE_TYPES } from '../model/nav'
 import type { Bus } from './bus'
 import type { Family } from './families'
 
-import ChildrenPanel from '../instruments/ChildrenPanel'
-import ContourView from '../instruments/ContourView'
-import EvocView from '../instruments/EvocView'
-import KnowledgePanel from '../instruments/KnowledgePanel'
+import ConnectionsPane from '../instruments/ConnectionsPane'
+import ContoursView from '../instruments/ContoursView'
+import ClustersView from '../instruments/ClustersView'
+import DocumentPanel from '../instruments/DocumentPanel'
 import LensPane from '../instruments/LensPane'
-import NestedAtlasView from '../instruments/NestedAtlasView'
-import PlexPanel from '../instruments/PlexPanel'
+import MapView from '../instruments/MapView'
+import NeighborhoodPanel from '../instruments/NeighborhoodPanel'
 import TrailStrip from '../instruments/TrailStrip'
 import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
-import PaletteView from '../instruments/walkdesk/PaletteView'
+import WalkPaletteView from '../instruments/walkdesk/WalkPaletteView'
 import WalkEditorView from '../instruments/walkdesk/WalkEditorView'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
@@ -68,11 +68,11 @@ export interface Instrument {
 // against Instrument.
 const VIEWS = [
   {
-    id: 'nested',
+    id: 'map',
     label: 'Map',
     family: 'maps',
     slot: 'column',
-    render: (bus) => <NestedAtlasView bus={bus} />,
+    render: (bus) => <MapView bus={bus} />,
   },
   {
     id: 'walk',
@@ -87,7 +87,7 @@ const VIEWS = [
     // walk-tiers desk (#11) to become an instrument; the desk itself is gone,
     // having given away its reading views (#20), its writing surface and now
     // its supply. Nothing was lost in the split — every job it did is a pane.
-    id: 'palette',
+    id: 'walkpalette',
     label: 'Walk·Palette',
     family: 'walks',
     slot: 'column',
@@ -95,7 +95,7 @@ const VIEWS = [
     // grows to a capped, scrollable list. Either way the document below it takes
     // the room the old even split wasted (#28 feedback).
     stackGrow: false,
-    render: (bus) => <PaletteView bus={bus} />,
+    render: (bus) => <WalkPaletteView bus={bus} />,
   },
   {
     // #21: the writing surface, with the route it projects running down beside
@@ -136,7 +136,7 @@ const VIEWS = [
     render: () => <UnfoldView />,
   },
   {
-    id: 'unfoldg',
+    id: 'unfoldgraph',
     label: 'Unfold·Graph',
     family: 'maps',
     slot: 'column',
@@ -147,14 +147,14 @@ const VIEWS = [
     label: 'Contours',
     family: 'maps',
     slot: 'column',
-    render: () => <ContourView />,
+    render: () => <ContoursView />,
   },
   {
-    id: 'evoc',
-    label: 'EVoC',
+    id: 'clusters',
+    label: 'Clusters',
     family: 'maps',
     slot: 'column',
-    render: () => <EvocView />,
+    render: () => <ClustersView />,
   },
   {
     id: 'tree',
@@ -165,31 +165,31 @@ const VIEWS = [
     render: (bus) => <TreePanel bus={bus} />,
   },
   {
-    id: 'children',
+    id: 'connections',
     label: 'Connections',
     family: 'reading',
     slot: 'column',
     render: (bus) => (
       <div className="h-full overflow-hidden">
-        <ChildrenPanel bus={bus} />
+        <ConnectionsPane bus={bus} />
       </div>
     ),
   },
   {
-    id: 'doc',
+    id: 'document',
     label: 'Document',
     family: 'reading',
     slot: 'column',
-    render: (bus) => <KnowledgePanel bus={bus} />,
+    render: (bus) => <DocumentPanel bus={bus} />,
   },
   {
-    id: 'plex',
-    label: 'Plex',
+    id: 'neighborhood',
+    label: 'Neighborhood',
     family: 'reading',
     slot: 'column',
     render: (bus) => (
       <div className="h-full overflow-auto px-2 py-1">
-        <PlexPanel bus={bus} />
+        <NeighborhoodPanel bus={bus} />
       </div>
     ),
   },
@@ -265,15 +265,15 @@ export const PRESETS: Preset[] = [
     id: 'present',
     label: 'Present',
     hint: 'map + unfold + document + walk — accumulating, authored order',
-    active: ['nested', 'unfoldg', 'doc', 'walk'],
-    flex: { nested: 2, unfoldg: 1.4, doc: 1 },
+    active: ['map', 'unfoldgraph', 'document', 'walk'],
+    flex: { map: 2, unfoldgraph: 1.4, document: 1 },
   },
   {
     id: 'explore',
     label: 'Explore',
-    hint: 'nested map + connections + document — territory, subtree wheel, and prose on one focus',
-    active: ['nested', 'children', 'doc'],
-    flex: { nested: 1.8, children: 1, doc: 1 },
+    hint: 'map + connections + document — territory, subtree wheel, and prose on one focus',
+    active: ['map', 'connections', 'document'],
+    flex: { map: 1.8, connections: 1, document: 1 },
   },
   {
     // #20/#21 — the google-maps composition, read left to right as the work
@@ -289,8 +289,8 @@ export const PRESETS: Preset[] = [
     id: 'plan',
     label: 'Plan',
     hint: 'palette over document, then the walk editor and its route, then the map',
-    active: [['palette', 'doc'], 'walkeditor', 'nested'],
-    flex: { palette: 1, walkeditor: 1.6, nested: 2 },
+    active: [['walkpalette', 'document'], 'walkeditor', 'map'],
+    flex: { walkpalette: 1, walkeditor: 1.6, map: 2 },
   },
 ]
 

@@ -84,8 +84,8 @@ describe('DS PaneHeader rule 2 — a pane body paints no background', () => {
   // would leave near-white chips on near-white paper — a regression, not a fix.
   // They come off this list as each instrument is migrated, never by widening it.
   const MIGRATION_DEBT: Record<string, number> = {
-    'src/instruments/ContourView.tsx': 1,
-    'src/instruments/EvocView.tsx': 1,
+    'src/instruments/ContoursView.tsx': 1,
+    'src/instruments/ClustersView.tsx': 1,
     'src/instruments/UnfoldGraphView.tsx': 1,
     'src/instruments/UnfoldView.tsx': 2,
     'src/instruments/WalkView.tsx': 2,
@@ -96,11 +96,11 @@ describe('DS PaneHeader rule 2 — a pane body paints no background', () => {
     // — the map's own drawing, not chrome. Stripping it would leave the land
     // floating on paper. It is listed because the rule cannot tell the two apart,
     // and a body that means to paint should have to say so here. Raised on #108.
-    'src/instruments/NestedAtlasView.tsx': 1,
+    'src/instruments/MapView.tsx': 1,
   }
 
   const BG = /\bbg-(?!transparent\b)[a-z]+(?:-\d{2,3})?(?:\/\d+)?\b/
-  // an inline `background` counts too. NestedAtlasView:528 sets one and carries no
+  // an inline `background` counts too. MapView:528 sets one and carries no
   // bg-* class at all — a className-only scan called that pane clean, and only a
   // computed-style read off the running page caught it.
   // the whitespace lives INSIDE the lookahead on purpose: written as `:\s*(?!…)`

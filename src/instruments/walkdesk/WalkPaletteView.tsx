@@ -1,4 +1,4 @@
-// The Palette as its own instrument (#21) — where stops come FROM. Search the
+// Walk·Palette as its own instrument (#21) — where stops come FROM. Search the
 // corpus, then drag or click a topic onto the road.
 //
 // It is a stand-in for the map: the whole feed contract is `pal:<nodeId>` on
@@ -15,7 +15,7 @@ import Palette from './Palette'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
 
-export default function PaletteView({ bus }: { bus: Bus }) {
+export default function WalkPaletteView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)
   const state = useAuthorDraft()
 
@@ -25,7 +25,7 @@ export default function PaletteView({ bus }: { bus: Bus }) {
   // the camera; peekAt publishes the LOOK that flies the camera to the node's
   // territory. Together they are "zoom in on the map as if we selected it there".
   // 'link' + jump tags the trail as a discontinuous leap — the same gesture
-  // PlexPanel and LensPane already use to jump across the graph.
+  // NeighborhoodPanel and LensPane already use to jump across the graph.
   const selectOnMap = (id: string) => {
     bus.setFocus(id, 'link', true)
     bus.peekAt(id)

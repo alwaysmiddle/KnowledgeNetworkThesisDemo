@@ -66,7 +66,7 @@ describe('no-jitter: a layout is a pure function of (root, corpus), never of wha
   })
 
   test('the hover PREVIEW is the same computation as the commit', () => {
-    // ChildrenPanel draws paneGraph(root, expanded ∪ {hovered}) and treats the
+    // ConnectionsPane draws paneGraph(root, expanded ∪ {hovered}) and treats the
     // extra nodes as ghosts. Clicking then commits `hovered` into `expanded`.
     // The click must therefore be a pure no-op on geometry — what you previewed
     // is exactly what you get, which is why the pane needs no deferred-click

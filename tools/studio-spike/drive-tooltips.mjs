@@ -143,8 +143,9 @@ const overLong = (measure) => page.evaluate((m) => {
 }, measure)
 
 const PRESETS = ['present', 'explore', 'plan']
-const INSTRUMENTS = ['nested', 'walk', 'palette', 'walkeditor', 'walkcolumns', 'walkstack',
-  'unfold', 'unfoldg', 'contours', 'evoc', 'tree', 'children', 'doc', 'plex', 'trail']
+const INSTRUMENTS = ['map', 'walk', 'walkpalette', 'walkeditor', 'walkcolumns', 'walkstack',
+  'unfold', 'unfoldgraph', 'contours', 'clusters', 'tree', 'connections', 'document',
+  'neighborhood', 'trail']
 
 let swept = 0
 let tipCount = 0

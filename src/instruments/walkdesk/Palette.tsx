@@ -170,7 +170,7 @@ export default function Palette({
     state.insertNode(id, [state.stops.length])
     noteResolved(id)
   }
-  // A plain row click SELECTS the hit on the map — PaletteView wires onSelect to
+  // A plain row click SELECTS the hit on the map — WalkPaletteView wires onSelect to
   // focus + look, so the map flies to the node's territory and lights it as the
   // selection. Selecting resolves the search like the other commit paths (record
   // the clean title, collapse to recents). It never drops a stop on the road:

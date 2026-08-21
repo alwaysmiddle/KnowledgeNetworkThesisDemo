@@ -2,7 +2,7 @@
 // projected-route strip (the flat reading the bus's `route` will eventually
 // receive — rendered so the desk proves the projection). All presentation,
 // no state. The document-pane stand-in that lived here died at graduation:
-// the Studio has the real KnowledgePanel.
+// the Studio has the real DocumentPanel.
 
 import { byId, domainOf } from '../../corpus/graph'
 import { NodeChip as DsNodeChip, type DomainCode } from '@/ds'

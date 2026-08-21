@@ -1,4 +1,4 @@
-// EVoC spike view — one question: do EVoC's automatic cluster layers line up
+// Clusters — one question: do EVoC's automatic cluster layers line up
 // with the planted graph/stage/topic hierarchy in the mocked Infra corpus?
 // Pan/zoom is copied from MapView's proven pattern (wheel needs a non-passive
 // listener; refs are only ever read inside effects/handlers, never render).
@@ -54,7 +54,7 @@ interface View {
   s: number
 }
 
-export default function EvocView() {
+export default function ClustersView() {
   const svgRef = useRef<SVGSVGElement>(null)
   const [view, setView] = useState<View>({ tx: 0, ty: 0, s: 1 })
   const [hovered, setHovered] = useState<number | null>(null)

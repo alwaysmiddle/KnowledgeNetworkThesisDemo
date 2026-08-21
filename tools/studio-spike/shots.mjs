@@ -130,7 +130,7 @@ console.log('01-teaching-default.png taken')
 // repo narrowed to the teaching domain. Its panes all still exist, so compose
 // it by hand — which doubles as the proof that manual toggling de-highlights
 // the active preset and drops the sidebar to "custom composition".
-for (const off of ['nested', 'unfoldg', 'doc', 'walk']) {
+for (const off of ['map', 'unfoldgraph', 'document', 'walk']) {
   await page.locator(`[aria-label="studio-inst-${off}"]`).click()
 }
 for (const on of ['tree', 'lens-depends_on', 'lens-see_also', 'lens-uses']) {
@@ -222,7 +222,7 @@ console.log('deps chip count back at depth 2 =', depthCount2, '· frontier badge
 if (frontierBadges === 0) fail('expected at least one frontier badge (⤳ n) at depth 2, found none')
 
 // ── 5. sidebar compare: toggle Map on, then Contours on ────────────────────
-await page.locator('[aria-label="studio-inst-nested"]').click()
+await page.locator('[aria-label="studio-inst-map"]').click()
 await page.waitForTimeout(300)
 onPanes = await page.locator('[data-slot="on"]').count()
 console.log('after enabling map: panes on =', onPanes, '(expect 5)')
@@ -244,9 +244,9 @@ await page.locator('[aria-label="studio-preset-present"]').click()
 await page.waitForTimeout(400)
 
 const slotOf = async (inst) => (await page.locator(`[aria-label="studio-pane-${inst}"]`).getAttribute('data-slot')) === 'on'
-const mapOn = await slotOf('nested')
-const unfoldgOn = await slotOf('unfoldg')
-const docOn = await slotOf('doc')
+const mapOn = await slotOf('map')
+const unfoldgOn = await slotOf('unfoldgraph')
+const docOn = await slotOf('document')
 const walkOn = await slotOf('walk')
 const depsOn = await slotOf('lens-depends_on')
 const refsOn = await slotOf('lens-see_also')
@@ -269,9 +269,9 @@ console.log('06-teaching-empty.png taken')
 // Blind fresh.first() could land focus on a foundation topic whose builds-on
 // cone is EMPTY (the corpus has roots now), which would starve scenario 8's
 // curriculum — a named path guarantees a real prerequisite cone.
-const unfoldPane = page.locator('[aria-label="studio-pane-unfoldg"]')
-const mapPane = page.locator('[aria-label="studio-pane-nested"]')
-const docPane = page.locator('[aria-label="studio-pane-doc"]')
+const unfoldPane = page.locator('[aria-label="studio-pane-unfoldgraph"]')
+const mapPane = page.locator('[aria-label="studio-pane-map"]')
+const docPane = page.locator('[aria-label="studio-pane-document"]')
 
 await unfoldPane.getByRole('button', { name: /HTTP & REST/ }).first().click()
 await page.waitForTimeout(400)
@@ -308,7 +308,7 @@ console.log('studio-visited =', visitedAfterGrow, '(expect >= 3)')
 if (!(visitedAfterGrow >= 3)) fail(`expected studio-visited >= 3, got ${visitedAfterGrow}`)
 
 // (The map used to paint circle[data-visited] rings for every visited node.
-// NestedAtlasView no longer mentions `visited` at all — the bus still tracks
+// MapView no longer mentions `visited` at all — the bus still tracks
 // it, but TrailStrip and the header counter above are its only consumers now,
 // so the ring assertion that stood here tested a removed representation.)
 
@@ -398,7 +398,7 @@ console.log('09-roundtrip.png taken')
 // ── 11. deep layers: walk the cs flagship spine to level 8 in the tree ─────
 // Needs the tree and the lenses back; hand-composed, as in scenario 1, since
 // the Coding preset that used to supply this pairing is gone.
-for (const off of ['nested', 'unfoldg', 'doc', 'walk']) {
+for (const off of ['map', 'unfoldgraph', 'document', 'walk']) {
   await page.locator(`[aria-label="studio-inst-${off}"]`).click()
 }
 for (const on of ['tree', 'lens-depends_on', 'lens-see_also', 'lens-uses']) {

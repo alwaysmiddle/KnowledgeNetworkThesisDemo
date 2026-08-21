@@ -253,7 +253,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
       setRoute(c.order)
       setCycleNote(c.hadCycle)
       reveal('walk')
-      reveal('nested')
+      reveal('map')
     },
     reset: () => {
       // deliberately does NOT touch the unfold canvas or the composition —

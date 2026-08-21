@@ -61,7 +61,7 @@ const communityGroups: Group[] = communities.map((members, ci) => ({
   members,
 }))
 
-export default function ContourView() {
+export default function ContoursView() {
   const [groupBy, setGroupBy] = useState<'communities' | 'domains'>('communities')
   const [hovered, setHovered] = useState<string | null>(null)
   const [pinned, setPinned] = useState<string | null>(null)
