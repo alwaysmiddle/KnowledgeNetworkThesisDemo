@@ -13,7 +13,6 @@
 
 import type { ReactNode } from 'react'
 
-import { PaneCanvas } from '@/ds'
 import { EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { EDGE_TYPES } from '../model/nav'
@@ -195,11 +194,10 @@ const VIEWS = [
     family: 'reading',
     slot: 'column',
     body: 'none',
-    render: (bus) => (
-      <PaneCanvas>
-        <ConnectionsPane bus={bus} />
-      </PaneCanvas>
-    ),
+    // #143 (OB-054): ConnectionsPane owns its own PaneCanvas/PaneScroller split
+    // internally now — wrapping it in one PaneCanvas here caught its bottom
+    // scrolling section in the canvas's own rounded, clipped box.
+    render: (bus) => <ConnectionsPane bus={bus} />,
   },
   {
     id: 'document',
