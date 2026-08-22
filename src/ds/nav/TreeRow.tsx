@@ -5,6 +5,14 @@ import type { DomainCode } from '../graph/vocab'
 import { DOMAIN_TOKEN } from '../graph/vocab'
 import { useClipped } from '../chrome/IconButton'
 
+/** THE MARK'S INK OFFSET, exported because a second file needs it (OB-052): `NodeRail`'s
+ *  `UP` points the same mark at a third rotation and must cancel the same offset there too
+ *  — see the derivation in `caretStyle` below. One number, one home: a caller overriding the
+ *  transform reads it from here rather than retyping it. A hand-typed `1` in `NodeRail`'s
+ *  inline copy of this once silently reintroduced the pre-baseline drift this constant was
+ *  created to remove. */
+export const CARET_INK = 0.964
+
 /** The disclosure mark, drawn rather than set: two 1.5px strokes meeting at a
  *  right angle, rotated −45° closed and +45° open. Font chevrons and triangles
  *  both failed here — a fill out-inks the labels, and every hollow or angle-quote
@@ -21,16 +29,15 @@ import { useClipped } from '../chrome/IconButton'
  *
  *  THE TRANSLATE IS THE SAME IN BOTH STATES, AND THAT IS THE WHOLE POINT OF IT. The mark
  *  is an L of two 1.5px strips on a 6px box, so its ink sits at an offset of (+0.964,
- *  +0.964) from the box centre. Translating by exactly the negative of that, IN THE
- *  ELEMENT'S OWN ROTATED FRAME, cancels it under any rotation — the ink lands on the box
- *  centre whichever way the mark points, with one number and no per-state arithmetic.
- *  It used to be `(-1, -1)` open and `(-1, +1)` closed — two hand-tuned pairs whose sign
- *  flip on y put the two states 1.465px apart vertically, so the mark visibly jumped on
- *  toggle. Do not re-tune these per state: a mark that needs to sit lower next to text
- *  wants the CALLER's inset (`CARET_FIRST_LINE_INSET` below), not the glyph's own
+ *  +0.964) from the box centre. Translating by exactly the negative of that (`CARET_INK`
+ *  above), IN THE ELEMENT'S OWN ROTATED FRAME, cancels it under any rotation — the ink
+ *  lands on the box centre whichever way the mark points, with one number and no per-state
+ *  arithmetic. It used to be `(-1, -1)` open and `(-1, +1)` closed — two hand-tuned pairs
+ *  whose sign flip on y put the two states 1.465px apart vertically, so the mark visibly
+ *  jumped on toggle. Do not re-tune these per state: a mark that needs to sit lower next to
+ *  text wants the CALLER's inset (`CARET_FIRST_LINE_INSET` below), not the glyph's own
  *  centring. */
 function caretStyle(open?: boolean): CSSProperties {
-  const INK = 0.964
   return {
     width: 6,
     height: 6,
@@ -38,7 +45,7 @@ function caretStyle(open?: boolean): CSSProperties {
     borderRight: '1.5px solid currentColor',
     borderBottom: '1.5px solid currentColor',
     borderRadius: 1,
-    transform: `rotate(${open ? 45 : -45}deg) translate(-${INK}px, -${INK}px)`,
+    transform: `rotate(${open ? 45 : -45}deg) translate(-${CARET_INK}px, -${CARET_INK}px)`,
     transition: 'transform var(--dur-hover) var(--ease-soft)',
   }
 }

@@ -91,14 +91,14 @@ const TONE: Record<string, string> = {
 }
 const DASH = '4 4'
 
-/** LOCAL DEVIATION (#113 H4) — the drawn geometry, published so a board that
- *  positions arrows ITSELF can align them without re-deriving these numbers.
- *  The DS does not export them, but it does not lay arrows out either: it puts
- *  one in each gap of a NodeChain, which owns both ends. A board like the road
- *  computes every box arithmetically in one pass and places each arrow absolutely,
- *  so it needs the head's length (to turn a gap into a `length`) and the cross-axis
- *  extent (to centre the shaft on the column). Same shape as NodeChip's `chipSize`
- *  and VersionedGroup's `GROUP_METRICS`. To report on #74. */
+/** THE DRAWN GEOMETRY, published so a board that positions arrows ITSELF can align them
+ *  without re-deriving these numbers. The DS does not lay arrows out either — it puts one
+ *  in each gap of a NodeChain, which owns both ends — but it now exports this (OB-053): the
+ *  same four keys and the same values this file already carried, so the port is a docblock
+ *  change rather than a rewrite. A board like the road computes every box arithmetically in
+ *  one pass and places each arrow absolutely, so it needs the head's length (to turn a gap
+ *  into a `length`) and the cross-axis extent (to centre the shaft on the column). Same
+ *  shape as NodeChip's `chipSize` and VersionedGroup's `GROUP_METRICS`. */
 export const ARROW_METRICS = {
   /** the head's length along the shaft — an arrow's total span is `length + head` */
   head: 8,

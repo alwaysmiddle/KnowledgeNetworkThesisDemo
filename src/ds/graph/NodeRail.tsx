@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DomainCode } from './vocab'
 import { NodeChip } from './NodeChip'
-import { Caret } from '../nav/TreeRow'
+import { Caret, CARET_INK } from '../nav/TreeRow'
 import { IconButton, wrapTip } from '../chrome/IconButton'
 
 /** THE RAIL'S GEOMETRY, published rather than described — the group's and the chip's own
@@ -26,9 +26,12 @@ export const RAIL_METRICS = {
   spine: 2,
   rung: 22,
   spineLeft: 8,
-  /** the acts' box — the same 20px `IconButton` uses, so the two nesting marks above the
-   *  head sit on one axis. Stops no longer draw a caret of their own: the chip carries
-   *  the disclosure mark. */
+  /** the acts' box — 20, CHOSEN rather than derived: `IconButton`'s own default is 18, and
+   *  the pair above the head takes 20 so two stacked 6px marks and their 1px gap sit in it
+   *  without crowding the button's edge. This said "the same 20px IconButton uses" until
+   *  now, which was simply false (OB-052). Both call sites below pass it explicitly, which
+   *  is what makes it a choice rather than an inheritance. Stops no longer draw a caret of
+   *  their own: the chip carries the disclosure mark. */
   caretSlot: 20,
   pairGap: 4,
   countMin: 16,
@@ -37,10 +40,11 @@ export const RAIL_METRICS = {
 
 /** the collapse mark: the house caret turned to point up. A disclosure only ever has two
  *  positions (`caretStyle`'s ±45°), so the pair's upward half overrides the transform
- *  rather than asking the shared mark for a third state it should not have. Ported
- *  verbatim from the DS's own `UP` — its translate is the pre-OB-037 `(-1, -1)`, not the
- *  glyph's current `-0.964`; that is the upstream source as read, not a port error. */
-const UP = { transform: 'rotate(225deg) translate(-1px, -1px)' }
+ *  rather than asking the shared mark for a third state it should not have. The translate
+ *  is `CARET_INK`, not a re-typed `1` (OB-052): it cancels the mark's own ink offset the
+ *  same way under any rotation — see TreeRow's `CARET_INK` — and a hand-typed literal here
+ *  once silently drifted from it. */
+const UP = { transform: `rotate(225deg) translate(-${CARET_INK}px, -${CARET_INK}px)` }
 
 export interface RailStopProps {
   /** the neighbour's name. It WRAPS — a stop has to fit the pane it is in */

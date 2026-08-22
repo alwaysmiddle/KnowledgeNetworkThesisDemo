@@ -33,12 +33,11 @@ import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, Pointe
 
 import { byId, domainOf, topicIds } from '../../corpus/graph'
 import {
-  ARROW_METRICS, NodeArrow, NodeChip, chipBorder,
+  ARROW_METRICS, NodeArrow, NodeChip, chipBorder, chipSizeOf,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
   wrapTip, PaneScroller,
 } from '@/ds'
 import type { DomainCode, GroupSpec } from '@/ds'
-import { chipSize } from '../../ds/graph/NodeChip'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
@@ -246,18 +245,19 @@ function layoutRoad(
   // What stood here counted characters at CHAR_W = 8 against chrome scored at 40
   // when the chip's real chrome is ~83, so every title it scored as one line
   // wrapped to two and was clipped against the height it had been told (#97).
-  const leafSize = (title: string, outline: string, optional: boolean): { w: number; h: number } => {
-    const c = chipSize({
-      title,
+  // ASKS chipSizeOf(props) rather than hand-keeping a ChipSpec (OB-048): the object here is
+  // NodeChipProps-shaped, the same shape the <NodeChip> five lines down is handed, so the
+  // DS's own chipSpec() — not a second list kept in step by hand — decides which props move
+  // the box. `optional` is why this mattered: the DS gave the optional chip its "(optional)"
+  // line (OB-025), one --fs-micro line taller and stacked without wrapping, and a hand-kept
+  // spec that forgot to thread it reserved one line too few, live, until someone noticed.
+  const leafSize = (node: string, outline: string, optional: boolean): { w: number; h: number } => {
+    const c = chipSizeOf({
+      title: byId.get(node)?.title ?? '',
+      domain: domainOf(node) as DomainCode,
       index: leafIndex(outline),
-      // the road's leaf, in exactly the form the chip is handed below — and `optional`
-      // BELONGS IN THAT LIST. Since the DS gave the optional chip its "(optional)" line
-      // (OB-025) the form is one --fs-micro line taller and stacked without wrapping, so a
-      // reservation that omitted it was short by a line on exactly the stops that draw one:
-      // the chip overflowed the height it had been told, and the next stop was laid that far
-      // inside it. The prop is passed to the chip five lines down; it has to be passed here
-      // too, which is the whole reason chipSize takes the props that MOVE the box.
-      mark: 'border', wrap: true, deletable: true, optional,
+      mark: 'border', wrap: true, optional,
+      onDelete: () => {},
       minWidth: NODEW, maxWidth: NODE_MAXW, maxHeight: NODE_MAXH,
     })
     return { w: c.width, h: c.height }
@@ -274,7 +274,7 @@ function layoutRoad(
     if (isLeaf(s)) {
       // a bound leaf wraps and grows within bounds (#72 #8); an unset slot keeps
       // the fixed pill size
-      return s.unset ? { w: NODEW, h: NODEH } : leafSize(byId.get(s.node)?.title ?? '', outline, !!s.optional)
+      return s.unset ? { w: NODEW, h: NODEH } : leafSize(s.node, outline, !!s.optional)
     }
     const chosen = chosenIdx(s, choices)
     if (collapsed.has(s.key!)) {
@@ -820,7 +820,7 @@ export default function AuthorRoad({
                 >
                   {/* #72 #8: the title WRAPS instead of truncating — the node grew to
                       fit in measure()/leafSize, which ASKS this component's own
-                      chipSize() for the box and bounds it by NODE_MAXW/NODE_MAXH. So
+                      chipSizeOf() for the box and bounds it by NODE_MAXW/NODE_MAXH. So
                       what the chip is told here is what it would have measured. */}
                   <NodeChip
                     title={byId.get(s.node)!.title}
