@@ -10,7 +10,7 @@
 // Everything is laid out arithmetically (fixed box/column sizes), so the
 // SVG arrows and edges need no DOM measurement.
 
-import { PaneScroller } from '@/ds'
+import { OptionalMark, PaneScroller } from '@/ds'
 import { byId, domainOf, DOMAIN_COLOR } from '../../corpus/graph'
 import { columnsFor } from './columns'
 import { isBox, isLeaf, visitCount } from './mockwalk'
@@ -139,7 +139,10 @@ export default function WalkColumns({
                   ].join(' ')}
                   style={{ left: boxX(k), top: boxY(i), width: COLW, height: BOXH, borderColor: color, color }}
                 >
-                  <span className="block truncate">{s.optional ? '◇ ' : ''}{byId.get(s.node)!.title}</span>
+                  <span className="block truncate">
+                    {s.optional ? <OptionalMark size={11} style={{ marginRight: 3, verticalAlign: -1 }} /> : null}
+                    {byId.get(s.node)!.title}
+                  </span>
                 </button>
               )
             })}

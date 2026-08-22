@@ -1,20 +1,23 @@
-// Verification for the Walk Editor Toolbox (#54): the floating tray of four
-// authoring actions that mounts on the walk editor under the Plan preset
-// (src/instruments/walkdesk/WalkToolbox.tsx, mounted in WalkEditorView.tsx).
+// Verification for the Walk Editor's pane-local actions (#144, replacing #54's
+// floating Toolbox): a PaneActionBar — a docked, labelled row of pills under the
+// pane's header (src/instruments/walkdesk/WalkActionBar.tsx, mounted via the
+// Instrument registry's `actionBar` slot, not inside WalkEditorView's own render).
 //
 // Same idiom as shots.mjs beside this file — own the vite lifecycle (backgrounded
 // dev servers die on this machine), msedge headless, collect pageerror/console
 // errors, exit nonzero on any. What this driver provokes:
-//   1. MOUNT — switch to the Plan preset; the walk editor pane appears and the
-//      toolbox (a FloatingPanel, role=dialog aria-label="Toolbox") rides on it
-//      with exactly four buttons carrying their alt-tag titles.
-//   2. ADD A NODE — clicking "add a node" inserts one fresh slot on the road
+//   1. MOUNT — switch to the Plan preset; the walk editor pane appears with its
+//      action bar docked under the header ([data-pane-actionbar]), all five
+//      buttons present with their real WORDS (icon+label pills, not icon-only —
+//      the whole point of the #144 redesign), extract included: it is the one
+//      pill most at risk of being silently dropped in a port (see #144, #70).
+//   2. ADD A NODE — clicking "Add node" inserts one fresh slot on the road
 //      (a [data-node] under [data-road-root]); the leaf count goes up by one.
-//   3. NEW WALK — clicking "new walk" resets the draft to a single empty slot;
+//   3. NEW WALK — clicking "New walk" resets the draft to a single empty slot;
 //      the road drops to exactly one [data-node]. Undoable (not asserted here).
-// The panel's own behaviours — drag / resize / auto-hide / persist — are #76's,
-// verified by tools/floating-panel-spike/drive.mjs; this driver only proves the
-// tray is wired, reachable, and its always-on ops mutate the draft.
+// The bar has no drag/resize/auto-hide/persist of its own (unlike the FloatingPanel
+// it replaced) — it only dims on idle (PaneActionBar's own presence clock), which
+// does not block clicks, so this driver does not need to "wake" it first.
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -61,31 +64,28 @@ const fail = (msg) => {
 await page.goto(`http://localhost:${PORT}/`)
 await page.waitForTimeout(600)
 
-// ── 1. Plan preset → walk editor + toolbox mount ───────────────────────────
+// ── 1. Plan preset → walk editor + action bar mount ────────────────────────
 await page.locator('[aria-label="studio-preset-plan"]').click()
 await page.waitForTimeout(500)
 
 const walkEditor = page.locator('[data-walk-editor]')
 if (!(await walkEditor.isVisible())) fail('walk editor pane not visible under the Plan preset')
 
-// the toolbox rides ON the road; wake it (auto-hide fades on idle) by moving the
-// pointer over the road before we look, so it is opaque and interactive.
-const roadBox = await page.locator('[data-road-root]').boundingBox()
-if (roadBox) await page.mouse.move(roadBox.x + roadBox.width / 2, roadBox.y + roadBox.height / 2)
-await page.waitForTimeout(150)
+const actionBar = page.locator('[data-pane-actionbar]')
+if (!(await actionBar.isVisible())) fail('action bar not visible on the walk editor pane')
 
-const toolbox = page.locator('[role="dialog"][aria-label="Toolbox"]')
-if (!(await toolbox.isVisible())) fail('toolbox panel not visible on the road')
-
-const buttons = toolbox.locator('button')
+const buttons = actionBar.locator('button')
 const btnCount = await buttons.count()
-console.log('toolbox buttons =', btnCount, '(expect 4)')
-if (btnCount !== 4) fail(`expected 4 toolbox buttons, got ${btnCount}`)
+console.log('action bar buttons =', btnCount, '(expect 5)')
+if (btnCount !== 5) fail(`expected 5 action-bar buttons, got ${btnCount}`)
 
-const titles = await buttons.evaluateAll((els) => els.map((e) => e.getAttribute('title') || ''))
-console.log('toolbox button titles =', JSON.stringify(titles))
-for (const need of ['new walk', 'add a node', 'group', 'optional']) {
-  if (!titles.some((t) => t.includes(need))) fail(`no toolbox button whose title mentions "${need}"`)
+// the whole point of #144: the WORD is what names the action now, not the title
+// tooltip. Assert on visible text, and check "Extract" explicitly — it is the one
+// pill with no drawn mark of its own and the easiest to drop silently in a port.
+const labels = await buttons.evaluateAll((els) => els.map((e) => e.textContent?.trim() || ''))
+console.log('action bar labels =', JSON.stringify(labels))
+for (const need of ['New walk', 'Add node', 'Group', 'Optional', 'Extract']) {
+  if (!labels.some((t) => t.includes(need))) fail(`no action-bar button labelled "${need}"`)
 }
 await page.screenshot({ path: `${OUT}/toolbox-plan.png` })
 console.log('toolbox-plan.png taken')
@@ -93,15 +93,16 @@ console.log('toolbox-plan.png taken')
 // ── 2. add a node → one more slot on the road ──────────────────────────────
 const roadLeaves = () => page.locator('[data-road-root] [data-node]').count()
 const before = await roadLeaves()
-// title-based click (glyph-only buttons carry meaning in the title)
-await toolbox.getByTitle(/add a node/).click()
+// not exact: the glyph span shares the button's text node with the label
+// ("⊙Add node"), so an exact match against "Add node" alone never hits
+await actionBar.getByText('Add node').click()
 await page.waitForTimeout(250)
 const afterAdd = await roadLeaves()
 console.log('road [data-node]: before =', before, '· after add-node =', afterAdd, '(expect +1)')
 if (afterAdd !== before + 1) fail(`expected leaf count ${before + 1} after add-node, got ${afterAdd}`)
 
 // ── 3. new walk → draft resets to a single empty slot ──────────────────────
-await toolbox.getByTitle(/new walk/).click()
+await actionBar.getByText('New walk').click()
 await page.waitForTimeout(250)
 const afterNew = await roadLeaves()
 console.log('road [data-node] after new-walk =', afterNew, '(expect 1 — one empty slot)')

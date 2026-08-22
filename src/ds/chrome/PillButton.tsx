@@ -24,8 +24,10 @@ export interface PillButtonProps {
    *  border */
   tone?: Tone
   size?: 'sm' | 'md'
-  /** a Unicode glyph from the house set, e.g. '▶' or '✦'. Never an emoji. */
-  glyph?: string
+  /** a Unicode glyph from the house set (e.g. '▶' or '✦'), or one of the DS's drawn
+   *  marks (`<OptionalMark />`). Never an emoji. Widened from the DS's `string` to
+   *  `ReactNode` — `PaneActionBar` passes a drawn mark through this same slot. */
+  glyph?: ReactNode
   disabled?: boolean
   /** on/toggled — draws the moss ring wash rather than a separate colour */
   selected?: boolean

@@ -33,6 +33,7 @@ import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
 import WalkPaletteView from '../instruments/walkdesk/WalkPaletteView'
 import WalkEditorView from '../instruments/walkdesk/WalkEditorView'
+import WalkActionBar from '../instruments/walkdesk/WalkActionBar'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
@@ -64,6 +65,12 @@ export interface Instrument {
    * `PaneCanvas` itself — set this whenever the instrument's root would otherwise
    * be double-wrapped in two nested scrollers. */
   body?: 'y' | 'none'
+  /** the pane's OWN actions, docked under its header via `Pane`'s `actionBar` slot
+   * (DS `PaneActionBar` — labelled pills, never floating or icon-only). Most
+   * instruments have no pane-local actions and leave this out; the shell mounts it
+   * as a sibling of `render`'s output, not inside it, so `Pane` can clip its top
+   * corners to the frame's own arc. */
+  actionBar?(bus: Bus): ReactNode
   /** the pane's BODY. The title bar and the ✕ are the shell's job, not the
    * instrument's — which is why an instrument that reads nothing from the bus
    * (Unfold, Contours, EVoC) simply does not take it. */
@@ -116,6 +123,7 @@ const VIEWS = [
     family: 'walks',
     slot: 'column',
     body: 'none',
+    actionBar: () => <WalkActionBar />,
     render: (bus) => <WalkEditorView bus={bus} />,
   },
   {

@@ -109,6 +109,7 @@ export default function StudioView() {
       legendBg="var(--surface-canopy)"
       onClose={() => toggle(inst.id as InstrumentId)}
       scroll={inst.body === 'none' ? 'none' : 'y'}
+      actionBar={inst.actionBar ? inst.actionBar(bus) : undefined}
       style={{ display: on ? 'flex' : 'none', ...style }}
     >
       {inst.render(bus)}
