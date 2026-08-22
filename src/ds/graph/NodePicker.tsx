@@ -163,6 +163,26 @@ export function NodePicker({
   const menu = open && portalTarget && anchor ? (
     <div
       ref={menuRef}
+      /* ★ LOCAL: THE MENU KEEPS ITS POINTER EVENTS TO ITSELF.
+         A portal moves the menu in the DOM but NOT in the React tree, so React
+         still bubbles its events up through whatever rendered the picker. On this
+         app's road that lands in AuthorRoad's board `onPointerDown`, whose guard
+         asks `e.target.closest('[data-rnode],…,button,input,select')` — a DOM
+         question the portal has already put out of reach, since the row really is
+         a child of document.body and `MenuItem` is a div rather than a button. The
+         guard therefore does not bail, the board calls setPointerCapture, and the
+         captured pointer retargets mouseup away from the row — so `click` never
+         fires and PICKING A NODE SILENTLY DOES NOTHING. (VersionedGroup's own
+         portaled menu escapes this only by accident: its rows ARE buttons, so the
+         same guard matches and bails.)
+         Stopping here rather than widening the host's selector, because the fix
+         has to hold for every ancestor gesture and every host, not just this one
+         board's marquee — a portaled overlay delivering pointerdown into an
+         arbitrary React ancestor is the defect. The outside-click dismiss above is
+         a NATIVE document listener and is deliberately unaffected by this.
+         Reported upstream; drop if the DS adopts it. */
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: 'fixed', top: anchor.top, bottom: anchor.bottom, left: anchor.left, width: anchor.width, minWidth: 200,
         maxHeight: anchor.maxHeight, display: 'flex', flexDirection: 'column', background: 'var(--surface-raised)',

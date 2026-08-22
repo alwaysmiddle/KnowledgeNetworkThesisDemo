@@ -145,17 +145,32 @@ if (vrCount === 0) {
         const filtered = await menuRows()
         console.log('filtered rows for "TCP" =', JSON.stringify(filtered))
         if (filtered.length) {
-          // click the row by its text, inside the menu
-          await page.evaluate(() => {
+          // A REAL MOUSE CLICK, not row.click(). A programmatic .click() dispatches
+          // only the click event and skips mousedown/mouseup entirely — which is
+          // exactly where a "nothing happens on select" bug hides, since the picker's
+          // own dismiss handler and the road's gestures both listen on mousedown.
+          const rowBox = await page.evaluate(() => {
             const input = document.querySelector('input[placeholder="search nodes"]')
             let el = input
             while (el && getComputedStyle(el).position !== 'fixed') el = el.parentElement
             const row = [...el.querySelectorAll('div')].find((d) => d.children.length === 2 && d.textContent.trim())
-            row?.click()
+            if (!row) return null
+            const r = row.getBoundingClientRect()
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
           })
+          console.log('row centre =', JSON.stringify(rowBox))
+          await page.mouse.move(rowBox.x, rowBox.y)
+          await page.waitForTimeout(80)
+          await page.mouse.down()
+          await page.waitForTimeout(80)
+          const stillThere = await page.locator('input[placeholder="search nodes"]').count()
+          console.log('menu still open after MOUSEDOWN =', stillThere, stillThere ? '' : '  <-- it closed on mousedown, the click never lands')
+          await page.mouse.up()
           await page.waitForTimeout(450)
           console.log('pickers before pick =', before, '· after =', await pickers())
-          console.log('road nodes after pick =', await nodes(), '(the slot became a real node)')
+          console.log('road nodes after pick =', await nodes())
+          const bound = await page.locator('[data-road-root]').getByText('TCP & UDP').count()
+          console.log('“TCP & UDP” chips on the road =', bound, bound ? '(bound)' : '(NOT BOUND — the pick did nothing)')
           await page.screenshot({ path: `${OUT}/newversion-05-bound.png` })
         }
       }
