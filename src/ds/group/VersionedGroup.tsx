@@ -898,7 +898,7 @@ export const GROUP_METRICS = {
   pickerMinH: 28, pickerPadY: 10, pickerPadX: 13,       /* --hit-min; 5+5; 7+6 */
   pickerCheck: 12, pickerCaret: 16, pickerGap: 6,
   narrowAt: 250, ctlCluster: 37,                       /* two 18px buttons + 1px */
-  foldPadTop: 8, foldPadX: 8, foldPadBottom: 9, foldPeekX: 6, foldPeekY: 7,
+  foldPadTop: 8, foldPadX: 8, foldPadBottom: 9, foldPeekX: 4, foldPeekY: 4,
   railIndent: 13, railPadLeft: 10, bodyPadTop: 6, bodyPadRight: 8,
   /* ★ LOCAL: what the DS's own numbers leave out, measured.
      THERE IS NO HORIZONTAL CONSTANT HERE, and that is the point. `faceBorder: 1` used to
@@ -1980,18 +1980,18 @@ export function VersionedGroup({
       minWidth: isFolded ? foldedMinWidth : undefined,
       /* THE PEEK'S STRIP IS RESERVED IN BOTH STATES, and that is what keeps the title's
          column the same width folded and open. Reserving it only when folded made the
-         card 6px narrower folded — and the fold's padding was 1px wider a side on top —
+         card 4px narrower folded — and the fold's padding was 1px wider a side on top —
          so a one-line name wrapped to two the moment you collapsed it, which reads as
-         the fold rewriting the title. Open, the 6px is simply empty. The bottom strip
+         the fold rewriting the title. Open, the 4px is simply empty. The bottom strip
          stays folded-only: nothing sits below an open card for the peek to overlap, and
          height is not what a title wraps against. */
-      paddingRight: 6,
-      paddingBottom: isFolded ? 7 : undefined,
+      paddingRight: GROUP_METRICS.foldPeekX,
+      paddingBottom: isFolded ? GROUP_METRICS.foldPeekY : undefined,
       transform: at ? 'translate(' + at.x + 'px, ' + at.y + 'px)' : undefined,
       zIndex: carrying ? 40 : undefined,
     }}>
       {isFolded ? (
-        <div aria-hidden="true" style={{ position: 'absolute', inset: '7px 0 0 7px', borderRadius: 'var(--radius-lg)', background: 'var(--surface-sunken-2)', zIndex: 0 }} />
+        <div aria-hidden="true" style={{ position: 'absolute', inset: '4px 0 0 4px', borderRadius: 'var(--radius-lg)', background: 'var(--surface-sunken-2)', zIndex: 0 }} />
       ) : null}
       <div data-grab="" onPointerDown={startMove} style={{
         position: 'relative', zIndex: 1, borderRadius: 'var(--radius-lg)', boxSizing: 'border-box',
