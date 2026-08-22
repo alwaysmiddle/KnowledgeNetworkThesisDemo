@@ -227,7 +227,10 @@ function OpenCase({ c }: { c: (typeof OPEN_CASES)[number] }) {
   const onBodySlot = useCallback((b: BodySlot) => setSlot((prev) => (prev && prev.left === b.left && prev.top === b.top && prev.width === b.width && prev.height === b.height) ? prev : b), [])
   const slotH = c.slot ?? SLOT_H
   const count = c.count ?? 2
-  const pred = GroupGeometry.openHeight({ width: OPEN_W, title: c.title, index: '3', description: c.desc, descPlaceholder: 'enter description', versionName: c.name, versionLabel: 'v1', count, countLabel: 'nodes', narrow: false, bodyHeight: slotH })
+  // OB-050: ASKED, not told — `slotHeight`, matching the `slotHeight={slotH}` prop this case
+  // actually renders below, never `bodyHeight` (a told height takes no ceiling, which is not
+  // what this case is: it asks, and the `tall` row below is what proves the cap still bites).
+  const pred = GroupGeometry.openHeight({ width: OPEN_W, title: c.title, index: '3', description: c.desc, descPlaceholder: 'enter description', versionName: c.name, versionLabel: 'v1', count, countLabel: 'nodes', narrow: false, slotHeight: slotH, bodyMaxHeight: null })
   return (
     <div data-cal-open={c.k} data-ds-host="" data-cal-depth={c.depth ?? 0} data-pred-h={pred.height} data-pred-bodytop={pred.bodyTop} data-pred-measured={String(pred.measured)}
       data-slot={slot ? `${slot.left},${slot.top},${slot.width},${slot.height}` : ''}>
