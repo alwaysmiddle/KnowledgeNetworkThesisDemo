@@ -2,12 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
 import { Caret, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
-import { useRecede, wrapTip } from '../chrome/IconButton'
-
-/** the one string the three resize grips share. Three copies of a literal is three
- *  chances to reword one of them, and a tooltip that says a slightly different
- *  thing on each edge of the same box reads as three different controls. */
-const RESIZE_TIP = 'drag to resize · double-click to reset'
+import { RESIZE_TIP, useRecede, wrapTip } from '../chrome/IconButton'
 
 /** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
  *  WEIGHT OF WHAT IT CONNECTS AND NEVER ABOVE IT. The nodes are the objects; a line
@@ -663,7 +658,7 @@ export function NodeChip({
          which is why the contract says to pass `note` alongside a non-string title. Falling
          back to `undefined` rather than stringifying: React would render "[object Object]"
          into the attribute, and a tooltip that lies is worse than one that is absent. */
-      title={wrapTip(note || (typeof title === 'string' ? title : undefined)) || undefined}
+      title={wrapTip(note || (typeof title === 'string' ? title : undefined))}
       /* announced, not just drawn — only when the chip is actually the control:
          `aria-expanded` on a span nothing can activate promises a keyboard behaviour
          that is not there. */

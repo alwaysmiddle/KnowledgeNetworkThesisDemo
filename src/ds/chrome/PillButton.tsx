@@ -44,7 +44,7 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
   return (
     <button
       type="button"
-      title={wrapTip(title) || undefined}
+      title={wrapTip(title)}
       disabled={disabled}
       onClick={onClick}
       onMouseDown={onMouseDown}

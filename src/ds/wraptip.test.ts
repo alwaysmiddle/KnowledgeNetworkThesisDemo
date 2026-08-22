@@ -28,10 +28,12 @@ describe('wrapTip — short strings come back untouched', () => {
     expect(wrapTip('a'.repeat(MEASURE + 1))).toContain('\n')
   })
 
-  it('trims, and survives null/undefined', () => {
+  it('trims, and returns undefined rather than empty for an absent or empty string (OB-047)', () => {
     expect(wrapTip('  padded  ')).toBe('padded')
-    expect(wrapTip(undefined)).toBe('')
-    expect(wrapTip(null)).toBe('')
+    expect(wrapTip(undefined)).toBe(undefined)
+    expect(wrapTip(null)).toBe(undefined)
+    expect(wrapTip('')).toBe(undefined)
+    expect(wrapTip('   ')).toBe(undefined)
   })
 })
 
@@ -40,7 +42,7 @@ describe('wrapTip — folding', () => {
     'Everything the browser does before the first byte of the page comes back to it'
 
   it('breaks on word boundaries and never exceeds the measure', () => {
-    const lines = wrapTip(LONG).split('\n')
+    const lines = wrapTip(LONG)!.split('\n')
     expect(lines.length).toBeGreaterThan(1)
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(MEASURE)
     // nothing is lost or invented — the fold adds line breaks and nothing else
@@ -48,7 +50,7 @@ describe('wrapTip — folding', () => {
   })
 
   it('takes a measure of its own', () => {
-    for (const line of wrapTip(LONG, 20).split('\n')) expect(line.length).toBeLessThanOrEqual(20)
+    for (const line of wrapTip(LONG, 20)!.split('\n')) expect(line.length).toBeLessThanOrEqual(20)
   })
 
   it('cuts an unbroken run rather than leaving one screen-wide line', () => {
@@ -57,20 +59,20 @@ describe('wrapTip — folding', () => {
     // the function exists to prevent, so the exception swallowed the rule — and a
     // NAME is where such a run turns up (a pasted id, a typo, a URL).
     const run = 'x'.repeat(60)
-    const lines = wrapTip(run).split('\n')
+    const lines = wrapTip(run)!.split('\n')
     expect(lines).toEqual(['x'.repeat(44), 'x'.repeat(16)])
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(MEASURE)
   })
 
   it('keeps a long run on its own lines without swallowing its neighbours', () => {
-    const lines = wrapTip('see ' + 'y'.repeat(50) + ' now').split('\n')
+    const lines = wrapTip('see ' + 'y'.repeat(50) + ' now')!.split('\n')
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(MEASURE)
     expect(lines.join(' ').replace(/\s+/g, ' ')).toContain('see')
     expect(lines.join('').includes('y'.repeat(44))).toBe(true)
   })
 
   it('collapses the whitespace it folds on, so a newline in the source is not doubled', () => {
-    const lines = wrapTip('one\ntwo three four five six seven eight nine ten eleven').split('\n')
+    const lines = wrapTip('one\ntwo three four five six seven eight nine ten eleven')!.split('\n')
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(MEASURE)
     expect(lines[0].startsWith('one two')).toBe(true)
   })
