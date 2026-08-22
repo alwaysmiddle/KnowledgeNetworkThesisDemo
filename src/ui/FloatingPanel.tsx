@@ -1,6 +1,6 @@
 // FloatingPanel (#76) — a reusable overlay that a pane can host: draggable by
-// its legend title (a DS PaneHeader with `grabbable`) OR a bottom move-grip,
-// resizable from any edge/corner,
+// its legend title (a DS PaneHeader with `grabbable`), resizable from any
+// edge/corner,
 // optionally auto-hiding, and remembering its size+position across reloads. Its
 // title rides in the top border as a legend, like every Studio pane. It bakes in
 // NO walk-specific
@@ -23,7 +23,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { PaneHeader, PaneScroller, wrapTip } from '@/ds'
+import { PaneHeader, PaneScroller } from '@/ds'
 import { drag, loadRect, resize, saveRect } from './floatingPanelRect'
 import type { Bounds, Rect, ResizeEdge, SizeLimits } from './floatingPanelRect'
 
@@ -171,15 +171,6 @@ export function FloatingPanel({
     // would be clipped by it. The scroll body below clips its own content instead.
   }
 
-  // a small drawn four-way move arrow (DS direction: load-bearing marks are drawn
-  // geometry, not glyphs) — currentColor so it inherits the grip's text colour.
-  const moveIcon = (
-    <svg viewBox="0 0 12 12" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 1.2v9.6M1.2 6h9.6" />
-      <path d="M6 1.2 4.7 2.7M6 1.2 7.3 2.7M6 10.8 4.7 9.3M6 10.8 7.3 9.3M1.2 6 2.7 4.7M1.2 6 2.7 7.3M10.8 6 9.3 4.7M10.8 6 9.3 7.3" />
-    </svg>
-  )
-
   return (
     <div
       ref={panelRef}
@@ -216,18 +207,6 @@ export function FloatingPanel({
       {/* body — the consumer's content (a DS Toolbar, buttons, …); it owns the
           clip so the frame can stay overflow-visible for the straddling title. */}
       <PaneScroller>{children}</PaneScroller>
-
-      {/* the SECOND drag affordance the spec names (#54): a move grip straddling
-          the bottom-centre border, a twin of the title notch. z-index over the
-          's' resize strip so the centre moves and the flanks still resize. */}
-      <div
-        aria-label="floating-panel-move"
-        title={wrapTip('drag to move')}
-        onPointerDown={(e) => beginGesture(e, 'move')}
-        style={{ position: 'absolute', left: '50%', bottom: 0, zIndex: 3, transform: 'translate(-50%, 50%)', display: 'grid', placeItems: 'center', width: 18, height: 14, borderRadius: 'var(--radius-pill)', background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', color: 'var(--text-3)', cursor: 'move' }}
-      >
-        {moveIcon}
-      </div>
 
       {/* grab zones, corners last so they win their overlap with the edges */}
       {[...EDGES, ...CORNERS].map(({ edge, cls }) => (
