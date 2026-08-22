@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import type { DomainCode } from '../graph/vocab'
-import { DOMAIN_TOKEN } from '../graph/vocab'
+import { DomainDot } from '../graph/DomainDot'
 import { wrapTip } from '../chrome/IconButton'
 
 /** One entry of the append-only trail: where a focus landed, and how it got
@@ -45,15 +45,7 @@ export function TrailChip({ title, domain, via, jump, onClick }: TrailChipProps)
       }}
     >
       {jump ? <span style={{ color: 'var(--accent-walk)', flexShrink: 0 }}>{'⤳'}</span> : null}
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 'var(--radius-pill)',
-          flexShrink: 0,
-          background: DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)',
-        }}
-      />
+      <DomainDot domain={domain} size={7} />
       <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
       {via ? (
         <span
