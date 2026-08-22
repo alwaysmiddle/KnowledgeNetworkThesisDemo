@@ -14,8 +14,32 @@
 // no drag/resize/auto-hide of its own to carry.
 
 import { OptionalMark, PaneActionBar } from '@/ds'
+import { clearStoredData, listStoredData } from '../../model/storeddata'
 import { parsePath, stopAt, useAuthorDraft, useRoad } from './authordraft'
 import { chosenIdx, isFork } from './mockwalk'
+
+// TEMPORARY (2026-08-22) — the "Reset data" pill below, and this function with
+// it. Both go when the stale-payload question is closed; src/model/storeddata.ts
+// carries the same marker and the reasoning.
+//
+// Reports BEFORE it clears, because the bytes are the diagnosis and clearing
+// destroys them: a stale payload cannot say which build wrote it (none of the
+// three stored shapes carries a version field), so the only way to learn what
+// broke is to look at what is actually there. The console table survives the
+// reload — it is printed before navigation, and the devtools console persists
+// across a same-document reload.
+function resetStoredData() {
+  const found = listStoredData()
+  console.log('[reset] stored before clearing:', found.length ? found : '(nothing under pkt.)')
+  for (const entry of found) {
+    console.log(`[reset]   ${entry.key} — ${entry.bytes} bytes\n${entry.preview}`)
+  }
+  const cleared = clearStoredData()
+  console.log('[reset] cleared', cleared.length, 'key(s):', cleared)
+  // the stores read their keys once at module load, so nothing on screen changes
+  // until the app boots again — see clearStoredData's own note
+  location.reload()
+}
 
 export default function WalkActionBar() {
   const state = useAuthorDraft()
@@ -55,6 +79,16 @@ export default function WalkActionBar() {
           onClick: state.toggleOptionalSelection,
         },
         { glyph: '⏏', label: 'Extract', title: 'extract the active version into its own group', disabled: !canExtract, onClick: extractActive },
+        // TEMPORARY (2026-08-22) — see resetStoredData above. `danger` because it
+        // throws away the saved plan AND every saved walk, and the system's rule
+        // is that a destructive control says so at rest rather than on hover.
+        {
+          glyph: '⟲',
+          label: 'Reset data',
+          title: 'TEMPORARY: forget the saved draft, saved walks and panel positions, then reload',
+          tone: 'danger',
+          onClick: resetStoredData,
+        },
       ]}
     />
   )
