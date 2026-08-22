@@ -58,7 +58,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
-import { PaneScroller, SectionLabel, wrapTip } from '@/ds'
+import { PaneCanvas, PaneScroller, SectionLabel, wrapTip } from '@/ds'
 
 import { byId, childrenOf, EDGE_COLOR, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
 import type { GEdge } from '../corpus/graph'
@@ -99,6 +99,22 @@ const EDGE_FS = 11
 // floor sits near ×1 (the type is already at the edge); a bigger pane earns
 // real zoom-out room. A COMPONENT, not a hook: the drag refs stay inside one
 // owner and never cross a boundary into anyone's render.
+//
+// ITS ROOT IS A PaneCanvas (#143, OB-054), not a plain div — and only ITS
+// root: this is the one region of the pane whose content must be CROPPED
+// (absolutely-positioned SVG content can pan past the pane's edge), so it is
+// the one region that legitimately clips. Everything else in this file — the
+// header, the bottom "contained"/"relationships" section — is a PaneScroller
+// or plain flow content, a sibling of this box, never inside it. The pane
+// used to be wrapped WHOLE in one PaneCanvas from instruments.tsx, which
+// caught the bottom PaneScroller in the same rounded, overflow:hidden box as
+// this canvas — its scrollbar's end arrow lost its gutter to the canvas's
+// own bottom corner arc, exactly the fault Pane's own audit exists to catch.
+// The DS's own words: "the arc belongs to a DIFFERENT box than the
+// scroller... the fix is structural: the scrolling sections should not be
+// inside the canvas's rounded box at all." A bigger inset was rejected on
+// the same grounds — clearing the corner from inside would open a gap
+// everywhere the canvas doesn't need one.
 const Z_MAX = 8
 const MIN_LEGIBLE_PX = 8
 const LABEL_FS = 12 // the canvases' base label size — the legibility anchor
@@ -178,7 +194,9 @@ function PanZoomCanvas({
 
   const moved = view.z !== 1 || view.x !== 0 || view.y !== 0
   return (
-    <div className="relative flex-1 min-h-0">
+    // PaneCanvas is already position:relative — its own absolute children (the
+    // zoom chip, `chrome`) measure against it with no override needed here.
+    <PaneCanvas>
       <svg
         ref={svgRef}
         {...svgProps}
@@ -234,7 +252,7 @@ function PanZoomCanvas({
         </div>
       )}
       {chrome}
-    </div>
+    </PaneCanvas>
   )
 }
 
