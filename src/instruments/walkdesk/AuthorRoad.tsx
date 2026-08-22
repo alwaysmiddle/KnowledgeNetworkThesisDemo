@@ -33,11 +33,11 @@ import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, Pointe
 
 import { byId, domainOf, topicIds } from '../../corpus/graph'
 import {
-  ARROW_METRICS, NodeArrow, NodeChip, chipBorder, chipSizeOf,
+  ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
   wrapTip, PaneScroller,
 } from '@/ds'
-import type { DomainCode, GroupSpec } from '@/ds'
+import type { DomainCode, GroupSpec, NodeOption } from '@/ds'
 import type { AuthorState, Path } from './authordraft'
 import { pathKey } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
@@ -61,6 +61,10 @@ const NODEH = 34
 // loses its tail instead of the box lying about how tall it is.
 const NODE_MAXW = 220
 const NODE_MAXH = 66
+// the unbound-slot picker's menu (#144 / OB-058) — flat, matching what the raw
+// <select> it replaces offered: every curriculum topic, no domain grouping. Built
+// once from static corpus data rather than per-render.
+const NODE_OPTIONS: NodeOption[] = topicIds.map((id) => ({ id, title: byId.get(id)!.title, domain: domainOf(id) as DomainCode }))
 /** the step number as the CHIP is handed it — LOCAL to the container it sits in, so
  *  a leaf shows its position in its own list rather than the path down to it: the
  *  stop whose outline is `2.1` reads `1.`. The last segment IS that position, since
@@ -755,7 +759,11 @@ export default function AuthorRoad({
             const dim = (!pl.onRoad || pl.skipped) && !isSelected ? 'opacity-50' : ''
 
             if (isLeaf(s)) {
-              // an unbound placeholder slot — a picker, not a node chip
+              // an unbound placeholder slot — a picker, not a node chip. The wrapper
+              // still reserves the road's own NODEW×NODEH box (unchanged — the layout
+              // pass is arithmetic and does not measure this), but no longer draws a
+              // pill itself: NodePicker's unresolved shell is solid, never dashed (#144
+              // / OB-058), so an outer dashed circle around it would double the shape.
               if (s.unset) {
                 return (
                   <div
@@ -765,30 +773,16 @@ export default function AuthorRoad({
                     data-node=""
                     data-runset={1}
                     className={[
-                      'absolute z-20 rounded-full border-2 border-dashed px-2 flex items-center cursor-grab',
+                      'absolute z-20 flex items-center cursor-grab',
                       'transition-[left,top,width,height] duration-200 ease-out',
                       dim,
                       isSelected ? SEL_OUTLINE : '',
                     ].join(' ')}
-                    style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h, borderColor: 'var(--border-dashed)', background: 'var(--surface-canopy)' }}
+                    style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
                   >
-                    <select
-                      data-rpicknode={key}
-                      value=""
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation()
-                        if (e.target.value) state.bindNode(pl.path, e.target.value)
-                      }}
-                      className="w-full bg-transparent text-[var(--fs-caption)] outline-none cursor-pointer" style={{ color: 'var(--text-3)' }}
-                    >
-                      <option value="">pick a node ▾</option>
-                      {topicIds.map((id) => (
-                        <option key={id} value={id}>
-                          {byId.get(id)!.title}
-                        </option>
-                      ))}
-                    </select>
+                    <div data-rpicknode={key} onClick={(e) => e.stopPropagation()}>
+                      <NodePicker options={NODE_OPTIONS} onChange={(id) => state.bindNode(pl.path, id)} search />
+                    </div>
                   </div>
                 )
               }

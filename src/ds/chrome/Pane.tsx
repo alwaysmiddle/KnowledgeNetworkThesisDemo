@@ -273,6 +273,13 @@ export interface PaneProps {
   /** pane-scoped controls beside the title. The legend slot is 18px tall — icon-height
    *  only, and built from `IconButton` rather than by hand */
   actions?: ReactNode
+  /** THE PANE'S OWN ACTIONS, docked between the header and the scrolling body — pass a
+   *  `PaneActionBar`. Never pass one as a plain `children` element instead: this slot
+   *  clips the bar's top corners to the frame's own arc (the same fix `PaneCanvas`
+   *  uses), which a raw child sitting inside the scroller cannot get — it paints its
+   *  opaque face square, inside the 20px radius, and bites two notches out of the
+   *  rounded top. */
+  actionBar?: ReactNode
   /** the colour the legend masks the border with; defaults to the desk. Pass the real
    *  surface if a pane ever sits on something other than `--surface-canopy` */
   legendBg?: string
@@ -352,12 +359,19 @@ export interface PaneProps {
  *  Typed port of the DS Pane.jsx (contract: Pane.d.ts). */
 export function Pane({
   title, glyph, onClose, actions, legendBg, variant, grabbable, onGrabStart,
-  resizable = false, onResizeStart,
+  resizable = false, onResizeStart, actionBar,
   scroll = 'y', as, style, bodyStyle, bodyRef, audit = true, children, ...rest
 }: PaneProps & Record<string, unknown>) {
   const Frame = (as || 'section') as ElementType
   const frameRef = useRef<HTMLElement | null>(null)
   const bodyEl = useRef<HTMLDivElement | null>(null)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  /* THE SAME NESTED-RADIUS FIX PaneCanvas USES, for a docked bar that sits between the
+     header and the scroller. An action bar paints its own opaque face (PaneActionBar,
+     --surface-raised) directly under an 11px legend header that hasn't cleared the 20px
+     corner arc — without this, its square top corners bite the same two notches out of
+     the rounded frame that auditBody warns about for any other opaque body child. */
+  const barRadius = useNestedRadius(barRef, !!actionBar)
   useEffect(() => { if (audit) auditBody(frameRef.current, bodyEl.current) }, [audit])
   const bodyElRef = useMemo(() => setRefs(bodyEl, bodyRef), [bodyRef])
   return (
@@ -385,6 +399,11 @@ export function Pane({
           title={title} glyph={glyph} onClose={onClose} actions={actions}
           variant={variant} legendBg={legendBg} grabbable={grabbable} onGrabStart={onGrabStart}
         />
+        {actionBar ? (
+          <div ref={barRef} data-pane-actionbar="" style={{ flexShrink: 0, overflow: 'hidden', borderRadius: barRadius || 0 }}>
+            {actionBar}
+          </div>
+        ) : null}
         {scroll === 'none' ? (
           /* `none` hands the body's CONTENTS back, not the body BOX. The box is still
              ours — a transparent flex column that takes the space under the hat — so a

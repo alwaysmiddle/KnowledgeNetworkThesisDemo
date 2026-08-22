@@ -40,11 +40,10 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import AuthorRoad from './AuthorRoad'
-import { parsePath, redoDraft, saveDraftAsWalk, stopAt, undoDraft, useAuthorDraft, useRoad } from './authordraft'
+import { redoDraft, saveDraftAsWalk, undoDraft, useAuthorDraft, useRoad } from './authordraft'
 import { listWalks, subscribeWalks } from '../../model/walkstore'
-import { chosenIdx, isFork, leafIds, resolveRoad } from './mockwalk'
+import { leafIds, resolveRoad } from './mockwalk'
 import WalkPreview from './WalkPreview'
-import WalkToolbox from './WalkToolbox'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
 import { IconButton, wrapTip } from '@/ds'
@@ -123,24 +122,6 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
     bus.setRoute(leafIds(resolved))
     return () => bus.clearRoute()
   }, [state.stops, choices, withOptionals]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // #70 retired the drag-a-version-tab-out gesture that used to feed
-  // extractVariant. Until it finds a real home in the UI, the Toolbox carries
-  // it: with a single FORK selected, lift its ACTIVE version into its own group,
-  // inserted right after the fork. `choices` (the road's view of "active") lives
-  // here, not in the draft, so the pick is resolved here and handed down ready.
-  const selPath = state.selected.size === 1 ? parsePath([...state.selected][0]) : null
-  const selStop = selPath ? stopAt(state.stops, selPath) : undefined
-  const canExtract = !!selPath && !!selStop && isFork(selStop)
-  const extractActive = () => {
-    if (!selPath || !selStop || !isFork(selStop)) return
-    const idx = chosenIdx(selStop, choices)
-    const after = [...selPath.slice(0, -1), selPath[selPath.length - 1] + 1]
-    state.extractVariant(selPath, idx, after)
-    // trimmed container falls back to its first remaining version (#92: by id)
-    const firstRemaining = selStop.variants.filter((_, k) => k !== idx)[0]
-    if (firstRemaining) pickBranch(selStop.key!, firstRemaining.id)
-  }
 
   return (
     // DS PaneHeader.d.ts rule 2: THE PANE BODY TAKES NO BACKGROUND OF ITS OWN — the
@@ -299,11 +280,6 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
             onLeafFocus={(id) => bus.setFocus(id, 'desk')}
           />
         </div>
-
-        {/* The floating toolbox (#54) rides ON the road: absolute inside this
-            relative host, after the road so it paints above it, before the
-            preview so reading the walk (z-20) covers it. */}
-        <WalkToolbox state={state} canExtract={canExtract} onExtract={extractActive} />
 
         {/* clicking the faded road dismisses the preview */}
         {previewOpen && <div className="absolute inset-0 z-10" onClick={() => setPreviewOpen(false)} />}

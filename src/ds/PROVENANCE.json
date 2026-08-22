@@ -118,6 +118,17 @@
         "syncedAt": "2026-07-30",
         "deviations": []
       },
+      "src/ds/graph/NodePicker.tsx": {
+        "from": "components/graph/NodePicker.jsx",
+        "contract": "components/graph/NodePicker.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (#144, OB-058) — replaces the walk editor's raw <select> inside a dashed pill at AuthorRoad.tsx (the unbound-slot picker). `NodeOption.domain` is typed `DomainCode` here rather than the DS's `string` — this app's own NodeChip/DomainDot already require the 6-code union (the DS widened to `string` on 2026-08-21j specifically because ITS adherence lint compiles a union into a rule that would reject a general corpus's own hue names; that pressure does not exist here, and every caller of this port is the corpus, which only ever produces one of the six). Recorded as a deliberate local narrowing, not an oversight.",
+          "`portalInto`'s runtime-global ReactDOM fallback dropped in favour of a direct `import { createPortal } from 'react-dom'`, matching VersionedGroup.tsx's own menu portal in this app.",
+          "the .jsx assigns the SAME `anchorRef` to both the outer <span> wrapper and the inner unresolved <button> (harmless in JS — the span, mounted last, wins) but not cleanly typeable across two different host-element ref slots in TS. Ported with the ref on the span only; the span has no padding or border of its own, so their measured rects are identical and `place()`'s positioning is unaffected.",
+          "`options` for the walk editor is FLAT (topicIds, no domain grouping) — the direct equivalent of the raw <select>'s own flat option list, not a new hierarchy invented for this adoption. `search` is passed (53 topics), which the raw <select> did not offer; the component supports it at no extra cost and 53 items in a plain scroll is real friction. A deliberate app-side choice, not required by the contract."
+        ]
+      },
       "src/ds/graph/EdgeLegend.tsx": {
         "from": "components/graph/EdgeLegend.jsx",
         "contract": "components/graph/EdgeLegend.d.ts",
@@ -236,6 +247,16 @@
           "masks with assets/leaf-mask.png rather than assets/leaf.png — the same drawing at half scale with the colour channels flattened. The component only ever reads the alpha channel, so nothing is lost, and the full-size PNG (1870×841) cannot cross the design-sync channel's 256 KiB get_file cap. RATIO and TIP_Y were measured on the full-size artwork and still hold at half scale"
         ]
       },
+      "src/ds/chrome/OptionalMark.tsx": {
+        "from": "components/chrome/OptionalMark.jsx",
+        "contract": "components/chrome/OptionalMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (#144, OB-036) — the fifth drawn mark, for CONDITIONAL. Adopted at WalkColumns.tsx (the one required site, `s.optional` before a node's title, which has no accompanying word) and in WalkActionBar.tsx's 'Optional' pill (WalkToolbox.tsx's old glyph=\"◇\" site, now folded into the #144 PaneActionBar adoption). NOT adopted at AuthorRoad.tsx:653 / WalkEditorView.tsx's 'optionals: on the road/bypassed' toggle — OB-036's own done-when marks those two as already-labelled and free to keep `◇` (which neither currently renders — both carry a `{/* NO GLYPH */}` comment already) or adopt the mark at the owner's discretion; left untouched since nothing there was broken.",
+          "CONTRACT GAP reported rather than silently split: the .jsx defaults `size` to 14; the .d.ts's own prose says the default is 12 (\"matches the house glyph slot next to --fs-caption text\"). Ported the .jsx's actual default per the DS's own rule that the .jsx is the truth — same class as NodeChip.wrap, PillButton.onMouseDown and Pane.d.ts's grabbable prose/interface split.",
+          "`style` typed `CSSProperties` rather than the .d.ts's `Record<string, string | number>` — a widening, matching every other port's own style-prop convention in this file (e.g. PillButton, Pane), not a behaviour change."
+        ]
+      },
       "src/ds/chrome/CountBadge.tsx": {
         "from": "components/chrome/CountBadge.jsx",
         "contract": "components/chrome/CountBadge.d.ts",
@@ -318,11 +339,26 @@
           "2026-08-22 OB-047 (#140) — the `|| undefined` guard this file carried moved one level down. `wrapTip` now returns `string | undefined` and answers an absent or empty string with `undefined` rather than `''`, so the button's own `title={wrapTip(title) || undefined}` is retired to `title={wrapTip(title)}` — the fix lands for every caller at once instead of each guarding its own. RESIZE_TIP is a NEW export here (the resize handles' tooltip, one string rather than six retyped copies — three in VersionedGroup.tsx, three in NodeChip.tsx, both of which had carried their own local const): this port and the DS reached the same extraction independently (receipts/b319861.md), so publishing it in the one file both callers already import from is convergence, not a new decision."
         ]
       },
+      "src/ds/chrome/PaneActionBar.tsx": {
+        "from": "components/chrome/PaneActionBar.jsx",
+        "contract": "components/chrome/PaneActionBar.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (#144, the item design-sync.md's own OB-036 body calls \"OB-036's WalkToolbox half\" — it has NO OB-NNN id of its own; grepping the DS's whole obligation ledger, its only mentions are inside OB-036, pointing at 'the PaneActionBar adoption above,' and no such item exists anywhere in the ledger. #144 already flags this back for a retroactive id; not repeated here as a second report.",
+          "adopted at src/instruments/walkdesk/WalkActionBar.tsx (new), replacing WalkToolbox.tsx (#54) whole — the FloatingPanel wrapper, its persisted rect and its 2-column icon-only grid. All five original actions carry over 1:1 (newWalk, addSelectionNode, groupSelection, toggleOptionalSelection, onExtract), each gaining the word its glyph used to carry alone in its `title`.",
+          "KEPT THE EXISTING UNICODE GLYPHS (✦ ⊙ ⊞ ⏏) rather than adopting the DS's own drawn `NewWalkMark`/`AddNodeMark` from its usage example in PaneActionBar.prompt.md — those two components are real DS components but are NOT named anywhere in #144's own scope (three components: OptionalMark, PaneActionBar, NodePicker), and PaneActionBar.d.ts's own contract confirms a Unicode glyph is a fully valid `glyph` value, not a placeholder for a mark: \"an app assembles its OWN mix of these into whatever buttons a screen needs.\" Only the fourth glyph (◇ → OptionalMark) is in scope, per OB-036. Porting NewWalkMark/AddNodeMark is left for its own turn if wanted.",
+          "PillButton.tsx's `glyph` prop widened `string` → `ReactNode` to carry `<OptionalMark />` through — a type-only change; the render side (`{glyph ? <span>{glyph}</span> : null}`) already worked for either.",
+          "`Pane.tsx` gained the `actionBar` prop + nested-radius clip wrapper this component needs (see that entry) — required collateral, not scope creep: PaneActionBar.prompt.md is explicit that it is hosted through Pane's `actionBar` slot, never as a plain child.",
+          "the `data-pane-actionbar` hook on Pane.tsx's clip wrapper is an app-side addition (this port's own, not the DS's jsx) for driver targeting — see that entry."
+        ]
+      },
       "src/ds/chrome/Pane.tsx": {
         "from": "components/chrome/Pane.jsx",
         "contract": "components/chrome/Pane.d.ts",
-        "syncedAt": "2026-08-19",
+        "syncedAt": "2026-08-22",
         "deviations": [
+          "2026-08-22 (#144) — `actionBar` ported: the prop, the nested-radius clip wrapper (`barRef`/`barRadius`, the same `useNestedRadius` PaneCanvas already used here) and its render slot between PaneHeader and the body. NOT PORTED FROM THE SAME DS FILE REVISION: `face` / `frameBg` (OB-066, unfiled as a GitHub issue) — `actionBar` and `face` shipped in the same DS Pane.jsx update, but `face` is a separate, unrelated capability (a colour the FRAME paints, for content like a map's water) with its own review surface (auditFace, rgbOf, contrast math) that nothing in #144 asked for and no call site in this app uses yet. Left for its own turn rather than dragged in as collateral. `PaneHeader.tsx` is UNCHANGED (still no `frameBg` param) for the same reason — nothing calls `Pane` with `face` today, so there is nothing for it to receive.",
+          "added `data-pane-actionbar=\"\"` on the actionBar clip wrapper — not in the DS's jsx, an app-side test hook of this port's own, matching the existing `data-pane-body=\"scroller\"|\"canvas\"|\"box\"` precedent the DS's OWN jsx already sets on the sibling body wrapper. tools/studio-spike/shot-toolbox.mjs targets it rather than button title/text, per this codebase's own stated lesson (PaneHeader.d.ts: a driver that resorts to finding a handle by its title TEXT breaks the next time the copy changes).",
           "2026-08-19 NEW FILE, second half of OB-011 (#112): Pane, PaneScroller and SCROLLER_INSET. PaneFrameContext is deliberately NOT here — it is declared in PaneHeader and imported by this file. Pane already imports PaneHeader, so the other direction is a cycle, and Pane.d.ts warns that a port siting the context here bundles cleanly and fails at RUNTIME with an undefined context (the close control never appears). Followed as written.",
           "2026-08-19 CONTRACT GAP, the fourth of its kind and the one this port would have lost. Pane.d.ts describes `grabbable` in PROSE (\"A FLOATING PANE is this component with grabbable\") but its PaneProps interface declares neither `grabbable` nor `onGrabStart`, while Pane.jsx forwards both to PaneHeader. Ported from the .jsx per the DS's own rule that the .jsx is the truth; reported in receipts. Same family as NodeChip.wrap and PillButton.onMouseDown, except that here the prose and the interface disagree inside ONE file.",
           "2026-08-19 NOT ADOPTED, and this is the whole point of the port/adopt split. Nothing in src/instruments/** or src/studio/** composes Pane yet; every pane on screen is still a hand-built frame around PaneHeader. This commit makes the adoption possible and does not perform it. OB-001 (H1) and OB-002 (H2) are already cleared by hand at their call sites, so adopting Pane is a make-it-unbreakable move rather than a fix — which is exactly why it should be its own reviewed change and not a rider on a port.",
