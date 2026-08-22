@@ -57,10 +57,7 @@ const DOT_FIRST_LINE_INSET = 4.83
  *  that is a fact about the LIST, and the list omits the prop.
  *
  *  Deviations from DS source:
- *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source)
- *  - `chipSize()`'s border edge is still the authored stroke width, not `usedStroke()`'s
- *    device-pixel value — the DS's newly published geometry contract (2026-08-21) is
- *    not yet adopted here; flagged on #74 rather than folded into this port silently */
+ *  - Uses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source) */
 
 export interface NodeChipProps {
   /** the node's NAME. A `ReactNode` rather than a string since 2026-08-19, so a caller can
@@ -300,14 +297,15 @@ function useSizeDrag(
  *  so a title scored as one line wrapped to two and was clipped against the
  *  height it had been told.
  *
- *  This table was built LOCAL because the DS shipped no geometry for this component
- *  (reported on drift-log #74). As of 2026-08-21 it has published its own —
- *  `NodeChip.d.ts`'s own PUBLISHED GEOMETRY section, written to REPLACE this table
- *  rather than merge with it. This port takes only what `disclosable` and `focus` need
- *  to be predicted correctly; `usedStroke()`, the rest of that contract, moves the
- *  predicted box of every chip on screen and not just these two props, so it is its own
- *  pass rather than a rider on this one — flagged back on #74. Two rules are what make
- *  what IS here hold:
+ *  This table was originally kept in this file because the DS shipped no geometry for
+ *  this component (reported on drift-log #74). As of 2026-08-21 it published its own —
+ *  `NodeChip.d.ts`'s own PUBLISHED GEOMETRY section — and this port now takes that
+ *  contract whole (OB-048): `usedStroke()` for the border edge, no width floor unless
+ *  the caller asks for one (`spec.minWidth` defaults to none, not `CHIP_METRICS.minWidth`
+ *  — that number is the RESIZE DRAG's floor, not a layout floor), and a height that is
+ *  rounded to 2dp rather than ceiled, since a board STACKS on it and a ceiled height puts
+ *  a pixel of slack under every chip in a column. Two rules are what make what IS here
+ *  hold:
  *
  *  1. CSS OWNS WHAT CSS DECLARES. The stroke, the line height, the font sizes
  *     and the weights are read from the stylesheet at measure time — the very
@@ -400,6 +398,19 @@ function tokenNum(name: string, fallback: number): number {
   return v
 }
 
+/** AN AUTHORED STROKE IS NOT THE STROKE THAT IS LAID OUT. The browser lays borders out in
+ *  whole DEVICE pixels, so a 1px edge is USED as 0.667 CSS px at dpr 1.5, and this chip's
+ *  `border` form — 1.5px authored — is used as 1.333px there. The shell is `border-box`, so
+ *  two of those edges sit inside every width and height this file predicts.
+ *  `GroupGeometry.hairline()` is this function's 1px case; the chip has two authored weights,
+ *  so it needs the general form. NEVER HOIST THE RESULT INTO A CONSTANT: dpr changes when a
+ *  window moves between displays, so it has to be asked inside the layout pass. */
+export function usedStroke(authored: number): number {
+  const r = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
+  const device = Math.floor(authored * r)
+  return device >= 1 ? device / r : authored
+}
+
 let ctx2d: CanvasRenderingContext2D | null | false = null
 function measure(text: unknown, weight: number, size: number, kind: FontKind): number {
   const str = String(text == null ? '' : text)
@@ -445,7 +456,9 @@ function linesOf(text: unknown, width: number, weight: number, size: number, kin
  *  selected, dim) is paint, and paint takes no layout — `selected` is an outline
  *  for exactly that reason. */
 export interface ChipSpec {
-  title?: string
+  /** widened to match `NodeChipProps.title` — `chipSpec()` passes it through unchanged, and
+   *  `measure()`/`linesOf()` below already take `unknown` and stringify defensively */
+  title?: React.ReactNode
   /** the step number, if one is shown — mono, and it is measured, not counted */
   index?: string
   mark?: 'dot' | 'border' | 'border-2' | 'none'
@@ -513,9 +526,10 @@ export function chipSize(spec?: ChipSpec): ChipSize {
      either resting weight, so a focus chip predicted at semibold clips its own name. */
   const fwText = s.focus ? tokenNum('--fw-bold', 700) : quiet ? fwMedium : fwTitle
 
-  /* the shell is border-box, so its border and padding come out of the width. The mention
+  /* the shell is border-box, so its border and padding come out of the width — and the
+     border is the USED stroke, not the authored one (usedStroke, OB-048). The mention
      form is 1px and tighter on both axes — it is a citation, not an object. */
-  const edge = (quiet ? M.quietBorder : bordered ? stroke : M.plainBorder) * 2
+  const edge = usedStroke(quiet ? M.quietBorder : bordered ? stroke : M.plainBorder) * 2
   const padX = quiet ? M.padXQuiet * 2
     : bordered || plain ? (wrap ? M.padXWrap : M.padXFlat) * 2
     : M.dotPadLeft + M.dotPadRight
@@ -534,7 +548,14 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   const chrome = edge + padX + furniture.reduce((a, b) => a + b, 0) + gaps
     + (s.deletable ? M.titlePadRight : 0)
 
-  const minW = s.minWidth === undefined ? M.minWidth : s.minWidth
+  /* THERE IS NO WIDTH FLOOR UNLESS THE CALLER ASKS FOR ONE (OB-048). `CHIP_METRICS.minWidth`
+     (120) is the RESIZE DRAG's floor, not a layout floor: the shell's CSS floor is
+     `min-content`, which for one line of title is exactly the width measured above, so a
+     chip whose name is short DRAWS short — measured 100.4, 99.65 and 93.55px for the dot,
+     mention and none forms against the old prediction of 120. `spec.minWidth` stays
+     available for a caller that wants a floor of its own (a column of chips evened up by
+     hand, which is every caller on this road today), and it defaults to none. */
+  const minW = s.minWidth === undefined ? 0 : s.minWidth
   const maxW = s.maxWidth === undefined ? M.maxWidth : s.maxWidth
   /* on the mention form the word runs INLINE after the name, so it is part of the one line
      the chip wants to be. On a full-rank chip it is its own row and costs height, not width. */
@@ -570,11 +591,43 @@ export function chipSize(spec?: ChipSpec): ChipSize {
   if (!bordered && !plain) rows.push(M.dot + (stacked ? M.dotTop : 0))
   if (s.disclosable) rows.push(M.caret + (stacked ? M.caretTop : 0))
 
-  const height = Math.ceil(Math.max.apply(null, rows) + padY + edge)
+  /* WIDTH IS CEILED, HEIGHT IS NOT (OB-048), and the asymmetry is deliberate. A width one
+     pixel short clips the name it was computed for, and a pixel of extra column costs
+     nothing, so the width rounds up. A HEIGHT is what a board STACKS ON, so it is published
+     as the number the browser will lay out (2dp): ceiling a 27.01 up to 28 put a pixel of
+     slack under every chip in a column, and a column of forty stops was 40px longer than
+     the road it draws. */
+  const height = Math.round((Math.max.apply(null, rows) + padY + edge) * 100) / 100
   return { width, height, titleLines, titleColumn: Math.round(titleColumn * 100) / 100, measured }
 }
 
-export const ChipGeometry = { CHIP_METRICS, chipSize, CHIP_BORDER, chipBorder }
+/** THE SPEC, DERIVED FROM THE PROPS YOU ALREADY HAVE — pass the same object you spread onto
+ *  `<NodeChip>`. It keeps the fields that move the box, translates `onDelete` to `deletable`,
+ *  and drops the paint. Prefer this to writing a spec by hand: three of the four box-moving
+ *  props (`optional`, `focus`, `disclosable`) look like paint, and forgetting one is silent —
+ *  AuthorRoad passed `optional` to the chip and not to `chipSize()` and reserved one line too
+ *  few, live, until someone noticed. Build a spec by hand only when the box being measured is
+ *  not the box being rendered — a hypothetical width, a what-if. */
+export function chipSpec(props: NodeChipProps): ChipSpec {
+  const spec: ChipSpec = {
+    title: props.title, index: props.index, mark: props.mark,
+    wrap: props.wrap, optional: props.optional, disclosable: props.disclosable, focus: props.focus,
+    deletable: !!props.onDelete,
+  }
+  /* the bounds are copied only when SET, so an omitted one keeps this file's own default
+     rather than arriving as an explicit `undefined` that reads as "no bound" */
+  if (props.minWidth !== undefined) spec.minWidth = props.minWidth
+  if (props.maxWidth !== undefined) spec.maxWidth = props.maxWidth
+  if (props.maxHeight !== undefined) spec.maxHeight = props.maxHeight
+  return spec
+}
+
+/** `chipSize(chipSpec(props))` — the box this chip will be, given the props it is handed. */
+export function chipSizeOf(props: NodeChipProps): ChipSize {
+  return chipSize(chipSpec(props))
+}
+
+export const ChipGeometry = { CHIP_METRICS, chipSize, chipSpec, chipSizeOf, CHIP_BORDER, chipBorder, usedStroke }
 
 export function NodeChip({
   title, index, domain, mark = 'dot', dim, optional, lit, focus, note, wrap, onClick, onDelete,

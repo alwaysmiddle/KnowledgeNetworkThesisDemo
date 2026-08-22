@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, Caret, Check, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark } from '@/ds'
+import { Bullet, CARET_INK, Caret, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark, chipSpec, usedStroke } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -94,5 +94,25 @@ describe('ported but not adopted DS components', () => {
   // reference for nesting, and no app code needs the raw constant yet.
   it('NESTING — the system nesting step; TreeRow and InstrumentGroup are its only readers so far', () => {
     expect(NESTING).toBe(16)
+  })
+
+  // OB-052 (#141) — CARET_INK crossed the barrel for the same reason NESTING did:
+  // NodeRail's `UP` needed the same ink offset TreeRow's `caretStyle` cancels, so
+  // the number is now public rather than a second hand-typed literal. Both
+  // consumers are inside src/ds; no app code needs the raw constant yet.
+  it('CARET_INK — the caret glyph ink offset; TreeRow and NodeRail are its only readers so far', () => {
+    expect(CARET_INK).toBe(0.964)
+  })
+
+  // OB-048 (#141) — chipSizeOf is the call a board actually wants and AuthorRoad's
+  // leafSize now imports it from here. These four crossed the barrel alongside it
+  // per the same obligation but have no direct app importer yet: CHIP_METRICS and
+  // usedStroke are read from inside chipSize itself, chipSpec is chipSizeOf's own
+  // first step, and ChipGeometry is the DS's bundled reachable-from-window form.
+  it('CHIP_METRICS / chipSpec / usedStroke / ChipGeometry — exported with chipSizeOf; no direct app importer yet', () => {
+    expect(typeof CHIP_METRICS).toBe('object')
+    expect(typeof chipSpec).toBe('function')
+    expect(typeof usedStroke).toBe('function')
+    expect(typeof ChipGeometry).toBe('object')
   })
 })
