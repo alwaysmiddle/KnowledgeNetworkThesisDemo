@@ -73,7 +73,11 @@ export function NodePicker({
 }: NodePickerProps) {
   const ROW_PAD = 4
   const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
+  /* `top` and `bottom` are exclusive — which one is set says whether the menu hangs
+     below the picker or sits above it. See place() for why the flip exists. */
+  const [anchor, setAnchor] = useState<
+    { left: number; width: number; up: boolean; maxHeight: number; top?: number; bottom?: number } | null
+  >(null)
   const [hover, setHover] = useState(false)
   const [query, setQuery] = useState('')
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -89,7 +93,38 @@ export function NodePicker({
       const el = anchorRef.current
       if (!el) return
       const r = el.getBoundingClientRect()
-      setAnchor({ top: r.bottom + 4, left: r.left, width: r.width })
+      /* ★ LOCAL: FLIP ABOVE WHEN THE VIEWPORT HAS NO ROOM BELOW.
+         The DS's own NodePicker.jsx anchors at `r.bottom + 4` unconditionally, and
+         its docblock says the menu opens "the same way VersionedGroup's version menu
+         is" — which is the one sentence that is not true of it: VersionedGroup DOES
+         flip (see its own place(), the `up` term). The menu is position:fixed, so
+         nothing absorbs the overflow — the page cannot scroll to reveal it, and
+         scrolling the pane re-anchors it to keep following the trigger. On this
+         app's road that is not an edge case: adding a version GROWS the card and
+         pushes the fresh empty slot further down, so the picker most likely to be
+         opened is the one most likely to be near the bottom. Measured on the road's
+         second card at a 950px viewport: 280px of menu, 46px of it off-screen, 7 of
+         53 rows reachable.
+         TWO TERMS, AND THE SECOND IS THE ONE THAT ACTUALLY FIXES IT. Flipping alone
+         does not: VersionedGroup's `room < Math.min(cap, 160)` test asks whether
+         there is ALMOST NO room below, so a picker with 230px under it and a 280px
+         menu does not flip and still overflows by 46 — measured, that exact case.
+         So the menu is also CAPPED to the room it has, whichever way it faces. A
+         menu that flips but still overruns has only moved which rows you cannot
+         reach. Floor of 120 so a picker wedged against an edge still shows a few
+         rows and its own scrollbar rather than collapsing to a sliver.
+         Reported upstream; drop this block if the DS adopts the flip. */
+      const below = window.innerHeight - r.bottom - 8
+      const above = r.top - 8
+      const up = below < menuMaxHeight && above > below
+      setAnchor({
+        left: r.left,
+        width: r.width,
+        up,
+        top: up ? undefined : r.bottom + 4,
+        bottom: up ? window.innerHeight - r.top + 4 : undefined,
+        maxHeight: Math.min(menuMaxHeight, Math.max(120, up ? above : below)),
+      })
     }
     place()
     window.addEventListener('resize', place)
@@ -101,7 +136,9 @@ export function NodePicker({
       window.removeEventListener('scroll', place, true)
       if (ro) ro.disconnect()
     }
-  }, [open, portalTarget])
+    // menuMaxHeight joined the deps when place() started capping to it — a caller
+    // that raises the cap must get the menu re-placed, not left at the old room
+  }, [open, portalTarget, menuMaxHeight])
 
   useEffect(() => {
     if (!open) return undefined
@@ -127,8 +164,8 @@ export function NodePicker({
     <div
       ref={menuRef}
       style={{
-        position: 'fixed', top: anchor.top, left: anchor.left, width: anchor.width, minWidth: 200,
-        maxHeight: menuMaxHeight, display: 'flex', flexDirection: 'column', background: 'var(--surface-raised)',
+        position: 'fixed', top: anchor.top, bottom: anchor.bottom, left: anchor.left, width: anchor.width, minWidth: 200,
+        maxHeight: anchor.maxHeight, display: 'flex', flexDirection: 'column', background: 'var(--surface-raised)',
         border: '1px solid var(--border-rule)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--lift-2)',
         zIndex: 60, overflow: 'hidden',
       }}
