@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import type { DomainCode } from '../graph/vocab'
-import { DOMAIN_TOKEN } from '../graph/vocab'
+import { DomainDot } from '../graph/DomainDot'
 import { useClipped } from '../chrome/IconButton'
 
 /** THE MARK'S INK OFFSET, exported because a second file needs it (OB-052): `NodeRail`'s
@@ -166,15 +166,7 @@ export function TreeRow({
       ) : (
         <span style={{ width: NESTING, flexShrink: 0 }} />
       )}
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 'var(--radius-pill)',
-          flexShrink: 0,
-          background: DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)',
-        }}
-      />
+      <DomainDot domain={domain} size={8} />
       <span
         {...titleClip}
         style={{

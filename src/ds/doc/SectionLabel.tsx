@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
  *  an optional action pushed to the trailing edge. The action slot exists so a
  *  head with a button beside it is not hand-rolled — every rank-inversion in this
  *  system came from a head written inline. Typed port of the DS SectionLabel.jsx
- *  (the port follows the jsx, which carries `action`, not the thinner .d.ts). */
+ *  (contract: SectionLabel.d.ts). */
 export interface SectionLabelProps {
   children: ReactNode
   /** a bare number — never "(3 items)" */

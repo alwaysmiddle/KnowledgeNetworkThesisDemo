@@ -116,7 +116,9 @@
         "from": "components/graph/DomainDot.jsx",
         "contract": "components/graph/DomainDot.d.ts",
         "syncedAt": "2026-07-30",
-        "deviations": []
+        "deviations": [
+          "2026-08-22 (#142, OB-056) — CREDIT NOTE ONLY, no code change. design-sync.md: \"YOUR SHAPE WON, AND IT IS UPSTREAM NOW\" — the DS adopted this app's `DOMAIN_TOKEN` name for its own equivalent map, specifically so this component's port stays an import rather than needing a rename. TreeRow.tsx, TrailChip.tsx and AppHeader.tsx, which each hand-drew their own dot span reading DOMAIN_TOKEN directly, now render this component instead — see their own entries."
+        ]
       },
       "src/ds/graph/NodePicker.tsx": {
         "from": "components/graph/NodePicker.jsx",
@@ -152,7 +154,7 @@
         "syncedAt": "2026-08-22",
         "deviations": [
           "2026-08-17: the DS contracted `caretStyle` at last — exported by its .jsx, imported by two DS components, re-exported by this port and imported by AuthorRoad, and absent from every .d.ts the whole time — and documented `depth` as the SYSTEM's nesting reference (16px caret slot + 16px per level, matched by anything else that nests). Both ported as prose. The longhands rule that travels with caretStyle (set `borderRight`/`borderBottom`, never `border` + `borderTop:'none'`: React diffs style key by key, so a re-render that changes only the shorthand's colour re-sets `border` and never re-sets the two switched-off sides, and the caret fills in to a diamond the first time it is hovered) was ALREADY satisfied here — grep finds no repeat of the recipe in src/. Also dropped the stale ▾/▸ from the `container` prose: the drawn caret is the system's only disclosure.",
-          "reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)",
+          "2026-08-22 (#142, OB-056) — the hand-written dot span is now `<DomainDot domain={domain} size={8} />`. The DOMAIN_TOKEN-reuse note above is RETIRED, not just removed: `design-sync.md` reports the DS adopted our name `DOMAIN_TOKEN` outright (\"YOUR SHAPE WON, AND IT IS UPSTREAM NOW... so the port is an import rather than a rename\"), so this file no longer imports DOMAIN_TOKEN at all — DomainDot owns that lookup now. Same-pixel: size unchanged (8).",
           "2026-08-05: adopted the DS drawn disclosure caret and now exports caretStyle (was a text ▾/▸ glyph) — InstrumentGroup imports it",
           "2026-08-22 OB-052 (#141) — the caret's ink offset (0.964) is now `export const CARET_INK`, not a value local to `caretStyle`. `NodeRail`'s `UP` needs the same number to cancel the mark's ink at a third rotation and had been carrying its own re-typed `1`; one number, one home. NOT PORTED: the DS's own TreeRow.jsx has since moved further — a `CaretStack` element for the up-rotated pair, `NESTING` restructured to `{slot, indent}`, and `DomainDot` in place of the hand-drawn dot span — filed upstream as its own obligation (OB-063, against `aac8764`) and out of this item's scope."
         ]
@@ -162,7 +164,7 @@
         "contract": "components/nav/TrailChip.d.ts",
         "syncedAt": "2026-08-22",
         "deviations": [
-          "reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map",
+          "2026-08-22 (#142, OB-056) — the hand-written dot span is now `<DomainDot domain={domain} size={7} />`, retiring the note below: DOMAIN_TOKEN is no longer imported here at all. Same-pixel: size unchanged (7).",
           "2026-08-22 OB-047 (#140) — dropped the local `|| undefined` on the title tooltip; wrapTip itself now answers an absent or empty string with undefined"
         ]
       },
@@ -194,6 +196,7 @@
         "contract": "components/doc/SectionLabel.d.ts",
         "syncedAt": "2026-08-11",
         "deviations": [
+          "2026-08-22 (#142) — the file's own top docblock still said the port carried `action` because the .d.ts was silent on it (\"the port follows the jsx, which carries action, not the thinner .d.ts\"). That was corrected in the .d.ts back on 2026-08-11 (see the entry below, same day) and the docblock sentence was never updated to match — a second instance of exactly the contract-lag class this file's OWN entry describes. Normalized to the standard \"Typed port of the DS X.jsx (contract: X.d.ts)\" phrasing; no code change.",
           "2026-08-05: count weight --fw-regular → --fw-medium to match the DS (its comment mandates one step, not three)",
           "2026-08-11: the `action` slot is NO LONGER a deviation — this port took it from the jsx while the .d.ts was silent, and the DS has since documented it in SectionLabel.d.ts ('a control pushed to the trailing edge — use this instead of hand-rolling a head row'). Same correction class as NodeChip.wrap and PillButton.onMouseDown"
         ]
@@ -286,8 +289,9 @@
       "src/ds/chrome/AppHeader.tsx": {
         "from": "components/chrome/AppHeader.jsx",
         "contract": "components/chrome/AppHeader.d.ts",
-        "syncedAt": "2026-07-31",
+        "syncedAt": "2026-08-22",
         "deviations": [
+          "2026-08-22 (#142, OB-056) — the focus dot's hand-written span is now `<DomainDot domain={focus.domain} />` (default size 9, unchanged, so no explicit size prop). Retires the DOMAIN_TOKEN-reuse note below. REAL BUG FIXED IN PASSING: the hand-written span had no `flexShrink: 0` (TreeRow's and TrailChip's equivalent spans both did) — DomainDot always sets it, so the dot no longer has room to compress next to a long focus title.",
           "reuses DomainCode/DOMAIN_TOKEN from ../graph/vocab instead of a local DOMAIN map (single source for the domain→token map)"
         ]
       },

@@ -2,13 +2,12 @@ import type { ReactNode } from 'react'
 
 import { useClipped } from './IconButton'
 
-import { DOMAIN_TOKEN } from '../graph/vocab'
+import { DomainDot } from '../graph/DomainDot'
 import type { DomainCode } from '../graph/vocab'
 
 /** The product bar. Brand in plain type (P.Kt has no mark), the corpus line, the
  *  live focus, counts, session actions. Typed port of the DS AppHeader.jsx
- *  (contract: AppHeader.d.ts). The focus dot reuses DOMAIN_TOKEN from
- *  ../graph/vocab (the muted DS palette) rather than a local domain map. */
+ *  (contract: AppHeader.d.ts). The focus dot is a DomainDot. */
 export interface AppHeaderProps {
   /** the wordmark, set in plain type — P.Kt has no logo file */
   brand?: string
@@ -48,7 +47,7 @@ export function AppHeader({ brand = 'P.Kt', product, corpusLine, focus, children
       <span style={{ flex: 1 }} />
       {focus ? (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <span style={{ width: 9, height: 9, borderRadius: 'var(--radius-pill)', background: DOMAIN_TOKEN[focus.domain] ?? 'var(--swatch-anchor-fallback)' }} />
+          <DomainDot domain={focus.domain} />
           <span style={{ fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{focus.title}</span>
         </span>
       ) : (
