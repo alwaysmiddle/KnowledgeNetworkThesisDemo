@@ -1,35 +1,36 @@
-import { Toolbar } from '@/ds'
+import { CopyMark, LoadMark, NewMapMark, PasteMark, PrintMark, SaveMark, Toolbar } from '@/ds'
 import type { ToolbarItemSpec } from '@/ds'
 
 import { redoDraft, undoDraft } from '../instruments/walkdesk/authordraft'
 
 /** The application toolbar (#55): universal, app-level operations pinned directly
  *  under the app header — the DS Toolbar's designed slot. Built entirely on the
- *  DS Toolbar / ToolbarItem.
+ *  DS Toolbar / ToolbarItem, glyph-only (OB-064) — the DS shipped the marks that
+ *  were missing (NewMapMark/PrintMark/SaveMark/LoadMark/CopyMark/PasteMark),
+ *  resolving #55's open "labels vs glyphs" call in favour of glyphs; text pills
+ *  were the interim, on-spec choice while those marks didn't exist yet.
  *
- *  Only the operations that have a command model today are live: undo/redo are
- *  wired to the walk-draft history in authordraft.ts (the sole undoable model in
- *  the demo — note it is WALK-scoped, not truly app-global; safe no-ops when the
- *  history is empty). print/save/copy/cut/paste have no backing model yet, so
- *  they render disabled, carrying their `Name (Ctrl+X)` tooltip until an
- *  app-level command/clipboard model exists. See #55.
- *
- *  Labels-not-glyphs: #55 leaves label-vs-icon to testing, and the DS forbids
- *  emoji glyphs; there is no house glyph for save/copy/cut/paste, so text pills
- *  are the legible, on-spec choice for now. */
+ *  Only undo/redo have a command model today, wired to the walk-draft history in
+ *  authordraft.ts (the sole undoable model in the demo — note it is WALK-scoped,
+ *  not truly app-global; safe no-ops when the history is empty). new map / print /
+ *  save / load / copy / cut / paste have no backing model yet, so they render
+ *  disabled, carrying their `Name (Ctrl+X)` tooltip until an app-level
+ *  command/clipboard model exists. See #55. */
 export function AppToolbar() {
+  const newMap: ToolbarItemSpec[] = [{ glyph: <NewMapMark />, title: 'New map', disabled: true }]
   const editing: ToolbarItemSpec[] = [
-    { label: 'undo', title: 'Undo (Ctrl+Z)', onClick: undoDraft },
-    { label: 'redo', title: 'Redo (Ctrl+Y)', onClick: redoDraft },
+    { glyph: '↶', title: 'Undo (Ctrl+Z)', onClick: undoDraft },
+    { glyph: '↷', title: 'Redo (Ctrl+Y)', onClick: redoDraft },
   ]
   const document: ToolbarItemSpec[] = [
-    { label: 'print', title: 'Print (Ctrl+P)', disabled: true },
-    { label: 'save', title: 'Save (Ctrl+S)', disabled: true },
+    { glyph: <PrintMark />, title: 'Print (Ctrl+P)', disabled: true },
+    { glyph: <SaveMark />, title: 'Save (Ctrl+S)', disabled: true },
+    { glyph: <LoadMark />, title: 'Load', disabled: true },
   ]
   const clipboard: ToolbarItemSpec[] = [
-    { label: 'copy', title: 'Copy (Ctrl+C)', disabled: true },
-    { label: 'cut', title: 'Cut (Ctrl+X)', disabled: true },
-    { label: 'paste', title: 'Paste (Ctrl+V)', disabled: true },
+    { glyph: <CopyMark />, title: 'Copy (Ctrl+C)', disabled: true },
+    { glyph: <PasteMark />, title: 'Paste (Ctrl+V)', disabled: true },
+    { glyph: '✂', title: 'Cut (Ctrl+X)', disabled: true },
   ]
-  return <Toolbar dense groups={[{ items: editing }, { items: document }, { items: clipboard }]} />
+  return <Toolbar groups={[{ items: newMap }, { items: editing }, { items: document }, { items: clipboard }]} />
 }
