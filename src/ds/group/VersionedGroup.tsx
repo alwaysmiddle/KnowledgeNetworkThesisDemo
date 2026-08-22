@@ -898,6 +898,12 @@ export const GROUP_METRICS = {
   tallyRow: 18.84,        /* the narrow tally's own row, a strut'd block round an 11px inline-block */
   emptyZone: 58,          /* the empty-version zone in a bodySlot: minHeight 34 + 11px padding twice + 1.5px borders, content-box */
   railStroke: 1.5,        /* the ancestry rail's border-left — between railIndent and railPadLeft, so a host can find the slot sideways */
+  foldedMinWidth: 190,    /* published OB-051 — was only the component's own prop default; a caller
+                             reserving a fold and the component drawing one now read one table */
+  emptySlotMin: 34,       /* published OB-051 — the empty placeholder's bare minHeight, before its
+                             own padding/border; `emptyZone` above is what those inflate it to */
+  bodyMaxHeight: 260,     /* published OB-050 — the well's default ceiling; the component's prop
+                             default reads it from here so the two cannot drift apart */
 }
 
 /** A 1px border is not 1px. The browser lays borders out in whole DEVICE pixels, so at
@@ -911,6 +917,48 @@ export const GROUP_METRICS = {
 export function hairline(): number {
   const r = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
   return r >= 1 ? Math.floor(r) / r : 1
+}
+
+/** what a scrollbar takes out of a scrolling box — MEASURED once from an offscreen box,
+ *  because it is a real number on one machine, 0 where the platform draws overlay
+ *  scrollbars, and something else again under a custom scrollbar stylesheet. Not a token. */
+let scrollbarPx: number | null = null
+export function scrollbarWidth(): number {
+  if (scrollbarPx !== null) return scrollbarPx
+  if (typeof document === 'undefined' || !document.body) return 0
+  const box = document.createElement('div')
+  box.style.cssText = 'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll'
+  document.body.appendChild(box)
+  scrollbarPx = box.offsetWidth - box.clientWidth
+  document.body.removeChild(box)
+  return scrollbarPx
+}
+
+/** published OB-051: where the body slot sits SIDEWAYS — `{ left, right, axisOffset }`,
+ *  relative to the width the card is laid out at. This is the number `AuthorRoad` used to
+ *  compute itself from four `GROUP_METRICS` fields plus `hairline()` (its own `slotLeft` /
+ *  `slotRight`) — including `railStroke`, which this table did not publish before today, so
+ *  that term was measured off our drawing and typed into the caller's file with nothing
+ *  keeping the two in step.
+ *
+ *  `axisOffset` is how far the card's own centre sits left of the slot's — the ancestry
+ *  rail hangs on the left, so the slot is inset further that side — and it is the same at
+ *  every width, which is what lets two cards of one width share their edges.
+ *
+ *  PASS `scrolls` WHEN THE WELL SCROLLS: a scrolling well gives up its scrollbar's width
+ *  from the right inset, so a caller that reserved the unscrolled number floats content
+ *  wider than the room it has. `openHeight().bodyScrolls` answers this for a slot whose
+ *  contents are ASKED for; a told height that turns out too small for its own content is
+ *  the caller's own arithmetic to see, since no prediction can look inside it.
+ *
+ *  A function, never a constant, because `hairline()` is a term in it — call it inside the
+ *  layout pass, same as `hairline()` itself. */
+export function slotInsets(scrolls?: boolean): { left: number; right: number; axisOffset: number } {
+  const M = GROUP_METRICS
+  const edge = hairline()
+  const left = edge + M.padX + M.railIndent + M.railStroke + M.railPadLeft
+  const right = M.bodyPadRight + M.padX + edge + (scrolls ? scrollbarWidth() : 0)
+  return { left, right, axisOffset: (left - right) / 2 }
 }
 
 /** what the geometry needs to know about a card — the same strings the component
@@ -934,8 +982,17 @@ export interface GroupSpec {
   count?: number
   countLabel?: string
   narrow?: boolean
-  /** open: the height the caller wants the body slot to be (== `slotHeight`) */
+  /** `openHeight` only: a TOLD body height — the `bodyHeight` prop. The well takes it as a
+   *  `height` with `minHeight: 0`, so NO CEILING APPLIES; this is what an arithmetic board
+   *  passes when it has already decided the box. */
   bodyHeight?: number
+  /** `openHeight` only: how much room the CONTENTS ask for — the `slotHeight` prop. Sits
+   *  inside the well under `bodyPadTop`, and the well caps the pair at `bodyMaxHeight`.
+   *  Pass one, never both; `bodyHeight` wins if both are set, matching the component. */
+  slotHeight?: number
+  /** `openHeight` only: the well's ceiling. Defaults to `GROUP_METRICS.bodyMaxHeight`;
+   *  `null` for no ceiling — the component's `bodyMaxHeight="none"` maps to this. */
+  bodyMaxHeight?: number | null
   foldedMinWidth?: number
 }
 
@@ -1065,11 +1122,15 @@ function titleColumn(width: number, spec: GroupSpec, folded: boolean): { col: nu
      counts one line where the card draws two, `openHeight()` runs a whole `bodyLine`
      (17.55px) light, and a board stacking arithmetically overlaps the next card by that
      much. Never hoist this into a module constant — see `faceBorder` in GROUP_METRICS. */
-  let col = width - hairline() * 2 - shellPad - M.headPadLeft - M.headPadRight
+  /* OB-049: the peek strip is reserved in both states — the shell's own paddingRight never
+     changes with fold — so it comes off the column unconditionally too, not only folded. */
+  let col = width - hairline() * 2 - M.foldPeekX - shellPad - M.headPadLeft - M.headPadRight
   if (spec.index) col -= measure(spec.index, 500, 12, 'mono') + M.pickerGap - 2
   col -= M.ctlCluster + M.pickerGap
   const narrow = spec.narrow === undefined ? width < M.narrowAt : spec.narrow
-  if (!narrow && !folded) {
+  /* OB-049: gated on `narrow` alone — the row that draws the tally (`isNarrow ? null :
+     tallyLine`) never tests fold state either, so a wide-but-folded head still shows it. */
+  if (!narrow) {
     const t = (spec.count === undefined ? 0 : spec.count) + ' ' + (spec.countLabel || 'nodes')
     col -= measure(t, 400, 11, 'ui') + M.pickerGap
   }
@@ -1144,31 +1205,48 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
  *  `slotHeight`, so the box the board reserves and the box the group draws are
  *  one number with one owner. `bodyTop` is where the slot's content begins,
  *  from the card's top edge — the slot's own --space-15 padding included. */
-export function openHeight(spec?: GroupSpec): HeadHeight & { bodyTop: number } {
+export function openHeight(spec?: GroupSpec): HeadHeight & { bodyTop: number; bodyBox: number; bodyScrolls: boolean } {
   const head = headHeight(spec)
   const s = spec || {}
   const M = GROUP_METRICS
-  const asked = s.bodyHeight === undefined ? 0 : s.bodyHeight
-  /* ★ an EMPTY version (count 0) draws the dashed zone in the slot, and the zone
-     is taller than the slot it fills — its padding and borders sit outside the
-     34px minimum under the DS's content-box. The board asks for slotHeight and
-     gets the zone; the prediction has to say so. */
-  const body = s.count === 0 ? Math.max(asked, M.emptyZone) : asked
-  /* TWO gaps, not one, and they stand or fall TOGETHER. The body is the last child of
-     the same gap-4 column the rows above it sit in, so it is preceded by `rowGap` like
-     every other row — and THEN by `bodyPadTop`, the slot's own --space-15 between the
-     picker and the first node. Counting only the second is 4px light on every open card.
-     ADOPTED FROM THE DS 2026-08-19, and it changes one case here: with no body at all
-     this used to add `rowGap` anyway, for a gap between a row and nothing. A row that is
-     not there has no gap before it. Every case the drivers cover has a body, so nothing
-     they measure moves. */
-  const lead = body > 0 ? M.rowGap + M.bodyPadTop : 0
-  const top = head.height + lead
+  /* OB-050: `bodyHeight` (TOLD, no ceiling) and `slotHeight` (ASKED, capped at
+     `bodyMaxHeight`) were one field until this landed, which is the trap the DS warned
+     of: a caller could render the component with `slotHeight` while telling THIS function
+     `bodyHeight` — the same number under two names — and never see the drift, because the
+     old function added the lead the same way regardless. Now the two mean different
+     things, so a caller has to say which it has; `bodyHeight` wins if both are set,
+     matching the component. */
+  const told = s.bodyHeight === undefined ? null : s.bodyHeight
+  const asked = s.slotHeight === undefined ? 0 : s.slotHeight
+  const ceiling = s.bodyMaxHeight === undefined ? M.bodyMaxHeight
+    : typeof s.bodyMaxHeight === 'number' ? s.bodyMaxHeight : null
+  /* ★ LOCAL, not the DS's: an EMPTY version (count 0) draws the dashed placeholder in the
+     slot, and under this host's content-box regime the placeholder's own minimum + padding
+     + border (`emptyZone`) render taller than the bare ask (`emptySlotMin`) — the DS's own
+     function carries no `count` term at all, so it cannot see this. Floor the ask so the
+     reservation still covers the zone it fills; the told path is untouched, since nothing
+     here tells a count-0 card its height rather than asking. */
+  const floored = s.count === 0 ? Math.max(asked, M.emptyZone) : asked
+  const wellBox = told !== null ? told
+    : floored > 0 ? Math.min(M.bodyPadTop + floored, ceiling === null ? Infinity : ceiling)
+    : 0
+  const capped = told === null && floored > 0 && ceiling !== null && M.bodyPadTop + floored > ceiling
+  /* the lead is `rowGap` (this row's place in the head's gap-4 column) plus `bodyPadTop`
+     (the slot's own --space-15 above its first node) — ONCE, whether the box that follows
+     is told or asked, since `wellBox` already folds `bodyPadTop` into the asked case and a
+     told number is final as given. */
+  const lead = wellBox > 0 ? M.rowGap + M.bodyPadTop : 0
+  const bodyTop = Math.round((head.height + lead) * 100) / 100
   return {
     ...head,
-    bodyTop: Math.round(top * 100) / 100,
+    bodyTop,
+    /* the well's own drawn height */
+    bodyBox: Math.round(wellBox * 100) / 100,
+    /* true only on the asked path, and only once the ceiling actually bit — read this
+       rather than inferring a clip from a height that looks wrong */
+    bodyScrolls: capped,
     /* the bottom edge closes the card — again as laid out, not as authored */
-    height: Math.round((top + body + M.padBottom + hairline()) * 100) / 100,
+    height: Math.round((head.height + (wellBox > 0 ? M.rowGap : 0) + wellBox + M.padBottom + hairline()) * 100) / 100,
   }
 }
 
@@ -1187,8 +1265,54 @@ export function foldedSize(spec?: GroupSpec): { width: number; height: number; t
   return { width: width + M.foldPeekX, height: Math.round(h * 100) / 100, titleLines, narrow: c.narrow, measured: !!ctx2d }
 }
 
+/** THE SPEC, DERIVED FROM THE PROPS YOU ALREADY HAVE (OB-050) — pass the same object you
+ *  spread onto `<VersionedGroup>`. Retires the caller rules a hand-built spec has to
+ *  restate: an undescribed EDITABLE card still reserves its row, from `onDescribe` alone;
+ *  whichever of `bodyHeight` / `slotHeight` the caller is really passing is the one that
+ *  lands in the spec, so the two can never be crossed — the crossing this obligation
+ *  exists to close; and a raised `bodyMaxHeight` carries itself into the prediction,
+ *  `'none'` included, which maps to the spec's `null`. Build a spec by hand only for a box
+ *  you are not drawing. */
+export function groupSpec(props: VersionedGroupProps): GroupSpec {
+  const p = props || {}
+  const vs = p.versions || []
+  const live = vs.find((v) => v.id === p.activeId) || vs[0] || ({} as Partial<GroupVersion>)
+  const spec: GroupSpec = {
+    title: p.title,
+    index: p.index,
+    description: p.description,
+    descPlaceholder: p.descPlaceholder,
+    describable: !!p.onDescribe,
+    versionName: live.name,
+    versionLabel: live.label,
+    count: p.count === undefined ? vs.length : p.count,
+    countLabel: p.countLabel,
+  }
+  if (typeof p.width === 'number') spec.width = p.width
+  if (p.narrow !== undefined) spec.narrow = p.narrow
+  if (typeof p.foldedMinWidth === 'number') spec.foldedMinWidth = p.foldedMinWidth
+  /* TOLD BEATS ASKED, exactly as it does in the component: `bodyHeight` is a height the
+     caller has answered and the well takes it as a `height`, so the ceiling has nothing
+     left to cap. */
+  if (p.bodyHeight !== undefined && p.bodyHeight !== null) spec.bodyHeight = p.bodyHeight
+  else if (p.slotHeight !== undefined) spec.slotHeight = p.slotHeight
+  if (p.bodyMaxHeight !== undefined) spec.bodyMaxHeight = typeof p.bodyMaxHeight === 'number' ? p.bodyMaxHeight : null
+  return spec
+}
+
+/** `openHeight(groupSpec(props))`, or `foldedSize(...)` when the props say folded — the box
+ *  THIS card will be, given the props it is handed. Reads `folded`, else `defaultFolded`,
+ *  exactly as the component does. */
+export function groupSizeOf(props: VersionedGroupProps): ReturnType<typeof openHeight> | ReturnType<typeof foldedSize> {
+  const folded = props.folded === undefined ? !!props.defaultFolded : !!props.folded
+  const spec = groupSpec(props)
+  return folded ? foldedSize(spec) : openHeight(spec)
+}
+
 /** Reachable from the DS window namespace, where a bare lowercase export is not. */
-export const GroupGeometry = { GROUP_METRICS, headHeight, openHeight, foldedSize, hairline }
+export const GroupGeometry = {
+  GROUP_METRICS, headHeight, openHeight, foldedSize, hairline, scrollbarWidth, slotInsets, groupSpec, groupSizeOf,
+}
 
 export function VersionedGroup({
   title = 'untitled', index, description, versions = [], activeId,
@@ -1196,7 +1320,7 @@ export function VersionedGroup({
   descPlaceholder = 'enter description',
   emptyLabel = 'no nodes in this version — drag one in', numberSteps = true, countLabel = 'nodes',
   onReorderNodes,
-  maxWidth = 300, bodyMaxHeight = 260, menuMaxHeight = 240, foldedMinWidth = 190,
+  maxWidth = 300, bodyMaxHeight = GROUP_METRICS.bodyMaxHeight, menuMaxHeight = 240, foldedMinWidth = 190,
   resizable = true, minWidth = 200, resizeMaxWidth = 680, minBodyHeight = 72, onResize,
   width, bodyHeight, offset, narrow, menuPortal,
   movable = true, onMove, onDeleteVersion, ungroupConfirmLabel, ungroupBlockedLabel, confirmDelete = true,

@@ -52,12 +52,6 @@ const NODEW = 150
 // this is the road's box to choose. A BOUND leaf is a NodeChip and asks that
 // component for its own; see leafSize.
 const NODEH = 34
-const FOLD_MIN_W = 190 // DS foldedMinWidth: the shell's CONTENT is never squeezed
-// below this — the face is 190 wide, exactly as in the DS's own studio; the shell
-// renders FOLD_MIN_W + the DS's 6px peek = 196 (GroupGeometry.foldedSize().width),
-// 46px over the NODEW slot it reserves, 23px each side, since placeList centres
-// it on the column axis (see visualW). Content-box — the DS's regime, which the
-// [data-ds-host] rule in index.css restores on every hosted card.
 // a leaf title used to `truncate` at NODEW; it now WRAPS and the node grows to
 // fit, but only up to these bounds so one long title can't balloon the board (#72).
 // These two are the road's POLICY — how much of the board one stop may take — and
@@ -108,26 +102,18 @@ const AGAP = 26 // vertical space between siblings — the arrow lives here
 //   against the rendered card and the slot the component REPORTS (onBodySlot), and
 //   fails on any drift.
 const M = GROUP_METRICS
-// THE CARD'S OWN SIDE EDGES ARE ASKED, NOT ASSUMED, which is why these two are functions
-// and not constants (OB-024). They used to be module-level numbers built from a
-// `GROUP_METRICS.faceBorder: 1` — the authored edge written as a constant, right at dpr 1
-// and wrong above it. devicePixelRatio is not fixed for the life of a page: move the
-// window to a second display, or zoom the browser, and a number frozen at import time is
-// silently wrong from then on. `hairline()` is what the browser actually lays a 1px edge
-// out as, so it has to be called in the pass that positions the cards. Never hoist either
-// of these back into a constant.
-const slotLeft = () => GroupGeometry.hairline() + M.padX + M.railIndent + M.railStroke + M.railPadLeft // 33.5 at dpr 1
-const slotRight = () => M.bodyPadRight + M.padX + GroupGeometry.hairline() // 17 at dpr 1
-// The two are the card's own asymmetry: the ancestry rail hangs on the left, so the
-// slot is inset further that side, and its centre therefore sits (slotLeft() -
-// slotRight()) / 2 = 8.25px RIGHT of the card's own centre. The SLOT sits on the road's
-// axis (see reachOf), so an open card hangs that 8.25px left of it — the same amount at
-// every width, which is what lets two cards of one width share their edges. Both are
-// also how far the DS's own empty zone reaches, which is what the road's transparent
-// drop target has to cover.
-const EMPTY_SLOT_H = 34 // what to ask for when the active version has no steps: the DS's own
-// zone minimum. The zone the component then draws is taller (GROUP_METRICS.emptyZone) and
-// openHeight knows it; the road's transparent drop target covers that box.
+// THE CARD'S SIDEWAYS SLOT INSET is GroupGeometry.slotInsets() (OB-051) — published from
+// the same GROUP_METRICS this file already reads, so the rail's stroke width and friends
+// are no longer retyped by hand here. Still a FUNCTION call at use, never hoisted into a
+// constant: it reads hairline(), and devicePixelRatio is not fixed for the life of a page
+// — a window moved to a second display, or a browser zoom, changes it. `axisOffset` is the
+// card's own asymmetry: the ancestry rail hangs on the left, so the slot is inset further
+// that side, and the card's centre sits `axisOffset` right of the slot's. The SLOT sits on
+// the road's axis (see reachOf), so an open card hangs that far left of it — the same
+// amount at every width, which is what lets two cards of one width share their edges.
+// M.emptySlotMin (published OB-051) is what to ask for when the active version has no steps.
+// The zone the component then draws is taller (M.emptyZone); openHeight's own ★ local floor
+// knows that and covers it, and the road's transparent drop target does too.
 const CARD_MIN_W = M.narrowAt // 250: below this the DS drops the tally to its own line;
 // the road keeps a card at least this wide so a head reads as one row
 const MARGIN = 16
@@ -145,24 +131,38 @@ const BAR_ROW_H = 26
  *  from one place, or the head would wrap against a width nobody reserved. */
 const VERSION_UNNAMED = 'name this version'
 const versionCode = (chosen: number): string => `v${chosen + 1}`
-const versionName = (s: Stop, chosen: number): string => s.variants[chosen]?.label || VERSION_UNNAMED
 
-/** what GroupGeometry — and the component — is told about a container: the same
- *  strings, plus the width the card is laid out at and how tall its slot is. ONE
- *  builder, so the reservation and the drawing can never disagree on an input. */
-const groupSpec = (s: Stop, outline: string, width: number, slotH: number, chosen: number): GroupSpec => ({
-  width,
-  title: s.title ?? '',
-  index: outline,
-  description: s.description ?? '',
-  descPlaceholder: 'enter description',
-  versionName: versionName(s, chosen),
-  versionLabel: versionCode(chosen),
-  count: s.variants[chosen]?.steps.length ?? 0,
-  countLabel: 'nodes',
-  narrow: width < M.narrowAt,
-  bodyHeight: slotH,
-})
+/** what GroupGeometry — and the component — is told about a container: the same strings,
+ *  plus the width the card is laid out at and how tall its slot is. Delegates to the DS's
+ *  own `GroupGeometry.groupSpec()` (OB-050) rather than hand-building the `GroupSpec`, so
+ *  `slotH` lands as `slotHeight` (ASKED) — the same prop the card is actually rendered
+ *  with, `slotHeight={slotH}` below — never `bodyHeight` (TOLD), a different contract in
+ *  `openHeight()` this file used to cross without knowing it: the trap OB-050 names, where
+ *  the same number reached the prediction and the drawing under two different meanings.
+ *  ONE builder, so the reservation and the drawing can never disagree on an input.
+ *  (Renamed from `groupSpec` — that name is now the DS's own export, imported as
+ *  `GroupGeometry.groupSpec`, and OB-051 asks the two not to collide.) */
+const roadSpec = (s: Stop, outline: string, width: number, slotH: number, chosen: number): GroupSpec =>
+  GroupGeometry.groupSpec({
+    width,
+    title: s.title ?? '',
+    index: outline,
+    description: s.description ?? '',
+    descPlaceholder: 'enter description',
+    // a stand-in, never called: groupSpec() only checks onDescribe's presence, to derive
+    // `describable` — every open card here IS editable, matching the real onDescribe below
+    onDescribe: () => {},
+    versions: s.variants.map((v, i) => ({ id: v.id, name: v.label || VERSION_UNNAMED, label: versionCode(i) })),
+    activeId: s.variants[chosen]?.id ?? '',
+    count: s.variants[chosen]?.steps.length ?? 0,
+    countLabel: 'nodes',
+    narrow: width < M.narrowAt,
+    slotHeight: slotH,
+    /* NO CEILING — see the render call site's own note by `bodyMaxHeight="none"`. Threading
+       the same string through the prediction is what OB-050 fixes: `groupSpec()` maps it to
+       `null` for us, so the two can no longer drift apart. */
+    bodyMaxHeight: 'none',
+  })
 
 
 type Mark = { key: string; band: Band } | null
@@ -190,7 +190,8 @@ interface Placed {
    * containers, NOT path hops: a fork's columns are the same well, not deeper. */
   depth: number
   /** an expanded container's single column box — the active version's steps.
-   * `h` is the SLOT height the component is told (EMPTY_SLOT_H when empty). */
+   * `h` is the SLOT height the component is asked for (GROUP_METRICS.emptySlotMin
+   * when empty). */
   body?: Col
   /** an expanded container: where its slot's content begins, from the card's top,
    * as GroupGeometry.openHeight predicted it — the same number the component draws */
@@ -266,7 +267,7 @@ function layoutRoad(
   const bodyColOf = (s: Stop, outline: string): Col => {
     const kids = chosenSteps(s, choices).map((c, i) => measure(c, `${outline}.${i + 1}`))
     const w = Math.max(NODEW, ...kids.map((c) => c.w))
-    const h = kids.length ? kids.reduce((acc, c) => acc + c.h, 0) + (kids.length - 1) * AGAP : EMPTY_SLOT_H
+    const h = kids.length ? kids.reduce((acc, c) => acc + c.h, 0) + (kids.length - 1) * AGAP : M.emptySlotMin
     return { w, h }
   }
   const measure = (s: Stop, outline: string): { w: number; h: number; body?: Col; bodyTop?: number; spec?: GroupSpec } => {
@@ -281,23 +282,24 @@ function layoutRoad(
       // predicted height (#91) — the DS's own number now. Width stays NODEW so a
       // fold still lines up with the leaf stops above and below it; the shell
       // overhangs that evenly (see visualW).
-      const spec = groupSpec(s, outline, NODEW, 0, chosen)
-      return { w: NODEW, h: Math.ceil(GroupGeometry.foldedSize({ ...spec, foldedMinWidth: FOLD_MIN_W, narrow: true }).height), spec }
+      const spec = roadSpec(s, outline, NODEW, 0, chosen)
+      return { w: NODEW, h: Math.ceil(GroupGeometry.foldedSize({ ...spec, foldedMinWidth: M.foldedMinWidth, narrow: true }).height), spec }
     }
-    // the OPEN card wraps its slot ASYMMETRICALLY — slotLeft() of ancestry rail on one
-    // side, slotRight() on the other — because the SLOT, not the card, is what sits on
-    // the road's axis. That is the DS's own rule (VersionedGroup.prompt.md, "Filling the
-    // body slot" point 7): the chain continues THROUGH the body, so the arrows into and
+    // the OPEN card wraps its slot ASYMMETRICALLY — slotInsets().left of ancestry rail on
+    // one side, slotInsets().right on the other — because the SLOT, not the card, is what
+    // sits on the road's axis. That is the DS's own rule (VersionedGroup.prompt.md, "Filling
+    // the body slot" point 7): the chain continues THROUGH the body, so the arrows into and
     // out of a card must land on the body's axis, and a chain whose arrows sit on two
     // axes reads as a mistake even when every box is where it should be. The card's own
-    // edges then fall a fixed 8.25px left of the axis — fixed being the point, see
+    // edges then fall a fixed axisOffset left of the axis — fixed being the point, see
     // reachOf. Width is still content-driven, floored at CARD_MIN_W.
     // Never so narrow the head goes to two rows. Width first, THEN height: the head's
     // fields wrap against the width, so this order is what keeps openHeight() an
     // answer rather than a circular question.
     const body = bodyColOf(s, outline)
-    const w = Math.max(CARD_MIN_W, slotLeft() + body.w + slotRight())
-    const spec = groupSpec(s, outline, w, body.h, chosen)
+    const insets = GroupGeometry.slotInsets()
+    const w = Math.max(CARD_MIN_W, insets.left + body.w + insets.right)
+    const spec = roadSpec(s, outline, w, body.h, chosen)
     const g = GroupGeometry.openHeight(spec)
     return { w, h: Math.ceil(g.height), body, bodyTop: g.bodyTop, spec }
   }
@@ -309,8 +311,8 @@ function layoutRoad(
    *  the BODY SLOT rather than on the card. So a leaf or a fold is centred on it and
    *  reaches half its painted width each way (a fold's DS shell overhangs the NODEW
    *  slot it keeps in the column, which is why `painted` is not always `m.w`), while
-   *  an OPEN CARD reaches to its SLOT's centre — (w + slotLeft() - slotRight()) / 2,
-   *  since the slot is inset further on the rail side — and so hangs 8.25px left of
+   *  an OPEN CARD reaches to its SLOT's centre — w / 2 + GroupGeometry.slotInsets().axisOffset,
+   *  since the slot is inset further on the rail side — and so hangs that far left of
    *  the axis at every width.
    *
    *  It used to reach to the CONTENT COLUMN's centre instead. That is the same number
@@ -325,11 +327,11 @@ function layoutRoad(
    *  Placement and board sizing both read this, so the two can never disagree. */
   const reachOf = (s: Stop, m: { w: number; body?: Col; spec?: GroupSpec }) => {
     if (!isLeaf(s) && collapsed.has(s.key!)) {
-      const painted = Math.max(m.w, GroupGeometry.foldedSize({ ...m.spec!, foldedMinWidth: FOLD_MIN_W, narrow: true }).width)
+      const painted = Math.max(m.w, GroupGeometry.foldedSize({ ...m.spec!, foldedMinWidth: M.foldedMinWidth, narrow: true }).width)
       return { left: painted / 2, right: painted / 2, painted }
     }
     if (isLeaf(s)) return { left: m.w / 2, right: m.w / 2, painted: m.w }
-    const left = (m.w + slotLeft() - slotRight()) / 2
+    const left = m.w / 2 + GroupGeometry.slotInsets().axisOffset
     return { left, right: m.w - left, painted: m.w }
   }
 
@@ -931,7 +933,7 @@ export default function AuthorRoad({
                     // below it.
                     narrow
                     width={NODEW}
-                    foldedMinWidth={FOLD_MIN_W}
+                    foldedMinWidth={M.foldedMinWidth}
                     // both gestures belong to the road: dragging a stop is the
                     // board's job, and a fold has no resize handle to offer
                     movable={false}
@@ -963,7 +965,7 @@ export default function AuthorRoad({
             const bodyTop = pl.bodyTop ?? 0
             // the slot layoutRoad reserved. The card must draw exactly this and
             // impose NO ceiling of its own — see bodyMaxHeight below (#97).
-            const slotH = pl.body?.h ?? EMPTY_SLOT_H
+            const slotH = pl.body?.h ?? M.emptySlotMin
             // where a drag over the card lands: the HEAD zone (above the slot) reads
             // before / inside / after in thirds, as bandFor does for a node; the slot
             // itself, and anything under it, is inside — the version on show
@@ -978,6 +980,7 @@ export default function AuthorRoad({
               const parent = pl.path.slice(0, -1)
               return band === 'inside' ? [...pl.path, chosen, steps.length] : band === 'before' ? [...parent, i] : [...parent, i + 1]
             }
+            const insets = GroupGeometry.slotInsets()
             return (
               <div
                 key={key}
@@ -1033,20 +1036,15 @@ export default function AuthorRoad({
                   folded={false}
                   bodySlot
                   slotHeight={slotH}
-                  // NO CEILING. The DS defaults this to 260 and caps the body with
-                  // `overflow-y: auto`, but openHeight — which is where the road got
-                  // this card's height — does not model the cap. So a column over 260
-                  // was RESERVED at full height and DRAWN capped, and because the
-                  // steps are board-level siblings they do not scroll with the body:
-                  // they hung out of the bottom of the card while the reserved height
-                  // left dead space above the arrow out of it. Not `slotH` either —
-                  // the cap applies to the body BOX, padding included, so a tight
-                  // number crushes it (and the empty version's zone, which the
-                  // component draws at GROUP_METRICS.emptyZone whatever was asked).
-                  // The road already reserved this card's exact height; a ceiling of
-                  // the card's own is a second opinion on a box that is not its to
-                  // decide. Reported on #74: openHeight should model bodyMaxHeight,
-                  // or say that a bodySlot host must clear it.
+                  // NO CEILING, DELIBERATELY (OB-050 closes the gap this used to hide). The
+                  // DS's well caps at 260 by default and scrolls past it — right for a card
+                  // whose contents are its own DOM, wrong here: the road's steps are
+                  // board-level SIBLINGS, not children, so they never scroll with a capped
+                  // well — they would hang out of the bottom of the card while the well
+                  // stopped short above them. The road already reserved this card's exact
+                  // height (openHeight() now models the same ceiling, and roadSpec passes it
+                  // the same "none" so the two cannot drift); a ceiling of the card's own
+                  // would be a second opinion on a box that is not its to decide.
                   bodyMaxHeight="none"
                   // TOLD, never measured — the same spec layoutRoad reserved by, so
                   // the card draws exactly the box that was reserved for it
@@ -1102,7 +1100,7 @@ export default function AuthorRoad({
                       handleDrop(e, [...pl.path, chosen, 0], state)
                     }}
                     className="absolute z-30"
-                    style={{ left: slotLeft(), top: bodyTop, width: pl.w - slotLeft() - slotRight(), height: M.emptyZone }}
+                    style={{ left: insets.left, top: bodyTop, width: pl.w - insets.left - insets.right, height: M.emptyZone }}
                   />
                 )}
               </div>
