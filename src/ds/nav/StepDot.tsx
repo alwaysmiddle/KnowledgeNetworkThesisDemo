@@ -22,7 +22,7 @@ export function StepDot({ n, state = 'ahead', onClick, title }: StepDotProps) {
     <button
       type="button"
       onClick={onClick}
-      title={wrapTip(title) || undefined}
+      title={wrapTip(title)}
       style={{
         width: 24,
         height: 24,

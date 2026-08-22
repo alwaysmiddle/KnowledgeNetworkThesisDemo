@@ -92,13 +92,14 @@ export function IconButton({
          deciding whether its own label is long enough to bother with.
          `aria-label` keeps the UNFOLDED string — a screen reader reads a line, not a
          shape.
-         `|| undefined` is OURS. Upstream is `title={wrapTip(title)}` flat, which emits
-         `title=""` for a button given only a `label` — and an empty title attribute is
-         not the same as no title, since it also suppresses any ancestor's tooltip. Two
-         call sites here do exactly that (VersionedGroup's fold and ungroup buttons), so
-         the guard preserves today's behaviour rather than changing it silently.
-         REPORTED, not silently kept. */
-      type="button" title={wrapTip(title) || undefined} aria-label={label || title}
+         NO LOCAL `|| undefined` ANY MORE (OB-047). This button used to carry its own —
+         upstream `wrapTip` returned `''` for an absent title, and `title=""` is not the
+         same as no title: it also suppresses any ANCESTOR's tooltip, which two call
+         sites here relied on (VersionedGroup's fold and ungroup buttons). Reported
+         rather than silently kept; the DS moved the guard one level down instead —
+         `wrapTip` itself now returns `undefined` for an absent or empty string, so
+         every caller gets the fix at once rather than each guarding its own. */
+      type="button" title={wrapTip(title)} aria-label={label || title}
       /* a receded button is invisible but still in the tab order and still
          answers Enter; opacity and pointer-events do not fix that, tabIndex
          does. `reachable` is the same withdrawal for a cluster whose FADE the
@@ -286,9 +287,16 @@ export function useClipped<T extends HTMLElement = HTMLElement>(text?: string | 
  *  the exception swallowed the rule. The reasoning was wrong as well as costly — the
  *  tooltip shows the same characters either way, only the line breaks are added, and a
  *  NAME is exactly where such a run turns up (a pasted id, a typo, a URL). Word
- *  boundaries are still preferred; a run with none is cut into measure-sized pieces. */
-export function wrapTip(text?: string | null, at?: number): string {
+ *  boundaries are still preferred; a run with none is cut into measure-sized pieces.
+ *
+ *  AN ABSENT OR EMPTY STRING COMES BACK AS `undefined`, NEVER AS `''` (OB-047). An empty
+ *  `title` attribute is not the same as no title at all — it also suppresses any
+ *  ANCESTOR's tooltip — so `title={wrapTip(x)}` is correct for every `x`, missing ones
+ *  included, and no call site has to guard it with its own `|| undefined`. A caller that
+ *  needs a string back unconditionally should write `wrapTip(x) ?? ''` and mean it. */
+export function wrapTip(text?: string | null, at?: number): string | undefined {
   const s = String(text ?? '').trim()
+  if (!s) return undefined
   const measure = at || 44
   if (s.length <= measure) return s
   const words: string[] = []
@@ -306,3 +314,13 @@ export function wrapTip(text?: string | null, at?: number): string {
   if (line) out.push(line)
   return out.join('\n')
 }
+
+/** The resize handles' tooltip, published as one string rather than retyped per handle.
+ *  Six handles carry it — NodeChip's three and VersionedGroup's three. Each of those two
+ *  files typed its own copy of this literal until this obligation (OB-047); the DS's own
+ *  six had drifted further still, three of them carrying a `·` escape a JSX string
+ *  attribute never processes, so the tooltip read the escape out loud rather than
+ *  showing "·". A literal retyped six times drifts, and the middot is the character
+ *  most likely to be got wrong — this port reached the same extraction independently
+ *  (receipts/b319861.md), so publishing it here is convergence, not a new decision. */
+export const RESIZE_TIP = 'drag to resize · double-click to reset'

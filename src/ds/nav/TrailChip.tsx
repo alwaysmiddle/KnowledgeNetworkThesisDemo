@@ -23,7 +23,7 @@ export function TrailChip({ title, domain, via, jump, onClick }: TrailChipProps)
     <button
       type="button"
       onClick={onClick}
-      title={wrapTip(via ? via + ' · ' + title : title) || undefined}
+      title={wrapTip(via ? via + ' · ' + title : title)}
       onMouseEnter={() => setHot(true)}
       onMouseLeave={() => setHot(false)}
       style={{

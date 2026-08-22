@@ -4,12 +4,7 @@ import type { CSSProperties } from 'react'
 import { Caret } from '../nav/TreeRow'
 import { Bullet } from '../sidebar/InstrumentRow'
 import { NodeChain } from '../graph/NodeChain'
-import { IconButton, useClipped, usePresence, useRecede, wrapTip } from '../chrome/IconButton'
-
-/** the one string the three resize grips share. Three copies of a literal is three
- *  chances to reword one of them, and a tooltip that says a slightly different
- *  thing on each edge of the same box reads as three different controls. */
-const RESIZE_TIP = 'drag to resize · double-click to reset'
+import { IconButton, RESIZE_TIP, useClipped, usePresence, useRecede, wrapTip } from '../chrome/IconButton'
 
 /* HOW DEEP AM I? Counted, not passed: a group cannot be told its depth by a caller that
    does not know how it is being composed, and every level has to step against its parent
@@ -49,11 +44,27 @@ interface Refusal { confirm?: boolean; text: string }
  *  Four rows: the group's name with its tally and fold control, the group's one
  *  description, the version picker, then the contents chained by arrows.
  *  Open = recessed well (--surface-sunken + --sink-1). Folded = raised node at
- *  --lift-2, well tint stacked behind. No domain dot — contents can span domains. */
+ *  --lift-2, well tint stacked behind. No domain dot — contents can span domains.
+ *
+ *  WHAT THE HOST AROUND IT MUST KNOW (OB-047)
+ *
+ *  A DOUBLE-CLICK OVER THIS CARD IS THE CARD'S. TAKE YOURS IN THE CAPTURE PHASE. A host
+ *  gesture bound the ordinary way — `onDoubleClick` on an ancestor, bubbling — never
+ *  fires when the double-click lands on the title or description line, and fires
+ *  everywhere else on the card: the worst shape a bug can have, since it reads as a dead
+ *  spot rather than as a rule. React stops dispatching its synthetic `dblclick`
+ *  somewhere inside this subtree; the native event still bubbles all the way (measured,
+ *  not inferred — see the handler below). So a host that wants a double-click gesture
+ *  over the card must bind it with `onDoubleClickCapture` (or a native listener with
+ *  `{ capture: true }`), never the ordinary bubbling form — `AuthorRoad`'s folded-card
+ *  reopen does exactly that. */
 
 export interface GroupVersion {
   id: string
-  /** the version's own name — authored text, verbatim. Wraps to two lines */
+  /** the version's own name — authored text, verbatim. Wraps to two lines, and a name
+   *  longer than that cap ends in "…" — same mechanism as `title`, cut against the
+   *  column the picker row really leaves, never `headHeight()`'s published one (see
+   *  `title`'s own doc for why the two columns differ) */
   name: string
   /** a short designation, e.g. "v2" — mono, tabular. Normally omitted */
   label?: string
@@ -103,7 +114,18 @@ const SHELL_Z = 1
 
 export interface VersionedGroupProps {
   /** the group's name — rank 4, editable on click. Wraps to two lines open, three
-   *  folded. The number is NOT part of it */
+   *  folded. The number is NOT part of it.
+   *  A NAME LONGER THAN ITS CAP ENDS IN "…", cut in the STRING by `clampToLines`
+   *  rather than by CSS — `-webkit-line-clamp` computes `flow-root` on this box and
+   *  draws no ellipsis at all. THE CUT IS MADE AGAINST THE COLUMN THE TITLE ROW
+   *  REALLY LEAVES, measured off the title box while the full string is on screen —
+   *  never `titleColumn()`'s own column, which is computed for the head's HEIGHT and
+   *  runs wider than the room the row actually hands over, so a name the arithmetic
+   *  thinks fits in two lines can draw three and the cap then clips the third with no
+   *  ellipsis at all. (Corrected on the DS's own side 2026-08-21: their contract used
+   *  to describe this as "read at the shell's own measured width", which is the
+   *  wording a faithful port would have implemented, sitting beside code that already
+   *  measured the row instead — reported in receipts/b319861.md.) */
   title: string
   /** the group's position among its siblings ("2."). Derived, mono, never editable.
    *  The children's own numbers come from it: 2. contains 2.1, 2.2, 2.3 */
@@ -497,7 +519,7 @@ function InlineText({
       suppressContentEditableWarning={editing || undefined}
       /* nothing while editing: a tooltip over a line you are typing into is noise,
          and it would sit on top of the caret */
-      title={editing ? undefined : (wrapTip(tooltip) || undefined)}
+      title={editing ? undefined : wrapTip(tooltip)}
       onClick={(e) => {
         e.stopPropagation()
         if (editing || !onOpen) return
@@ -505,14 +527,10 @@ function InlineText({
         onOpen()
       }}
       /* A DOUBLE-CLICK ON THE WORDS IS A WORD SELECTION AND NOTHING ELSE — it must not
-         also reach whatever the card is sitting in. Verbatim from the DS.
-         WHAT A HOST NEEDS TO KNOW, because it cost a driver failure to find: React
-         stops dispatching its synthetic dblclick somewhere inside this component's
-         subtree, so a host handler on an ANCESTOR never runs when the double-click
-         lands on this line — even with this handler removed entirely (measured). The
-         native event does still bubble all the way. So a host that wants a
-         double-click gesture over the card must take it in the CAPTURE phase;
-         `AuthorRoad`'s folded card does exactly that, and says so. */
+         also reach whatever the card is sitting in. Verbatim from the DS. This is the
+         handler a host's own bubbling `onDoubleClick` cannot see past even when this
+         line removed it entirely (measured) — see "WHAT THE HOST AROUND IT MUST KNOW"
+         above the file's props, and take a host gesture in the CAPTURE phase instead. */
       onDoubleClick={(e) => e.stopPropagation()}
       /* the words are a DRAG surface at rest and a TEXT surface while editing:
          without this a select-drag across them picks the card up instead of the

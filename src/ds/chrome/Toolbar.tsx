@@ -117,7 +117,7 @@ function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense }
   return (
     <button
       type="button"
-      title={wrapTip(title || label) || undefined}
+      title={wrapTip(title || label)}
       disabled={disabled}
       onClick={onClick}
       onMouseEnter={() => setHot(true)}
