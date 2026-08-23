@@ -107,6 +107,7 @@
         "contract": "components/graph/NodeRail.d.ts",
         "syncedAt": "2026-08-22",
         "deviations": [
+          "2026-08-22 (OB-063) — the expand-all/collapse-all acts now render <CaretStack /> / <CaretStack up /> (imported from ../nav/TreeRow), replacing a local hand-rolled stack of two <Caret>s plus an inline `UP` transform override — the exact shape design-sync.md named as one of the two places CARET_INK's ink offset had already drifted once (a hand-typed `1`). The local `UP` constant and the CARET_INK import it needed are both gone.",
           "MISSING FROM THIS TABLE UNTIL NOW. Ported #127 (OB-038, merged 80ecaf2, 2026-08-21) — RailStop's disclosure moved from a hand-thickened border to `NodeChip.open`, and NodeRail/RailStop/RAIL_METRICS landed at src/ds/graph/NodeRail.tsx — but no entry was ever added to this table. Nothing here changed by adding the entry; it closes a tracking gap the porting PR should have closed. STILL RENDERED BY NO SCREEN (#97): the Connections pane's railroad form is the remaining half, tracked in src/ds/barrel.test.ts alongside EdgeEntry.",
           "reuses DomainCode from ../graph/vocab, matching every other graph port",
           "2026-08-22 OB-052 (#141) — two literals this port's own comments had already flagged, plus one false comment. `UP`'s translate now reads TreeRow's `CARET_INK` instead of a re-typed `1` — this file's own docblock used to call that literal 'the upstream source as read, not a port error', which was true until the upstream source moved; it now follows. `RAIL_METRICS.caretSlot`'s comment no longer claims 20 is 'the same 20px IconButton uses' — IconButton's own default is 18 and both call sites here pass 20 explicitly, which is what the comment now says: CHOSEN, not inherited."
@@ -146,9 +147,10 @@
       "src/ds/graph/EdgeEntry.tsx": {
         "from": "components/graph/EdgeEntry.jsx",
         "contract": "components/graph/EdgeEntry.d.ts",
-        "syncedAt": "2026-08-19",
+        "syncedAt": "2026-08-22",
         "deviations": [
-          "reuses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source for the domain→token map). The EDGE map stays local, as it is in the DS module and in EdgeLegend",
+          "reuses DOMAIN_TOKEN from ./vocab instead of an inline DOMAIN map (single source for the domain→token map).",
+          "2026-08-22 (OB-063) — the private four-key EDGE map (the deviation note directly above once described) is GONE: `type` now resolves through `relationPaint()` (imported from ./EdgeLegend), matching the DS's own 2026-08-21 fix for the same DOMAIN_TOKEN-class fault one family over. `type` widened from the required `EdgeKind` union to optional `string | number`, matching the DS contract — no call site anywhere in the app passes this component yet (NodeRail's own sibling situation: ported, not adopted, tracked in barrel.test.ts), so the widening is risk-free.",
           "2026-08-19 OB-016/017 — this file stops drawing nodes. Its private `EntryNode` was the `border-2` recipe written a second time, which is why the DS promoted that recipe to a chip mark; the local drawing and the DOMAIN_TOKEN lookup are gone and what remains is the EMPHASIS (bold anchor, elided `Parent / … /` prefix), which belongs to the SENTENCE rather than to the chip and is handed in as `title`. `note` now carries the full path, because a native tooltip is a string attribute and the chip returns undefined rather than stringify an element. THE SHAFT DROPS 3px → 1.25 (`EDGE_SHAFT_STROKE = shaftFor('border-2')`): it had been triple the border at its ends and off the stroke ladder entirely, and it survived that long because it was only ever judged in bulk, where shafts calibrate each other and read as a column of rules. STILL RENDERED BY NO SCREEN (#97), so none of this is visible in the app yet."
         ]
       },
@@ -157,6 +159,7 @@
         "contract": "components/nav/TreeRow.d.ts",
         "syncedAt": "2026-08-22",
         "deviations": [
+          "2026-08-22 (OB-063) — CaretStack ported and exported: the nesting pair (expand-all/collapse-all) as one element, so a caller cannot redraw it from caretStyle with its own up-rotation the way NodeRail's old inline copy did. NodeRail is its only reader so far.",
           "2026-08-17: the DS contracted `caretStyle` at last — exported by its .jsx, imported by two DS components, re-exported by this port and imported by AuthorRoad, and absent from every .d.ts the whole time — and documented `depth` as the SYSTEM's nesting reference (16px caret slot + 16px per level, matched by anything else that nests). Both ported as prose. The longhands rule that travels with caretStyle (set `borderRight`/`borderBottom`, never `border` + `borderTop:'none'`: React diffs style key by key, so a re-render that changes only the shorthand's colour re-sets `border` and never re-sets the two switched-off sides, and the caret fills in to a diamond the first time it is hovered) was ALREADY satisfied here — grep finds no repeat of the recipe in src/. Also dropped the stale ▾/▸ from the `container` prose: the drawn caret is the system's only disclosure.",
           "2026-08-22 (#142, OB-056) — the hand-written dot span is now `<DomainDot domain={domain} size={8} />`. The DOMAIN_TOKEN-reuse note above is RETIRED, not just removed: `design-sync.md` reports the DS adopted our name `DOMAIN_TOKEN` outright (\"YOUR SHAPE WON, AND IT IS UPSTREAM NOW... so the port is an import rather than a rename\"), so this file no longer imports DOMAIN_TOKEN at all — DomainDot owns that lookup now. Same-pixel: size unchanged (8).",
           "2026-08-05: adopted the DS drawn disclosure caret and now exports caretStyle (was a text ▾/▸ glyph) — InstrumentGroup imports it",

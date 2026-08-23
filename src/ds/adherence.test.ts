@@ -300,7 +300,9 @@ describe('our DS ports document what the DS documents', () => {
   // documented two props that were bare before this port (DomainDotProps.domain,
   // EdgeDashProps.color) — a real improvement, not new debt, so the ratchet moves
   // down rather than getting a new +N line.
-  const BUDGET = 72
+  // -1 (OB-063): EdgeEntry.tsx's `type` prop was bare before the relationPaint() port
+  // documented it. Same reasoning as the OB-060 line above.
+  const BUDGET = 71
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

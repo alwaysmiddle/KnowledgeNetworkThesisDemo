@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark, chipSpec, usedStroke } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark, chipSpec, usedStroke } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -102,6 +102,14 @@ describe('ported but not adopted DS components', () => {
   // consumers are inside src/ds; no app code needs the raw constant yet.
   it('CARET_INK — the caret glyph ink offset; TreeRow and NodeRail are its only readers so far', () => {
     expect(CARET_INK).toBe(0.964)
+  })
+
+  // OB-063 (#154's caret question, split into design-sync's OB-063): the nesting pair
+  // as an element, replacing NodeRail's hand-rolled stack-of-two-Carets-plus-inline-UP —
+  // exactly the shape that let CARET_INK above drift once already. NodeRail is its only
+  // reader so far; no app code needs it directly yet.
+  it('CaretStack — the expand-all/collapse-all nesting pair, drawn as one element', () => {
+    expect(typeof CaretStack).toBe('function')
   })
 
   // OB-048 (#141) — chipSizeOf is the call a board actually wants and AuthorRoad's

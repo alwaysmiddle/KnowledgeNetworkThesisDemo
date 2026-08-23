@@ -1,6 +1,7 @@
-import type { DomainCode, EdgeKind } from './vocab'
+import type { DomainCode } from './vocab'
 import { NodeChip } from './NodeChip'
 import { shaftFor } from './NodeArrow'
+import { relationPaint } from './EdgeLegend'
 
 /** THE SHAFT IS DRAWN AT THE BORDER WEIGHT OF WHAT IT CONNECTS, NEVER ABOVE IT — 1.25,
  *  against the 1px border of the `NodeChip mark="border-2"` ends this component renders.
@@ -27,13 +28,6 @@ import { shaftFor } from './NodeArrow'
  *  renders at both ends, so the chip form and the shaft cannot drift apart. Still exported,
  *  because it was retyped once already and a port needs something to import. */
 export const EDGE_SHAFT_STROKE = shaftFor('border-2')
-
-const EDGE: Record<EdgeKind, { color: string; label: string }> = {
-  depends_on: { color: 'var(--edge-depends-on)', label: 'builds on' },
-  uses: { color: 'var(--edge-uses)', label: 'uses' },
-  see_also: { color: 'var(--edge-see-also)', label: 'see also' },
-  implemented_with: { color: 'var(--edge-implemented-with)', label: 'implemented with' },
-}
 
 interface EntryNodeProps {
   title: string
@@ -96,12 +90,7 @@ function EntryNode({ title, domain, anchor, within, onClick }: EntryNodeProps) {
  *  An entry is a sentence, and both ends are usually already known from whatever it
  *  sits inside; the relation is the only new word.
  *
- *  Typed port of the DS EdgeEntry.jsx (contract: EdgeEntry.d.ts).
- *
- *  Deviations from DS source:
- *  - The edge map stays local, as it is in the DS module and in EdgeLegend. The DOMAIN
- *    lookup this file used to carry is GONE — the hue now arrives through the chip, which
- *    is the point of OB-016. */
+ *  Typed port of the DS EdgeEntry.jsx (contract: EdgeEntry.d.ts). */
 export interface EdgeEntryProps {
   from: string
   fromDomain: DomainCode
@@ -116,7 +105,11 @@ export interface EdgeEntryProps {
   toDomain: DomainCode
   toAnchor?: boolean
   toWithin?: string
-  type: EdgeKind
+  /** the relation kind — supplies both the colour and the label, resolved through
+   *  `relationPaint()`: one of the shipped example's keys, a ring hue name, or a ring
+   *  slot number. A kind's LABEL comes with the example only; a corpus's own wording
+   *  goes through `relation`. */
+  type?: string | number
   /** override the corpus wording for this relation */
   relation?: string
   /** override the edge's colour */
@@ -134,9 +127,9 @@ export function EdgeEntry({
   from, fromDomain, fromAnchor, fromWithin, to, toDomain, toAnchor, toWithin,
   type, relation, color, direction = 'out', onFrom, onTo, connectorWidth = 96,
 }: EdgeEntryProps) {
-  const spec = EDGE[type]
-  const hue = color || (spec && spec.color) || 'var(--border-rule)'
-  const label = relation !== undefined ? relation : spec && spec.label
+  const paint = type !== undefined ? relationPaint(type) : null
+  const hue = color || (paint ? paint.stroke : 'var(--border-rule)')
+  const label = relation !== undefined ? relation : paint && paint.label !== null ? paint.label : undefined
   return (
     <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, padding: '14px 0 10px' }}>
       <span style={{ minWidth: 0, flex: '1 1 0', display: 'flex', justifyContent: 'flex-end' }}><EntryNode title={from} domain={fromDomain} anchor={fromAnchor} within={fromWithin} onClick={onFrom} /></span>
