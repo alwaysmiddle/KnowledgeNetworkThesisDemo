@@ -93,38 +93,7 @@ export function NodePicker({
       const el = anchorRef.current
       if (!el) return
       const r = el.getBoundingClientRect()
-      /* ★ LOCAL: FLIP ABOVE WHEN THE VIEWPORT HAS NO ROOM BELOW.
-         The DS's own NodePicker.jsx anchors at `r.bottom + 4` unconditionally, and
-         its docblock says the menu opens "the same way VersionedGroup's version menu
-         is" — which is the one sentence that is not true of it: VersionedGroup DOES
-         flip (see its own place(), the `up` term). The menu is position:fixed, so
-         nothing absorbs the overflow — the page cannot scroll to reveal it, and
-         scrolling the pane re-anchors it to keep following the trigger. On this
-         app's road that is not an edge case: adding a version GROWS the card and
-         pushes the fresh empty slot further down, so the picker most likely to be
-         opened is the one most likely to be near the bottom. Measured on the road's
-         second card at a 950px viewport: 280px of menu, 46px of it off-screen, 7 of
-         53 rows reachable.
-         TWO TERMS, AND THE SECOND IS THE ONE THAT ACTUALLY FIXES IT. Flipping alone
-         does not: VersionedGroup's `room < Math.min(cap, 160)` test asks whether
-         there is ALMOST NO room below, so a picker with 230px under it and a 280px
-         menu does not flip and still overflows by 46 — measured, that exact case.
-         So the menu is also CAPPED to the room it has, whichever way it faces. A
-         menu that flips but still overruns has only moved which rows you cannot
-         reach. Floor of 120 so a picker wedged against an edge still shows a few
-         rows and its own scrollbar rather than collapsing to a sliver.
-         Reported upstream; drop this block if the DS adopts the flip. */
-      const below = window.innerHeight - r.bottom - 8
-      const above = r.top - 8
-      const up = below < menuMaxHeight && above > below
-      setAnchor({
-        left: r.left,
-        width: r.width,
-        up,
-        top: up ? undefined : r.bottom + 4,
-        bottom: up ? window.innerHeight - r.top + 4 : undefined,
-        maxHeight: Math.min(menuMaxHeight, Math.max(120, up ? above : below)),
-      })
+      setAnchor(placeMenu(r, window.innerHeight, menuMaxHeight))
     }
     place()
     window.addEventListener('resize', place)
@@ -255,6 +224,67 @@ export function NodePicker({
       {portalTarget && open && menu ? createPortal(menu, portalTarget) : menu}
     </>
   )
+}
+
+/** getBoundingClientRect() gives more than placeMenu needs — only these four matter,
+ *  which is also what lets a test pass a plain object instead of a real DOMRect. */
+export interface AnchorRect {
+  top: number
+  bottom: number
+  left: number
+  width: number
+}
+
+export interface MenuPlacement {
+  left: number
+  width: number
+  up: boolean
+  /** exclusive with `bottom` — which one is set says whether the menu hangs
+   *  below the anchor or sits above it */
+  top?: number
+  bottom?: number
+  maxHeight: number
+}
+
+/** ★ LOCAL: flips the menu above the anchor when the viewport has no room below,
+ *  and CAPS its height to whatever room it actually has on that side.
+ *
+ *  The DS's own NodePicker.jsx anchors at `rect.bottom + 4` unconditionally, and
+ *  its docblock says the menu opens "the same way VersionedGroup's version menu
+ *  is" — the one sentence about it that is false: VersionedGroup DOES flip (see
+ *  its own place(), the `up` term). The menu is position:fixed, so nothing
+ *  absorbs the overflow — the page cannot scroll to reveal it, and scrolling the
+ *  pane re-anchors it to keep following the trigger. On this app's road that is
+ *  not an edge case: adding a version GROWS the card and pushes the fresh empty
+ *  slot further down, so the picker most likely to be opened is the one most
+ *  likely to be near the bottom. Measured on the road's second card at a 950px
+ *  viewport: 280px of menu, 46px of it off-screen, 7 of 53 rows reachable.
+ *
+ *  TWO TERMS, AND THE SECOND IS THE ONE THAT ACTUALLY FIXES IT. Flipping alone
+ *  does not: VersionedGroup's `room < Math.min(cap, 160)` test asks whether
+ *  there is ALMOST NO room below, so a picker with 230px under it and a 280px
+ *  menu does not flip and still overflows by 46 — measured, that exact case. So
+ *  the menu is also CAPPED to the room it has, whichever way it faces. A menu
+ *  that flips but still overruns has only moved which rows you cannot reach.
+ *  Floor of 120 so a picker wedged against an edge still shows a few rows and
+ *  its own scrollbar rather than collapsing to a sliver.
+ *
+ *  Split out from the effect above so this regression (menu opens off-screen,
+ *  uncapped) has a fast unit test that runs with no browser — see
+ *  NodePicker.test.ts. Reported upstream; drop this block if the DS adopts the
+ *  flip. */
+export function placeMenu(anchor: AnchorRect, viewportHeight: number, menuMaxHeight: number): MenuPlacement {
+  const below = viewportHeight - anchor.bottom - 8
+  const above = anchor.top - 8
+  const up = below < menuMaxHeight && above > below
+  return {
+    left: anchor.left,
+    width: anchor.width,
+    up,
+    top: up ? undefined : anchor.bottom + 4,
+    bottom: up ? viewportHeight - anchor.top + 4 : undefined,
+    maxHeight: Math.min(menuMaxHeight, Math.max(120, up ? above : below)),
+  }
 }
 
 /** a plain down-chevron — no relation to the house disclosure `Caret`: that mark heads a
