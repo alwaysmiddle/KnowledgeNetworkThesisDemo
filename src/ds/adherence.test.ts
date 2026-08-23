@@ -309,7 +309,12 @@ describe('our DS ports document what the DS documents', () => {
   // +4 for the two new chrome marks (OB-070): NewWalkMark, AddNodeMark — each just
   // `size`/`style`, bare in the DS's own .d.ts for both. Same DS-parity reasoning as
   // the six-mark line above.
-  const BUDGET = 74
+  // 2026-08-23 (OB-071): +4 for WalkerMark and LocateMark — each just `size`/`style`,
+  // bare in the DS's own .d.ts for both (same DS-parity reasoning; `animated` on
+  // WalkerMark IS documented here, matching the DS's own doc comment for it).
+  // WalkStrip/WalkStep's own props are fully documented — this port added no other
+  // undocumented surface.
+  const BUDGET = 78
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

@@ -194,6 +194,15 @@
         "syncedAt": "2026-07-31",
         "deviations": []
       },
+      "src/ds/nav/WalkStrip.tsx": {
+        "from": "components/nav/WalkStrip.jsx",
+        "contract": "components/nav/WalkStrip.d.ts",
+        "syncedAt": "2026-08-23",
+        "deviations": [
+          "2026-08-23 NEW FILE (OB-071). Full replacement for TrailStrip.tsx's old bare StepDot row + separate \"next ▶\" button, adopted in the same pass (see src/instruments/TrailStrip.tsx). variant left at its default ('seek') — the DS shipped both variants and explicitly declined to choose, and nothing in this app asked for the scrollbar one. Depends on two new marks, WalkerMark.tsx and LocateMark.tsx (both src/ds/chrome/), and PaneFrameContext (already ported under PaneHeader.tsx) for the corner act's presence detection — TrailStrip is not itself hosted inside a <Pane>, so that context resolves to null there and usePresence falls back to the strip's own parentElement, exactly the graceful-degradation path the DS's own code already provides for a hand-composed host. Ported the React.Fragment list wrapper as Fragment (named import, matching this repo's convention over React.useX/React.Fragment). Two TS-only adjustments, neither a behavior change: the no-op-when-omitted && callback idiom (`onHover && onHover(...)`) became `if (onHover) onHover(...)` throughout — this repo's eslint (@typescript-eslint/no-unused-expressions) rejects the bare-expression form the DS's plain JS allows; and the app-driven-cursor sync effect's `setNearest(cursor)` carries a scoped eslint-disable (react-hooks/set-state-in-effect) with a comment explaining why — it has to run in the same tick as the DOM's `el.scrollTo()` so the bar's fill agrees with wherever that scroll landed.",
+          "2026-08-23 (OB-071, not adopted): onStepHover, onArrowHover, onRecenter and renderPreview are all real, typed, working props — none are wired at the TrailStrip call site. OB-071's own done-when names only cursor and onSeek as the checkable wiring; the rest is available for a future item to reach for, not skipped by oversight."
+        ]
+      },
       "src/ds/doc/DocHeader.tsx": {
         "from": "components/doc/DocHeader.jsx",
         "contract": "components/doc/DocHeader.d.ts",
@@ -371,6 +380,22 @@
         "syncedAt": "2026-08-23",
         "deviations": [
           "2026-08-23 NEW FILE (OB-070) — a circle around a plus, replacing WalkActionBar.tsx's typed ⊙ for the walk editor's \"Add node\" action. 1:1 port, `size`/`style` bare like the DS's own .d.ts. Adopted the same commit, same shape as NewWalkMark above."
+        ]
+      },
+      "src/ds/chrome/WalkerMark.tsx": {
+        "from": "components/chrome/WalkerMark.jsx",
+        "contract": "components/chrome/WalkerMark.d.ts",
+        "syncedAt": "2026-08-23",
+        "deviations": [
+          "2026-08-23 NEW FILE (OB-071) — the \"you are here\" chibi walking figure WalkStrip draws above the current step's dot. 1:1 port. `size`/`style` bare like the DS's own .d.ts; `animated` carries its doc comment, ported verbatim, since the DS documents that one."
+        ]
+      },
+      "src/ds/chrome/LocateMark.tsx": {
+        "from": "components/chrome/LocateMark.jsx",
+        "contract": "components/chrome/LocateMark.d.ts",
+        "syncedAt": "2026-08-23",
+        "deviations": [
+          "2026-08-23 NEW FILE (OB-071) — the recentre-on-position ring WalkStrip's corner act draws. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
         ]
       },
       "src/ds/chrome/AppHeader.tsx": {
