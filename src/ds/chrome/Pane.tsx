@@ -186,6 +186,44 @@ const scrolls = (el: HTMLElement) => {
   return /auto|scroll/.test(s.overflowY) || /auto|scroll/.test(s.overflowX)
 }
 
+/** WCAG relative luminance of one resolved sRGB channel (0-255) */
+const linearOf = (c: number) => {
+  const s = c / 255
+  return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+}
+/** parses the one shape `getComputedStyle` ever returns a resolved colour in —
+ *  `rgb(...)` / `rgba(...)` — regardless of how the token itself was authored
+ *  (hex, rgb, a name); null for anything the browser didn't resolve to a colour */
+function rgbOf(color: string): [number, number, number] | null {
+  const m = color.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/)
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null
+}
+/** WCAG contrast ratio between two resolved colours: 1 (identical) to 21 (max).
+ *  Null when either failed to parse — an unresolvable colour warns about nothing,
+ *  rather than reporting a false 1:1. */
+function contrastOf(a: string, b: string): number | null {
+  const ca = rgbOf(a), cb = rgbOf(b)
+  if (!ca || !cb) return null
+  const la = 0.2126 * linearOf(ca[0]) + 0.7152 * linearOf(ca[1]) + 0.0722 * linearOf(ca[2])
+  const lb = 0.2126 * linearOf(cb[0]) + 0.7152 * linearOf(cb[1]) + 0.0722 * linearOf(cb[2])
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la]
+  return (hi + 0.05) / (lo + 0.05)
+}
+/** resolves a token to its computed colour IN THE FRAME'S OWN CASCADE, via a
+ *  throwaway probe element. `getComputedStyle(frame).getPropertyValue('--text-1')`
+ *  is not the same check: a custom property's computed value is not the real
+ *  property resolution `color` gets, and `--text-1` is itself `var(--bark-800)` —
+ *  one more hop a raw property-value read is not guaranteed to have taken. `color`
+ *  always resolves fully and always normalizes to `rgb()`/`rgba()`, on any chain. */
+function resolveColor(scope: HTMLElement, token: string): string {
+  const probe = document.createElement('span')
+  probe.style.color = token
+  scope.appendChild(probe)
+  const c = getComputedStyle(probe).color
+  scope.removeChild(probe)
+  return c
+}
+
 /** WHICH ELEMENTS COUNT AS "the body" for the face check — the body box, its direct
  *  children, and then the single-child WRAPPER CHAIN below it, stopping at the first
  *  element that scrolls (inclusive) or crops. Depth matters, and a fixed one is wrong in
@@ -216,9 +254,14 @@ function bodyChrome(body: HTMLElement): HTMLElement[] {
  *  should be. So `Pane` reads its body once on mount and says so in the console, naming
  *  the element.
  *
- *  Two checks, both of them faults this system has actually shipped:
+ *  Three checks, all of them faults this system has actually shipped:
+ *   - the FRAME's own face (OB-066's `Pane.face`, a free string — nothing stops it landing
+ *     somewhere the legend title can't be read) against `--text-1`, under 4.5:1 for the
+ *     11px semibold title;
  *   - a body element with an opaque background (`PaneCanvas` is exempt — its face is the
- *     canvas's own surface);
+ *     canvas's own surface — and so, now, is a body face that resolves to the FRAME's own:
+ *     `face` exists precisely so a host can paint content that reaches the frame on
+ *     purpose, and that is not the fault this check exists to catch);
  *   - a rounded clipping ancestor between a scrolling element and the frame, which is the
  *     configuration that bites the scrollbar's gutter.
  *  Pass `audit={false}` to silence it; it costs one pass per pane, once. */
@@ -226,14 +269,25 @@ function auditBody(frame: HTMLElement | null, body: HTMLElement | null) {
   if (!frame || !body || AUDITED.has(frame)) return
   AUDITED.add(frame)
   const warn = (msg: string, el: HTMLElement) => console.warn('[Pane] ' + msg, el)
+
+  const frameBg = getComputedStyle(frame).backgroundColor
+  const ratio = contrastOf(frameBg, resolveColor(frame, 'var(--text-1)'))
+  if (ratio !== null && ratio < 4.5) {
+    warn(`the frame's face (${frameBg}) contrasts ${ratio.toFixed(2)}:1 against --text-1 — `
+      + 'below the 4.5:1 the 11px semibold legend title needs. Not refused, just named: a '
+      + 'dark face is a legitimate design, and this is the one place that gets checked.', frame)
+  }
+
   for (const el of bodyChrome(body)) {
     if (el.dataset.paneBody === 'canvas') continue
     const bg = getComputedStyle(el).backgroundColor
+    if (bg === frameBg) continue // matches the frame's own face — a deliberate face, not the fault
     if (opaque(bg)) {
-      warn(`the body paints its own background (${bg}). A pane body shows --surface-paper `
-        + 'through it; a body with a face of its own starts inside the 20px corner arc with '
-        + 'square corners and bites two notches out of the pane\'s rounded top. Delete the '
-        + 'face — or if this is a canvas whose content must be cropped, render PaneCanvas.', el)
+      warn(`the body paints its own background (${bg}). A pane body shows the frame's own face `
+        + "through it; a body with a face of its own (that isn't the frame's) starts inside the "
+        + '20px corner arc with square corners and bites two notches out of the pane\'s rounded '
+        + 'top. Delete the face — or if this is a canvas whose content must be cropped, render '
+        + 'PaneCanvas.', el)
     }
   }
   /* bounded on purpose: a canvas pane can hold thousands of nodes, and this is a
@@ -280,6 +334,15 @@ export interface PaneProps {
    *  opaque face square, inside the 20px radius, and bites two notches out of the
    *  rounded top. */
   actionBar?: ReactNode
+  /** THE FRAME'S OWN COLOUR — typed `string`, not a union: it is not this system's to
+   *  name. A data-driven host (the map's water) picks its own at runtime, per pane;
+   *  every other caller leaves this out and gets the default. Painted on the frame,
+   *  never the body: a body element is still expected to take no background of its
+   *  own, UNLESS it happens to equal this exact colour, which `auditBody` now reads
+   *  as a deliberate match rather than the fault it exists to catch. Forwarded to
+   *  `PaneHeader` as `frameBg`, so the legend's border-mask keeps agreeing with what
+   *  is actually behind it. Defaults to `--surface-paper`. */
+  face?: string
   /** the colour the legend masks the border with; defaults to the desk. Pass the real
    *  surface if a pane ever sits on something other than `--surface-canopy` */
   legendBg?: string
@@ -333,9 +396,11 @@ export interface PaneProps {
   bodyRef?: Ref<HTMLDivElement>
   /** THE ONE RULE THAT CANNOT BE MADE STRUCTURAL, MADE LOUD INSTEAD. Default `true`: on
    *  mount the pane reads its own body once and `console.warn`s, naming the element, if
-   *  a body element paints an opaque background (`PaneCanvas` excepted — its face is the
-   *  canvas's own surface) or if a rounded clipping ancestor wraps a scrolling element.
-   *  Set `false` to silence; it costs one bounded pass per pane, once. */
+   *  the frame's own face contrasts under 4.5:1 against `--text-1` (the legend title),
+   *  if a body element paints an opaque background that isn't the frame's own face
+   *  (`PaneCanvas` excepted — its face is the canvas's own surface), or if a rounded
+   *  clipping ancestor wraps a scrolling element. Set `false` to silence; it costs one
+   *  bounded pass per pane, once. */
   audit?: boolean
   children?: ReactNode
 }
@@ -358,7 +423,7 @@ export interface PaneProps {
  *
  *  Typed port of the DS Pane.jsx (contract: Pane.d.ts). */
 export function Pane({
-  title, glyph, onClose, actions, legendBg, variant, grabbable, onGrabStart,
+  title, glyph, onClose, actions, face = 'var(--surface-paper)', legendBg, variant, grabbable, onGrabStart,
   resizable = false, onResizeStart, actionBar,
   scroll = 'y', as, style, bodyStyle, bodyRef, audit = true, children, ...rest
 }: PaneProps & Record<string, unknown>) {
@@ -382,7 +447,7 @@ export function Pane({
       style={{
         position: 'relative', flex: 1, display: 'flex', flexDirection: 'column',
         minWidth: 0, minHeight: 0,
-        background: 'var(--surface-paper)',
+        background: face,
         borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-frame)',
         /* visible, not hidden: the ✕'s notch and any menu a body opens have to leave
            the frame — and nothing inside the frame clips either. A clip layer here
@@ -397,7 +462,7 @@ export function Pane({
       <PaneFrameContext.Provider value={frameRef}>
         <PaneHeader
           title={title} glyph={glyph} onClose={onClose} actions={actions}
-          variant={variant} legendBg={legendBg} grabbable={grabbable} onGrabStart={onGrabStart}
+          variant={variant} legendBg={legendBg} frameBg={face} grabbable={grabbable} onGrabStart={onGrabStart}
         />
         {actionBar ? (
           <div ref={barRef} data-pane-actionbar="" style={{ flexShrink: 0, overflow: 'hidden', borderRadius: barRadius || 0 }}>

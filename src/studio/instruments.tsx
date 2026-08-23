@@ -24,7 +24,7 @@ import ContoursView from '../instruments/ContoursView'
 import ClustersView from '../instruments/ClustersView'
 import DocumentPanel from '../instruments/DocumentPanel'
 import LensPane from '../instruments/LensPane'
-import MapView from '../instruments/MapView'
+import MapView, { MAP_WATER } from '../instruments/MapView'
 import NeighborhoodPanel from '../instruments/NeighborhoodPanel'
 import TrailStrip from '../instruments/TrailStrip'
 import TreePanel from '../instruments/TreePanel'
@@ -70,6 +70,11 @@ export interface Instrument {
    * as a sibling of `render`'s output, not inside it, so `Pane` can clip its top
    * corners to the frame's own arc. */
   actionBar?(bus: Bus): ReactNode
+  /** the pane's own FRAME colour (DS `Pane.face`, OB-066) — a data-driven host
+   * names its own (the map's water) so the frame stops relying on its default
+   * `--surface-paper` to show around content that doesn't reach every edge.
+   * Nearly every instrument leaves this out and gets that default. */
+  face?: string
   /** the pane's BODY. The title bar and the ✕ are the shell's job, not the
    * instrument's — which is why an instrument that reads nothing from the bus
    * (Unfold, Contours, EVoC) simply does not take it. */
@@ -86,6 +91,7 @@ const VIEWS = [
     label: 'Map',
     family: 'maps',
     slot: 'column',
+    face: MAP_WATER,
     render: (bus) => <MapView bus={bus} />,
   },
   {

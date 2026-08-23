@@ -76,8 +76,17 @@ export interface PaneHeaderProps {
   actions?: ReactNode
   /** legend = the title straddles the pane border (default); bar = a filled row */
   variant?: 'legend' | 'bar'
-  /** what sits BEHIND the pane, so the legend can mask the border it interrupts */
+  /** what sits BEHIND the pane, so the legend can mask the border it interrupts.
+   *  Only the strip ABOVE the border line — outside the frame, on the desk. The
+   *  strip below it is `frameBg`, not this: two different things sit on the two
+   *  sides of a 1px line, so one colour masking both was always a latent bug (OB-066)
+   *  — invisible only while every frame happened to be `--surface-paper`. */
   legendBg?: string
+  /** what the frame itself is painted — `Pane`'s own `face`, forwarded. Masks the
+   *  border strip BELOW the line (inside the frame) and, under `variant="bar"`, is
+   *  the row's own face. Defaults to `--surface-paper`, matching the frame's own
+   *  default. */
+  frameBg?: string
   /** makes the title a drag handle. THE HEADER OWNS THE AFFORDANCE, THE HOST OWNS
    *  THE POSITION: the grab cursor, `touch-action`, text-selection and the grabbing
    *  state are here, because those are what a hand-written copy forgets; where the
@@ -95,7 +104,7 @@ export interface PaneHeaderProps {
 
 export function PaneHeader({
   title, glyph, onClose, actions, variant = 'legend',
-  legendBg = 'var(--surface-canopy)', grabbable = false, onGrabStart,
+  legendBg = 'var(--surface-canopy)', frameBg = 'var(--surface-paper)', grabbable = false, onGrabStart,
 }: PaneHeaderProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   // `grabbing` only swaps the cursor. It clears on the WINDOW rather than on this
@@ -138,10 +147,19 @@ export function PaneHeader({
     // The title is transparent: only the 1px border LINE is masked behind it, so
     // the frame reads as interrupted rather than as a filled chip sitting on it.
     // The row is inset by the pane's corner radius on the trailing side so the
-    // ✕'s notch stops where the corner arc begins — a straight 2px mask cannot
-    // erase a curve, so a notch that reaches into the arc leaves a stub of border
+    // ✕'s notch stops where the corner arc begins — a straight mask cannot erase
+    // a curve, so a notch that reaches into the arc leaves a stub of border
     // beside the button.
-    const cut: CSSProperties = { position: 'absolute', left: 0, right: 0, top: 'calc(50% - 1px)', height: 2, background: legendBg, zIndex: 0 }
+    //
+    // TWO 1px STRIPS, not one 2px strip (OB-066): the line has a different colour
+    // on each side. Above it is the desk the pane sits on — `legendBg`. Below it
+    // is the frame's own face — `frameBg`. A single `legendBg` strip covering both
+    // pixels used to paint the DESK colour one pixel INSIDE the frame — invisible
+    // only as long as every frame happened to be `--surface-paper` near enough to
+    // the desk's own canopy tone that the seam didn't read; a frame with any other
+    // face turns that pixel into a smear the width of the title.
+    const cutTop: CSSProperties = { position: 'absolute', left: 0, right: 0, top: 'calc(50% - 1px)', height: 1, background: legendBg, zIndex: 0 }
+    const cutBottom: CSSProperties = { position: 'absolute', left: 0, right: 0, top: '50%', height: 1, background: frameBg, zIndex: 0 }
     const over: CSSProperties = { position: 'relative', zIndex: 1 }
     return (
       <div ref={rootRef} style={{ position: 'relative', flexShrink: 0, height: 11 }}>
@@ -160,7 +178,8 @@ export function PaneHeader({
           }}
         >
           <span onPointerDown={onGrabDown} {...grabAttr} style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', gap: grabbable ? 5 : 0, minWidth: 0, padding: '0 5px', pointerEvents: 'auto', ...grab }}>
-            <span style={cut} />
+            <span style={cutTop} />
+            <span style={cutBottom} />
             <span
               style={{
                 ...over,
@@ -181,7 +200,8 @@ export function PaneHeader({
           <span style={{ flex: 1 }} />
           {actions ? (
             <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 7px', pointerEvents: 'auto' }}>
-              <span style={cut} />
+              <span style={cutTop} />
+              <span style={cutBottom} />
               <span style={{ ...over, display: 'inline-flex', alignItems: 'center', gap: 6, maxHeight: 18, overflow: 'hidden' }}>{actions}</span>
             </span>
           ) : null}
@@ -197,7 +217,8 @@ export function PaneHeader({
                 transition: 'opacity var(--dur-hover) var(--ease-soft)',
               }}
             >
-              <span style={{ ...cut, left: 4 }} />
+              <span style={{ ...cutTop, left: 4 }} />
+              <span style={{ ...cutBottom, left: 4 }} />
               <IconButton title="close" label="close" onClick={onClose} reveal={live} style={over} />
             </span>
           ) : null}
@@ -215,7 +236,7 @@ export function PaneHeader({
         minHeight: 'var(--pane-header-h)',
         padding: '7px var(--pane-pad-x)',
         borderBottom: '1px solid var(--border-hair)',
-        background: 'var(--surface-paper)',
+        background: frameBg,
         borderTopLeftRadius: 'var(--radius-lg)',
         borderTopRightRadius: 'var(--radius-lg)',
       }}

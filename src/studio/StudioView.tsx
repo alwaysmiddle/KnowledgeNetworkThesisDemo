@@ -106,6 +106,7 @@ export default function StudioView() {
       title={inst.label}
       variant="legend"
       legendBg="var(--surface-canopy)"
+      face={inst.face}
       onClose={() => toggle(inst.id as InstrumentId)}
       scroll={inst.body === 'none' ? 'none' : 'y'}
       actionBar={inst.actionBar ? inst.actionBar(bus) : undefined}
