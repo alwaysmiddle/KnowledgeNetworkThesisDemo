@@ -73,9 +73,6 @@ export interface BusState {
   activeWalk: ActiveWalkState | null
   /** the tree instrument's root — auto-re-rooted, REACTIVELY, by setFocus */
   treeRoot: string
-  /** the last generated curriculum had to break a cycle, so its order is
-   * approximate and the header says so */
-  cycleNote: boolean
 }
 
 // ── What instruments may WRITE ──────────────────────────────────────────────
@@ -135,7 +132,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   const [hist, setHist] = useState(HISTORY_EMPTY)
   const [activeWalk, setActiveWalk] = useState<ActiveWalkState | null>(null)
   const [treeRoot, setTreeRoot] = useState(ROOT_ID)
-  const [cycleNote, setCycleNote] = useState(false)
 
   const visited = useMemo(() => new Set(hist.log.filter((t) => byId.get(t.id)?.topic).map((t) => t.id)), [hist.log])
 
@@ -223,7 +219,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     visited,
     activeWalk,
     treeRoot,
-    cycleNote,
     canBack: hist.cursor > 0 || (focus === null && hist.cursor >= 0),
     canForward: hist.cursor < hist.stack.length - 1,
 
@@ -245,13 +240,11 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     clearRoute: () => {
       setRouteState([])
       setActiveWalk(null)
-      setCycleNote(false)
     },
     teach: () => {
       if (!focus) return
       const c = curriculum(focus, 'depends_on', 3)
       setRoute(c.order)
-      setCycleNote(c.hadCycle)
       reveal('walk')
       reveal('map')
     },
@@ -265,7 +258,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
       setRouteState([])
       setHist(HISTORY_EMPTY)
       setActiveWalk(null)
-      setCycleNote(false)
     },
   }
 }

@@ -21,26 +21,27 @@
 //   4. DEPTH is local per-pane state, not bus state — toggling it changes
 //      only that lens's cone and exposes frontier counts at the cap.
 //   5. SIDE-BY-SIDE comparison — adding map and contours to the composition.
-//   6/7/8. PRESENT PRESET — map + unfold-graph + document + walk strip,
-//      lenses benched (not unmounted). Growing the unfold graph paints
-//      visited rings on the map and drives the document pane; "teach me
-//      this" runs lens.ts's curriculum over the focused leaf's depends_on
-//      cone and drops it onto the shared route, ending AT the goal.
+//   6/7. PRESENT PRESET — map + unfold-graph + document + walk strip, lenses
+//      benched (not unmounted). Growing the unfold graph paints visited rings
+//      on the map and drives the document pane.
+//   8. REMOVED — "teach me this" ran lens.ts's curriculum over the focused
+//      leaf's depends_on cone and dropped it onto the shared route. OB-065
+//      dropped the header button that drove it outright (not relocated);
+//      curriculum() itself keeps its own coverage in src/model/lens.test.ts.
 //   9. ROUNDTRIP — switching preset only changes which panes are ON; a
 //      benched instrument (kept mounted, display:none) keeps its own state,
 //      so Present -> Explore -> Present must not lose the grown unfold
 //      graph or the route, and a lens re-shown after being benched reads
 //      CURRENT bus focus rather than the focus it was benched with.
-//   10. MAP CAMERA SYNC (asserted in 7, 8 and 10 via the svg's data-tx /
-//      data-ty / data-zoom): an unfold-graph open FLIES the map to the node
-//      plus its graph neighbors and pins it (neighbors held visible);
-//      "teach me this" refits to the WHOLE path; a walk step click pans at
-//      CONSTANT zoom; the walk header's ⤢ button refits the path on demand.
+//   10. REMOVED — MAP CAMERA SYNC. The bus narrowed camera movement to one
+//      LOOK channel (published only by Connections-pane clicks), so neither
+//      an unfold open, a walk step, nor (formerly) "teach me this" moves the
+//      map any more. See the tombstone in place of this scenario, below.
 //   11. DEEP LAYERS — the tree discloses the corpus below the topic level:
 //      expanding the cs flagship spine reaches the level-8 node (Lomuto vs.
 //      Hoare); focusing it leaves the topic-only machinery honest (lenses
-//      show their topic-level empty state, teach disabled), and focusing a
-//      topic again restores the full lens picture.
+//      show their topic-level empty state), and focusing a topic again
+//      restores the full lens picture.
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -267,8 +268,10 @@ console.log('06-teaching-empty.png taken')
 // ── 7. unfold from the hub picker, grow 2 NAMED fresh nodes ────────────────
 // Growth is deterministic on purpose: HTTP & REST → TCP & UDP → IP & Routing.
 // Blind fresh.first() could land focus on a foundation topic whose builds-on
-// cone is EMPTY (the corpus has roots now), which would starve scenario 8's
-// curriculum — a named path guarantees a real prerequisite cone.
+// cone is EMPTY (the corpus has roots now) — a named path avoids it
+// regardless of what reads the result. (Originally this also fed scenario
+// 8's curriculum; that scenario is gone, OB-065 — kept deterministic anyway,
+// it costs nothing and the doc-pane check below still wants a real title.)
 const unfoldPane = page.locator('[aria-label="studio-pane-unfoldgraph"]')
 const mapPane = page.locator('[aria-label="studio-pane-map"]')
 const docPane = page.locator('[aria-label="studio-pane-document"]')
@@ -318,33 +321,16 @@ console.log('unfold pane circle[data-node] count =', unfoldNodeCountAtScenario7,
 await page.screenshot({ path: `${OUT}/07-teaching-unfold.png` })
 console.log('07-teaching-unfold.png taken')
 
-// ── 8. teach me this ────────────────────────────────────────────────────────
-const teachBtn = page.locator('[aria-label="studio-teach"] button')
-console.log('teach button disabled? =', await teachBtn.isDisabled(), '(expect false — focus is a leaf)')
-await teachBtn.click()
-await page.waitForTimeout(400)
+// ── 8. REMOVED — the button it drove no longer exists ──────────────────────
+// This scenario clicked the header's "teach me this" PillButton, which
+// OB-065 removed outright (not relocated — bus.teach() itself is untouched,
+// there is simply no UI path to it any more). What it drove — lens.ts's
+// curriculum(), a topological order over a depends_on prerequisite cone — is
+// covered independently in src/model/lens.test.ts (order, cycles,
+// determinism), so nothing here loses coverage; the click/route/walk-strip
+// wiring this scenario exercised has no surviving surface to click.
 
-const routeBadgeAtScenario8 = await page.locator('[aria-label="studio-route"]').innerText()
-const routeLen = parseInt(routeBadgeAtScenario8, 10)
-console.log('route badge =', routeBadgeAtScenario8, '(expect >= 2)')
-if (!(routeLen >= 2)) fail(`expected route length >= 2 after teach, got "${routeBadgeAtScenario8}"`)
-
-const walkPane = page.locator('[aria-label="studio-pane-walk"]')
-const stepCards = walkPane.locator('button', { hasText: /step \d/ })
-const stepCount = await stepCards.count()
-console.log('walk strip step cards =', stepCount, '(expect >= 2)')
-if (!(stepCount >= 2)) fail(`expected >= 2 walk step cards, got ${stepCount}`)
-
-const focusTitleAtTeach = (await focusReadout.innerText()).trim()
-const lastCardText = (await stepCards.nth(stepCount - 1).innerText()).trim()
-console.log('last step card text =', JSON.stringify(lastCardText.replace(/\s+/g, ' ')), '· focused node title =', JSON.stringify(focusTitleAtTeach), '(expect last card to contain it — the goal comes last)')
-if (!lastCardText.includes(focusTitleAtTeach)) fail(`last step card "${lastCardText}" does not contain focused node title "${focusTitleAtTeach}"`)
-
-// (Teach used to also refit the map to the WHOLE curriculum path. Same removed
-// camera contract as above — the curriculum still lands on the route and the
-// walk strip, which is what the assertions above verify.)
-await page.screenshot({ path: `${OUT}/08-teaching-curriculum.png` })
-console.log('08-teaching-curriculum.png taken')
+const routeBadgeBeforeRoundtrip = await page.locator('[aria-label="studio-route"]').innerText()
 
 // ── 9. roundtrip: a re-shown lens recenters on bus focus, Present keeps state
 // Was Teaching -> Coding -> Teaching; Coding is gone, so the switch goes via
@@ -376,8 +362,8 @@ console.log('unfold pane circle[data-node] after roundtrip =', unfoldNodeCountAf
 if (unfoldNodeCountAfterRoundtrip !== unfoldNodeCountAtScenario7) fail(`expected unfold node count unchanged at ${unfoldNodeCountAtScenario7}, got ${unfoldNodeCountAfterRoundtrip}`)
 
 const routeBadgeAfterRoundtrip = await page.locator('[aria-label="studio-route"]').innerText()
-console.log('route badge after roundtrip =', routeBadgeAfterRoundtrip, '(expect', routeBadgeAtScenario8, '— unchanged)')
-if (routeBadgeAfterRoundtrip !== routeBadgeAtScenario8) fail(`expected route badge unchanged at "${routeBadgeAtScenario8}", got "${routeBadgeAfterRoundtrip}"`)
+console.log('route badge after roundtrip =', routeBadgeAfterRoundtrip, '(expect', routeBadgeBeforeRoundtrip, '— unchanged)')
+if (routeBadgeAfterRoundtrip !== routeBadgeBeforeRoundtrip) fail(`expected route badge unchanged at "${routeBadgeBeforeRoundtrip}", got "${routeBadgeAfterRoundtrip}"`)
 
 await page.screenshot({ path: `${OUT}/09-roundtrip.png` })
 console.log('09-roundtrip.png taken')
@@ -441,13 +427,11 @@ const deepFocus = await focusReadout.getAttribute('data-focus')
 console.log('focus after level-8 click =', deepFocus)
 if (deepFocus !== L8) fail(`expected focus ${L8}, got ${deepFocus}`)
 
-const teachDisabledDeep = await page.locator('[aria-label="studio-teach"] button').isDisabled()
 const lensEmptyState = await page
   .locator('[data-lens="depends_on"]')
   .getByText('lenses read topics — typed links live at the topic level')
   .isVisible()
-console.log('deep focus: teach disabled =', teachDisabledDeep, '· lens topic-only empty state =', lensEmptyState, '(both expect true)')
-if (!teachDisabledDeep) fail('teach button enabled on a deep (non-topic) focus')
+console.log('deep focus: lens topic-only empty state =', lensEmptyState, '(expect true)')
 if (!lensEmptyState) fail('deps lens did not show the topic-only empty state for a deep focus')
 
 // focusing a topic again restores the lens picture (container row: select
