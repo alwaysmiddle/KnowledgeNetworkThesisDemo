@@ -8,8 +8,11 @@
 // (arrowhead size, button/counter proportion, jiggle, wrap, selection outline) —
 // the screenshots carry those. Two are asserted here:
 //   #5 arrowhead — the road marker shrank from 7 to 5.
-//   #9 optional-active — selecting the optional leaf presses the toolbar's
-//      Optional button (aria-pressed=true); selecting a required leaf releases it.
+//   #9 optional-active — selecting the optional leaf shows the moss-wash
+//      "selected" state on WalkActionBar's Optional pill; a required leaf releases it.
+//      (#189 moved this off the road's own hand-rolled Optional button, deleted as
+//      a duplicate of this one; PillButton exposes no aria-pressed, so this checks
+//      its rendered inline style for the selected-wash token instead.)
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -75,23 +78,24 @@ if (arrowCount === 0) fail('no [data-rarrow] on the road — arrows did not rend
 if (arrowSvgW !== '11.8') fail(`expected NodeArrow across 11.8, got ${arrowSvgW}`)
 
 // ── #9 optional-active toggles with the selection ──────────────────────────
-const optBtn = page.locator('[data-fly-opt]')
+const optBtn = page.locator('[aria-label="studio-pane-walkeditor"]').getByRole('button', { name: 'Optional', exact: true })
+const isPressed = async () => ((await optBtn.getAttribute('style')) ?? '').includes('--moss-400')
 
 // the optional leaf (web-sockets-apis, optional in the seed). Click to select it.
 await page.locator('[data-node="web-sockets-apis"]').first().click()
 await page.waitForTimeout(200)
-const pressedOnOptional = await optBtn.getAttribute('aria-pressed')
-console.log('Optional button aria-pressed with optional leaf selected =', pressedOnOptional, '(expect true)')
-if (pressedOnOptional !== 'true') fail(`expected Optional pressed on an optional leaf, got ${pressedOnOptional}`)
+const pressedOnOptional = await isPressed()
+console.log('Optional pill shows selected wash with optional leaf selected =', pressedOnOptional, '(expect true)')
+if (!pressedOnOptional) fail('expected Optional pill selected-wash on an optional leaf, got none')
 await page.screenshot({ path: `${OUT}/nested-02-optional-selected.png` })
 console.log('nested-02-optional-selected.png taken (amber-active Optional + selection outline)')
 
 // a required leaf (the closing app-authentication-authorization leaf) releases it.
 await page.locator('[data-node="app-authentication-authorization"]').first().click()
 await page.waitForTimeout(200)
-const pressedOnRequired = await optBtn.getAttribute('aria-pressed')
-console.log('Optional button aria-pressed with required leaf selected =', pressedOnRequired, '(expect false)')
-if (pressedOnRequired !== 'false') fail(`expected Optional released on a required leaf, got ${pressedOnRequired}`)
+const pressedOnRequired = await isPressed()
+console.log('Optional pill shows selected wash with required leaf selected =', pressedOnRequired, '(expect false)')
+if (pressedOnRequired) fail('expected Optional pill selected-wash released on a required leaf, still present')
 
 await browser.close()
 vite.kill()

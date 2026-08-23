@@ -455,9 +455,6 @@ export default function AuthorRoad({
   // confirm and the ungroup refusal are all the DS card's own now — it opens its
   // fields on a click, asks before a delete, and refuses a multi-version ungroup
   // with its own note. The road only hears the results, as ops on `authordraft`.
-  // a toolbar button's keyboard-shortcut hint, revealed after a 1s hover (#15)
-  const [shortcutHint, setShortcutHint] = useState<string | null>(null)
-  const hintTimer = useRef<number | null>(null)
 
   const toggle = (key: string) => {
     const next = new Set(collapsed)
@@ -563,16 +560,6 @@ export default function AuthorRoad({
     return () => window.removeEventListener('keydown', onKey)
   }, [state])
 
-  // a toolbar button reveals its shortcut after a full second of hover (#15)
-  const hintOn = (k: string) => {
-    if (hintTimer.current) clearTimeout(hintTimer.current)
-    hintTimer.current = window.setTimeout(() => setShortcutHint(k), 1000)
-  }
-  const hintOff = () => {
-    if (hintTimer.current) clearTimeout(hintTimer.current)
-    setShortcutHint(null)
-  }
-
   /** Plain click selects one block; Shift/Ctrl/Cmd toggles membership.
    * A plain click on a leaf also drives the doc pane (#14). */
   const selectOn = (pl: Placed) => (e: ReactMouseEvent) => {
@@ -677,9 +664,13 @@ export default function AuthorRoad({
       {/* STATIC action toolbar — pinned to the top of the road panel, always
           present (an experiment, replacing the floating dock that chased the
           selection). data-fly keeps onBoardPointerDown from treating a toolbar
-          click as a board marquee/deselect. Buttons enable/disable off the
-          current selection; the shortcut-hint badges (G / Ctrl+G) still appear
-          after ~1s of hover, now dropping BELOW their button. */}
+          click as a board marquee/deselect. Group and Optional buttons used to
+          live here too, hand-rolled — #189 found they were exact duplicates of
+          WalkActionBar's DS PaneActionBar pills (same state, same handlers),
+          both visible at once. Dropped in favour of that DS-based pair; this
+          bar keeps only what has no other home: the live selection count and
+          Delete. The `g` keyboard shortcut above still calls groupSelection()
+          directly and is unaffected. */}
       <div
         data-fly
         data-seltools
@@ -689,41 +680,6 @@ export default function AuthorRoad({
         <span className="text-[var(--fs-caption)] font-semibold px-1 select-none tabular-nums" style={{ color: 'var(--state-selected)' }}>
           {state.selected.size > 0 ? `${state.selected.size} selected` : 'no selection'}
         </span>
-        <span className="relative flex" onMouseEnter={() => hintOn('group')} onMouseLeave={hintOff}>
-          <button
-            data-fly-group
-            disabled={!state.canGroup}
-            onClick={state.groupSelection}
-            title={wrapTip('group into stage')}
-            className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--accent-primary)] bg-[var(--accent-primary-wash)] disabled:opacity-30 hover:bg-[var(--moss-100)]"
-            style={{ color: 'var(--accent-primary-ink)' }}
-          >
-            ⊞ Group
-          </button>
-          {shortcutHint === 'group' && (
-            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 whitespace-nowrap rounded text-[var(--fs-micro)] font-semibold px-1.5 py-0.5 shadow pointer-events-none" style={{ background: 'var(--bark-800)', color: 'var(--text-inverse)' }}>
-              G
-            </span>
-          )}
-        </span>
-        <button
-          data-fly-opt
-          disabled={!state.canOptional}
-          aria-pressed={state.optionalActive}
-          onClick={state.toggleOptionalSelection}
-          title={wrapTip(state.optionalActive ? 'optional — click to make required' : 'toggle optional')}
-          className="text-[var(--fs-body)] px-2 py-1 rounded border disabled:opacity-30"
-          style={state.optionalActive
-            ? { borderColor: 'var(--border-walk)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }
-            : { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-canopy)' }}
-        >
-          {/* NO GLYPH. `◇` now sits with `▾`/`▸`, `●`/`○` and `✔` on the list of typed marks
-              this system does not use: the drawn vocabulary is a closed set of four (caret,
-              bin, live-version check, restore), and a state does not join it by being typed
-              instead of drawn. This button already says the word, so the diamond was
-              decoration on a label that is explicit without it. */}
-          Optional
-        </button>
         <button
           data-fly-del
           disabled={!state.canDelete}
