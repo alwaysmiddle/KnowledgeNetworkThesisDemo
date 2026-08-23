@@ -216,6 +216,11 @@ export function NodeRail({
   const [headHot, setHeadHot] = useState(false)
   const M = RAIL_METRICS
   const acts = !!stops.length
+  // OB-072: the two head acts stay full-strength once they have nothing left to do
+  // ("expand all" fully lit with every stop already open) — disabled, not reveal,
+  // since the act is still relevant here, just out of work.
+  const allOpen = acts && stops.every((s) => open[s.id])
+  const allClosed = acts && stops.every((s) => !open[s.id])
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -225,10 +230,10 @@ export function NodeRail({
             {/* the house nesting pair: the SAME disclosure mark said twice, one level up
                 from a single stop's caret — two pointing down for expand all, two up for
                 collapse all, so the pair cannot read as a new icon */}
-            <IconButton size={M.caretSlot} reveal={railOpen && acts} title="expand all" onClick={onExpandAll}>
+            <IconButton size={M.caretSlot} reveal={railOpen && acts} disabled={allOpen} title="expand all" onClick={onExpandAll}>
               <CaretStack />
             </IconButton>
-            <IconButton size={M.caretSlot} reveal={railOpen && acts} title="collapse all" onClick={onCollapseAll}>
+            <IconButton size={M.caretSlot} reveal={railOpen && acts} disabled={allClosed} title="collapse all" onClick={onCollapseAll}>
               <CaretStack up />
             </IconButton>
           </span>
