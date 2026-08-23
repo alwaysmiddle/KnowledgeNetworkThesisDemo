@@ -70,13 +70,209 @@
   --berry-500: #b4574a;
   --berry-600: #99453a;
 
-  /* ── DATA · domain identity (6 hue-disjoint slots) ──────────────────── */
-  --domain-sys:  #4a8a3c;  /* leaf   — computer systems, hardware */
-  --domain-math: #6b5ca8;  /* iris   — mathematical foundations */
-  --domain-cs:   #3f7bb0;  /* river  — core computer science */
-  --domain-net:  #3d9199;  /* pond   — networking */
-  --domain-sec:  #c08a2e;  /* honey  — security */
-  --domain-se:   #4aa583;  /* fern   — software engineering */
+  /* ═══ DATA · THE HUE RING ═══════════════════════════════════════════════
+     SIXTEEN HUES, FIVE ROLES EACH. This is the whole data palette: topics take hues
+     from it, relation kinds take hues from it, and nothing else in the system may.
+     It replaced six CS-subject slots and four CS-relationship slots on 2026-08-21j,
+     when the application became general-purpose — a corpus of recipes or legal cases
+     has no `sec` and no `implemented_with`, and a seventh topic used to get the grey
+     anchor fallback because the palette had no seventh slot.
+
+     WHY SIXTEEN AND NOT MORE. Colour is carried by a 7px dot and a 1.5px border. Past
+     about twelve hues a reader cannot name a mark without the legend, and sixteen is
+     already past that: it is the count the owner chose knowing the last few are told
+     apart by their neighbours, not on sight. Do not add a seventeenth to solve a
+     corpus with forty topics — that is what the arc grading below is for.
+
+     THE ANGLES ARE TUNED, NOT STEPPED. Even 22.5deg steps clump in the blue-green
+     region, where OKLCH hue is least perceptually uniform, and leave a 50deg hole
+     between magenta and red. These sixteen sit 15-30deg apart, tightest through the
+     teals and widest across the purples.
+
+     THE FIVE ROLES, and which surface each is calibrated against:
+       --hue-<n>              MARK.   L 0.55 / C 0.15 — a dot, a 1.5px chip border.
+       --hue-<n>-ink          INK.    L 0.44 / C 0.14 — a label in the hue, AA on white.
+       --hue-<n>-stroke       STROKE. L 0.60 / C 0.14 — a hairline on a canvas. LIGHTER
+                              than the mark on purpose: a connector is drawn at the
+                              border weight of what it connects and never above it,
+                              and the same rule holds for its ink.
+       --hue-<n>-wash         WASH.   L 0.955 — a fill behind text on --surface-paper.
+       --hue-<n>-wash-raised  WASH ON A WHITE FACE. L 0.925, i.e. STRONGER than the
+                              wash above, which looks backwards until you remember
+                              what it sits on: a wash cannot tint white (the same
+                              reason --surface-hover-raised swaps the face instead of
+                              tinting it), so on a card it has to be a step darker to
+                              be seen at all.
+
+     THE ORDER TOKENS ARE DECLARED IN IS NOT THE ORDER THEY ARE HANDED OUT IN. These
+     are listed by hue, which is how a person reads a palette. A host assigns from
+     `TOPIC_WALK` in src/ds/graph/DomainDot.tsx — a bit-reversal permutation, so
+     the first four topics of a corpus land 80deg or more apart instead of walking
+     round the warm end together. Assigning by declaration order gives a three-topic
+     corpus rose, brick and clay, which is the fault this palette exists to fix.
+
+     HOW THE TWO FAMILIES STAY APART, now that both draw from one ring. It used to be
+     done by hand — six domain hues spaced against four edge hues — which stops working
+     the moment either can grow. Two rules do it instead:
+       1. ROLE. A topic is a FILLED mark; a relation is a LINE in the stroke role. A
+          filled dot and a hairline never read as the same object even at one hue, and
+          this is the rule that carries the load: relation kinds are told apart by hue
+          ALONE (the owner's call, 2026-08-21j), so their hues cannot also be reserved
+          away from the topics'.
+       2. WALK DIRECTION. Topics walk the permutation forward and relation kinds walk it
+          backward, so the first EIGHT of each family are hue-disjoint by construction
+          and the two meet in the middle only once both are eight deep. Past that they
+          share hues, and role is the whole of what separates them. (Starting relations
+          four places along the same DIRECTION was tried first and reproduced the topic
+          sequence exactly: relation 1 drew topic 5's clay.)
+
+     HOW THIS SEPARATES FROM CHROME — by CHROMA, not by hue (the owner's call,
+     2026-08-21j). Chrome owns four meanings (moss primary, acorn movement, pond
+     selection, berry danger) and any ring runs straight through all of them, so hue
+     cannot be the separator. Data runs at C 0.14–0.15; chrome sits at or below C 0.09
+     — with two measured exceptions, acorn-500 (~0.098) and berry-500 (~0.11), which
+     makes --hue-amber and --hue-rose / --hue-brick the weakest separations in the
+     system. That is the cost of keeping all sixteen hues, and it was accepted with
+     that cost named. The rule for anyone adding a chrome colour: keep it under 0.09,
+     or it starts making claims about data.
+
+     WHAT A CORPUS DEEPER THAN SIXTEEN TOPICS DOES. The ring names FAMILIES, not
+     topics: the top level of the tree takes hues, and a topic inside a family takes a
+     step within its family's arc (46deg span, 11deg sibling floor — the existing
+     derivation in src/model/color.ts, unchanged). Related topics then read related,
+     which is the distinction a reader makes before "these two differ". A topic's hue
+     therefore depends on where it sits in the tree, and moving it between families
+     changes its colour. */
+
+  --hue-rose: oklch(0.55 0.15 350);
+  --hue-rose-ink: oklch(0.44 0.14 350);
+  --hue-rose-stroke: oklch(0.6 0.14 350);
+  --hue-rose-wash: oklch(0.955 0.038 350);
+  --hue-rose-wash-raised: oklch(0.925 0.055 350);
+
+  --hue-brick: oklch(0.55 0.15 20);
+  --hue-brick-ink: oklch(0.44 0.14 20);
+  --hue-brick-stroke: oklch(0.6 0.14 20);
+  --hue-brick-wash: oklch(0.955 0.038 20);
+  --hue-brick-wash-raised: oklch(0.925 0.055 20);
+
+  --hue-clay: oklch(0.55 0.15 42);
+  --hue-clay-ink: oklch(0.44 0.14 42);
+  --hue-clay-stroke: oklch(0.6 0.14 42);
+  --hue-clay-wash: oklch(0.955 0.038 42);
+  --hue-clay-wash-raised: oklch(0.925 0.055 42);
+
+  --hue-amber: oklch(0.55 0.15 65);
+  --hue-amber-ink: oklch(0.44 0.14 65);
+  --hue-amber-stroke: oklch(0.6 0.14 65);
+  --hue-amber-wash: oklch(0.955 0.038 65);
+  --hue-amber-wash-raised: oklch(0.925 0.055 65);
+
+  --hue-honey: oklch(0.55 0.15 88);
+  --hue-honey-ink: oklch(0.44 0.14 88);
+  --hue-honey-stroke: oklch(0.6 0.14 88);
+  --hue-honey-wash: oklch(0.955 0.038 88);
+  --hue-honey-wash-raised: oklch(0.925 0.055 88);
+
+  --hue-olive: oklch(0.55 0.15 110);
+  --hue-olive-ink: oklch(0.44 0.14 110);
+  --hue-olive-stroke: oklch(0.6 0.14 110);
+  --hue-olive-wash: oklch(0.955 0.038 110);
+  --hue-olive-wash-raised: oklch(0.925 0.055 110);
+
+  --hue-lime: oklch(0.55 0.15 130);
+  --hue-lime-ink: oklch(0.44 0.14 130);
+  --hue-lime-stroke: oklch(0.6 0.14 130);
+  --hue-lime-wash: oklch(0.955 0.038 130);
+  --hue-lime-wash-raised: oklch(0.925 0.055 130);
+
+  --hue-leaf: oklch(0.55 0.15 148);
+  --hue-leaf-ink: oklch(0.44 0.14 148);
+  --hue-leaf-stroke: oklch(0.6 0.14 148);
+  --hue-leaf-wash: oklch(0.955 0.038 148);
+  --hue-leaf-wash-raised: oklch(0.925 0.055 148);
+
+  --hue-fern: oklch(0.55 0.15 166);
+  --hue-fern-ink: oklch(0.44 0.14 166);
+  --hue-fern-stroke: oklch(0.6 0.14 166);
+  --hue-fern-wash: oklch(0.955 0.038 166);
+  --hue-fern-wash-raised: oklch(0.925 0.055 166);
+
+  --hue-jade: oklch(0.55 0.15 183);
+  --hue-jade-ink: oklch(0.44 0.14 183);
+  --hue-jade-stroke: oklch(0.6 0.14 183);
+  --hue-jade-wash: oklch(0.955 0.038 183);
+  --hue-jade-wash-raised: oklch(0.925 0.055 183);
+
+  --hue-teal: oklch(0.55 0.15 198);
+  --hue-teal-ink: oklch(0.44 0.14 198);
+  --hue-teal-stroke: oklch(0.6 0.14 198);
+  --hue-teal-wash: oklch(0.955 0.038 198);
+  --hue-teal-wash-raised: oklch(0.925 0.055 198);
+
+  --hue-river: oklch(0.55 0.15 214);
+  --hue-river-ink: oklch(0.44 0.14 214);
+  --hue-river-stroke: oklch(0.6 0.14 214);
+  --hue-river-wash: oklch(0.955 0.038 214);
+  --hue-river-wash-raised: oklch(0.925 0.055 214);
+
+  --hue-cobalt: oklch(0.55 0.15 236);
+  --hue-cobalt-ink: oklch(0.44 0.14 236);
+  --hue-cobalt-stroke: oklch(0.6 0.14 236);
+  --hue-cobalt-wash: oklch(0.955 0.038 236);
+  --hue-cobalt-wash-raised: oklch(0.925 0.055 236);
+
+  --hue-iris: oklch(0.55 0.15 262);
+  --hue-iris-ink: oklch(0.44 0.14 262);
+  --hue-iris-stroke: oklch(0.6 0.14 262);
+  --hue-iris-wash: oklch(0.955 0.038 262);
+  --hue-iris-wash-raised: oklch(0.925 0.055 262);
+
+  --hue-violet: oklch(0.55 0.15 292);
+  --hue-violet-ink: oklch(0.44 0.14 292);
+  --hue-violet-stroke: oklch(0.6 0.14 292);
+  --hue-violet-wash: oklch(0.955 0.038 292);
+  --hue-violet-wash-raised: oklch(0.925 0.055 292);
+
+  --hue-mallow: oklch(0.55 0.15 322);
+  --hue-mallow-ink: oklch(0.44 0.14 322);
+  --hue-mallow-stroke: oklch(0.6 0.14 322);
+  --hue-mallow-wash: oklch(0.955 0.038 322);
+  --hue-mallow-wash-raised: oklch(0.925 0.055 322);
+
+  /* the ring by index, in HUE order — for code that walks it positionally. This is the
+     reading order, NOT the assignment order: see TOPIC_WALK above. */
+  --hue-slot-1: var(--hue-rose);
+  --hue-slot-2: var(--hue-brick);
+  --hue-slot-3: var(--hue-clay);
+  --hue-slot-4: var(--hue-amber);
+  --hue-slot-5: var(--hue-honey);
+  --hue-slot-6: var(--hue-olive);
+  --hue-slot-7: var(--hue-lime);
+  --hue-slot-8: var(--hue-leaf);
+  --hue-slot-9: var(--hue-fern);
+  --hue-slot-10: var(--hue-jade);
+  --hue-slot-11: var(--hue-teal);
+  --hue-slot-12: var(--hue-river);
+  --hue-slot-13: var(--hue-cobalt);
+  --hue-slot-14: var(--hue-iris);
+  --hue-slot-15: var(--hue-violet);
+  --hue-slot-16: var(--hue-mallow);
+
+  /* ── DATA · the shipped EXAMPLE palette ─────────────────────────────────
+     The six CS domains and four CS relationships this system was built for. They are
+     KEPT (the owner's call, 2026-08-21j) as a worked example of the ring in use, and
+     as the palette the current corpus still renders — not as the vocabulary of the
+     product. Every value is now a ring slot rather than its own hex, so the six hues
+     shifted slightly on 2026-08-21j; a view showing these beside --*-raw was already
+     forbidden and still is. Nothing new should reference a --domain-* or --edge-*
+     name: take a ring slot. */
+  --domain-sys:  var(--hue-leaf);
+  --domain-math: var(--hue-violet);
+  --domain-cs:   var(--hue-cobalt);
+  --domain-net:  var(--hue-teal);
+  --domain-sec:  var(--hue-amber);
+  --domain-se:   var(--hue-fern);
 
   /* authored in src/corpus/graph.ts — do not round, do not derive */
   --domain-sys-raw:  #008300;
@@ -86,11 +282,14 @@
   --domain-sec-raw:  #eda100;
   --domain-se-raw:   #1baf7a;
 
-  /* ── DATA · edge kinds (hue-disjoint from the domains, on purpose) ──── */
-  --edge-depends-on: #ada291;  /* the backbone recedes: it is the common case */
-  --edge-uses: #cf7043;        /* clay */
-  --edge-see-also: #c37fa0;    /* mallow */
-  --edge-implemented-with: #b0524a; /* brick */
+  /* the four example relation kinds, in the STROKE role because a relation is a line.
+     `depends-on` is deliberately NOT a ring hue: the backbone is the common case and
+     recedes, which is a rule about frequency rather than about kind, and it survived
+     the generalisation intact. */
+  --edge-depends-on: #ada291;
+  --edge-uses: var(--hue-clay-stroke);
+  --edge-see-also: var(--hue-mallow-stroke);
+  --edge-implemented-with: var(--hue-brick-stroke);
   --edge-mixed: #8a8071;
 
   --edge-depends-on-raw: #94a3b8;

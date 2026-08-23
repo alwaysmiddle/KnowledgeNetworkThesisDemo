@@ -115,9 +115,10 @@
       "src/ds/graph/DomainDot.tsx": {
         "from": "components/graph/DomainDot.jsx",
         "contract": "components/graph/DomainDot.d.ts",
-        "syncedAt": "2026-07-30",
+        "syncedAt": "2026-08-22",
         "deviations": [
-          "2026-08-22 (#142, OB-056) — CREDIT NOTE ONLY, no code change. design-sync.md: \"YOUR SHAPE WON, AND IT IS UPSTREAM NOW\" — the DS adopted this app's `DOMAIN_TOKEN` name for its own equivalent map, specifically so this component's port stays an import rather than needing a rename. TreeRow.tsx, TrailChip.tsx and AppHeader.tsx, which each hand-drew their own dot span reading DOMAIN_TOKEN directly, now render this component instead — see their own entries."
+          "2026-08-22 (#142, OB-056) — CREDIT NOTE ONLY, no code change. design-sync.md: \"YOUR SHAPE WON, AND IT IS UPSTREAM NOW\" — the DS adopted this app's `DOMAIN_TOKEN` name for its own equivalent map, specifically so this component's port stays an import rather than needing a rename. TreeRow.tsx, TrailChip.tsx and AppHeader.tsx, which each hand-drew their own dot span reading DOMAIN_TOKEN directly, now render this component instead — see their own entries.",
+          "2026-08-22 (OB-060) — the sixteen-hue ring: HUE_RING, TOPIC_WALK, RELATION_WALK_REVERSED, hueToken(), topicHue(), relationHue(), domainToken(), topicPaint(), nextTopicSlot(), nextRelationSlot() all ported faithfully. DOMAIN_TOKEN stays imported from ./vocab rather than redeclared inline, per the existing deviation above and the DS's own note that the app's shape is now upstream. `domain` kept as a deprecated prop alongside the new `topic`, both still resolve through the same DOMAIN_TOKEN/HUE_RING — every existing `<DomainDot domain=…/>` call site recolors with no code change. nextTopicSlot()/nextRelationSlot() have no call site: the corpus (src/corpus/graph.ts) is a fixed authored dataset with no runtime topic-creation path, so 'assign the next free hue' is currently unreachable rather than unimplemented — see receipt."
         ]
       },
       "src/ds/graph/NodePicker.tsx": {
@@ -136,9 +137,10 @@
       "src/ds/graph/EdgeLegend.tsx": {
         "from": "components/graph/EdgeLegend.jsx",
         "contract": "components/graph/EdgeLegend.d.ts",
-        "syncedAt": "2026-08-05",
+        "syncedAt": "2026-08-22",
         "deviations": [
-          "2026-08-05: adopted the DS EdgeDash (an SVG rect with shapeRendering=crispEdges) in place of the CSS bar, and now exports it — fixes dashes antialiasing to different thicknesses per row"
+          "2026-08-05: adopted the DS EdgeDash (an SVG rect with shapeRendering=crispEdges) in place of the CSS bar, and now exports it — fixes dashes antialiasing to different thicknesses per row",
+          "2026-08-22 (OB-060/OB-062) — edgeHue() and relationPaint() ported; EdgeDash gains `type` (resolved through edgeHue()) alongside the existing `color`; EdgeLegend accepts RelationKindSpec objects, not just the four example keys. The local EDGE map stays local rather than sourced from vocab.ts's EDGE_TOKEN, matching the DS module's own shape (deliberate, not an oversight — EDGE also carries the label, which EDGE_TOKEN does not)."
         ]
       },
       "src/ds/graph/EdgeEntry.tsx": {
