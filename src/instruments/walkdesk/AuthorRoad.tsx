@@ -132,9 +132,6 @@ const CARD_MIN_W = M.narrowAt // 250: below this the DS drops the tally to its o
 const MARGIN = 16
 const SLOTH = 18 // catch height of a between-nodes drop slot (fills the AGAP)
 const SELPAD = 7 // breathing room the selection box leaves around its members
-// The action toolbar is a static strip pinned to the top of the road panel;
-// BAR_ROW_H is one button row, used to size that strip's height.
-const BAR_ROW_H = 26
 
 
 /** The DS picker names a version twice: a short mono CODE for its position, and
@@ -530,10 +527,6 @@ export default function AuthorRoad({
         return { x, y, w: right - x, h: bottom - y }
       })()
     : null
-  // refinement: the action toolbar no longer floats near the selection. It is a
-  // STATIC strip pinned to the top of the road panel (rendered below), always
-  // present; its buttons enable/disable off the selection instead of appearing
-  // and disappearing. The selection box below still marks the run itself.
 
   // g = group, once a selection exists (#15). Tab = indent, moving the single
   // selection into the container right above it — indentSelection existed and
@@ -604,8 +597,12 @@ export default function AuthorRoad({
    * `shown` forces it visible (selected). A leaf is DELETED by it. A container's
    * fold and ungroup controls are the DS card's own head cluster now — the ✕
    * there UNGROUPS (its active version's steps are lifted out in place and the
-   * wrapper, plus any other versions, drops), and deleting a whole group,
-   * contents and all, is the toolbar's ✕ Delete. All undoable. */
+   * wrapper drops); with more than one version it asks first, since confirming
+   * also drops every OTHER version's contents. All undoable. Deleting a whole
+   * PLAIN group outright (rather than ungrouping it) has no dedicated control —
+   * #191 retired the road's own toolbar (`data-fly-del`/`deleteSelection`),
+   * the only thing that did; ungroup, then delete the spilled leaves one at a
+   * time, covers it. */
   // the road's own delete ✕ for a leaf stop is RETIRED (#97): NodeChip carries one,
   // berry at rest, receding on the shared PKT_SB clock with its space reserved so the
   // chip never changes width — the same control every other ✕ in the system is.
@@ -620,7 +617,7 @@ export default function AuthorRoad({
     marqueeDragRef.current = false
     if (e.button !== 0 || !boardRef.current) return
     // only empty canvas starts a marquee — not a node, control, tab, or overlay
-    if ((e.target as HTMLElement).closest('[data-rnode],[data-rstage],[data-rstage-closed],[data-fly],[data-rbody],button,input,select')) return
+    if ((e.target as HTMLElement).closest('[data-rnode],[data-rstage],[data-rstage-closed],[data-rbody],button,input,select')) return
     const { x, y } = boardPoint(e)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     setMarquee({ x0: x, y0: y, x1: x, y1: y })
@@ -661,37 +658,6 @@ export default function AuthorRoad({
         handleDrop(e, [state.stops.length], state)
       }}
     >
-      {/* STATIC action toolbar — pinned to the top of the road panel, always
-          present (an experiment, replacing the floating dock that chased the
-          selection). data-fly keeps onBoardPointerDown from treating a toolbar
-          click as a board marquee/deselect. Group and Optional buttons used to
-          live here too, hand-rolled — #189 found they were exact duplicates of
-          WalkActionBar's DS PaneActionBar pills (same state, same handlers),
-          both visible at once. Dropped in favour of that DS-based pair; this
-          bar keeps only what has no other home: the live selection count and
-          Delete. The `g` keyboard shortcut above still calls groupSelection()
-          directly and is unaffected. */}
-      <div
-        data-fly
-        data-seltools
-        className="sticky top-0 z-40 flex items-center gap-1 px-2 border-b border-[var(--border-hair)] backdrop-blur-sm"
-        style={{ minHeight: BAR_ROW_H + 8, background: 'var(--surface-veil)' }}
-      >
-        <span className="text-[var(--fs-caption)] font-semibold px-1 select-none tabular-nums" style={{ color: 'var(--state-selected)' }}>
-          {state.selected.size > 0 ? `${state.selected.size} selected` : 'no selection'}
-        </span>
-        <button
-          data-fly-del
-          disabled={!state.canDelete}
-          onClick={state.deleteSelection}
-          title={wrapTip('delete — a group takes everything inside it (undoable)')}
-          className="text-[var(--fs-body)] px-2 py-1 rounded border border-[var(--border-rule)] disabled:opacity-30 hover:bg-[var(--surface-hover)]"
-          style={{ color: 'var(--text-2)' }}
-        >
-          ✕ Delete
-        </button>
-      </div>
-
       {state.stops.length === 0 ? (
         <div className="text-[var(--fs-body)] p-3" style={{ color: 'var(--text-3)' }}>drop a node from the palette to start the plan</div>
       ) : (
@@ -1152,10 +1118,6 @@ export default function AuthorRoad({
               style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h, borderColor: 'var(--state-selected)' }}
             />
           )}
-
-          {/* the action toolbar used to float here, pinned to the selection box.
-              It is now a STATIC strip at the top of the road panel — see the
-              data-seltools bar rendered above the board. */}
 
         </div>
       )}
