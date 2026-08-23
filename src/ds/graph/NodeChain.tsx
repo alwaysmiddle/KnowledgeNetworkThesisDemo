@@ -113,7 +113,10 @@ export function NodeChain({
   const startDrag = (at: number) => (e: React.PointerEvent<HTMLDivElement>) => {
     if (!reorderable || e.button !== 0) return
     const target = e.target as HTMLElement
-    if (target.closest && target.closest('button, input, textarea, select, a, [role="listbox"]')) return
+    // a press on a control is that control's, never the chain's. [contenteditable="true"]
+    // added under OB-081: a select-drag inside an editing VersionedGroup title,
+    // description or version name was read as the start of a reorder instead.
+    if (target.closest && target.closest('button, input, textarea, select, a, [role="listbox"], [contenteditable="true"]')) return
     const boxes = slots.current.map((el) => el && el.getBoundingClientRect())
     if (!boxes[at]) return
     const centers = boxes.map((b) => (b ? (down ? b.top + b.height / 2 : b.left + b.width / 2) : 0))
