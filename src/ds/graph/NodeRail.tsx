@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DomainCode } from './vocab'
 import { NodeChip } from './NodeChip'
-import { Caret, CARET_INK } from '../nav/TreeRow'
+import { CaretStack } from '../nav/TreeRow'
 import { IconButton, wrapTip } from '../chrome/IconButton'
 
 /** THE RAIL'S GEOMETRY, published rather than described — the group's and the chip's own
@@ -37,14 +37,6 @@ export const RAIL_METRICS = {
   countMin: 16,
   rowGap: 10,
 }
-
-/** the collapse mark: the house caret turned to point up. A disclosure only ever has two
- *  positions (`caretStyle`'s ±45°), so the pair's upward half overrides the transform
- *  rather than asking the shared mark for a third state it should not have. The translate
- *  is `CARET_INK`, not a re-typed `1` (OB-052): it cancels the mark's own ink offset the
- *  same way under any rotation — see TreeRow's `CARET_INK` — and a hand-typed literal here
- *  once silently drifted from it. */
-const UP = { transform: `rotate(225deg) translate(-${CARET_INK}px, -${CARET_INK}px)` }
 
 export interface RailStopProps {
   /** the neighbour's name. It WRAPS — a stop has to fit the pane it is in */
@@ -234,14 +226,10 @@ export function NodeRail({
                 from a single stop's caret — two pointing down for expand all, two up for
                 collapse all, so the pair cannot read as a new icon */}
             <IconButton size={M.caretSlot} reveal={railOpen && acts} title="expand all" onClick={onExpandAll}>
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                <Caret open /><Caret open />
-              </span>
+              <CaretStack />
             </IconButton>
             <IconButton size={M.caretSlot} reveal={railOpen && acts} title="collapse all" onClick={onCollapseAll}>
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                <Caret open style={UP} /><Caret open style={UP} />
-              </span>
+              <CaretStack up />
             </IconButton>
           </span>
         </span>

@@ -59,6 +59,29 @@ export function Caret({ open, style }: { open?: boolean; style?: CSSProperties }
   return <span style={style ? { ...caretStyle(open), ...style } : caretStyle(open)} />
 }
 
+/** THE NESTING PAIR — the act that opens or closes a whole LEVEL: the same disclosure
+ *  mark, said twice, one level up from a single row's caret. Two pointing down for
+ *  "expand all" (`<CaretStack />`), two up for "collapse all" (`<CaretStack up />`).
+ *  Said twice rather than drawn differently, so the pair cannot read as a new icon —
+ *  the drawn set stays closed. The up-mark is a third ROTATION, not a third state, so
+ *  it overrides the transform wholesale rather than asking `Caret` for a position a
+ *  disclosure does not have; the translate stays `CARET_INK`, the same ink centring in
+ *  the mark's own rotated frame, which is what keeps up and down on one line.
+ *
+ *  AN ELEMENT BECAUSE A HAND COPY OF THE RECIPE DRIFTED (OB-063): `NodeRail`'s acts used
+ *  to stack two `<Caret>`s against their own inline `UP` override, which is exactly the
+ *  shape that let `CARET_INK` (see above) get reintroduced as a hand-typed `1` the first
+ *  time. Nothing to copy, nothing to get wrong. */
+const UP: CSSProperties = { transform: `rotate(225deg) translate(-${CARET_INK}px, -${CARET_INK}px)` }
+export function CaretStack({ up }: { up?: boolean }) {
+  return (
+    <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+      <Caret open style={up ? UP : undefined} />
+      <Caret open style={up ? UP : undefined} />
+    </span>
+  )
+}
+
 /** WHERE A CARET'S TOP GOES when it is pinned to the FIRST LINE of a name rather than
  *  centred on a single line — a wrapped `NodeChip`, `NodeRail`'s head pill.
  *

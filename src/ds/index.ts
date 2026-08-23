@@ -26,7 +26,7 @@ export type { EdgeEntryProps } from './graph/EdgeEntry'
 export type { DomainCode, EdgeKind } from './graph/vocab'
 export { DOMAIN_TOKEN, EDGE_TOKEN } from './graph/vocab'
 
-export { TreeRow, Caret, CARET_INK, NESTING } from './nav/TreeRow'
+export { TreeRow, Caret, CaretStack, CARET_INK, NESTING } from './nav/TreeRow'
 export type { TreeRowProps } from './nav/TreeRow'
 export { TrailChip } from './nav/TrailChip'
 export type { TrailChipProps } from './nav/TrailChip'
