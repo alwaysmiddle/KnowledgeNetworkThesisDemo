@@ -92,6 +92,13 @@ const VIEWS = [
     label: 'Map',
     family: 'maps',
     slot: 'column',
+    // MapView renders its own PaneCanvas at its root (the "territory" crop +
+    // MAP_WATER face) — without body:'none' Pane ALSO wraps it in a PaneScroller,
+    // whose plain block box gives the nested PaneCanvas's flex:1 nothing to fill
+    // against, so the map only ever grows to the svg's intrinsic content size
+    // (roughly half the pane). Same class of bug 'connections' hit and fixed
+    // (OB-054/#143) — one instrument, one canvas, body:'none'.
+    body: 'none',
     face: MAP_WATER,
     render: (bus) => <MapView bus={bus} />,
   },

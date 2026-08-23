@@ -80,7 +80,9 @@ const text0 = await roadText()
 ok('opens on the seed', stages0 === 2 && text0.includes('Secure the channel'), `stages=${stages0}`)
 
 // ── 2. load a walk in as a stage (#16, the inbound half) ─────────────────────
-await page.click('[data-add-walk]')
+// #154's follow-up moved these off hand-rolled buttons onto the DS Toolbar,
+// which has no data-* passthrough — its own label text is the stable hook now.
+await page.locator('[aria-label="studio-pane-walkeditor"]').getByRole('button', { name: 'add a walk' }).click()
 await page.waitForTimeout(200)
 await page.locator('[aria-label="studio-pane-walkeditor"]').screenshot({ path: OUT + '/persistence-picker.png' })
 const offered = await page.$$eval('[data-walk-picker] button', (els) => els.map((e) => e.textContent))
@@ -103,7 +105,7 @@ ok('and it is the same plan, not a fresh seed', text2.includes('From transistor 
 
 // ── 4. save the road as a walk (#16, the outbound half) ──────────────────────
 const NAME = 'Driver walk ' + stages2 + ' stages'
-await page.click('[data-save-walk]')
+await page.locator('[aria-label="studio-pane-walkeditor"]').getByRole('button', { name: 'save as walk' }).click()
 await page.fill('[data-name-walk] input', NAME)
 await page.click('[data-name-walk-save]')
 await page.waitForTimeout(300)
