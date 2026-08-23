@@ -15,7 +15,7 @@ import { useSyncExternalStore } from 'react'
 import { mintId, saveWalk, walkById } from '../../model/walkstore'
 import type { Walk } from '../../model/walkstore'
 import { loadDraft, nextIds, saveDraft } from './draftpersist'
-import { forEachStop, isBox, isFork, isLeaf, leafStops, resolveRoad } from './mockwalk'
+import { isBox, isFork, isLeaf, leafStops, resolveRoad } from './mockwalk'
 import type { Stop, Variant } from './mockwalk'
 
 export type Path = number[]
@@ -295,15 +295,6 @@ function contiguousRun(selected: ReadonlySet<string>): { parent: Path; from: num
   const idx = paths.map((p) => p[p.length - 1]).sort((a, b) => a - b)
   for (let k = 1; k < idx.length; k++) if (idx[k] !== idx[k - 1] + 1) return null
   return { parent, from: idx[0], to: idx[idx.length - 1] }
-}
-
-/** every container key in a draft — the "all open" expansion for fringe() */
-export function allKeysOf(stops: Stop[]): ReadonlySet<string> {
-  const keys = new Set<string>()
-  forEachStop(stops, (s) => {
-    if (isBox(s)) keys.add(s.key)
-  })
-  return keys
 }
 
 export interface AuthorState {
