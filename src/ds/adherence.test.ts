@@ -206,7 +206,10 @@ describe('our DS ports document what the DS documents', () => {
   // +3 for the re-ported Pane.tsx (#126): PaneCanvasProps.forwardRef,
   // PaneCanvasProps.children and PaneProps.children are bare in the DS's own
   // Pane.d.ts too — same DS-parity reasoning.
-  const BUDGET = 62
+  // +12 for the six new chrome marks (OB-064, #55): NewMapMark, PrintMark,
+  // SaveMark, LoadMark, CopyMark, PasteMark — each just `size`/`style`, bare in
+  // the DS's own .d.ts for every one of them too. Same DS-parity reasoning.
+  const BUDGET = 74
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

@@ -285,7 +285,56 @@
         "contract": "components/chrome/Toolbar.d.ts",
         "syncedAt": "2026-08-22",
         "deviations": [
-          "2026-08-22 OB-047 (#140) — dropped the local `|| undefined` on the title tooltip; wrapTip itself now answers an absent or empty string with undefined"
+          "2026-08-22 OB-047 (#140) — dropped the local `|| undefined` on the title tooltip; wrapTip itself now answers an absent or empty string with undefined",
+          "2026-08-22 RE-SYNCED for OB-064 (#55, PaneActionBar.tsx's 4th sibling): the DS had drifted three ways since the last sync and OB-064's own done-when depends on the first of them (\"dense is the component's own default — no prop needed\"), so all three were taken together rather than leaving the port stale under the very item that names it. (1) `dense` now defaults `true` (was: no default, i.e. falsy/30px unless a caller opted in) — checked every caller in src/ first (AppToolbar.tsx was the only one, already passing `dense` explicitly either way, so the flip changes no rendered pixel here). (2) the outer groups gap tightened, `dense ? var(--space-2) : var(--space-3)` -> `dense ? var(--space-15) : var(--space-2)` (8px/12px -> 6px/8px). (3) the within-group item gap tightened, a hardcoded `var(--space-15)` (6px, both densities) -> `var(--space-1)` (4px, both densities). (4) the group-label letter-spacing token renamed `--ls-eyebrow` -> `--ls-caps` — visually inert, `--ls-eyebrow` has been `var(--ls-caps)` in tokens/typography.css since 2026-08-08. (5) the `on`+`walk` item's border token `--acorn-300` -> `--border-walk` — also visually inert, `--border-walk: var(--acorn-300)` already in colors.css (the same alias PROVENANCE has been recommending as VersionedGroup's `optional`/`--state-optional` rename candidate). Verified: npm run verify (218/218) and tools/studio-spike/shot-apptoolbar.mjs (new)."
+        ]
+      },
+      "src/ds/chrome/NewMapMark.tsx": {
+        "from": "components/chrome/NewMapMark.jsx",
+        "contract": "components/chrome/NewMapMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (OB-064, #55) — a blank page with a plus badge, for the app toolbar's now-disabled 'New map' pill (no app-level new-map model exists yet, same honest-disabled pattern as print/save/copy/cut/paste). 1:1 port, `size`/`style` bare like the DS's own .d.ts — see adherence.test.ts's budget note."
+        ]
+      },
+      "src/ds/chrome/PrintMark.tsx": {
+        "from": "components/chrome/PrintMark.jsx",
+        "contract": "components/chrome/PrintMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (OB-064, #55) — a printer, replacing the app toolbar's old text pill. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
+        ]
+      },
+      "src/ds/chrome/SaveMark.tsx": {
+        "from": "components/chrome/SaveMark.jsx",
+        "contract": "components/chrome/SaveMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (OB-064, #55) — a floppy disk, replacing the app toolbar's old text pill. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
+        ]
+      },
+      "src/ds/chrome/LoadMark.tsx": {
+        "from": "components/chrome/LoadMark.jsx",
+        "contract": "components/chrome/LoadMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (OB-064, #55) — an open folder, for the app toolbar's new (disabled — no load model exists yet) 'Load' pill, pairing with SaveMark. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
+        ]
+      },
+      "src/ds/chrome/CopyMark.tsx": {
+        "from": "components/chrome/CopyMark.jsx",
+        "contract": "components/chrome/CopyMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (OB-064, #55) — two overlapping pages, replacing the app toolbar's old text pill. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
+        ]
+      },
+      "src/ds/chrome/PasteMark.tsx": {
+        "from": "components/chrome/PasteMark.jsx",
+        "contract": "components/chrome/PasteMark.d.ts",
+        "syncedAt": "2026-08-22",
+        "deviations": [
+          "2026-08-22 NEW FILE (OB-064, #55) — a clipboard, replacing the app toolbar's old text pill. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
         ]
       },
       "src/ds/chrome/AppHeader.tsx": {

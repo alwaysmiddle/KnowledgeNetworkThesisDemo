@@ -33,11 +33,13 @@ export interface ToolbarProps {
   /** a decorative mark pinned to the trailing edge and CROPPED by the strip —
    *  pass `<LeafMark size={40} opacity={0.2} />`. Non-interactive; toolbar clips it. */
   motif?: ReactNode
-  /** 24px items instead of 30px, for a pane-level toolbar */
+  /** 24px items instead of 30px. Default true — dense is the standard weight
+   *  everywhere this ships; pass `dense={false}` only for a deliberately larger,
+   *  standalone bar. */
   dense?: boolean
 }
 
-export function Toolbar({ groups = [], trailing, dense, brand, motif }: ToolbarProps) {
+export function Toolbar({ groups = [], trailing, dense = true, brand, motif }: ToolbarProps) {
   return (
     <div
       style={{
@@ -46,7 +48,7 @@ export function Toolbar({ groups = [], trailing, dense, brand, motif }: ToolbarP
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        gap: dense ? 'var(--space-2)' : 'var(--space-3)',
+        gap: dense ? 'var(--space-15)' : 'var(--space-2)',
         padding: dense ? '5px var(--space-4)' : '7px var(--space-5)',
         background: 'var(--surface-paper)',
         borderBottom: '1px solid var(--border-hair)',
@@ -71,13 +73,13 @@ export function Toolbar({ groups = [], trailing, dense, brand, motif }: ToolbarP
       {groups.map((g, gi) => (
         <Fragment key={gi}>
           {gi > 0 ? <span style={{ width: 1, height: 18, alignSelf: 'center', background: 'var(--border-frame)', flexShrink: 0 }} /> : null}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-15)', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', minWidth: 0 }}>
             {g.label ? (
               <span
                 style={{
                   fontSize: 'var(--fs-micro)',
                   textTransform: 'uppercase',
-                  letterSpacing: 'var(--ls-eyebrow)',
+                  letterSpacing: 'var(--ls-caps)',
                   fontWeight: 'var(--fw-bold)',
                   color: 'var(--text-3)',
                   marginRight: 2,
@@ -111,7 +113,7 @@ function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense }
       : tone === 'primary'
         ? 'var(--accent-primary-ink)'
         : 'var(--text-2)'
-  const bd = on ? (walk ? 'var(--acorn-300)' : 'var(--moss-300)') : hot && !disabled ? 'var(--border-rule)' : 'transparent'
+  const bd = on ? (walk ? 'var(--border-walk)' : 'var(--moss-300)') : hot && !disabled ? 'var(--border-rule)' : 'transparent'
   const bg = on ? (walk ? 'var(--accent-walk-wash)' : 'var(--accent-primary-wash)') : hot && !disabled ? 'var(--surface-hover)' : 'transparent'
   const box = dense ? 24 : 30
   return (
