@@ -125,10 +125,13 @@ export function NodeChain({
     const box = boxes[at]!
     const size = (down ? box.height : box.width) + arrowSize + gap
     const start = down ? e.clientY : e.clientX
-    const node = e.currentTarget
     let state = { at, d: 0, to: at, size }
     setDrag(state)
-    try { node.setPointerCapture(e.pointerId) } catch { /* older pointer impls */ }
+    /* NO POINTER CAPTURE — capturing on pointerdown retargets the ensuing click to the
+       capturing element, so a click on a chip inside a chain never reached the chip; the
+       press read as a zero-distance drag instead, and nothing errored to say so. Window
+       listeners give what capture was for (the drag survives leaving the slot) and leave
+       the click alone. Fixed under OB-084. */
     const move = (ev: PointerEvent) => {
       const d = (down ? ev.clientY : ev.clientX) - start
       const mid = centers[at] + d
@@ -139,18 +142,18 @@ export function NodeChain({
       setDrag(state)
     }
     const up = () => {
-      node.removeEventListener('pointermove', move)
-      node.removeEventListener('pointerup', up)
-      node.removeEventListener('pointercancel', up)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
       if (state.to !== state.at) {
         if (onReorder) onReorder(state.at, state.to)
         else setOwn(reorder(view.map((n) => keys[n]), state.at, state.to))
       }
       setDrag(null)
     }
-    node.addEventListener('pointermove', move)
-    node.addEventListener('pointerup', up)
-    node.addEventListener('pointercancel', up)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
   }
 
   const shiftOf = (i: number) => {

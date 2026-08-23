@@ -3,6 +3,13 @@
    classes live in the token closure, and that stays true: the hook styles a
    recipe that spans controls with nothing else in common, not a component. */
 :root { color-scheme: light; }
+/* Mirrors the DS's own base.css 1:1 (OB-057/OB-082) — has NO effect on any DS-ported
+   component here. [data-ds-host]'s content-box override (src/index.css) is a more
+   specific selector and still wins on that subtree; OB-057 already told us "nothing
+   owed on your side" and to take the DS's published geometry as-is, gap included
+   (src/ds/PROVENANCE.json). Kept in sync for vendored-file parity only, so a future
+   whole-file diff of this file doesn't have to rediscover the gap on its own. */
+*, *::before, *::after { box-sizing: border-box; }
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body {
   margin: 0;
@@ -151,6 +158,12 @@ a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
    glyph control and adds tone, reveal and tab-order withdrawal on top of this.
    This is for everything a component does not cover.
    ───────────────────────────────────────────────────────────────────────── */
+/* ONE FAILURE MODE, AND IT IS SILENT: an inline declaration beats this stylesheet's :hover, so
+   on an element whose background or border comes from a JSX style object the rules below never
+   win and nothing reports it. That is every element in ui_kits/ and templates/, which is why
+   those screens hold hover in state (as TreeRow does) or use the component that owns the recipe
+   (IconButton for a glyph-only control). Reach for the attribute where styling comes from
+   classes or a stylesheet — the app's screens. */
 [data-kn-hover] {
   box-sizing: border-box;
   border: 1px solid transparent;
