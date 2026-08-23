@@ -43,7 +43,8 @@ import { usePresentedRoad, usePublishPresentedRoute } from './presented'
 import WalkPreview from './WalkPreview'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
-import { IconButton, wrapTip } from '@/ds'
+import { IconButton, Toolbar, wrapTip } from '@/ds'
+import type { ToolbarItemSpec } from '@/ds'
 
 /** the slide-in preview pane (0005 D9). It OVERLAYS the road rather than splitting
  *  the pane, so it takes no width from the layout and the road never reflows. */
@@ -110,94 +111,58 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
   const resolved = usePresentedRoad()
   usePublishPresentedRoute(bus, resolved)
 
+  // The road's own controls — DS Toolbar (#154's follow-up), replacing a
+  // hand-rolled <button> row of the same four actions. Undo/redo dropped from
+  // here: AppToolbar already wires them to the same undoDraft/redoDraft
+  // (it's the sole undo/redo home now, app-level and always on screen), so a
+  // second pair here was a duplicate control, not a second capability.
+  const roadItems: ToolbarItemSpec[] = [
+    {
+      label: withOptionals ? 'optionals: on the road' : 'optionals: bypassed',
+      on: !withOptionals,
+      tone: 'walk',
+      onClick: () => setWithOptionals(!withOptionals),
+    },
+    {
+      glyph: '▶',
+      label: 'read the walk',
+      title: 'read the resolved walk as chapters',
+      onClick: () => setPreviewOpen(true),
+    },
+    {
+      glyph: '⤓',
+      label: 'save as walk',
+      title: 'save the resolved road as a walk the rest of the app can play',
+      onClick: openNaming,
+    },
+    {
+      glyph: '⤒',
+      label: 'add a walk',
+      title: 'drop an existing walk into the plan as one stage',
+      on: picking,
+      tone: 'walk',
+      onClick: () => {
+        setNaming(false)
+        setPicking(!picking)
+      },
+    },
+  ]
+
   return (
     // DS PaneHeader.d.ts rule 2: THE PANE BODY TAKES NO BACKGROUND OF ITS OWN — the
     // pane's --surface-paper shows through. Painting canopy here started the fill
     // INSIDE the pane's 20px corner arc with square corners, biting two square
     // notches of desk colour out of the rounded top where the content starts.
     <div data-walk-editor className="h-full flex flex-col">
-      <div className="shrink-0 px-2 py-1.5 border-b border-[var(--border-hair)]">
-        <div className="text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
+      <div className="shrink-0">
+        <div className="px-2 pt-1.5 pb-1 text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
           walk editor — the road can fork and rejoin; ● picks the branch
         </div>
-        {/* wraps rather than squeezes: with six controls in a pane this narrow,
-            a no-wrap row shrank every button until its label broke in half. */}
-        <div className="mt-1 flex flex-wrap items-center gap-1">
-          <button
-            data-opt-toggle
-            onClick={() => setWithOptionals(!withOptionals)}
-            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border"
-            style={withOptionals
-              ? { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-raised)' }
-              : { borderColor: 'var(--border-walk)', color: 'var(--text-walk)', background: 'var(--accent-walk-wash)' }}
-          >
-            {/* NO GLYPH — `◇` is on the list of typed marks this system does not use. The
-                button already says the word, so the diamond was decoration on a label that
-                is explicit without it. */}
-            optionals: {withOptionals ? 'on the road' : 'bypassed'}
-          </button>
-          <button
-            data-read-walk
-            onClick={() => setPreviewOpen(true)}
-            title={wrapTip('read the resolved walk as chapters')}
-            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
-            style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
-          >
-            ▶ read the walk
-          </button>
-          {/* #16, the two directions of the walks.ts bridge. Saving PROJECTS:
-              a Walk is a flat reading order, so the road you are looking at is
-              what is stored and the tiers are not. Loading COPIES a walk in as
-              one stage, which is the inverse at the only grain that survives. */}
-          <button
-            data-save-walk
-            onClick={openNaming}
-            title={wrapTip('save the resolved road as a walk the rest of the app can play')}
-            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)]"
-            style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
-          >
-            ⤓ save as walk
-          </button>
-          <button
-            data-add-walk
-            onClick={() => {
-              setNaming(false)
-              setPicking(!picking)
-            }}
-            title={wrapTip('drop an existing walk into the plan as one stage')}
-            className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border"
-            style={picking
-              ? { borderColor: 'var(--border-rule)', color: 'var(--text-1)', background: 'var(--surface-sunken)' }
-              : { borderColor: 'var(--border-rule)', color: 'var(--text-2)', background: 'var(--surface-raised)' }}
-          >
-            ⤒ add a walk
-          </button>
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              data-undo
-              disabled={!state.canUndo}
-              onClick={state.undo}
-              title={wrapTip('undo (Ctrl/Cmd+Z)')}
-              className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] disabled:opacity-30"
-              style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
-            >
-              ↶ undo
-            </button>
-            <button
-              data-redo
-              disabled={!state.canRedo}
-              onClick={state.redo}
-              title={wrapTip('redo (Ctrl/Cmd+Shift+Z)')}
-              className="text-[var(--fs-caption)] px-1.5 py-0.5 rounded border border-[var(--border-rule)] disabled:opacity-30"
-              style={{ color: 'var(--text-2)', background: 'var(--surface-raised)' }}
-            >
-              ↷ redo
-            </button>
-          </div>
-        </div>
+
+        <Toolbar groups={[{ items: roadItems }]} />
 
         {naming && (
-          <div data-name-walk className="mt-1 flex items-center gap-1">
+          <div data-name-walk className="px-2 py-1 flex items-center gap-1">
             <input
               autoFocus
               value={walkName}
@@ -223,13 +188,13 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
         )}
 
         {receipt && (
-          <div data-walk-receipt className="mt-1 text-[var(--fs-caption)]" style={{ color: 'var(--text-3)' }}>
+          <div data-walk-receipt className="px-2 py-1 text-[var(--fs-caption)]" style={{ color: 'var(--text-3)' }}>
             {receipt}
           </div>
         )}
 
         {picking && (
-          <div data-walk-picker className="mt-1 flex flex-wrap gap-1">
+          <div data-walk-picker className="px-2 py-1 flex flex-wrap gap-1">
             {walks.map((w) => (
               <button
                 key={w.id}
