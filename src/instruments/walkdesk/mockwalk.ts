@@ -118,32 +118,7 @@ export const PLAN: Plan = {
 }
 
 // ── Projection ──────────────────────────────────────────────────────────────
-// The flat route the bus would read: the leaf fringe of the plan at its current
-// expansion state. A collapsed container contributes a GROUP entry (a
-// placeholder with no corpus node — focus only ever moves to leaves), an
-// expanded one contributes its chosen variant's fringe instead.
-
-export type RouteEntry =
-  | { kind: 'node'; id: string; note?: string }
-  | { kind: 'group'; key: string; title: string; visits: number }
-
-export function fringe(stops: Stop[], expanded: ReadonlySet<string>): RouteEntry[] {
-  const out: RouteEntry[] = []
-  for (const s of stops) {
-    if (isLeaf(s)) {
-      if (s.unset) continue // an unbound placeholder is not a real stop yet
-      out.push({ kind: 'node', id: s.node, note: s.note })
-    } else if (isBox(s)) {
-      if (expanded.has(s.key)) {
-        // a container in the fringe walks its default (first) variant — the road
-        out.push(...fringe(s.variants[0].steps, expanded))
-      } else {
-        out.push({ kind: 'group', key: s.key, title: s.title, visits: visitCount(s) })
-      }
-    }
-  }
-  return out
-}
+// Turning a resolved stop tree into the flat route the bus would read.
 
 /** flat ordered LEAF STOPS from a resolved stop tree. resolveRoad has already
  * collapsed fork choices and dropped skipped optionals, so every container here
@@ -158,7 +133,7 @@ export function leafStops(stops: Stop[]): (Stop & { node: string })[] {
   return out
 }
 
-/** the same fringe as ids alone — what the bus route wants. Expressed through
+/** the same leaves as ids alone — what the bus route wants. Expressed through
  * leafStops so the two can never walk the tree differently. */
 export const leafIds = (stops: Stop[]): string[] => leafStops(stops).map((s) => s.node)
 
@@ -193,9 +168,9 @@ export function resolveRoad(stops: Stop[], choices: Record<string, string>, with
 
 /** Depth-first visit of every stop, descending into EVERY variant (both roads
  * of a fork, not just the chosen one). The one tree-walk the read-only
- * traversals share — validation, key collection, "all open". Projection
- * (`fringe`, `resolveRoad`) does NOT use it: those pick a single variant, so
- * their branching is the point, not boilerplate to factor out. */
+ * traversals share — validation, key collection. Projection (`resolveRoad`)
+ * does NOT use it: it picks a single variant, so its branching is the point,
+ * not boilerplate to factor out. */
 export function forEachStop(stops: Stop[], visit: (s: Stop) => void): void {
   for (const s of stops) {
     visit(s)
