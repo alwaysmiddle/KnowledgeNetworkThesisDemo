@@ -68,11 +68,20 @@ export interface IconButtonProps {
    *  tones are the component's, and a fifth hand-written variant is what this
    *  replaced */
   style?: CSSProperties
+  /** FADED, NOT RECEDED (OB-072). `reveal={false}` is for a control that isn't
+   *  relevant right now and goes fully invisible + untabbable; `disabled` is for
+   *  a control that IS relevant — the act it names still applies to this pane —
+   *  but has nothing left to do right now, e.g. "expand all" when every stop is
+   *  already open. Reads as a dimmed glyph (0.35 opacity), still in place, still
+   *  in the tab order (a screen reader should still hear the act and that it's
+   *  off, not have the control silently disappear), just not clickable or
+   *  hoverable. Default false. */
+  disabled?: boolean
 }
 
 export function IconButton({
   tone = 'chrome', size = 18, glyphSize, reveal = true, reachable = true, glyph = '✕',
-  title, label, onClick, stopPropagation = true, style, children,
+  title, label, onClick, stopPropagation = true, style, children, disabled = false,
 }: IconButtonProps) {
   const [hot, setHot] = useState(false)
   const danger = tone === 'danger'
@@ -104,26 +113,32 @@ export function IconButton({
          answers Enter; opacity and pointer-events do not fix that, tabIndex
          does. `reachable` is the same withdrawal for a cluster whose FADE the
          parent owns — tab order only, appearance untouched. */
+      disabled={disabled}
       tabIndex={shown && reachable ? 0 : -1}
-      onClick={(e) => { if (stopPropagation) e.stopPropagation(); if (onClick) onClick(e) }}
-      onMouseEnter={() => setHot(true)}
+      onClick={(e) => { if (disabled) return; if (stopPropagation) e.stopPropagation(); if (onClick) onClick(e) }}
+      onMouseEnter={() => !disabled && setHot(true)}
       onMouseLeave={() => setHot(false)}
-      onFocus={() => setHot(true)}
+      onFocus={() => !disabled && setHot(true)}
       onBlur={() => setHot(false)}
       style={{
         width: size, height: size, padding: 0, flexShrink: 0,
         display: 'grid', placeItems: 'center', boxSizing: 'border-box',
         borderRadius: 'var(--radius-pill)',
         /* reserved at rest — see the note above */
-        border: '1px solid ' + (hot ? hotEdge : 'transparent'),
-        background: hot ? hotFace : 'transparent',
-        color: hot ? hotInk : restInk,
+        border: '1px solid ' + (hot && !disabled ? hotEdge : 'transparent'),
+        background: hot && !disabled ? hotFace : 'transparent',
+        color: hot && !disabled ? hotInk : restInk,
         /* the glyph is point-sized SEPARATELY where it has to be: a cross puts
            far more ink on the page than a single stroke at the same size, so ✕
            sits at 10 beside – and + at 12. Optical sizing, not a weight change. */
         fontFamily: 'var(--font-ui)', fontSize: glyphSize || (size >= 22 ? 13 : 10), lineHeight: 1,
-        cursor: 'pointer',
-        opacity: shown ? 1 : 0, pointerEvents: shown ? 'auto' : 'none',
+        cursor: disabled ? 'default' : 'pointer',
+        /* the fade step, one number (OB-072): 0.35 is dim enough to read as
+           "nothing to do here" beside a full-ink sibling without dropping under
+           AA for the glyph it still has to show at a glance — this is presence,
+           not text, so AA's ratio doesn't gate it, but any lower stopped reading
+           as a button at all. */
+        opacity: !shown ? 0 : disabled ? 0.35 : 1, pointerEvents: !shown ? 'none' : disabled ? 'none' : 'auto',
         transition: 'opacity var(--dur-fade) var(--ease-soft), var(--transition-wash)',
         ...style,
       }}>{children || glyph}</button>
