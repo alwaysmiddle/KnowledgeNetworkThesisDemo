@@ -3,23 +3,24 @@
 // DEPTH rather than as a row of columns. Picking a diamond drills; picking a
 // visit dot folds back.
 //
-// It owns only its drill path. The road it reads comes from presented.ts and is
-// not the desk's yet — see that file for why, and #14 for the wire.
+// It owns only its drill path. The road it reads comes from presented.ts, which
+// resolves the SAME draft the walk editor writes.
 
 import { PaneScroller } from '@/ds'
 import LayerStack from './LayerStack'
-import { useDrill, PRESENTED_ROAD } from './presented'
+import { useDrill, usePresentedRoad } from './presented'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
 
 export default function WalkStackView({ bus }: { bus: Bus }) {
   const sync = useHover(bus)
   const { path, pick } = useDrill()
+  const road = usePresentedRoad()
 
   return (
     <div data-walkstack className="h-full flex flex-col">
       <PaneScroller>
-        <LayerStack stops={PRESENTED_ROAD} path={path} pick={pick} sync={sync} />
+        <LayerStack stops={road} path={path} pick={pick} sync={sync} />
       </PaneScroller>
     </div>
   )

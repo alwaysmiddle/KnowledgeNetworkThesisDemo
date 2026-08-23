@@ -21,9 +21,9 @@
 //   4. DEPTH is local per-pane state, not bus state — toggling it changes
 //      only that lens's cone and exposes frontier counts at the cap.
 //   5. SIDE-BY-SIDE comparison — adding map and contours to the composition.
-//   6/7. PRESENT PRESET — map + unfold-graph + document + walk strip, lenses
-//      benched (not unmounted). Growing the unfold graph paints visited rings
-//      on the map and drives the document pane.
+//   6/7. PRESENT PRESET — map + unfold-graph + document + walk·viewer strip,
+//      lenses benched (not unmounted). Growing the unfold graph paints
+//      visited rings on the map and drives the document pane.
 //   8. REMOVED — "teach me this" ran lens.ts's curriculum over the focused
 //      leaf's depends_on cone and dropped it onto the shared route. OB-065
 //      dropped the header button that drove it outright (not relocated);
@@ -116,7 +116,7 @@ console.log('sidebar presets =', presetCount, '(expect 3 — teaching, cockpit, 
 if (presetCount !== 3) fail(`expected 3 preset buttons, got ${presetCount}`)
 
 let onPanes = await page.locator('[data-slot="on"]').count()
-console.log('teaching preset default: panes on =', onPanes, '(expect 4 — map + unfold-graph + doc + walk)')
+console.log('teaching preset default: panes on =', onPanes, '(expect 4 — map + unfold-graph + doc + walkviewer)')
 if (onPanes !== 4) fail(`expected 4 panes on by default, got ${onPanes}`)
 
 const defaultCaption = await sidebar.innerText()
@@ -131,7 +131,7 @@ console.log('01-teaching-default.png taken')
 // repo narrowed to the teaching domain. Its panes all still exist, so compose
 // it by hand — which doubles as the proof that manual toggling de-highlights
 // the active preset and drops the sidebar to "custom composition".
-for (const off of ['map', 'unfoldgraph', 'document', 'walk']) {
+for (const off of ['map', 'unfoldgraph', 'document', 'walkviewer']) {
   await page.locator(`[aria-label="studio-inst-${off}"]`).click()
 }
 for (const on of ['tree', 'lens-depends_on', 'lens-see_also', 'lens-uses']) {
@@ -248,20 +248,20 @@ const slotOf = async (inst) => (await page.locator(`[aria-label="studio-pane-${i
 const mapOn = await slotOf('map')
 const unfoldgOn = await slotOf('unfoldgraph')
 const docOn = await slotOf('document')
-const walkOn = await slotOf('walk')
+const walkviewerOn = await slotOf('walkviewer')
 const depsOn = await slotOf('lens-depends_on')
 const refsOn = await slotOf('lens-see_also')
 const dataflowOn = await slotOf('lens-uses')
 console.log(
-  'teaching preset: map=', mapOn, 'unfoldg=', unfoldgOn, 'doc=', docOn, 'walk=', walkOn,
+  'teaching preset: map=', mapOn, 'unfoldg=', unfoldgOn, 'doc=', docOn, 'walkviewer=', walkviewerOn,
   '(all expect true) · lenses on=', depsOn, refsOn, dataflowOn, '(all expect false/benched)',
 )
-if (!(mapOn && unfoldgOn && docOn && walkOn)) fail('teaching preset did not activate map/unfoldg/doc/walk')
+if (!(mapOn && unfoldgOn && docOn && walkviewerOn)) fail('teaching preset did not activate map/unfoldg/doc/walkviewer')
 if (depsOn || refsOn || dataflowOn) fail('teaching preset left a lens pane active (should be benched)')
 
-const walkStripVisible = await page.locator('[aria-label="studio-pane-walk"]').isVisible()
-console.log('walk strip visible =', walkStripVisible)
-if (!walkStripVisible) fail('walk strip not visible under teaching preset')
+const walkviewerStripVisible = await page.locator('[aria-label="studio-pane-walkviewer"]').isVisible()
+console.log('walkviewer strip visible =', walkviewerStripVisible)
+if (!walkviewerStripVisible) fail('walkviewer strip not visible under teaching preset')
 await page.screenshot({ path: `${OUT}/06-teaching-empty.png` })
 console.log('06-teaching-empty.png taken')
 
@@ -384,7 +384,7 @@ console.log('09-roundtrip.png taken')
 // ── 11. deep layers: walk the cs flagship spine to level 8 in the tree ─────
 // Needs the tree and the lenses back; hand-composed, as in scenario 1, since
 // the Coding preset that used to supply this pairing is gone.
-for (const off of ['map', 'unfoldgraph', 'document', 'walk']) {
+for (const off of ['map', 'unfoldgraph', 'document', 'walkviewer']) {
   await page.locator(`[aria-label="studio-inst-${off}"]`).click()
 }
 for (const on of ['tree', 'lens-depends_on', 'lens-see_also', 'lens-uses']) {

@@ -28,16 +28,18 @@
 // It shares ONE draft with the palette (its own instrument since #21) through
 // the module-level stores in authordraft.ts — see the note there for why a
 // singleton is the right shape. Everything downstream still receives
-// resolveRoad()'s linear walk, and it IS published on bus.route (#14, closed) —
-// see the effect below. The Map draws it as a path across the territory and
-// Connections highlights along it.
+// resolveRoad()'s linear walk (now shared as presented.ts's usePresentedRoad,
+// so Walk·Columns/Walk·Stack/Walk·Viewer resolve the same draft the same way),
+// and it IS published on bus.route (#14, closed) via usePublishPresentedRoute.
+// The Map draws it as a path across the territory and Connections highlights
+// along it.
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 import AuthorRoad from './AuthorRoad'
 import { redoDraft, saveDraftAsWalk, undoDraft, useAuthorDraft, useRoad } from './authordraft'
 import { listWalks, subscribeWalks } from '../../model/walkstore'
-import { leafIds, resolveRoad } from './mockwalk'
+import { usePresentedRoad, usePublishPresentedRoute } from './presented'
 import WalkPreview from './WalkPreview'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
@@ -105,18 +107,8 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const resolved = useMemo(
-    () => resolveRoad(state.stops, choices, withOptionals),
-    [state.stops, choices, withOptionals],
-  )
-
-  // publish the desk's resolved walk on the bus route so the Map and
-  // Connections instruments can highlight it (#14). bus.setRoute/clearRoute are
-  // recreated each render, so we key the effect on the data sources directly.
-  useEffect(() => {
-    bus.setRoute(leafIds(resolved))
-    return () => bus.clearRoute()
-  }, [state.stops, choices, withOptionals]) // eslint-disable-line react-hooks/exhaustive-deps
+  const resolved = usePresentedRoad()
+  usePublishPresentedRoute(bus, resolved)
 
   return (
     // DS PaneHeader.d.ts rule 2: THE PANE BODY TAKES NO BACKGROUND OF ITS OWN — the

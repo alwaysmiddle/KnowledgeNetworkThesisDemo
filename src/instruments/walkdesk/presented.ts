@@ -1,4 +1,6 @@
-// What the PRESENTATION instruments read while they are unwired (#20).
+// What the PRESENTATION instruments read: the walk currently open on the desk,
+// resolved to one linear road (every container down to one variant, optionals
+// in or out per the road's own toggle).
 //
 // Columns and the layer stack used to be two zones inside the Walk·Desk, fed by
 // the desk's own draft. #20 split them out into instruments the Studio composes
@@ -6,28 +8,54 @@
 // resolved road — they never see a fork, never edit, and take no drop. A preview
 // belongs beside an editor, not inside it.
 //
-// Wiring them to the desk's live route is #69's job, deliberately not this one.
-// Until then they read the AUTHORED plan from mockwalk: a real four-tier walk
-// with a sub-walk by reference and a deliberate revisit. That is better material
-// than the desk's editing seed, and it makes the missing wire obvious — what you
-// see here is A plan, not YOUR plan.
+// usePresentedRoad() reads the SAME singleton draft the editor writes
+// (authordraft.ts), through the same resolveRoad() the editor used to call
+// locally — so what these views show is the plan actually being authored, not
+// a frozen stand-in.
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { isBox, PLAN, resolveRoad } from './mockwalk'
+import { isBox, leafIds, resolveRoad } from './mockwalk'
 import type { Stop } from './mockwalk'
+import { useAuthorDraft, useRoad } from './authordraft'
+import type { Bus } from '../../studio/bus'
 
-/** the authored plan, resolved: every container down to one variant, optionals
- * all on the road */
-export const PRESENTED_ROAD: Stop[] = resolveRoad(PLAN.stops, {}, true)
+/** the draft currently open on the desk, resolved: every container down to one
+ * variant, optionals in or out per the road's own toggle. Live — re-renders on
+ * every edit, since useAuthorDraft/useRoad bind the draft's stores directly. */
+export function usePresentedRoad(): Stop[] {
+  const { stops } = useAuthorDraft()
+  const { choices, withOptionals } = useRoad()
+  return useMemo(() => resolveRoad(stops, choices, withOptionals), [stops, choices, withOptionals])
+}
 
-/** The drill path a presentation view owns while it is unwired.
+/** Publishes the presented road onto bus.route, so Map/Connections can
+ * highlight it (#14, closed). Pass `null` to opt out — the walk viewer does
+ * this while a saved walk is playing, since activateWalk already owns
+ * bus.route in that state.
  *
- * Each instrument gets its OWN, so the columns and the stack can now disagree
- * about which tier is open — something they could not do inside the desk, which
- * handed both the same controlled stops/path/pick triple. That divergence is the
- * honest cost of splitting before wiring, and it is exactly what #69 closes: one
- * drill path on the bus, both views controlled by it again. */
+ * Deliberately has no cleanup that clears the route: the editor and the
+ * viewer can both have this mounted at once (panes bench rather than truly
+ * unmount), and an unmount-time clear from one would wipe what the other
+ * still wants shown. The single-caller version this replaced cleaned up via
+ * bus.clearRoute(), which also nulls activeWalk — that is why closing the
+ * walk editor used to kill an active saved walk. Real clears now only come
+ * from an explicit action: activateWalk, deactivateWalk, clearRoute. */
+export function usePublishPresentedRoute(bus: Bus, road: Stop[] | null): void {
+  useEffect(() => {
+    if (road === null) return
+    bus.setRoute(leafIds(road))
+    // bus is recreated every render; key only on the data that should retrigger
+    // a publish.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [road])
+}
+
+/** The drill path a presentation view owns for itself.
+ *
+ * Each instrument gets its OWN, so the columns and the stack can disagree about
+ * which tier is open — they are independent read-only views over the same
+ * road, not one shared controlled component. */
 export function useDrill() {
   const [path, setPath] = useState<string[]>([])
   const pick = (col: number, s: Stop) =>

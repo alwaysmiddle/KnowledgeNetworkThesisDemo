@@ -36,6 +36,7 @@ import WalkActionBar from '../instruments/walkdesk/WalkActionBar'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
+import WalkViewer from '../instruments/WalkViewer'
 
 export interface Instrument {
   id: string
@@ -134,8 +135,8 @@ const VIEWS = [
   },
   {
     // #20: the desk's two reading zones, now instruments in their own right.
-    // They present a resolved road and cannot edit it. Not fed by the desk yet
-    // — see walkdesk/presented.ts, and #14 for the wire.
+    // They present a resolved road and cannot edit it — fed by the desk via
+    // walkdesk/presented.ts's usePresentedRoad().
     id: 'walkcolumns',
     label: 'Walk·Columns',
     family: 'walks',
@@ -227,6 +228,18 @@ const VIEWS = [
     slot: 'strip',
     render: (bus) => <TrailStrip bus={bus} />,
   },
+  {
+    // the walk you'd actually present: a saved walk when one is active
+    // (bus.activeWalk), otherwise the draft open on the desk. Distinct from
+    // 'walk' (WalkView) — see WalkViewer.tsx's own header.
+    id: 'walkviewer',
+    label: 'Walk·Viewer',
+    family: 'walks',
+    slot: 'strip',
+    height: 240,
+    body: 'none',
+    render: (bus) => <WalkViewer bus={bus} />,
+  },
 ] as const satisfies readonly Instrument[]
 
 // ── The lenses, GENERATED from the corpus's edge types ───────────────────────
@@ -291,8 +304,8 @@ export const PRESETS: Preset[] = [
   {
     id: 'present',
     label: 'Present',
-    hint: 'map + unfold + document + walk — accumulating, authored order',
-    active: ['map', 'unfoldgraph', 'document', 'walk'],
+    hint: 'map + unfold + document + walk·viewer — accumulating, authored order',
+    active: ['map', 'unfoldgraph', 'document', 'walkviewer'],
     flex: { map: 2, unfoldgraph: 1.4, document: 1 },
   },
   {
