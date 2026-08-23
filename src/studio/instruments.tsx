@@ -114,9 +114,10 @@ const VIEWS = [
     render: (bus) => <WalkPaletteView bus={bus} />,
   },
   {
-    // #21: the writing surface, with the route it projects running down beside
-    // it. The only view in the Studio that ever sees a branch. Shares one draft
-    // with the palette through authordraft.ts's stores.
+    // #21: the writing surface — the only view in the Studio that ever sees a
+    // branch. Its receipt (the projected route) is an on-demand slide-in, not a
+    // permanent second lane (#154). Shares one draft with the palette through
+    // authordraft.ts's stores.
     id: 'walkeditor',
     label: 'Walk·Editor',
     family: 'walks',
@@ -308,7 +309,7 @@ export const PRESETS: Preset[] = [
     // and Walk·Stack stay one sidebar click away rather than crowding the row.
     id: 'plan',
     label: 'Plan',
-    hint: 'palette over document, then the walk editor and its route, then the map',
+    hint: 'palette over document, then the walk editor, then the map',
     active: [['walkpalette', 'document'], 'walkeditor', 'map'],
     flex: { walkpalette: 1, walkeditor: 1.6, map: 2 },
   },

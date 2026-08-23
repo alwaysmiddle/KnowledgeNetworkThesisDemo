@@ -536,7 +536,7 @@ export function useAuthorDraft(): AuthorState {
       commitStops(mapBox(stops, key, (s) => ({ ...s, description: desc })), 'desc:' + key)
     },
     addVariant: (key) => {
-      // empty label → the version box + namecard show the default vN name
+      // empty label → the version box shows the default vN name
       const id = nextVid()
       const variant: Variant = { id, label: '', steps: [{ node: '', unset: true, variants: [] }] }
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: [...s.variants, variant] })))

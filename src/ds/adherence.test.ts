@@ -82,7 +82,7 @@ describe('DS PaneHeader rule 2 — a pane body paints no background', () => {
   // CLEARED by OB-039 (#126). Every debt this list ever carried is now either a
   // PaneScroller/PaneCanvas body with no face of its own (ContoursView,
   // ClustersView, UnfoldGraphView, UnfoldView, WalkView, WalkColumnsView,
-  // WalkStackView, walkdesk/shared.tsx) or a PaneCanvas with `face="none"`
+  // WalkStackView) or a PaneCanvas with `face="none"`
   // drawing its own field on purpose (MapView's water, #eef4f8 — the one entry
   // that was never really debt, just a rule this scan could not tell apart from
   // it until PaneCanvas existed to say so explicitly). Kept as an empty ratchet
