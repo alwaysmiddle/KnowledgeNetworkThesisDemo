@@ -253,11 +253,14 @@ for (const c of chipCal) {
 }
 
 // -- the well's tint steps by depth -----------------------------------------
-// A nested card must not be the same colour as the card holding it. The DS
-// delivers this through a React context, which cannot reach a board's floated
-// siblings, so the `depth` prop is what carries it here — and this is the check
-// that the prop is actually wired, not merely present.
-const tints = await page.evaluate(() => {
+// OB-073: the shell is ONE face now, open or folded — the depth/fold tint moved
+// to a separate peek plate behind it, rendered only when isFolded || depth > 0.
+// An open, un-nested (depth 0) card therefore carries NO tint at all; only a
+// folded or nested card does, alternating even/odd by depth. The DS delivers
+// depth through a React context, which cannot reach a board's floated siblings,
+// so the `depth` prop is what carries it here — this checks the prop reaches
+// the peek plate for depth > 0, and that a depth-0 card stays plain.
+const { tints, even, odd } = await page.evaluate(() => {
   const root = getComputedStyle(document.documentElement)
   const want = {
     even: root.getPropertyValue('--surface-sunken').trim(),
@@ -269,21 +272,21 @@ const tints = await page.evaluate(() => {
   const resolve = (v) => { probe.style.backgroundColor = v; return getComputedStyle(probe).backgroundColor }
   const res = { even: resolve(want.even), odd: resolve(want.odd) }
   probe.remove()
-  return [...document.querySelectorAll('[data-cal-open]')].map((host) => {
+  const tints = [...document.querySelectorAll('[data-cal-open]')].map((host) => {
     // the well is the card's own face: the descendant painted in either tint
     const face = [...host.querySelectorAll('*')]
       .find((n) => { const b = getComputedStyle(n).backgroundColor; return b === res.even || b === res.odd })
     const got = face ? getComputedStyle(face).backgroundColor : null
-    return { k: host.getAttribute('data-cal-open'), depth: +host.getAttribute('data-cal-depth'), got,
-      want: (+host.getAttribute('data-cal-depth')) % 2 ? res.odd : res.even }
+    const depth = +host.getAttribute('data-cal-depth')
+    return { k: host.getAttribute('data-cal-open'), depth, got, want: depth === 0 ? null : (depth % 2 ? res.odd : res.even) }
   })
+  return { tints, even: res.even, odd: res.odd }
 })
 const tintBad = tints.filter((t) => t.got !== t.want)
 console.log(`well tint by depth: ${tints.map((t) => `${t.k}@${t.depth}${t.got === t.want ? '' : ' MISMATCH'}`).join(', ')}`)
-console.log(`  even=${tints[0] && tints[0].want}  odd=${tints.find((t) => t.depth % 2) ? tints.find((t) => t.depth % 2).want : 'n/a'}`)
+console.log(`  even=${even}  odd=${odd}`)
 for (const t of tintBad) {
-  console.log(`TINT DRIFT: ${t.k} sits at depth ${t.depth} and painted ${t.got}, expected ${t.want}`
-    + ' — the depth is not reaching the component, so a nested well is the same colour as the one holding it')
+  console.log(`TINT DRIFT: ${t.k} sits at depth ${t.depth} painted ${t.got}, expected ${t.want}`)
 }
 
 await browser.close()

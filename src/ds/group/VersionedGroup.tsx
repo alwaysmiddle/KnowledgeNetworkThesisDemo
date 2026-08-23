@@ -1990,8 +1990,8 @@ export function VersionedGroup({
       transform: at ? 'translate(' + at.x + 'px, ' + at.y + 'px)' : undefined,
       zIndex: carrying ? 40 : undefined,
     }}>
-      {isFolded ? (
-        <div aria-hidden="true" style={{ position: 'absolute', inset: '4px 0 0 4px', borderRadius: 'var(--radius-lg)', background: 'var(--surface-sunken-2)', zIndex: 0 }} />
+      {isFolded || depth > 0 ? (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: '4px 0 0 4px', borderRadius: 'var(--radius-lg)', background: depth % 2 ? 'var(--surface-sunken-2)' : 'var(--surface-sunken)', zIndex: 0 }} />
       ) : null}
       <div data-grab="" onPointerDown={startMove} style={{
         position: 'relative', zIndex: 1, borderRadius: 'var(--radius-lg)', boxSizing: 'border-box',
@@ -2000,9 +2000,9 @@ export function VersionedGroup({
            does not wrap against */
         padding: isFolded ? '8px var(--space-2) 9px' : 'var(--space-2) var(--space-2) var(--space-3)',
         display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
-        background: isFolded ? 'var(--surface-raised)' : (depth % 2 ? 'var(--surface-sunken-2)' : 'var(--surface-sunken)'),
-        border: '1px solid ' + (isFolded ? 'var(--border-rule)' : 'transparent'),
-        boxShadow: carrying ? 'var(--lift-drag)' : isFolded ? 'var(--lift-2)' : 'var(--sink-1)',
+        background: 'var(--surface-raised)',
+        border: '1px solid var(--border-rule)',
+        boxShadow: carrying ? 'var(--lift-drag)' : '0 1px 2px rgba(53,49,42,0.06), 0 3px 6px -4px rgba(53,49,42,0.20)',
         /* SELECTED: the outline is the CARD's own edge, open or folded — the whole group
            is what got picked, so the whole group is what is drawn round. It was briefly
            the head only, on the reasoning that a group's nodes are selectable in their
