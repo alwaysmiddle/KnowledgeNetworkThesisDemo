@@ -76,6 +76,13 @@ const VB_H = FLAT_H + 80
 const U_CX = VB_X + VB_W / 2
 const U_CY = VB_Y + VB_H / 2
 
+/** the water behind every territory — exported so the shell can pass it as the
+ *  Pane's own `face` (OB-066), rather than leaving it to the frame's default
+ *  `--surface-paper` to show around the canvas's corners and its shorter-than-
+ *  the-pane bottom edge. One value, read here and by the shell; a second typed
+ *  copy is the staleness this item exists to close. */
+export const MAP_WATER = '#eef4f8'
+
 // Levels run L0..maxTier — the deepest stratum in the DATA decides how far
 // the scale goes. Each level is a canonical scale; there is nothing between.
 const L_MAX = maxTier
@@ -528,7 +535,7 @@ export default function MapView({ bus }: { bus: Bus }) {
   const ancLabelOAt = (d: number, id: string) => (id === ghostUnderCursor ? 0.03 : ancLabelO(d))
 
   return (
-    <PaneCanvas aria-label="map-view" face="none" style={{ background: '#eef4f8' }}>
+    <PaneCanvas aria-label="map-view" face="none" style={{ background: MAP_WATER }}>
       <svg
         ref={svgRef}
         data-nested
