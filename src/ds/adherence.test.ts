@@ -306,7 +306,10 @@ describe('our DS ports document what the DS documents', () => {
   // documented it (now also explaining the range-label case). `onClick` stays bare —
   // the DS's own StepDot.d.ts leaves it bare too, DS parity like the NodeRail/Pane
   // lines above.
-  const BUDGET = 70
+  // +4 for the two new chrome marks (OB-070): NewWalkMark, AddNodeMark — each just
+  // `size`/`style`, bare in the DS's own .d.ts for both. Same DS-parity reasoning as
+  // the six-mark line above.
+  const BUDGET = 74
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

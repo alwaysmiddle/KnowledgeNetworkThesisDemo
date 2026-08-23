@@ -354,6 +354,22 @@
           "2026-08-22 NEW FILE (OB-064, #55) — a clipboard, replacing the app toolbar's old text pill. 1:1 port, `size`/`style` bare like the DS's own .d.ts."
         ]
       },
+      "src/ds/chrome/NewWalkMark.tsx": {
+        "from": "components/chrome/NewWalkMark.jsx",
+        "contract": "components/chrome/NewWalkMark.d.ts",
+        "syncedAt": "2026-08-23",
+        "deviations": [
+          "2026-08-23 NEW FILE (OB-070) — a page with a folded corner and a plus, replacing WalkActionBar.tsx's typed ✦ for the walk editor's \"New walk\" action. 1:1 port, `size`/`style` bare like the DS's own .d.ts — see adherence.test.ts's budget note. Adopted the same commit: `{ glyph: '✦', ... }` -> `{ glyph: <NewWalkMark size={13} />, ... }`, copying the exact call shape design-sync.md's `chrome.card.html` \"pane action bar\" specimen already used, per its own \"copy from\" instruction, rather than re-typing the Unicode glyph or guessing a size."
+        ]
+      },
+      "src/ds/chrome/AddNodeMark.tsx": {
+        "from": "components/chrome/AddNodeMark.jsx",
+        "contract": "components/chrome/AddNodeMark.d.ts",
+        "syncedAt": "2026-08-23",
+        "deviations": [
+          "2026-08-23 NEW FILE (OB-070) — a circle around a plus, replacing WalkActionBar.tsx's typed ⊙ for the walk editor's \"Add node\" action. 1:1 port, `size`/`style` bare like the DS's own .d.ts. Adopted the same commit, same shape as NewWalkMark above."
+        ]
+      },
       "src/ds/chrome/AppHeader.tsx": {
         "from": "components/chrome/AppHeader.jsx",
         "contract": "components/chrome/AppHeader.d.ts",
