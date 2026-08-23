@@ -133,6 +133,13 @@ const BAR_ROW_H = 26
  *  the placeholder still takes room — so measure() and the head read it here,
  *  from one place, or the head would wrap against a width nobody reserved. */
 const VERSION_UNNAMED = 'name this version'
+/** OB-081: a fresh stage/container used to be SEEDED with this string as its literal
+ *  `title` (authordraft.ts's `groupSelection`), so an unnamed card and one somebody
+ *  actually named "name this stage" were indistinguishable, and the "name" survived a
+ *  save unless the user happened to retype it. The stage now keeps an empty title;
+ *  this is passed as `titlePlaceholder` instead, an invitation the component draws
+ *  and never treats as real data. */
+const STAGE_UNNAMED = 'name this stage'
 const versionCode = (chosen: number): string => `v${chosen + 1}`
 
 /** what GroupGeometry — and the component — is told about a container: the same strings,
@@ -149,13 +156,15 @@ const roadSpec = (s: Stop, outline: string, width: number, slotH: number, chosen
   GroupGeometry.groupSpec({
     width,
     title: s.title ?? '',
+    titlePlaceholder: STAGE_UNNAMED,
     index: outline,
     description: s.description ?? '',
     descPlaceholder: 'enter description',
     // a stand-in, never called: groupSpec() only checks onDescribe's presence, to derive
     // `describable` — every open card here IS editable, matching the real onDescribe below
     onDescribe: () => {},
-    versions: s.variants.map((v, i) => ({ id: v.id, name: v.label || VERSION_UNNAMED, label: versionCode(i) })),
+    versions: s.variants.map((v, i) => ({ id: v.id, name: v.label, label: versionCode(i) })),
+    versionNamePlaceholder: VERSION_UNNAMED,
     activeId: s.variants[chosen]?.id ?? '',
     count: s.variants[chosen]?.steps.length ?? 0,
     countLabel: 'nodes',
@@ -917,6 +926,7 @@ export default function AuthorRoad({
                     selected={isSelected}
                     optional={!!s.optional}
                     title={s.title ?? ''}
+                    titlePlaceholder={STAGE_UNNAMED}
                     index={pl.outline}
                     /* the road floats its cards as board-level siblings, so the DS's
                        Depth context never reaches them — `pl.depth` is the same count,
@@ -924,7 +934,8 @@ export default function AuthorRoad({
                     depth={pl.depth}
                     description={s.description ?? ''}
                     count={shutSteps.length}
-                    versions={s.variants.map((v, i) => ({ id: v.id, name: v.label || VERSION_UNNAMED, label: versionCode(i) }))}
+                    versions={s.variants.map((v, i) => ({ id: v.id, name: v.label, label: versionCode(i) }))}
+                    versionNamePlaceholder={VERSION_UNNAMED}
                     activeId={s.variants[shutChosen]?.id ?? ''}
                     onSelect={(id) => pickBranch(s.key!, id)}
                     // TOLD, never measured: `narrow` uninstalls the component's
@@ -1052,6 +1063,7 @@ export default function AuthorRoad({
                   width={pl.w}
                   narrow={spec.narrow}
                   title={spec.title ?? ''}
+                  titlePlaceholder={STAGE_UNNAMED}
                   index={spec.index}
                   /* the road floats its cards as board-level siblings, so the DS's
                      Depth context never reaches them — `pl.depth` is the same count,
@@ -1061,7 +1073,8 @@ export default function AuthorRoad({
                   descPlaceholder={spec.descPlaceholder}
                   count={spec.count}
                   countLabel={spec.countLabel}
-                  versions={s.variants.map((v, i) => ({ id: v.id, name: v.label || VERSION_UNNAMED, label: versionCode(i) }))}
+                  versions={s.variants.map((v, i) => ({ id: v.id, name: v.label, label: versionCode(i) }))}
+                  versionNamePlaceholder={VERSION_UNNAMED}
                   activeId={s.variants[chosen]?.id ?? ''}
                   // the road's two cues, drawn by the card: selection round the head
                   // (a card's body holds nodes selectable in their own right);

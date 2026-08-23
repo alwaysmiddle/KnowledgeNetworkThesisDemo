@@ -127,6 +127,13 @@ export interface VersionedGroupProps {
    *  wording a faithful port would have implemented, sitting beside code that already
    *  measured the row instead — reported in receipts/b319861.md.) */
   title: string
+  /** the invitation shown — an italic overlay, never real text — when `title` is
+   *  empty. Default 'untitled'. Pass an empty `title` and this instead of seeding
+   *  new data with literal placeholder text: a caller that bakes "name this stage"
+   *  into `title` itself cannot tell an unnamed card from one somebody actually
+   *  named that (OB-081). `GroupGeometry.headHeight()`/`foldedSize()` measure this
+   *  in place of `title` when it is empty, so the predicted height matches. */
+  titlePlaceholder?: string
   /** the group's position among its siblings ("2."). Derived, mono, never editable.
    *  The children's own numbers come from it: 2. contains 2.1, 2.2, 2.3 */
   index?: string
@@ -220,6 +227,12 @@ export interface VersionedGroupProps {
   versions: GroupVersion[]
   /** the version on screen; falls back to the first */
   activeId?: string
+  /** the invitation shown — an italic overlay, never real text — when the active
+   *  version's `name` is empty. Default 'untitled', same terms as
+   *  `titlePlaceholder`: pass an empty `name` on an unnamed version rather than
+   *  seeding it with literal text, and this instead (OB-081). Also reaches the
+   *  version-picker menu's own rows for a version that isn't the active one. */
+  versionNamePlaceholder?: string
   /** how many items are inside — defaults to the child count, override when the
    *  body renders something other than one element per item. REQUIRED in
    *  `bodySlot` mode: there are no children left to count */
@@ -526,15 +539,39 @@ function InlineText({
         point.current = { x: e.clientX, y: e.clientY }
         onOpen()
       }}
-      /* A DOUBLE-CLICK ON THE WORDS IS A WORD SELECTION AND NOTHING ELSE — it must not
-         also reach whatever the card is sitting in. Verbatim from the DS. This is the
-         handler a host's own bubbling `onDoubleClick` cannot see past even when this
-         line removed it entirely (measured) — see "WHAT THE HOST AROUND IT MUST KNOW"
-         above the file's props, and take a host gesture in the CAPTURE phase instead. */
-      onDoubleClick={(e) => e.stopPropagation()}
-      /* the words are a DRAG surface at rest and a TEXT surface while editing:
-         without this a select-drag across them picks the card up instead of the
-         sentence */
+      /* SELECT ALL, NOT ONE WORD (OB-081). A double-click's native default is word-select
+         — right for reading, wrong for a field you are about to retype: a whole-field
+         double-click is the universal "replace everything" gesture (a URL bar, a
+         spreadsheet cell), and word-select instead makes the caller manually extend the
+         selection before typing over it. Only while editing — at rest a double-click still
+         does nothing of ours, so it falls back to whatever selecting read-only text means
+         to the platform. This ALSO stops the event reaching whatever the card is sitting
+         in, same as before — see "WHAT THE HOST AROUND IT MUST KNOW" above the file's
+         props, and take a host gesture in the CAPTURE phase instead. */
+      onDoubleClick={(e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!editing) return
+        e.preventDefault()
+        const el = ref.current
+        const sel = el && window.getSelection()
+        if (!el || !sel) return
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }}
+      /* the words are a drag surface at rest and a text surface while editing: without
+         this a select-drag across them picks the CARD up instead of the sentence.
+         `onPointerDown` is the OTHER half of the guard (OB-081) — `VersionedGroup`'s own
+         card-move starts on `onPointerDown` via `data-grab`, which this element never
+         carries, so it was already safe here — but `NodeChain` ALSO starts its reorder
+         drag on `onPointerDown`, one level further up, for any chip it is handed,
+         including a card sitting inside a chain. Its own exclusion list didn't know this
+         field existed, so a press-and-drag meant to select text inside an editing title,
+         description or version name read as the start of a reorder instead — stopped
+         here, at the source, so every host this component is dropped into is protected
+         rather than each one having to learn about contentEditable itself. */
+      onPointerDown={editing ? (e: React.PointerEvent) => e.stopPropagation() : undefined}
       onMouseDown={editing ? (e: React.MouseEvent) => e.stopPropagation() : undefined}
       onInput={editing && placeholder ? (e: React.FormEvent<HTMLSpanElement>) => setBlank(!e.currentTarget.textContent?.trim()) : undefined}
       onKeyDown={editing ? (e: React.KeyboardEvent) => {
@@ -765,14 +802,18 @@ function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
+function VersionRow({ version, on, onPick, onDelete, confirming, onCancel, namePlaceholder }: {
   version: GroupVersion; on: boolean; onPick: () => void
   onDelete?: () => void; confirming?: boolean; onCancel?: () => void
+  /** OB-081: the menu shows every OTHER version too, not just the active one InlineText
+   *  edits — an unnamed one among them needs the same invitation rather than a blank row */
+  namePlaceholder?: string
 }) {
   const [hot, show, hide] = useRecede()
+  const shownName = version.name || namePlaceholder
   /* the worst clip in the system: the listbox is 220px and a version name can be a
      whole sentence */
-  const nameClip = useClipped<HTMLSpanElement>(version.name)
+  const nameClip = useClipped<HTMLSpanElement>(shownName)
   return (
     <div style={{ position: 'relative', display: 'flex' }}
       onMouseEnter={show} onMouseLeave={hide}
@@ -807,7 +848,7 @@ function VersionRow({ version, on, onPick, onDelete, confirming, onCancel }: {
             {version.label ? (
               <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'var(--tnum)', color: on ? 'var(--accent-primary-ink)' : 'var(--text-2)' }}>{version.label}</span>
             ) : null}
-            <span {...nameClip} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{version.name}</span>
+            <span {...nameClip} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: onDelete ? 16 : 0 }}>{shownName}</span>
           </button>
           {onDelete ? (
             <button type="button" title={wrapTip('delete this version')} aria-label="delete this version"
@@ -984,6 +1025,9 @@ export function slotInsets(scrolls?: boolean): { left: number; right: number; ax
 export interface GroupSpec {
   width?: number
   title?: string
+  /** the invitation `headHeight()`/`foldedSize()` measure in place of `title` when
+   *  it is empty, so an unnamed card's predicted height matches what it draws */
+  titlePlaceholder?: string
   index?: string
   description?: string
   descPlaceholder?: string
@@ -996,6 +1040,9 @@ export interface GroupSpec {
    *  as the drawing does. */
   describable?: boolean
   versionName?: string
+  /** the invitation measured in place of `versionName` when it is empty, same terms
+   *  as `titlePlaceholder` */
+  versionNamePlaceholder?: string
   versionLabel?: string
   count?: number
   countLabel?: string
@@ -1165,7 +1212,7 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
   const M = GROUP_METRICS
   const width = s.width || 300
   const c = titleColumn(width, s, false)
-  const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampOpen))
+  const titleLines = Math.max(1, linesOf(s.title || s.titlePlaceholder || 'untitled', c.col, 700, 13, 'display', M.titleClampOpen))
   /* the head is measured from the card's outer edge, border included — and the border
      is what the browser laid out, not the authored 1 */
   const hair = hairline()
@@ -1209,7 +1256,7 @@ export function headHeight(spec?: GroupSpec): HeadHeight {
      layout), so FOUR edges sit between the card's width and the version name's column. */
   let pcol = width - hair * 4 - M.padX * 2 - M.pickerPadX - M.pickerCheck - M.pickerCaret - M.pickerGap * 3
   if (s.versionLabel) pcol -= measure(s.versionLabel, 500, 11, 'mono')
-  const vLines = Math.max(1, linesOf(s.versionName || 'untitled', pcol, 600, 13, 'ui', M.versionClamp))
+  const vLines = Math.max(1, linesOf(s.versionName || s.versionNamePlaceholder || 'untitled', pcol, 600, 13, 'ui', M.versionClamp))
   /* the row is border-box, so its 1px edge is inside the --hit-min floor and on top of
      its own padding — and its content is the taller of the text and the 18px marks. The
      --hit-min floor is the DS's and was missing here; it only bites below dpr 1, so this
@@ -1276,7 +1323,7 @@ export function foldedSize(spec?: GroupSpec): { width: number; height: number; t
   const M = GROUP_METRICS
   const width = Math.max(s.width || 190, s.foldedMinWidth || 190)
   const c = titleColumn(width, s, true)
-  const titleLines = Math.max(1, linesOf(s.title || 'untitled', c.col, 700, 13, 'display', M.titleClampFolded))
+  const titleLines = Math.max(1, linesOf(s.title || s.titlePlaceholder || 'untitled', c.col, 700, 13, 'display', M.titleClampFolded))
   const tally = M.rowGap + M.tallyRow /* ★ tallyRow, not microLine */
   const h = hairline() * 2 + M.foldPadTop + Math.max(M.headMinH, titleLines * M.bodyLine)
     + (c.narrow ? tally : 0) + M.foldPadBottom + M.foldPeekY
@@ -1297,11 +1344,13 @@ export function groupSpec(props: VersionedGroupProps): GroupSpec {
   const live = vs.find((v) => v.id === p.activeId) || vs[0] || ({} as Partial<GroupVersion>)
   const spec: GroupSpec = {
     title: p.title,
+    titlePlaceholder: p.titlePlaceholder,
     index: p.index,
     description: p.description,
     descPlaceholder: p.descPlaceholder,
     describable: !!p.onDescribe,
     versionName: live.name,
+    versionNamePlaceholder: p.versionNamePlaceholder,
     versionLabel: live.label,
     count: p.count === undefined ? vs.length : p.count,
     countLabel: p.countLabel,
@@ -1333,9 +1382,9 @@ export const GroupGeometry = {
 }
 
 export function VersionedGroup({
-  title = 'untitled', index, description, versions = [], activeId,
+  title, titlePlaceholder = 'untitled', index, description, versions = [], activeId,
   folded, defaultFolded = false, selected = false, optional = false, count, addLabel = 'add new version', defaultOpen = false,
-  descPlaceholder = 'enter description',
+  descPlaceholder = 'enter description', versionNamePlaceholder = 'untitled',
   emptyLabel = 'no nodes in this version — drag one in', numberSteps = true, countLabel = 'nodes',
   onReorderNodes,
   maxWidth = 300, bodyMaxHeight = GROUP_METRICS.bodyMaxHeight, menuMaxHeight = 240, foldedMinWidth = 190,
@@ -1781,7 +1830,7 @@ export function VersionedGroup({
             used to open was a single line, so clicking a two-line name collapsed the
             head row under the pointer. Same instrument as the description now — the
             words themselves, a caret, no box. */}
-        <InlineText value={title}
+        <InlineText value={title} placeholder={titlePlaceholder}
           /* AND THE RESTING TITLE ENDS IN "…" WHEN ITS CAP CUT IT (OB-033). Cut
              against `titleCol`, the column the row really leaves — never
              `titleColumn()`'s arithmetic, which is computed for the HEIGHT and runs
@@ -1789,15 +1838,20 @@ export function VersionedGroup({
              there is nothing to decide against, so the full string stands: a card's
              first paint shows a clipped title without its "…" for one frame, which
              is the right way round — inventing an ellipsis from a guessed column
-             would put one on a title that fits. */
-          display={clampToLines(title, isFolded ? GROUP_METRICS.titleClampFolded : GROUP_METRICS.titleClampOpen,
-            titleCol, 700, 13, 'display')}
+             would put one on a title that fits. NO DISPLAY AT ALL WHILE `title` IS
+             EMPTY (OB-081) — the placeholder overlay draws the invitation instead,
+             and `clampToLines('')` would return '' anyway, but the conditional says
+             so rather than relying on that being true. */
+          display={title ? clampToLines(title, isFolded ? GROUP_METRICS.titleClampFolded : GROUP_METRICS.titleClampOpen,
+            titleCol, 700, 13, 'display') : undefined}
           editing={editing === 'title'}
           onOpen={() => setEditing('title')}
-          /* a group must have a name: an empty commit is refused and the old one stands */
+          /* a group must have a name: an empty commit is refused and the old one
+             stands — including a placeholder "name", which simply stays a
+             placeholder */
           onCommit={(v) => { setEditing(null); if (v && v !== title && onRetitle) onRetitle(v) }}
           onCancel={() => setEditing(null)}
-          tooltip={title}
+          tooltip={wrapTip(title || titlePlaceholder)}
           style={{
             /* NO -webkit-box AND NO -webkit-line-clamp. The wrapper was made a block
                to stop the label being blockified and it STILL computed to flow-root
@@ -1869,7 +1923,7 @@ export function VersionedGroup({
       background: 'var(--surface-raised)', border: '1px solid var(--border-rule)', boxShadow: 'var(--lift-2)',
     }}>
       {versions.map((v) => (
-        <VersionRow key={v.id} version={v} on={v.id === active.id}
+        <VersionRow key={v.id} version={v} on={v.id === active.id} namePlaceholder={versionNamePlaceholder}
           onPick={() => { setOpen(false); if (onSelect) onSelect(v.id) }}
           confirming={confirming === v.id}
           onCancel={() => setConfirming(null)}
@@ -1909,20 +1963,22 @@ export function VersionedGroup({
           {/* the live version's name, edited in place like the other two. It wraps to
               two lines, so the single-line field it used to open had the same
               collapse the title's did. */}
-          <InlineText value={active.name}
+          <InlineText value={active.name} placeholder={versionNamePlaceholder}
             /* AND IT ENDS IN "…" WHEN ITS CAP CUT IT, for the same reason the title
                does: a name stopping mid-sentence with nothing to say so is
                indistinguishable from a short name. This row is where it matters most
                — a version name is often the only thing telling two versions apart.
                Cut against `verCol`, the column the row really leaves, never the
-               `pcol` arithmetic inside `headHeight()`. */
-            display={clampToLines(active.name, GROUP_METRICS.versionClamp, verCol, 600, 13, 'ui')}
+               `pcol` arithmetic inside `headHeight()`. NO DISPLAY AT ALL WHILE
+               `active.name` IS EMPTY (OB-081) — the placeholder overlay carries it. */
+            display={active.name ? clampToLines(active.name, GROUP_METRICS.versionClamp, verCol, 600, 13, 'ui') : undefined}
             editing={editing === 'version'}
             onOpen={() => { setOpen(false); setEditing('version') }}
-            /* a version must keep a name: an empty commit is refused */
+            /* a version must keep a name: an empty commit is refused — including a
+               placeholder "name", which simply stays a placeholder */
             onCommit={(v) => { setEditing(null); if (v && v !== active.name && onRename) onRename(active.id, v) }}
             onCancel={() => setEditing(null)}
-            tooltip={active.name}
+            tooltip={wrapTip(active.name || versionNamePlaceholder)}
             style={{
               width: 'fit-content',
               /* A version name is authored text and can run long, so it WRAPS — to

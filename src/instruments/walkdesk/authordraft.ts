@@ -453,7 +453,10 @@ export function useAuthorDraft(): AuthorState {
       commit(
         rebuildListAt(stops, run.parent, (list) => [
           ...list.slice(0, run.from),
-          { key, title: 'name this stage', variants: [{ id: nextVid(), label: '', steps: list.slice(run.from, run.to + 1) }] },
+          // empty title, not the literal "name this stage" (OB-081) — the card draws
+          // that as titlePlaceholder now, an invitation rather than saved data an
+          // unrenamed group would otherwise carry forever
+          { key, title: '', variants: [{ id: nextVid(), label: '', steps: list.slice(run.from, run.to + 1) }] },
           ...list.slice(run.to + 1),
         ]),
       )
