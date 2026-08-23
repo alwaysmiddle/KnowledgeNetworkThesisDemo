@@ -465,14 +465,13 @@ export default function MapView({ bus }: { bus: Bus }) {
       if (last && last.visId === s.visId) last.steps.push(s.step)
       else groups.push({ visId: s.visId, c: s.c, steps: [s.step] })
     }
-    // bus.route is truncated to the played prefix while a walk is active
-    // (bus.ts's activateWalk), so the cursor is always the LAST raw step — a
-    // route with no active walk (the walk editor's live preview, say) has no
-    // cursor at all, and every pin reads 'ahead': nothing has been WALKED yet,
-    // only proposed.
-    const cursorStep = bus.activeWalk ? bus.activeWalk.cursor + 1 : null
+    // bus.route is truncated to the played prefix while a SAVED walk is active
+    // (bus.ts's activateWalk), so the cursor is always the LAST raw step. With
+    // no saved walk, the route may instead be the DRAFT open on the desk
+    // (walkdesk/presented.ts publishes it live) — bus.draftCursor is that
+    // road's own cursor, moved by Walk·Viewer's seek bar or the walk editor.
+    const cursorStep = bus.activeWalk ? bus.activeWalk.cursor + 1 : bus.draftCursor + 1
     const stateOf = (steps: number[]): 'done' | 'current' | 'ahead' => {
-      if (cursorStep === null) return 'ahead'
       const last = steps[steps.length - 1]
       return last < cursorStep ? 'done' : last === cursorStep ? 'current' : 'ahead'
     }
@@ -507,7 +506,7 @@ export default function MapView({ bus }: { bus: Bus }) {
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeVis, bus.activeWalk, f, view.s])
+  }, [routeVis, bus.activeWalk, bus.draftCursor, f, view.s])
 
   // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
   // zoom — so a name's line breaks are decided once per level, not per frame

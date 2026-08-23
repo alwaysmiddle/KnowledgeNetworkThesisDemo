@@ -71,6 +71,12 @@ export interface BusState {
    * Never written — a channel with two writers is a channel with a bug. */
   visited: ReadonlySet<string>
   activeWalk: ActiveWalkState | null
+  /** the cursor into the DRAFT road (the walk currently open on the desk),
+   * as opposed to activeWalk's cursor into a SAVED walk. Walk·Viewer reads
+   * whichever of the two applies; the map's pins fall back to this one when
+   * no saved walk is active, so the draft gets the same done/current/ahead
+   * treatment a saved walk does. */
+  draftCursor: number
   /** the tree instrument's root — auto-re-rooted, REACTIVELY, by setFocus */
   treeRoot: string
 }
@@ -111,6 +117,11 @@ export interface BusActions {
   activateWalk(walkId: string, stopIndex: number): void
   advanceWalk(): void
   deactivateWalk(): void
+  /** move the DRAFT cursor (see BusState.draftCursor) — Walk·Viewer's seek bar
+   * calls this while no saved walk is active. Clamped at >= 0; the top end is
+   * the caller's job, same as activateWalk leaves stopIndex's upper bound to
+   * its own guard. */
+  setDraftCursor(i: number): void
   /** generate a prerequisite curriculum over the focused topic and walk it */
   teach(): void
   /** clear WHERE you are, not WHAT you have on screen */
@@ -131,6 +142,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   // line are two readings of this one value
   const [hist, setHist] = useState(HISTORY_EMPTY)
   const [activeWalk, setActiveWalk] = useState<ActiveWalkState | null>(null)
+  const [draftCursor, setDraftCursorState] = useState(0)
   const [treeRoot, setTreeRoot] = useState(ROOT_ID)
 
   const visited = useMemo(() => new Set(hist.log.filter((t) => byId.get(t.id)?.topic).map((t) => t.id)), [hist.log])
@@ -185,11 +197,13 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     if (r.length > 0) markTrail(r[r.length - 1], 'walk')
   }
 
+  const setDraftCursor = (i: number) => setDraftCursorState(Math.max(0, i))
+
   const activateWalk = (walkId: string, stopIndex: number) => {
     const w = walkById(walkId)
     if (!w || stopIndex < 0 || stopIndex >= w.stops.length) return
     setActiveWalk({ walkId, cursor: stopIndex })
-    reveal('trail') // the next-stop controls live there
+    reveal('walkviewer') // the next-stop controls live there
     setRoute(w.stops.slice(0, stopIndex + 1).map((s) => s.id))
   }
 
@@ -218,6 +232,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     trail: hist.log,
     visited,
     activeWalk,
+    draftCursor,
     treeRoot,
     canBack: hist.cursor > 0 || (focus === null && hist.cursor >= 0),
     canForward: hist.cursor < hist.stack.length - 1,
@@ -231,6 +246,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     peekAt,
     setMatches,
     setRoute,
+    setDraftCursor,
     setTreeRoot,
     reveal,
     visit: markTrail,
@@ -240,6 +256,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     clearRoute: () => {
       setRouteState([])
       setActiveWalk(null)
+      setDraftCursorState(0)
     },
     teach: () => {
       if (!focus) return
@@ -258,6 +275,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
       setRouteState([])
       setHist(HISTORY_EMPTY)
       setActiveWalk(null)
+      setDraftCursorState(0)
     },
   }
 }
