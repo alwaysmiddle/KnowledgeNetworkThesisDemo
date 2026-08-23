@@ -186,6 +186,93 @@ describe('DS TreeRow — a switched-off border side needs longhands, not a short
   })
 })
 
+// ─── rule 4 ──────────────────────────────────────────────────────────────────
+// OB-062 (design-sync.md), assertion 1: "No hand-assembled palette token. Walk
+// src/instruments, src/studio, src/ui and fail on any string matching --hue-,
+// --domain- or --edge- outside src/ds. var() on an undefined property is
+// TRANSPARENT, so a typo in one of these draws nothing and reports nothing —
+// this is the fault class edgeHue() was rewritten to remove, and the test is
+// what stops it coming back through a different door."
+//
+// Every topic/relation colour reaches a view through a DS component
+// (DomainDot, NodeChip, EdgeLegend, EdgeEntry, NodeArrow) or a resolver
+// (topicPaint/relationPaint/domainToken/edgeHue) — never a literal token
+// string. Currently empty by construction; the value is catching the day
+// someone reaches past the resolver for a one-off swatch.
+describe('OB-062 — the data palette is never a raw token outside src/ds', () => {
+  it('no view under src/instruments, src/studio or src/ui names --hue-/--domain-/--edge- directly', () => {
+    const hits = scan(tsxUnder('src/instruments', 'src/studio', 'src/ui'), (line) => {
+      const m = line.match(/--(?:hue|domain|edge)-[a-z][a-z0-9-]*/i)
+      return m ? m[0] : null
+    })
+    expect(show(hits)).toEqual([])
+  })
+})
+
+// ─── rule 5 ──────────────────────────────────────────────────────────────────
+// OB-062, assertion 2: "No relation drawn in the mark role, and no topic in
+// the stroke role. Fail on -stroke reaching a background/fill and on a bare
+// --hue-<name> (no suffix) reaching a border-/stroke on an edge component.
+// This is the rule that keeps the two data families apart where their hues
+// meet, and it is the one topicPaint()/relationPaint() make unnecessary —
+// the test catches the sites that have not adopted them yet."
+describe('OB-062 — a topic is a filled mark, a relation is a line, and the two never swap', () => {
+  it('no -stroke role token reaches a background or fill', () => {
+    const hits = scan(tsxUnder('src/ds'), (line) => {
+      if (!/--hue-[a-z]+-stroke\b/.test(line)) return null
+      if (!/\bbackground(?:Color)?\s*:|\bfill\s*=/.test(line)) return null
+      return line.trim().slice(0, 100)
+    })
+    expect(show(hits)).toEqual([])
+  })
+
+  // scoped to the components that draw a RELATION rather than a topic — a
+  // topic's own bare mark-role border is correct (NodeChip's `mark="border"`,
+  // DomainDot's dot); it is only wrong on the line between two of them.
+  it('no bare (mark-role) hue reaches a border or stroke on an edge component', () => {
+    const hits = scan(tsxUnder('src/ds/graph/EdgeEntry.tsx', 'src/ds/graph/NodeArrow.tsx', 'src/ds/graph/EdgeLegend.tsx'), (line) => {
+      const m = line.match(/--hue-[a-z]+\b(?!-)/)
+      if (!m) return null
+      if (!/\bborder(?:Color)?\s*:|\bstroke\s*=/.test(line)) return null
+      return m[0] + '   in ' + line.trim().slice(0, 90)
+    })
+    expect(show(hits)).toEqual([])
+  })
+})
+
+// ─── rule 6 ──────────────────────────────────────────────────────────────────
+// OB-062, assertion 3: "Chrome stays under C 0.09. Fail on any oklch()
+// literal in a token file whose chroma is above 0.09 unless its custom
+// property starts --hue-. Data runs at 0.14-0.15 and that gap is the ONLY
+// thing separating a data green from the moss primary; a new chrome colour
+// drifting up is invisible in review and unrecoverable once a screen ships
+// on it."
+//
+// Scoped to tokens/colors.css only, not its tailwind/kn-theme.css mirror:
+// that file restates every value as a literal BY POLICY (a var() there would
+// be circular against Tailwind v4's @theme namespace — see its own header),
+// so every data colour is a literal there on purpose and this rule would
+// flag the whole ring. colors.css is the source of truth this rule protects;
+// --domain-*/--edge-* there are var() references to a --hue-* line, never
+// their own literal, so they are outside what this scan even matches.
+//
+// The two known exceptions named in the obligation (--acorn-500 ~0.098,
+// --berry-500 ~0.11) are authored as hex in this file, not oklch(), so they
+// never reach this regex — no exclusion list needed for them.
+describe('OB-062 — chrome stays under C 0.09 in tokens/colors.css', () => {
+  it('every oklch() literal above C 0.09 is a --hue- token', () => {
+    const src = readFileSync(join(ROOT, 'src/tokens/colors.css'), 'utf8')
+    const bad: string[] = []
+    src.split(/\r?\n/).forEach((line, i) => {
+      const m = line.match(/(--[a-z0-9-]+)\s*:\s*oklch\(\s*[\d.]+\s+([\d.]+)\s+[\d.]+/i)
+      if (!m) return
+      const [, prop, chroma] = m
+      if (!prop.startsWith('--hue-') && Number(chroma) > 0.09) bad.push(`colors.css:${i + 1}  ${prop}  C ${chroma}`)
+    })
+    expect(bad).toEqual([])
+  })
+})
+
 // ─── our side of the contract ────────────────────────────────────────────────
 // The failure we keep reporting upstream, pointed the other way. On 2026-08-17
 // our VersionedGroup port carried 50 props and 12 doc comments while the DS's
