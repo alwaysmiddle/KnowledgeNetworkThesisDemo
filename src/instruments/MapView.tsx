@@ -55,7 +55,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { PaneCanvas, wrapTip } from '@/ds'
+import { ARROW_METRICS, NodeArrow, PaneCanvas, PIN_RING_WIDTH, StepDot, wrapTip } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR, pathTo } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
@@ -424,8 +424,9 @@ export default function MapView({ bus }: { bus: Bus }) {
   // ── ROUTE PATH (#26) — ordered walk positions for the current map level ──────
   // For each stop in bus.route, roll up to the visible ancestor at `level` using
   // the same pathTo(id)[level + 1] idiom the match pins use. `seen` tracks the
-  // 1-based step of each stop's first appearance so revisits can be distinguished
-  // from primary visits and drawn with a ↺ badge instead of a numbered circle.
+  // 1-based step of each stop's first appearance so a later return to the same
+  // visible ancestor can be told apart from its primary visit (routeStops below
+  // turns that into an offset second pin, OB-069).
   const routeVis = useMemo(() => {
     if (bus.route.length === 0) return []
     const seen = new Map<string, number>() // visId → 1-based step of first occurrence
@@ -443,6 +444,70 @@ export default function MapView({ bus }: { bus: Bus }) {
     }
     return out
   }, [bus.route, level])
+
+  // ── ROUTE PINS (OB-069) — routeVis collapsed into what actually gets drawn.
+  // Two things routeVis does NOT tell apart, both settled by the design system
+  // after a pill, a corner badge and an inline digit all failed legibility on a
+  // 24px mark (2026-08-22): a CONTIGUOUS run of steps sharing a visible ancestor
+  // (three stops on the same territory back to back) is ONE pin with a range
+  // label ("1-3"), never three stacked circles at the same point; a NON-adjacent
+  // repeat — the walk leaves and later comes back — is always a SECOND StepDot,
+  // offset clear of the first, never a merged mark. `routeVis`'s own `revisit`
+  // flag can't distinguish these (it only asks "seen before, anywhere"), so this
+  // groups by ADJACENCY instead and treats the first repeat of a visId, whenever
+  // it happens, as a revisit.
+  const routeStops = useMemo(() => {
+    if (routeVis.length === 0) return []
+    type Group = { visId: string; c: XY; steps: number[] }
+    const groups: Group[] = []
+    for (const s of routeVis) {
+      const last = groups[groups.length - 1]
+      if (last && last.visId === s.visId) last.steps.push(s.step)
+      else groups.push({ visId: s.visId, c: s.c, steps: [s.step] })
+    }
+    // bus.route is truncated to the played prefix while a walk is active
+    // (bus.ts's activateWalk), so the cursor is always the LAST raw step — a
+    // route with no active walk (the walk editor's live preview, say) has no
+    // cursor at all, and every pin reads 'ahead': nothing has been WALKED yet,
+    // only proposed.
+    const cursorStep = bus.activeWalk ? bus.activeWalk.cursor + 1 : null
+    const stateOf = (steps: number[]): 'done' | 'current' | 'ahead' => {
+      if (cursorStep === null) return 'ahead'
+      const last = steps[steps.length - 1]
+      return last < cursorStep ? 'done' : last === cursorStep ? 'current' : 'ahead'
+    }
+    const renderedAt = new Map<string, { c: XY; size: number }>() // visId → its most recent pin's position + size
+    return groups.map((g, i) => {
+      const label: number | string = g.steps.length > 1 ? `${g.steps[0]}-${g.steps[g.steps.length - 1]}` : g.steps[0]
+      const size = g.steps.length > 1 ? 34 : 24
+      const prevRender = renderedAt.get(g.visId)
+      let c = g.c
+      if (prevRender) {
+        // a revisit: offset away from the shared coordinate, in the direction
+        // of arrival — the same geometry the old ↺ badge used, generalized
+        // from "offset from the previous STEP" to "offset from the previous
+        // PIN", and from one repeat to any number (each further repeat offsets
+        // from the last one's already-offset position, staggering in
+        // sequence). The magnitude clears BOTH pins' own radii plus a gap,
+        // not a flat constant — the old badge's "18" was tuned for its own
+        // 15px circle and left this port's 24-34px StepDots overlapping their
+        // original at first pass, caught only by measuring rendered boxes.
+        const prevGroup = groups[i - 1]
+        const dx = prevGroup ? g.c.x - prevGroup.c.x : 0
+        const dy = prevGroup ? g.c.y - prevGroup.c.y : 0
+        const len = Math.hypot(dx, dy) || 1
+        const clear = px(prevRender.size / 2 + size / 2 + 6)
+        const ox = dx !== 0 || dy !== 0 ? (dx / len) * clear : clear
+        const oy = dx !== 0 || dy !== 0 ? (dy / len) * clear : -clear
+        c = { x: g.c.x + ox, y: g.c.y + oy }
+      }
+      renderedAt.set(g.visId, { c, size })
+      return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], c, label, state: stateOf(g.steps), size }
+    })
+    // px closes over f/view.s, both already deps; a fresh px reference every
+    // render would otherwise recompute this memo every render regardless
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeVis, bus.activeWalk, f, view.s])
 
   // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
   // zoom — so a name's line breaks are decided once per level, not per frame
@@ -914,57 +979,56 @@ export default function MapView({ bus }: { bus: Bus }) {
             </g>
           )}
 
-          {/* ── ROUTE PATH (#26): the walk's resolved order drawn over the territory.
-              White-cased amber polyline connects stops in sequence; step-number
-              circles match the road's badges. Deep stops roll up to their visible
-              ancestor at the current level. Revisits draw a ↺ badge near the
-              original circle rather than a second dot. pointer-events none so the
-              path never intercepts clicks meant for the cell fills below. ──── */}
-          {routeVis.length > 0 && (
+          {/* ── ROUTE PATH (#26): the walk's resolved order drawn over the territory,
+              on the shared vocabulary instead of a hand-drawn circle+number+line
+              (OB-069) — StepDot for "step N of the walk", NodeArrow for the line
+              between two steps, the same two marks a chain or the road itself
+              draws with. Deep stops still roll up to their visible ancestor
+              (routeVis); routeStops turns that into what actually gets a pin — a
+              contiguous run collapses into one range pin, a later return to an
+              already-pinned territory offsets clear of it rather than drawing a
+              second number into the same mark.
+
+              Both StepDot and NodeArrow are built assuming 1 unit is 1 real
+              screen px — true for the road's authoring board, false here, where
+              `view.s` is a live pan/zoom the rest of this map counter-scales
+              away per-element via `px()`. Neither component takes a pre-scaled
+              prop for that, so the correction moves to the wrapping transform
+              instead: `scale(f / view.s)` cancels the ambient `scale(view.s)`
+              this whole layer sits inside (see the outer <g> a few hundred
+              lines up), leaving raw numbers inside behave exactly like real
+              CSS px — which is what both components already assume.
+
+              pointer-events none on the group so a pin or an arrow never
+              intercepts a click meant for the cell fill below it. ──────── */}
+          {routeStops.length > 0 && (
             <g data-routepath data-step-count={bus.route.length} pointerEvents="none">
-              {(() => {
-                // collapse consecutive entries at the same position — the polyline
-                // should not stutter on stops that share a visible ancestor
-                const pts: XY[] = []
-                let prev: string | null = null
-                for (const s of routeVis) {
-                  if (s.visId !== prev) { pts.push(s.c); prev = s.visId }
-                }
-                if (pts.length < 2) return null
-                const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+              {routeStops.slice(1).map((to, i) => {
+                const from = routeStops[i]
+                const dx = to.c.x - from.c.x
+                const dy = to.c.y - from.c.y
+                const dist = (Math.hypot(dx, dy) * view.s) / f // world units -> real px
+                if (dist < 1) return null
+                const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+                const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head)
                 return (
-                  <>
-                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(3.5)} strokeOpacity={0.85} strokeLinejoin="round" strokeLinecap="round" />
-                    <path d={d} fill="none" stroke="#f59e0b" strokeWidth={px(2)} strokeOpacity={0.92} strokeLinejoin="round" strokeLinecap="round" />
-                  </>
-                )
-              })()}
-              {routeVis.map((s, idx) => {
-                if (s.revisit) {
-                  // offset the ↺ badge away from the primary circle in the
-                  // direction the walk arrived from — or diagonally if that
-                  // direction is zero (adjacent collapse to the same ancestor)
-                  const prev = idx > 0 ? routeVis[idx - 1] : null
-                  const dx = prev ? s.c.x - prev.c.x : 0
-                  const dy = prev ? s.c.y - prev.c.y : 0
-                  const len = Math.hypot(dx, dy) || 1
-                  const scale = px(18)
-                  const ox = dx !== 0 || dy !== 0 ? (dx / len) * scale : scale
-                  const oy = dx !== 0 || dy !== 0 ? (dy / len) * scale : -scale
-                  return (
-                    <g key={`rv-${s.visId}-${idx}`} transform={`translate(${s.c.x + ox} ${s.c.y + oy})`}>
-                      <circle r={px(7.5)} fill="#fffbeb" stroke="#f59e0b" strokeWidth={px(1.5)} strokeDasharray={`${px(3)} ${px(1.5)}`} />
-                      <text textAnchor="middle" y={px(3)} fontSize={px(8.5)} fontWeight={700} fill="#d97706" style={{ userSelect: 'none' }}>↺{s.step}</text>
-                    </g>
-                  )
-                }
-                return (
-                  <g key={`rs-${s.visId}-${idx}`} data-routestop={s.visId} data-step={s.step} transform={`translate(${s.c.x} ${s.c.y})`}>
-                    <circle r={px(10)} fill="#ffffff" stroke="#f59e0b" strokeWidth={px(2.2)} />
-                    <text textAnchor="middle" y={px(3.5)} fontSize={px(10.5)} fontWeight={800} fill="#d97706" style={{ userSelect: 'none' }}>{s.step}</text>
+                  <g key={`ra-${to.key}`} transform={`translate(${from.c.x} ${from.c.y}) rotate(${angle}) scale(${f / view.s})`}>
+                    <NodeArrow direction="right" length={length} joins={PIN_RING_WIDTH} />
                   </g>
                 )
               })}
+              {routeStops.map((s) => (
+                <g
+                  key={s.key}
+                  data-routestop={s.visId}
+                  data-step={s.step}
+                  transform={`translate(${s.c.x} ${s.c.y}) scale(${f / view.s})`}
+                >
+                  <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
+                    <StepDot n={s.label} state={s.state} variant="pin" size={s.size} />
+                  </foreignObject>
+                </g>
+              ))}
             </g>
           )}
 

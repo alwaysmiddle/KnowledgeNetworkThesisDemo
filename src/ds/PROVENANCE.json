@@ -179,9 +179,10 @@
       "src/ds/nav/StepDot.tsx": {
         "from": "components/nav/StepDot.jsx",
         "contract": "components/nav/StepDot.d.ts",
-        "syncedAt": "2026-08-22",
+        "syncedAt": "2026-08-23",
         "deviations": [
-          "2026-08-22 OB-047 (#140) — dropped the local `|| undefined` on the title tooltip; wrapTip itself now answers an absent or empty string with undefined"
+          "2026-08-22 OB-047 (#140) — dropped the local `|| undefined` on the title tooltip; wrapTip itself now answers an absent or empty string with undefined",
+          "2026-08-23 OB-069 — re-ported for the `pin` variant, which did not exist here before: `n: number | string` (a contiguous range label, e.g. \"1-3\"), `variant?: 'rail' | 'pin'`, `size?: number` (default 24), `optional?: boolean` (a dashed ring, drawn as an SVG stroke-dasharray overlay rather than a CSS dashed border — the DS's own reasoning, kept verbatim: a browser's dashed rendering on a circle this small reads as barely-there). `cursor` changed from unconditionally `'pointer'` to `onClick ? 'pointer' : 'default'`, matching the DS's own .jsx exactly — a no-op for the one existing caller (TrailStrip.tsx always passes onClick) and correct for the new one (MapView's pins pass none, so they read as the decorative marks they are). New export `PIN_RING_WIDTH = 1.5` — not in the DS's own .jsx or .d.ts, added on this side following the house rule `NodeChip.chipBorder`/`VersionedGroup.joinBorder` already set: a component an arrow can meet publishes what its own edge weighs, in measured px, so `NodeArrow`'s `joins` never takes a typed-in guess. Verified against a real render (TrailStrip's active-walk strip, `rail`, unaffected — a screenshot showed the same amber-current / white-ahead skin as before the port) rather than assumed safe from reading the diff alone."
         ]
       },
       "src/ds/nav/WalkCard.tsx": {

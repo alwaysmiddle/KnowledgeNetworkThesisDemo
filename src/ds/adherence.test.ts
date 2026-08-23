@@ -302,7 +302,11 @@ describe('our DS ports document what the DS documents', () => {
   // down rather than getting a new +N line.
   // -1 (OB-063): EdgeEntry.tsx's `type` prop was bare before the relationPaint() port
   // documented it. Same reasoning as the OB-060 line above.
-  const BUDGET = 71
+  // -1 (OB-069): StepDot.tsx's `n` prop was bare before the `pin` variant port
+  // documented it (now also explaining the range-label case). `onClick` stays bare —
+  // the DS's own StepDot.d.ts leaves it bare too, DS parity like the NodeRail/Pane
+  // lines above.
+  const BUDGET = 70
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {
