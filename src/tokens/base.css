@@ -47,8 +47,20 @@ a:hover { color: var(--moss-700); text-decoration-color: var(--moss-400); }
    element to the NATIVE themed scrollbar and makes it ignore every
    ::-webkit-scrollbar rule below — which is how the arrow buttons come back on
    Windows. So the standard properties are scoped to engines that have no
-   ::-webkit-scrollbar support (Firefox), and Chromium/Safari get the pseudos. */
-@supports not selector(::-webkit-scrollbar) {
+   ::-webkit-scrollbar support... except that stopped being a safe test. Firefox
+   121+ ships a partial, WEB-COMPAT-ONLY ::-webkit-scrollbar shim (real hover/active
+   states, `background-clip`, and the button pseudo-elements are not fully honoured),
+   so `@supports selector(::-webkit-scrollbar)` now reports TRUE in Firefox while the
+   rules below still don't render right there — reported 2026-08-23, live: a plain
+   grey native-ish thumb, never hidden at rest, in a Firefox screenshot. Detect the
+   ENGINE instead of the selector: `-moz-appearance` is a real, longstanding Gecko-only
+   property, true in Firefox regardless of which ::-webkit-scrollbar subset it claims,
+   so this now reads "give me the standard properties in Firefox, and in anything
+   else that lacks ::-webkit-scrollbar too" rather than "give me the standard
+   properties in anything that lacks ::-webkit-scrollbar". Firefox still cannot do the
+   4→7px growth or the end arrows (no CSS for scrollbar THICKNESS beyond the binary
+   `thin`/`auto`/`none`) — that ceiling is the engine's, not a bug to keep chasing. */
+@supports (-moz-appearance: none) or (not selector(::-webkit-scrollbar)) {
   * { scrollbar-width: thin; scrollbar-color: var(--bark-300) transparent; }
   [data-sb-js] * { scrollbar-color: transparent transparent; }
   [data-sb-js] [data-sb="on"] { scrollbar-color: var(--bark-300) transparent; }
