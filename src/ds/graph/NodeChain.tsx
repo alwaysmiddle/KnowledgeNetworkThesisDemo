@@ -160,7 +160,7 @@ export function NodeChain({
   return (
     <div style={{
       display: 'flex', flexDirection: down ? 'column' : 'row',
-      alignItems: down ? 'stretch' : 'center', gap,
+      alignItems: 'center', gap,
     }}>
       {view.map((k, i) => {
         const kid = kids[k]
@@ -194,7 +194,7 @@ export function NodeChain({
               onPointerDown={startDrag(i)}
               style={{
                 display: 'flex', flexDirection: down ? 'column' : 'row',
-                alignItems: down ? 'stretch' : 'center',
+                alignItems: 'center',
                 cursor: reorderable ? 'move' : undefined,
                 transform: (down ? 'translateY(' : 'translateX(') + off + 'px)',
                 transition: held ? 'none' : 'transform var(--dur-move) var(--ease-settle)',
