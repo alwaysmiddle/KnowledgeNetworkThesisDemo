@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { IconButton, PaneScroller, StepDot, TrailChip, wrapTip } from '@/ds'
+import { IconButton, PaneScroller, TrailChip, WalkStrip, wrapTip } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -34,8 +34,6 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
   const walks = useSyncExternalStore(subscribeWalks, listWalks)
   const onSelectTrailEntry = (id: string) => bus.setFocus(id, 'trail')
   const onActivateWalk = (walkId: string) => bus.activateWalk(walkId, 0)
-  const onAdvanceWalk = bus.advanceWalk
-  const onJumpToStop = (index: number) => activeWalk && bus.activateWalk(activeWalk.walkId, index)
   const onDeactivateWalk = bus.deactivateWalk
 
   const scroller = useRef<HTMLDivElement>(null)
@@ -48,7 +46,9 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
   const cursor = activeWalk?.cursor ?? 0
 
   return (
-    <div className="shrink-0 border-t border-slate-200 bg-white flex items-stretch h-[92px]" aria-label="trail-strip">
+    // OB-071: 92px held the old bare StepDot row; WalkStrip needs 154px on its own,
+    // so the whole strip grows to fit it (both columns stretch together, same row)
+    <div className="shrink-0 border-t border-slate-200 bg-white flex items-stretch h-[240px]" aria-label="trail-strip">
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="px-3 pt-1.5 text-[10px] font-bold text-slate-500 shrink-0">
           Trail — {trail.length} visited (append-only; ⤳ marks a jump)
@@ -93,25 +93,19 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
               stop {cursor + 1} of {walk.stops.length} · {walk.stops.length - 1 - cursor} remaining
             </span>
             <span className="flex-1" />
-            {cursor < walk.stops.length - 1 && (
-              <button onClick={onAdvanceWalk} className="px-2 py-0.5 rounded border border-amber-400 text-amber-700 hover:bg-amber-50 shrink-0">
-                next ▶
-              </button>
-            )}
             <IconButton onClick={onDeactivateWalk} title="stop this walk" />
           </div>
         )}
         {walk && (
-          <div className="flex gap-1 mt-1.5 flex-wrap">
-            {walk.stops.map((s, i) => (
-              <StepDot
-                key={s.id + i}
-                n={i + 1}
-                state={i === cursor ? 'current' : i < cursor ? 'done' : 'ahead'}
-                title={wrapTip(s.note)}
-                onClick={() => onJumpToStop(i)}
-              />
-            ))}
+          // OB-071: WalkStrip replaces the old bare StepDot row and the separate
+          // "next ▶" button — the seek bar (drag or click) is the new way to move,
+          // wired to the same activateWalk the old dots' click-to-jump used.
+          <div style={{ height: 154, marginTop: 6 }}>
+            <WalkStrip
+              steps={walk.stops.map((s) => ({ id: s.id, title: byId.get(s.id)!.title, note: s.note }))}
+              cursor={cursor}
+              onSeek={(index) => activeWalk && bus.activateWalk(activeWalk.walkId, index)}
+            />
           </div>
         )}
       </PaneScroller>
