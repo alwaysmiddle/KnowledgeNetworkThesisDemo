@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { wrapTip } from './IconButton'
 
 /** THE DOT, which is the whole vocabulary. A grip is not an icon of a hand or a pair of
  *  arrows: it is the same 2px dot `Bullet` and `DomainDot` already use, repeated. That is
@@ -66,6 +67,11 @@ export interface GripProps {
    *  background, a border or padding either: the surface that owns the gesture owns those,
    *  and a grip with its own box becomes a button that does nothing */
   style?: CSSProperties
+  /** overrides the default hover label (`"drag to move"` for `bar`, `"drag to resize"` for
+   *  `corner`). Both arrangements stay `aria-hidden` regardless — this is a mouse-hover
+   *  label only, never the accessible name for the gesture; that still belongs to whichever
+   *  `Pane`/`PaneHeader` element owns the pointerdown. */
+  title?: string
 }
 
 /** THE MARK THAT SAYS A PANE CAN BE MOVED OR RESIZED. A `grabbable` pane and a fixed one
@@ -103,15 +109,22 @@ export interface GripProps {
  *  does not own (a splitter between two panes, a drag handle on a row).
  *
  *  Typed port of the DS Grip.jsx (contract: Grip.d.ts). */
-export function Grip({ variant = 'bar', dot = 2, gap = 2, size = 9, pitch = 3, style }: GripProps) {
+export function Grip({ variant = 'bar', dot = 2, gap = 2, size = 9, pitch = 3, style, title }: GripProps) {
   if (variant === 'corner') {
-    return <span aria-hidden="true" style={{ ...cornerFace(size, pitch), ...ownTone(style), color: 'var(--bark-400)' }} />
+    return (
+      <span
+        aria-hidden="true"
+        title={wrapTip(title ?? 'drag to resize')}
+        style={{ ...cornerFace(size, pitch), ...ownTone(style), color: 'var(--bark-400)' }}
+      />
+    )
   }
   const d = Math.max(1, Math.round(dot))
   const g = Math.max(1, Math.round(gap))
   return (
     <span
       aria-hidden="true"
+      title={wrapTip(title ?? 'drag to move')}
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(2, ${d}px)`,
