@@ -31,7 +31,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 
-import { byId, domainOf, topicIds } from '../../corpus/graph'
+import { byId, childrenOf, domainIds, domainOf } from '../../corpus/graph'
 import {
   ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
@@ -61,10 +61,20 @@ const NODEH = 34
 // loses its tail instead of the box lying about how tall it is.
 const NODE_MAXW = 220
 const NODE_MAXH = 66
-// the unbound-slot picker's menu (#144 / OB-058) — flat, matching what the raw
-// <select> it replaces offered: every curriculum topic, no domain grouping. Built
-// once from static corpus data rather than per-render.
-const NODE_OPTIONS: NodeOption[] = topicIds.map((id) => ({ id, title: byId.get(id)!.title, domain: domainOf(id) as DomainCode }))
+// the unbound-slot picker's menu (#144 / OB-058, nested OB-077). Domain → module →
+// topic, the corpus's own containment chain: a container's own `childrenOf` walk
+// stops AT a topic (`n.topic`) rather than descending into the "deep" prose layers
+// attached below it — those aren't real walk steps, and going further would turn
+// 53 topics into hundreds of unreachable-by-search rows. A container is still
+// itself pickable here (NodePicker's own contract: "a node with children is still
+// itself pickable"), same as every other level. Built once from static corpus data
+// rather than per-render.
+function optionFor(id: string): NodeOption {
+  const n = byId.get(id)!
+  const kids = n.topic ? [] : (childrenOf.get(id) ?? []).map((k) => optionFor(k.id))
+  return { id, title: n.title, domain: domainOf(id) as DomainCode, children: kids.length ? kids : undefined }
+}
+const NODE_OPTIONS: NodeOption[] = domainIds.map(optionFor)
 /** the step number as the CHIP is handed it — LOCAL to the container it sits in, so
  *  a leaf shows its position in its own list rather than the path down to it: the
  *  stop whose outline is `2.1` reads `1.`. The last segment IS that position, since
