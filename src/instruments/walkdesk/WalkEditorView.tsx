@@ -12,23 +12,18 @@
 // `data-road-root`): the road is the drawing this editor hosts, which is a
 // different noun doing a different job.
 //
-// One view, two lanes:
+// One view, one lane that ever branches:
 //
 //   the ROAD is the only view in the Studio that ever sees a branch. Forks fan
 //   out into labelled lanes that rejoin below, optionals wear a bypass rail, and
 //   the choice of which lane is "the road" lives here too, because it is an
 //   authoring decision until a presentation surface reads the result.
 //
-//   the RAIL beside it is the receipt — resolveRoad() with the branch picked and
-//   the skipped optionals dropped, running top-down in the same direction as the
-//   road. It used to be a wrapping strip along the bottom of the desk, where you
-//   had to translate between a vertical drawing and a horizontal reading. Side by
-//   side, a fork above and its surviving stops below line up by eye.
-//
-// The rail's side is a toggle rather than a constant: which side reads as
-// "downstream" depends on where the pane sits in the composition, and that is
-// the user's arrangement, not ours. `order` does the swap, so the DOM order is
-// stable and the rail is never remounted by flipping it.
+//   the road's RECEIPT — resolveRoad() with the branch picked and the skipped
+//   optionals dropped — is not a permanent second lane. It is the WalkPreview
+//   slide-in below (0005 D9): opened on demand, overlaying the road rather than
+//   splitting the pane. An always-visible receipt beside the road was tried and
+//   retired (`ce08f09`); whether one comes back, and in what shape, is #27.
 //
 // It shares ONE draft with the palette (its own instrument since #21) through
 // the module-level stores in authordraft.ts — see the note there for why a
