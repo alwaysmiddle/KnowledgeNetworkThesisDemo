@@ -329,7 +329,6 @@ export interface AuthorState {
    * fork is reached from here: group, then grow a variant on the card (#19), so
    * there is no separate fork op. */
   groupSelection(): void
-  deleteSelection(): void
   /** delete exactly the block at `path` — the per-node close button (#15), which
    * acts on one node regardless of the current selection. */
   deleteAt(path: Path): void
@@ -366,7 +365,6 @@ export interface AuthorState {
    * on-state, so the toolbox button reads as pressed when it would un-flip. */
   optionalActive: boolean
   canIndent: boolean
-  canDelete: boolean
   /** step the stops tree back / forward through edit history (#34) */
   undo(): void
   redo(): void
@@ -461,14 +459,6 @@ export function useAuthorDraft(): AuthorState {
         ]),
       )
     },
-    deleteSelection: () => {
-      if (selected.size === 0) return
-      // remove in reverse document order so earlier paths stay valid
-      const paths = [...selected].map(parsePath).sort(compareDoc).reverse()
-      let next = stops
-      for (const p of paths) next = removeAt(next, p).rest
-      commit(next)
-    },
     deleteAt: (path) => commit(removeAt(stops, path).rest),
     promote: (path, keep) => {
       const s = stopAt(stops, path)
@@ -543,17 +533,9 @@ export function useAuthorDraft(): AuthorState {
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     optionalActive: selected.size > 0 && selectedStops.every((s) => s !== undefined && s.optional === true),
     canIndent: !!prevSibling && isBox(prevSibling),
-    canDelete: selected.size > 0,
     undo: undoDraft,
     redo: redoDraft,
     canUndo: past.length > 0,
     canRedo: future.length > 0,
   }
-}
-
-/** document order: shorter shared-prefix path first, then by index */
-function compareDoc(a: Path, b: Path): number {
-  const n = Math.min(a.length, b.length)
-  for (let k = 0; k < n; k++) if (a[k] !== b[k]) return a[k] - b[k]
-  return a.length - b.length
 }
