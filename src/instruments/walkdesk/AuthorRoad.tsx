@@ -519,18 +519,25 @@ export default function AuthorRoad({
   // present; its buttons enable/disable off the selection instead of appearing
   // and disappearing. The selection box below still marks the run itself.
 
-  // g = group, once a selection exists (#15). Ungroup has no shortcut — it is the
-  // container's ✕ now (the toolbar ✕ Delete removes the whole group). The rest of
-  // the toolbar stays mouse-only. Ignored while a text field is focused.
+  // g = group, once a selection exists (#15). Tab = indent, moving the single
+  // selection into the container right above it — indentSelection existed and
+  // worked but had no binding until #154 wired this one. Ungroup has no
+  // shortcut — it is the container's ✕ now (the toolbar ✕ Delete removes the
+  // whole group). Group and indent are the only two keyboard actions; the rest
+  // of the toolbar stays mouse-only. Both ignored while a text field is focused,
+  // and Tab still falls through to native focus-navigation when canIndent is
+  // false (no preventDefault), so it never traps focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
-      if (e.key !== 'g' && e.key !== 'G') return
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
-      if (state.canGroup) {
+      if ((e.key === 'g' || e.key === 'G') && state.canGroup) {
         e.preventDefault()
         state.groupSelection()
+      } else if (e.key === 'Tab' && state.canIndent) {
+        e.preventDefault()
+        state.indentSelection()
       }
     }
     window.addEventListener('keydown', onKey)
