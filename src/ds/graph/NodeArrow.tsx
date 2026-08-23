@@ -100,9 +100,12 @@ const DASH = '4 4'
  *  into a `length`) and the cross-axis extent (to centre the shaft on the column). Same
  *  shape as NodeChip's `chipSize` and VersionedGroup's `GROUP_METRICS`. */
 export const ARROW_METRICS = {
-  /** the head's length along the shaft — an arrow's total span is `length + head` */
+  /** the head's length along the shaft at the full-rank shaft weight — an arrow's total
+   *  span is `length + head`. The RESERVED value: a lighter `joins` draws a smaller head
+   *  (OB-067), never a larger one, so a board sizing off this constant always has room. */
   head: 8,
-  /** the head's half-width, either side of the shaft */
+  /** the head's half-width at the full-rank shaft weight, either side of the shaft — the
+   *  same reservation as `head`. */
   halfWidth: 4.4,
   /** the shaft's stroke width for the COMMON case — the full-rank `border` chips a road
    *  and a chain join. Reads `SHAFT_STROKE` rather than repeating 1.5, so the literal this
@@ -117,11 +120,14 @@ export function NodeArrow({
   direction = 'down', length = 14, tone = 'walk', dashed, color, title, joins,
 }: NodeArrowProps) {
   const paint = color || TONE[tone] || TONE.walk
-  const HEAD = ARROW_METRICS.head
-  const HALF = ARROW_METRICS.halfWidth
   /* the rule, applied — the neighbour's form decides, and the default is the full-rank
      chain that draws most of these */
   const T = joins !== undefined ? shaftFor(joins) : SHAFT_STROKE
+  // the head scales with the shaft it sits on (OB-067) — 1 at the full-rank case, so the
+  // common chain/road draw is untouched; ARROW_METRICS stays the reservation, never exceeded.
+  const scale = T / SHAFT_STROKE
+  const HEAD = ARROW_METRICS.head * scale
+  const HALF = ARROW_METRICS.halfWidth * scale
   const span = length + HEAD
   const across = ARROW_METRICS.across
   const down = direction === 'down'
