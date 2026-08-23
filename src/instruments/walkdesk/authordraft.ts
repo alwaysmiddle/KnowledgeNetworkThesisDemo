@@ -202,6 +202,19 @@ export function saveDraftAsWalk(title: string): Walk | null {
   })
 }
 
+// ── The resolved-walk preview (0005 D9) ─────────────────────────────────────
+// Its OPEN button now lives in WalkUtilityBar (the actionBar-slot bar), while the
+// slide-in panel it opens is drawn by WalkEditorView (the pane body) — two
+// siblings under one Pane, neither the other's parent, so this is a module-level
+// store for the same reason the draft itself is (see the note at the top of this
+// file). Everything else that bar used to hold (naming/picking/receipt) stayed
+// local to it once its drawers moved there too; this is the one flag that still
+// has to cross the boundary.
+const previewOpenStore = store(false)
+export function usePreviewOpen() {
+  return useStore(previewOpenStore)
+}
+
 /** the road's resolution knobs, shared by the walk editor and the projection */
 export function useRoad() {
   const [choices, setChoices] = useStore(choicesStore)

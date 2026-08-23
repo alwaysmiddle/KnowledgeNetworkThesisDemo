@@ -33,6 +33,7 @@ import UnfoldView from '../instruments/UnfoldView'
 import WalkPaletteView from '../instruments/walkdesk/WalkPaletteView'
 import WalkEditorView from '../instruments/walkdesk/WalkEditorView'
 import WalkActionBar from '../instruments/walkdesk/WalkActionBar'
+import WalkUtilityBar from '../instruments/walkdesk/WalkUtilityBar'
 import WalkColumnsView from '../instruments/walkdesk/WalkColumnsView'
 import WalkStackView from '../instruments/walkdesk/WalkStackView'
 import WalkView from '../instruments/WalkView'
@@ -137,7 +138,16 @@ const VIEWS = [
     family: 'walks',
     slot: 'column',
     body: 'none',
-    actionBar: () => <WalkActionBar />,
+    // Two tiers, two categories (#193): WalkUtilityBar (the walk as a whole —
+    // view/save/load) on top, WalkActionBar (the draft tree under construction)
+    // on the bottom. Both docked in the one actionBar slot, which is what gets
+    // them the DS corner-clip neither got as a plain child of the pane body.
+    actionBar: () => (
+      <>
+        <WalkUtilityBar />
+        <WalkActionBar />
+      </>
+    ),
     render: (bus) => <WalkEditorView bus={bus} />,
   },
   {
