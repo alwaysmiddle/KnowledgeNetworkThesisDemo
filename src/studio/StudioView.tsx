@@ -16,7 +16,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PaneHeader, PillButton, PresetButton, SectionLabel } from '@/ds'
+import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PaneHeader, PresetButton, SectionLabel } from '@/ds'
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -86,7 +86,6 @@ export default function StudioView() {
 
   // ── the bus ───────────────────────────────────────────────────────────────
   const bus = useStudioBus(ensureActive)
-  const canTeach = !!bus.focus && byId.get(bus.focus)?.topic === true
 
   // ── layout ────────────────────────────────────────────────────────────────
   // A pane does not decide its own size: where it sits does. A lone column, one
@@ -145,40 +144,27 @@ export default function StudioView() {
 
   return (
     <div className="h-full flex flex-col bg-canopy">
-      {/* The header renders from the DS AppHeader; session controls are DS
-          PillButtons and the live counts are DS CountBadges. AppHeader owns the
-          VISIBLE focus (dot + title). The machine-readable focus hook the shot
-          driver reads — data-focus (the id) plus the title as innerText — is not
-          something the DS component carries, so the consumer keeps a hidden
-          readout twin beside it. See #74: AppHeader has no focus test-hook. */}
+      {/* The header renders from the DS AppHeader; the live counts are DS
+          CountBadges (OB-065 dropped the session-control PillButtons outright,
+          not relocated — bus.teach()/bus.reset()/bus.clearRoute() are untouched,
+          there is simply no UI path to them from here any more). AppHeader owns
+          the VISIBLE focus (dot + title). The machine-readable focus hook the
+          shot driver reads — data-focus (the id) plus the title as innerText —
+          is not something the DS component carries, so the consumer keeps a
+          hidden readout twin beside it. See #74: AppHeader has no focus
+          test-hook. */}
       <div aria-label="studio-header" style={{ flexShrink: 0, position: 'relative' }}>
         <AppHeader
           product="thesis-demo"
           corpusLine="instrument palette — toggle views on the sidebar, everything shares one focus / route / trail bus"
           focus={bus.focus ? { title: byId.get(bus.focus)!.title, domain: domainOf(bus.focus) as DomainCode } : null}
         >
-          {/* the wrapper is only the driver's anchor; the pill itself owns the
-              disabled state, so the driver reads isDisabled() on the inner button */}
-          <span aria-label="studio-teach" style={{ display: 'inline-flex' }}>
-            <PillButton
-              tone="walk"
-              glyph="★"
-              disabled={!canTeach}
-              onClick={bus.teach}
-              title="generate a depends_on curriculum ending at the focused node and walk it"
-            >
-              teach me this
-            </PillButton>
-          </span>
-          {bus.cycleNote && <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--text-3)' }}>contains a cycle — order approximate</span>}
           <span aria-label="studio-visited">
             <CountBadge value={bus.visited.size} label="visited" />
           </span>
           <span aria-label="studio-route">
             <CountBadge value={bus.route.length} label="route" />
           </span>
-          <PillButton onClick={bus.clearRoute}>clear route</PillButton>
-          <PillButton onClick={bus.reset}>reset session</PillButton>
         </AppHeader>
         {/* hidden readout twin: the shot driver reads focus id + title from here */}
         <span data-focus={bus.focus ?? ''} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>
