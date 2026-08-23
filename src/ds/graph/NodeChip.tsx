@@ -427,6 +427,20 @@ function measure(text: unknown, weight: number, size: number, kind: FontKind): n
   return str.length * size * 0.55
 }
 
+/** OB-074: Firefox's `canvas.measureText()` undershoots its OWN real DOM text layout by
+ *  up to ~0.5px at this chip's font (measured directly, six titles, `Nunito` 13px/600 —
+ *  Chromium's two subsystems agree to ~0.01px, Firefox's do not). `chipSize()` below sizes
+ *  the box from a canvas measurement of the full title; a title landing within that gap of
+ *  the one-line width was reserved exactly wide enough for its OWN canvas measurement, which
+ *  is not quite wide enough for Firefox's real layout of the same string — and since the
+ *  chip's box is TOLD that prediction (`AuthorRoad` passes it straight to `width`/`height`),
+ *  an under-reservation does not just mispredict, it crops: the box is forced one line short
+ *  and the real second line is clipped by the shell's `overflow: hidden`, invisible in
+ *  Chromium because its two subsystems happen to agree there. Padding the reserved width by
+ *  this much costs nothing visible (the extra column is sub-pixel against a chip's own
+ *  rounding) and is cheap insurance against a gap that is real but not worth chasing tighter. */
+const WRAP_SAFETY_PX = 1
+
 /** lines a title takes at a given column, honouring the chip's `overflow-wrap:
  *  break-word`: word boundaries first, and only a word that cannot fit at all is
  *  split inside itself — which is what the drawn label does. */
@@ -563,7 +577,13 @@ export function chipSize(spec?: ChipSpec): ChipSize {
     + (optional && quiet ? measure(' (optional)', fwIndex, fsText, 'ui') : 0)
   /* measured LAST of the reads above, so ctx2d has been settled by the call */
   const measured = ctx2d !== false && ctx2d !== null
-  const width = Math.max(minW, Math.min(maxW, Math.ceil(chrome + oneLine)))
+  /* + WRAP_SAFETY_PX: see its own docblock. Padding here, not inside linesOf()'s fit test,
+     because titleColumn is deliberately sized to just barely hold oneLine (the ceiling
+     rounds up by less than 1px, sometimes far less) — margin subtracted from linesOf()'s
+     comparison instead fights that same tolerance and flips single-line titles as readily
+     as the boundary case it was meant to fix. Padding the reservation itself gives every
+     downstream fit test real slack without touching the arithmetic that reads it. */
+  const width = Math.max(minW, Math.min(maxW, Math.ceil(chrome + oneLine + WRAP_SAFETY_PX)))
   const titleColumn = Math.max(1, width - chrome)
 
   /* wrapping, the line box is --lh-snug on the shell, inherited unitless so each
