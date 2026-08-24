@@ -85,12 +85,6 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
     // INSIDE the pane's 20px corner arc with square corners, biting two square
     // notches of desk colour out of the rounded top where the content starts.
     <div data-walk-editor className="h-full flex flex-col">
-      <div className="shrink-0">
-        <div className="px-2 pt-1.5 pb-1 text-[var(--fs-caption)] font-bold leading-tight" style={{ color: 'var(--text-3)' }}>
-          walk editor — the road can fork and rejoin; ● picks the branch
-        </div>
-      </div>
-
       {/* The road, and the walk you slide in over it. The preview OVERLAYS rather
           than splits (D9): the road keeps its full width and never reflows, it only
           fades to 30% behind the pane. Dismiss and you are back on exactly the road
