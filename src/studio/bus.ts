@@ -115,7 +115,6 @@ export interface BusActions {
    * canvas without dragging the rest of the Studio there */
   visit(id: string, via: TrailVia): void
   activateWalk(walkId: string, stopIndex: number): void
-  advanceWalk(): void
   deactivateWalk(): void
   /** move the DRAFT cursor (see BusState.draftCursor) — Walk·Viewer's seek bar
    * calls this while no saved walk is active. Clamped at >= 0; the top end is
@@ -251,7 +250,13 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     reveal,
     visit: markTrail,
     activateWalk,
-    advanceWalk: () => activeWalk && activateWalk(activeWalk.walkId, activeWalk.cursor + 1),
+    // advanceWalk was here, unreachable since it was written, and deleted in
+    // #195 rather than finally given a caller. Stepping a walk lives in
+    // walkdesk/playback.ts now, and this was the wrong primitive for it three
+    // ways: it cannot write bus.focus (see activateWalk above — it never has,
+    // so the document did not follow), it knows only the SAVED source while a
+    // deck is routinely the draft road, and it answers no question about where
+    // the end is. `seek(i)` answers all three.
     deactivateWalk: () => setActiveWalk(null),
     clearRoute: () => {
       setRouteState([])

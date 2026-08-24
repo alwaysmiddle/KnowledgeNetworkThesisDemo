@@ -12,6 +12,11 @@
 //
 // The split that fixed it: an instrument is an entry in a registry, and it takes
 // ONE prop — the bus. A pane that ignores a channel does not know it exists.
+//
+// It now owns one more thing, and only one: whether the app is PRESENTING
+// (#195). That is a mode, not a composition — it replaces this whole tree with
+// the deck, on the same bus, leaving active/mounted/flexMap/presetId untouched
+// so exiting restores the exact desk that was there.
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -20,6 +25,8 @@ import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, Instr
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
+import PresentationFrame from '../present/PresentationFrame'
+import { usePresentSession } from '../present/session'
 import { AppToolbar } from './AppToolbar'
 import { useStudioBus } from './bus'
 import { FAMILIES } from './families'
@@ -46,6 +53,10 @@ export default function StudioView() {
   // palette that hides its contents on first paint is a worse list than the flat
   // one it replaced. Folding is there for when you know what you want.
   const [openFamilies, setOpenFamilies] = useState<Family[]>([...FAMILIES])
+  // presenting is a MODE, not a composition (#195) — it takes the whole screen
+  // and leaves active/mounted/flexMap/presetId untouched, so exiting restores
+  // exactly the desk that was there. Declared above ensureActive, which reads it.
+  const { presenting, fullscreen, enter, exit } = usePresentSession()
   // measured once over ALL family names and given to every group, so the counts
   // form one column instead of each group orphaning its own number
   const familyColumn = FamilyColumn([...FAMILIES])
@@ -68,6 +79,12 @@ export default function StudioView() {
   /** an instrument handing off to another one: reveal it WITHOUT disturbing the
    * rest of the composition. This is the bus's `reveal`. */
   const ensureActive = (inst: InstrumentId) => {
+    // Nothing is composed while presenting, so revealing a pane is meaningless
+    // there — and worse than meaningless: activateWalk reveals 'walkviewer', so
+    // one step of a SAVED walk inside a deck would quietly rewrite `active` and
+    // null `presetId`, and exiting would drop the user into a "custom
+    // composition" they never made (#195).
+    if (presenting) return
     setActive((prev) => (flattenSlots(prev).includes(inst) ? prev : [...prev, inst]))
     setMounted((prev) => (prev.has(inst) ? prev : new Set(prev).add(inst)))
     setPresetId((p) => (onScreen.includes(inst) ? p : null))
@@ -143,6 +160,14 @@ export default function StudioView() {
   )
   const strips = INSTRUMENTS.filter((i) => i.slot === 'strip' && mounted.has(i.id as InstrumentId))
 
+  // THE DECK RENDERS INSTEAD OF THE DESK, NOT OVER IT (#195). An overlay would
+  // leave both mounted, which means two MapViews and two DocumentPanels — two
+  // window listeners, two camera flights, and duplicate aria-labels that make
+  // every driver locator ambiguous. Returning early keeps exactly one instance
+  // of everything, on the SAME bus, so focus / route / trail / activeWalk are
+  // literally the same values on both sides of the transition.
+  if (presenting) return <PresentationFrame bus={bus} onExit={exit} fullscreen={fullscreen} />
+
   return (
     <div className="h-full flex flex-col bg-canopy">
       {/* The header renders from the DS AppHeader; the live counts are DS
@@ -174,7 +199,7 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar />
+      <AppToolbar onPresent={enter} />
 
       <div className="flex-1 min-h-0 flex gap-3 p-3">
         {/* #96: the palette is now a pane — paper face, border-frame hairline,
