@@ -205,6 +205,19 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
     return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check) }
   }, [check, steps.length, cursor])
 
+  /* WHAT THE BAR DRAWS, and the one place the two cases differ (DS OB-089). While the
+     track can scroll, `nearest` is the honest answer — it is measured from the real
+     scroll position, so the bar agrees with what is actually on screen. When it CANNOT
+     scroll, every waypoint collapses onto the same scrollLeft (0) and `check`'s
+     distance search cannot tell them apart, so `nearest` is stuck at 0 and the bar
+     would read 0% on every short walk regardless of where the cursor is.
+     DERIVED HERE RATHER THAN STORED: writing `cursor` into `nearest` from inside
+     `check` would be setting state from a PROP inside an effect body, which is exactly
+     what react-hooks/set-state-in-effect forbids (and what the note above `setNearest`
+     in the app-driven effect already warns about). Nothing needs storing — both inputs
+     are already here at render time. */
+  const barIndex = scrollable ? nearest : cursor
+
   const recenter = () => {
     const el = trackRef.current
     const cur = stopEls.current[cursor]
@@ -379,9 +392,13 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
             </Fragment>
           ))}
         </div>
-        {/* THE SEEK BAR ROW — same column as the track, one row below. Only mounted
-            when there is somewhere to scroll. */}
-        {scrollable && !scrollbar ? (
+        {/* THE SEEK BAR ROW — same column as the track, one row below. ALWAYS mounted
+            in the seek variant, whether or not the track can scroll (DS OB-089,
+            2026-08-26). It is the only control in this component that can move the
+            cursor — the dots and the labels above it are display only — so a walk short
+            enough to fit its pane still needs it. Gating it on `scrollable` left such a
+            walk with no way to move the active node from here at all. */}
+        {!scrollbar ? (
           <div style={{ gridColumn: 1, gridRow: 2, display: 'flex', alignItems: 'center', gap: 8, paddingRight: M.corner + 8 }}>
             {/* THE HIT AREA IS TALLER THAN THE DRAWN RAIL — a browser's own scrollbar
                 solves this with an invisible gutter wider than the drawn thumb; this
@@ -391,9 +408,9 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
               flex: 1, minWidth: 0, height: 24, display: 'flex', alignItems: 'center', position: 'relative', cursor: 'pointer',
             }}>
               <div aria-hidden="true" style={{ width: '100%', height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--bark-100)', position: 'relative' }}>
-                <div style={{ position: 'absolute', inset: 0, width: (steps.length > 1 ? (nearest / (steps.length - 1)) * 100 : 0) + '%', borderRadius: 'var(--radius-pill)', background: 'var(--accent-walk)' }} />
+                <div style={{ position: 'absolute', inset: 0, width: (steps.length > 1 ? (barIndex / (steps.length - 1)) * 100 : 0) + '%', borderRadius: 'var(--radius-pill)', background: 'var(--accent-walk)' }} />
                 <div aria-hidden="true" style={{
-                  position: 'absolute', top: '50%', left: (steps.length > 1 ? (nearest / (steps.length - 1)) * 100 : 0) + '%', width: 10, height: 10, borderRadius: 'var(--radius-pill)',
+                  position: 'absolute', top: '50%', left: (steps.length > 1 ? (barIndex / (steps.length - 1)) * 100 : 0) + '%', width: 10, height: 10, borderRadius: 'var(--radius-pill)',
                   background: 'var(--accent-walk)', transform: 'translate(-50%, -50%)', boxShadow: 'var(--lift-1)',
                 }} />
               </div>
@@ -401,7 +418,7 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
             <span style={{
               flex: 'none', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', fontSize: 'var(--fs-micro)',
               color: 'var(--text-3)', width: 30, textAlign: 'right',
-            }}>{steps.length > 1 ? Math.round((nearest / (steps.length - 1)) * 100) : 0}%</span>
+            }}>{steps.length > 1 ? Math.round((barIndex / (steps.length - 1)) * 100) : 0}%</span>
           </div>
         ) : null}
         {hoverIndex !== null && renderPreview ? (

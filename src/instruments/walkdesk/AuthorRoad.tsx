@@ -721,7 +721,15 @@ export default function AuthorRoad({
                     data-node=""
                     data-runset={1}
                     className={[
-                      'absolute z-20 flex items-center cursor-grab',
+                      // justify-center is OB-091. `items-center` is the CROSS axis on a
+                      // row flex — it was centring the pill vertically and leaving it
+                      // pinned to the box's left edge, visibly off the centre line every
+                      // resolved NodeChip above and below it sits on. The picker's
+                      // unresolved shell is `inline-flex` by design (a pill sized to its
+                      // own content, not a full-width box like NodeChip), so a
+                      // content-sized pill dropped into a left-anchored slot HAS to be
+                      // centred by the host — the component cannot do it from inside.
+                      'absolute z-20 flex items-center justify-center cursor-grab',
                       'transition-[left,top,width,height] duration-200 ease-out',
                       dim,
                       isSelected ? SEL_OUTLINE : '',
@@ -729,7 +737,16 @@ export default function AuthorRoad({
                     style={{ left: pl.x, top: pl.y, width: pl.w, height: pl.h }}
                   >
                     <div data-rpicknode={key} onClick={(e) => e.stopPropagation()}>
-                      <NodePicker options={NODE_OPTIONS} onChange={(id) => state.bindNode(pl.path, id)} search />
+                      {/* onDelete is OB-092 — the same act a resolved step's NodeChip
+                          already offers below (`state.deleteAt`), so an unbound slot is
+                          removable from the chain exactly as a bound one is and the road
+                          never swaps which control it renders as a step resolves. */}
+                      <NodePicker
+                        options={NODE_OPTIONS}
+                        onChange={(id) => state.bindNode(pl.path, id)}
+                        onDelete={() => state.deleteAt(pl.path)}
+                        search
+                      />
                     </div>
                   </div>
                 )
