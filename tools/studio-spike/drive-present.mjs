@@ -95,6 +95,10 @@ ok('and it is enabled, unlike the placeholder items', !(await present.first().is
 await present.first().click()
 await page.waitForTimeout(700)
 ok('the deck is on screen', await page.locator('[aria-label="presentation"]').isVisible())
+// The other half of desktop/smoke.mjs's `data-present-host === 'electron'`. A
+// browser must keep answering `web` — the seam falling the other way here would
+// mean a desktop build had leaked into the web path (#202).
+ok('the seam reports the browser host', (await attr('data-present-host')) === 'web')
 // zero, not merely hidden: this is what catches a drift back to an overlay
 ok('the sidebar is gone, not hidden', (await count('[aria-label="studio-sidebar"]')) === 0)
 ok('the app header is gone, not hidden', (await count('[aria-label="studio-header"]')) === 0)

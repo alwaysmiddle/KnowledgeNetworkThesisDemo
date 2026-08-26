@@ -32,6 +32,7 @@ import { useEffect, useRef } from 'react'
 import { IconButton, PaneScroller, usePresence } from '@/ds'
 
 import { useWalkPlayback } from '../instruments/walkdesk/playback'
+import { platform } from '../platform'
 import { byInstrument } from '../studio/instruments'
 import type { InstrumentId } from '../studio/instruments'
 import type { Bus } from '../studio/bus'
@@ -177,12 +178,20 @@ export default function PresentationFrame({
       {/* Machine-readable readout for the spike drivers. The studio header's own
           data-focus twin is unmounted while presenting, and this must NOT reuse
           that attribute name — two elements publishing it would make every
-          existing locator ambiguous. */}
+          existing locator ambiguous.
+
+          `data-present-host` is a READOUT of which implementation answered the
+          platform seam, and the only way a driver can tell a real desktop host
+          from `webPlatform` quietly winning (#202). Reading `platform.name` is
+          the sanctioned use of it; the #211 host-shape ban in eslint.config.js
+          forbids COMPARING it, which is the thing that would throw capability
+          away. */}
       <span
         data-present-step={play.cursor}
         data-present-count={play.steps.length}
         data-present-focus={bus.focus ?? ''}
         data-present-fullscreen={fullscreen ? 1 : 0}
+        data-present-host={platform.name}
         style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}
       />
     </div>
