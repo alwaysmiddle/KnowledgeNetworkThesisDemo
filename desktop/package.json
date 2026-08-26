@@ -1,0 +1,20 @@
+{
+  "name": "knowledge-network-thesis-demo-desktop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Electron host for the thesis demo. Its own package, its own lockfile — see #201.",
+  "main": "out/main.cjs",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "start": "npm run build && electron .",
+    "smoke": "npm run build && node smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "electron": "^44.0.0",
+    "esbuild": "^0.28.2",
+    "playwright-core": "^1.62.1",
+    "typescript": "~5.9.3"
+  }
+}

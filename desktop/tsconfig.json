@@ -1,0 +1,32 @@
+{
+  /* THE DESKTOP PACKAGE'S OWN PROJECT. Deliberately NOT referenced from the root
+     tsconfig.json: `desktop/` is its own npm package with its own lockfile (#201),
+     and the root build must stay unaware of it. Nothing makes that a risk —
+     tsconfig.app.json includes only "src" and tsconfig.node.json names two files,
+     so `desktop/` is already invisible up there with no exclude needed.
+
+     "DOM" is in lib because preload.ts imports the real `src/platform/web.ts`
+     (see the note there): that file talks to `document` and `window`, and it is
+     the SAME file the browser build ships. Typechecking it here is the point. */
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "erasableSyntaxOnly": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  /* Only this package's own sources are listed. tsc follows the ../src/platform
+     imports on its own, which is exactly the coupling this slice wants checked. */
+  "include": ["*.ts"]
+}
