@@ -47,7 +47,7 @@ export function usePresentSession(): PresentSession {
     // written to state: `onFullscreenChange` above is the single source of that
     // bit, and writing both would race. A `false` here means the deck runs in a
     // window, which is a working presentation.
-    void platform.enterFullscreen(document.documentElement)
+    void platform.enterFullscreen()
   }
 
   const exit = () => {

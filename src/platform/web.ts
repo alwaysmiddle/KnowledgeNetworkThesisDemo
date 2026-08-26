@@ -4,18 +4,55 @@
 // because fullscreen was refused is a working presentation; one that dies on an
 // unhandled rejection is not, and the difference is a try/catch.
 
-import type { Platform } from './types'
+import type { Platform, ScreenInfo } from './types'
+
+// The Window Management API is not in TypeScript's DOM lib, so the shape it
+// returns is declared here — structurally, and only the fields `toScreenInfo`
+// reads. A `declare global` augmentation was the alternative and is worse: it
+// would tell every file in the app that `getScreenDetails` exists, when the
+// point of this module is that only this file knows.
+interface ScreenDetailedish {
+  readonly left: number
+  readonly top: number
+  readonly width: number
+  readonly height: number
+  readonly label?: string
+  readonly isPrimary?: boolean
+  readonly isInternal?: boolean
+}
+type WindowWithScreenDetails = Window & {
+  getScreenDetails?: () => Promise<{ screens: readonly ScreenDetailedish[] }>
+}
+
+// Geometry as the id: no display can sit at another's exact bounds, and it is
+// the same handle on the next enumeration if nothing was unplugged. Deliberately
+// not an index — a caller holding "screen 1" across a re-enumeration would be
+// holding a different monitor.
+function toScreenInfo(s: ScreenDetailedish): ScreenInfo {
+  return {
+    id: `${s.left},${s.top},${s.width},${s.height}`,
+    label: s.label ?? '',
+    // `?? false` rather than `?? true` for isInternal: an unknown display is
+    // safer treated as external. Guessing "internal" would hide the projector.
+    isInternal: s.isInternal ?? false,
+    isPrimary: s.isPrimary ?? false,
+    left: s.left,
+    top: s.top,
+    width: s.width,
+    height: s.height,
+  }
+}
 
 export const webPlatform: Platform = {
   name: 'web',
 
-  async enterFullscreen(el) {
+  async enterFullscreen() {
     // requestFullscreen REJECTS (rather than resolving false) when it is refused:
     // no user activation, a Permissions-Policy block, an OS that will not oblige.
     // All of those mean the same thing to a caller — you did not get it — so they
     // collapse into one `false` here.
     try {
-      await el.requestFullscreen()
+      await document.documentElement.requestFullscreen()
       return document.fullscreenElement !== null
     } catch {
       return false
@@ -42,5 +79,23 @@ export const webPlatform: Platform = {
   onFullscreenChange(fn) {
     document.addEventListener('fullscreenchange', fn)
     return () => document.removeEventListener('fullscreenchange', fn)
+  },
+
+  async screens() {
+    // `globalThis.window?.` rather than bare `window`, matching index.ts: vitest
+    // runs `environment: 'node'`, and this is the one method a node test calls.
+    const w = globalThis.window as WindowWithScreenDetails | undefined
+    // Chromium-only, and absent in Firefox and Safari — so this branch is the
+    // shipping answer for two of the three engines, not an edge case.
+    if (typeof w?.getScreenDetails !== 'function') return []
+    try {
+      const details = await w.getScreenDetails()
+      return details.screens.map(toScreenInfo)
+    } catch {
+      // Rejects with NotAllowedError when the `window-management` permission is
+      // denied or dismissed. Indistinguishable from having no API, and it should
+      // be: both mean "you do not get to choose a display".
+      return []
+    }
   },
 }

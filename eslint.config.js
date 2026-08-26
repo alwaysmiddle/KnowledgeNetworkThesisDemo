@@ -5,6 +5,29 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+// #211 — THE HOST-SHAPE BAN. `src/platform/types.ts` documents `platform.name`
+// as "a readout for humans and for drivers — never a thing to branch on", and
+// this is the machine half of that sentence. The seam asks what CAN BE DONE
+// here; branching on WHAT IS RUNNING this throws away capability in both
+// directions — `platform.name === 'electron'` would have killed #204's
+// choose-a-display feature in every browser (Chromium answers it with
+// `getScreenDetails()`), and it is the one line that makes the later web port
+// impossible. A capability the seam cannot yet answer needs a new METHOD with an
+// honest weak answer, not a host test at the call site.
+//
+// Shared rather than repeated because flat config REPLACES `no-restricted-syntax`
+// wholesale when a later block re-declares it: the #61 ratchet below covers three
+// files that are also under `src/**`, so it has to carry this entry itself or
+// those three would silently lose the ban.
+const noHostBranch = {
+  selector: [
+    "BinaryExpression[operator=/^[!=]==?$/] > MemberExpression[object.name='platform'][property.name='name']",
+    "SwitchStatement > MemberExpression[object.name='platform'][property.name='name']",
+  ].join(', '),
+  message:
+    "host-shaped branch — `platform.name` is a readout, not a decision. Ask the seam what it CAN DO (add a capability method whose weak answer is [] or false) rather than what is running us (#211).",
+}
+
 export default defineConfig([
   // the evoc spike carries a Python venv; eslint was walking into its vendored
   // matplotlib JS and reporting on it. Noise in every `npm run verify`.
@@ -49,6 +72,11 @@ export default defineConfig([
     },
   },
 
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': ['error', noHostBranch] },
+  },
+
   // #61 — DS-adherence ratchet. The Design System is the source of truth for
   // style; app code consumes its tokens as var(--…), never raw values. These
   // bans are the machine enforcement of that rule, authored as native ESLint
@@ -65,6 +93,8 @@ export default defineConfig([
     rules: {
       'no-restricted-syntax': [
         'error',
+        // re-declared here, not inherited — see noHostBranch's note above.
+        noHostBranch,
         {
           selector: 'Literal[value=/#[0-9a-fA-F]{3,8}\\b/]',
           message: 'raw hex colour — consume a DS --color token via var(--…), not a literal (#61 adherence).',
