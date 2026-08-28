@@ -1122,7 +1122,7 @@ export default function AuthorRoad({
                 width: Math.abs(marquee.x1 - marquee.x0),
                 height: Math.abs(marquee.y1 - marquee.y0),
                 borderColor: 'var(--state-selected)',
-                background: 'var(--state-selected-wash)',
+                background: 'color-mix(in oklch, var(--state-selected) 14%, transparent)',
               }}
             />
           )}

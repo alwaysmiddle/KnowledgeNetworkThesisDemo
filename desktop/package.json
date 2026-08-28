@@ -7,7 +7,8 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
-    "start": "npm run build && electron .",
+    "start": "node start.mjs",
+    "dev": "npm run build && electron .",
     "smoke": "npm run build && node smoke.mjs"
   },
   "devDependencies": {

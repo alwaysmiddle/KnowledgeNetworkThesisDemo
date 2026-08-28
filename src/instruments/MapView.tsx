@@ -741,9 +741,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 onClick={() => regionClick(d)}
                 onPointerEnter={() => enterCell(d)}
                 onPointerLeave={() => leaveCell(d)}
-              >
-                <title>{byId.get(d)!.title}</title>
-              </path>
+              />
             ))}
           </g>
           <g>
@@ -763,9 +761,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 onClick={() => regionClick(m)}
                 onPointerEnter={() => enterCell(m)}
                 onPointerLeave={() => leaveCell(m)}
-              >
-                <title>{byId.get(m)!.title}</title>
-              </path>
+              />
             ))}
           </g>
           <g>
@@ -785,9 +781,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 onClick={() => regionClick(t.id)}
                 onPointerEnter={() => enterCell(t.id)}
                 onPointerLeave={() => leaveCell(t.id)}
-              >
-                <title>{byId.get(t.id)!.title}</title>
-              </path>
+              />
             ))}
           </g>
 
