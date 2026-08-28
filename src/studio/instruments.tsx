@@ -24,6 +24,7 @@ import ContoursView from '../instruments/ContoursView'
 import ClustersView from '../instruments/ClustersView'
 import DocumentPanel from '../instruments/DocumentPanel'
 import LensPane from '../instruments/LensPane'
+import MapCountReadout from '../instruments/MapCountReadout'
 import MapView, { MAP_WATER } from '../instruments/MapView'
 import NeighborhoodPanel from '../instruments/NeighborhoodPanel'
 import TrailStrip from '../instruments/TrailStrip'
@@ -72,6 +73,10 @@ export interface Instrument {
    * as a sibling of `render`'s output, not inside it, so `Pane` can clip its top
    * corners to the frame's own arc. */
   actionBar?(bus: Bus): ReactNode
+  /** pane-scoped controls beside the TITLE itself (DS `Pane.actions`) — an 18px-
+   * tall icon-height slot in the header row, not a separate bar. Most instruments
+   * have nothing that belongs there and leave this out. */
+  actions?(bus: Bus): ReactNode
   /** the pane's own FRAME colour (DS `Pane.face`, OB-066) — a data-driven host
    * names its own (the map's water) so the frame stops relying on its default
    * `--surface-paper` to show around content that doesn't reach every edge.
@@ -101,6 +106,7 @@ const VIEWS = [
     // (OB-054/#143) — one instrument, one canvas, body:'none'.
     body: 'none',
     face: MAP_WATER,
+    actions: () => <MapCountReadout />,
     render: (bus) => <MapView bus={bus} />,
   },
   {
