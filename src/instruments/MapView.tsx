@@ -475,32 +475,35 @@ export default function MapView({ bus }: { bus: Bus }) {
       const last = steps[steps.length - 1]
       return last < cursorStep ? 'done' : last === cursorStep ? 'current' : 'ahead'
     }
-    const renderedAt = new Map<string, { c: XY; size: number }>() // visId → its most recent pin's position + size
-    return groups.map((g, i) => {
+    // OB-087 — a territory visited more than once (a non-adjacent revisit)
+    // gets one pin per visit, all sharing `visId`; `count` is how many. Sizing
+    // and placement both key off it, replacing the old fixed 24/34px-by-range
+    // constant: a lone pin stays full-size, each pin sharing a territory
+    // shrinks further (floored), matching the DS's own sizeFor formula
+    // (components/nav/nav.card.html).
+    const countByVisId = new Map<string, number>()
+    for (const g of groups) countByVisId.set(g.visId, (countByVisId.get(g.visId) ?? 0) + 1)
+    const indexByVisId = new Map<string, number>() // visId → how many placed so far
+    return groups.map((g) => {
       const label: number | string = g.steps.length > 1 ? `${g.steps[0]}-${g.steps[g.steps.length - 1]}` : g.steps[0]
-      const size = g.steps.length > 1 ? 34 : 24
-      const prevRender = renderedAt.get(g.visId)
+      const count = countByVisId.get(g.visId)!
+      const size = Math.max(16, 22 - (count - 1) * 3)
+      const idx = indexByVisId.get(g.visId) ?? 0
+      indexByVisId.set(g.visId, idx + 1)
+      // a revisit: spread around the territory's own centroid instead of
+      // stacking along the direction of arrival — the old geometry cleared
+      // each pin from the one before it, which reads as a line of discs
+      // marching away from the shared point rather than "several stops here".
+      // An evenly-spaced arc uses different parts of the territory's shape
+      // (DS: "corners, an arc, a simple grid" are all fine; the requirement is
+      // just not stacking them) and, as a side effect, spaces the arrows that
+      // meet each of these pins apart too (OB-090).
       let c = g.c
-      if (prevRender) {
-        // a revisit: offset away from the shared coordinate, in the direction
-        // of arrival — the same geometry the old ↺ badge used, generalized
-        // from "offset from the previous STEP" to "offset from the previous
-        // PIN", and from one repeat to any number (each further repeat offsets
-        // from the last one's already-offset position, staggering in
-        // sequence). The magnitude clears BOTH pins' own radii plus a gap,
-        // not a flat constant — the old badge's "18" was tuned for its own
-        // 15px circle and left this port's 24-34px StepDots overlapping their
-        // original at first pass, caught only by measuring rendered boxes.
-        const prevGroup = groups[i - 1]
-        const dx = prevGroup ? g.c.x - prevGroup.c.x : 0
-        const dy = prevGroup ? g.c.y - prevGroup.c.y : 0
-        const len = Math.hypot(dx, dy) || 1
-        const clear = px(prevRender.size / 2 + size / 2 + 6)
-        const ox = dx !== 0 || dy !== 0 ? (dx / len) * clear : clear
-        const oy = dx !== 0 || dy !== 0 ? (dy / len) * clear : -clear
-        c = { x: g.c.x + ox, y: g.c.y + oy }
+      if (count > 1) {
+        const angle = (2 * Math.PI * idx) / count - Math.PI / 2
+        const radius = px(size * 1.3 + 6) // clears a same-size neighbour at this shrunk size, plus a gap
+        c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
       }
-      renderedAt.set(g.visId, { c, size })
       return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], c, label, state: stateOf(g.steps), size }
     })
     // px closes over f/view.s, both already deps; a fresh px reference every
@@ -1000,12 +1003,24 @@ export default function MapView({ bus }: { bus: Bus }) {
                 const from = routeStops[i]
                 const dx = to.c.x - from.c.x
                 const dy = to.c.y - from.c.y
-                const dist = (Math.hypot(dx, dy) * view.s) / f // world units -> real px
+                const worldDist = Math.hypot(dx, dy) || 1
+                const dist = (worldDist * view.s) / f // world units -> real px
                 if (dist < 1) return null
                 const angle = (Math.atan2(dy, dx) * 180) / Math.PI
-                const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head)
+                // OB-090 — anchor the TAIL at the source pin's own edge (toward
+                // the target), not its centre. A centred tail is the SAME point
+                // for every arrow leaving a pin, however many attach there —
+                // exactly the "one shared anchor" the fix asks to stop. The
+                // head already anchored this way (short of `to`'s own radius,
+                // toward `from`); the tail now does the same in reverse, so
+                // every arrow's anchor is angled toward the end it actually
+                // connects to rather than a shared centre point.
+                const tailOffset = px(from.size / 2)
+                const tailX = from.c.x + (dx / worldDist) * tailOffset
+                const tailY = from.c.y + (dy / worldDist) * tailOffset
+                const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head - from.size / 2)
                 return (
-                  <g key={`ra-${to.key}`} transform={`translate(${from.c.x} ${from.c.y}) rotate(${angle}) scale(${f / view.s})`}>
+                  <g key={`ra-${to.key}`} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
                     <NodeArrow direction="right" length={length} joins={PIN_RING_WIDTH} />
                   </g>
                 )
