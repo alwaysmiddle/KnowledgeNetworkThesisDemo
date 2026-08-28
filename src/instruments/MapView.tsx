@@ -61,7 +61,7 @@ import type { EdgeType } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, fillOf, inkOf, inkStrongOf } from '../model/color'
+import { colorOf, inkOf, inkStrongOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, maxTier, nestedDots, provincePath, provinceRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { fitLabel, fitRegionLabel } from '../model/labelfit'
@@ -731,7 +731,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 d={countryPath[d]}
                 data-region={d}
                 data-rtier={0}
-                fill={fillOf(d)}
+                fill={territoryFillOf(d)}
                 fillOpacity={level === 0 ? 0.95 : 0}
                 stroke="#ffffff"
                 strokeOpacity={level === 0 ? 0.9 : 0}
@@ -751,7 +751,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 d={provincePath[m]}
                 data-region={m}
                 data-rtier={1}
-                fill={fillOf(m)}
+                fill={territoryFillOf(m)}
                 fillOpacity={level === 1 ? 0.95 : 0}
                 stroke="#ffffff"
                 strokeOpacity={level === 1 ? 0.95 : 0}
@@ -771,7 +771,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 d={t.d}
                 data-terr={t.id}
                 data-tier={t.tier}
-                fill={fillOf(t.id)}
+                fill={territoryFillOf(t.id)}
                 fillOpacity={isActive(t) ? (isMuted(t) ? 0.6 : 0.95) : 0}
                 stroke="#ffffff"
                 strokeOpacity={isActive(t) ? 0.95 : 0}

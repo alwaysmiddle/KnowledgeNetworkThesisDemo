@@ -25,6 +25,8 @@
 //               darker AND far less chromatic than inkOf so it reads as clean
 //               type, not a muddy colored gray, on a hue-tinted/glowing cell
 
+import { nestedFamilyPaint } from '@/ds'
+
 import { childrenOf, domainIds, DOMAIN_COLOR } from '../corpus/graph'
 
 // ── OKLab/OKLCH ↔ sRGB (Björn Ottosson's matrices, D65) ─────────────────────
@@ -132,12 +134,45 @@ for (const d of domainIds) {
   walk(d)
 }
 
+// ── Territory fill (OB-086) ──────────────────────────────────────────────────
+// `fillOf` above goes flat past two or three generations: `assign()` only
+// floors sibling spacing at MIN_STEP from generation 2 down, and the fill's
+// own lightness/chroma barely move with depth (a ±0.02 L wobble, constant C) —
+// so a domain with several modules, each with several topics, reads as one
+// undifferentiated blob a couple of levels in. That is real for every `fillOf`
+// consumer (ConnectionsPane included), but the DS's own fix — `nestedFamilyPaint`
+// — is scoped to what the owner actually reported: the MAP's territory fill.
+// A separate map here, rather than changing `fillOf` itself, so the map gets
+// depth-legible fill without silently re-tinting a consumer that never asked
+// for it. Depth/index/of are computed once per node by the same kind of
+// tree walk `assign()` above already does — depth from the domain ancestor,
+// index/of among the node's own siblings under its immediate parent.
+const territoryFillMap = new Map<string, string>()
+
+function walkTerritory(id: string, domain: string, depth: number) {
+  const kids = childrenOf.get(id) ?? []
+  kids.forEach((k, i) => {
+    territoryFillMap.set(k.id, nestedFamilyPaint(domain, { depth: depth + 1, index: i, of: kids.length }).fill)
+    walkTerritory(k.id, domain, depth + 1)
+  })
+}
+
+for (const d of domainIds) {
+  territoryFillMap.set(d, nestedFamilyPaint(d, { depth: 0, index: 0, of: 1 }).fill)
+  walkTerritory(d, d, 0)
+}
+
 const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong: '#1e2530' }
 
 /** saturated identity anchor — borders, capitals, chips */
 export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anchor
 /** pale country fill — active-level territory paint */
 export const fillOf = (id: string): string => fillMap.get(id) ?? FALLBACK.fill
+/** the map's territory fill, graded arbitrarily deep by `nestedFamilyPaint`
+ *  (OB-086) — a domain and its descendants stay visually distinguishable past
+ *  the two or three generations `fillOf` above goes flat at. Map-only: other
+ *  `fillOf` consumers (ConnectionsPane) are unaffected. */
+export const territoryFillOf = (id: string): string => territoryFillMap.get(id) ?? FALLBACK.fill
 /** dark hue-tinted text color — labels on the node's own fill */
 export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
 /** crisp near-black emphasis ink — selected/focused labels (see header) */
