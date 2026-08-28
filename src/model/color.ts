@@ -286,6 +286,58 @@ for (const t of territories) {
 }
 for (const group of territoriesByTier.values()) fourColorGroup(group.map((t) => ({ id: t.id, rings: [t.poly] })))
 
+// ── Label ink: contrast against the cell the label actually sits on ─────────
+// OB-102 (2026-08-28), answering receipts/b656ebc.md + issue #220. The stepped
+// territory fill (above) moves each cell's L/C off `fillOf`'s flat 0.905/0.058
+// to separate neighbors, and on the lighter/more chromatic steps the standard
+// `inkOf` (L 0.42, C 0.10) drops under 4.5:1 — 458 of 745 labels, worst 3.42.
+//
+// The design system's answer was explicit about which lever moves: THE INK, per
+// cell. Not the halo — MapView's thin white case is grain separation, and a
+// fatter or more opaque one buys the outlined-sticker look the label pass
+// already rejected. And not L_STEP/C_STEP, since the neighbor separation those
+// buy is the whole point of the fill change.
+//
+// So: keep the hue, and slide L and C together from `inkOf`'s register toward
+// `inkStrongOf`'s (L 0.30, C 0.04 — measured to hold 5.77:1 everywhere) by the
+// SMALLEST step that reaches 4.5:1. A cell that already passes keeps `inkOf`
+// unchanged, so this darkens only where it must.
+function relLum(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  return 0.2126 * lin(((n >> 16) & 255) / 255) + 0.7152 * lin(((n >> 8) & 255) / 255) + 0.0722 * lin((n & 255) / 255)
+}
+
+/** WCAG 2.x contrast ratio between two opaque sRGB hexes. */
+function contrastRatio(a: string, b: string): number {
+  const la = relLum(a)
+  const lb = relLum(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+const LABEL_MIN_CONTRAST = 4.5
+const INK_STEPS = 12
+
+const labelInkMap = new Map<string, string>()
+for (const [id, fill] of territoryFillMap) {
+  const s = slot.get(id)
+  const base = inkMap.get(id) ?? FALLBACK.ink
+  if (!s || contrastRatio(base, fill) >= LABEL_MIN_CONTRAST) {
+    labelInkMap.set(id, base)
+    continue
+  }
+  // fall through to the full inkStrong register if no partial step clears it
+  let chosen = inkStrongMap.get(id) ?? FALLBACK.inkStrong
+  for (let step = 1; step <= INK_STEPS; step++) {
+    const t = step / INK_STEPS
+    const cand = oklchToHex(lerp(0.42, 0.3, t), lerp(0.1, 0.04, t), s.hue)
+    if (contrastRatio(cand, fill) >= LABEL_MIN_CONTRAST) {
+      chosen = cand
+      break
+    }
+  }
+  labelInkMap.set(id, chosen)
+}
+
 /** saturated identity anchor — borders, capitals, chips */
 export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anchor
 /** pale country fill — active-level territory paint */
@@ -297,6 +349,11 @@ export const fillOf = (id: string): string => fillMap.get(id) ?? FALLBACK.fill
 export const territoryFillOf = (id: string): string => territoryFillMap.get(id) ?? FALLBACK.fill
 /** dark hue-tinted text color — labels on the node's own fill */
 export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
+/** the label ink for a MAP territory — `inkOf`, darkened toward
+ *  `inkStrongOf`'s register only as far as 4.5:1 against that cell's own
+ *  stepped `territoryFillOf` requires (OB-102, see header). Map-only: every
+ *  other `inkOf` consumer paints on the flat `fillOf` and is unaffected. */
+export const labelInkOf = (id: string): string => labelInkMap.get(id) ?? inkMap.get(id) ?? FALLBACK.ink
 /** crisp near-black emphasis ink — selected/focused labels (see header) */
 export const inkStrongOf = (id: string): string => inkStrongMap.get(id) ?? FALLBACK.inkStrong
 /** the assigned hue in degrees, for anything that derives its own swatch */

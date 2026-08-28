@@ -60,7 +60,7 @@ import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT
 import { DT } from './walkdesk/authordnd'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, inkOf, inkStrongOf, territoryFillOf } from '../model/color'
+import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import type { Bundle } from '../model/atlas'
@@ -899,7 +899,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                   textAnchor="middle"
                   fontSize={px(fit.fs)}
                   fontWeight={level === 1 ? 700 : 800}
-                  fill={level === 1 ? inkOf(m.key) : colorOf(m.key)}
+                  fill={level === 1 ? labelInkOf(m.key) : colorOf(m.key)}
                   opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
                   style={{ userSelect: 'none', transition: 'opacity 350ms' }}
                 >
@@ -953,7 +953,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                       textAnchor="middle"
                       fontSize={px(t.tier === level ? 12.5 : 11.5)}
                       fontWeight={isSel ? 700 : 600}
-                      fill={isSel ? inkStrongOf(t.id) : inkOf(t.id)}
+                      fill={isSel ? inkStrongOf(t.id) : labelInkOf(t.id)}
                       stroke="#ffffff"
                       strokeWidth={px(isSel ? 2.2 : 2.4)}
                       strokeOpacity={isSel ? 0.7 : 0.85}
