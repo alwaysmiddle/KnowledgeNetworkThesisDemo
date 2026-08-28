@@ -314,7 +314,13 @@ describe('our DS ports document what the DS documents', () => {
   // WalkerMark IS documented here, matching the DS's own doc comment for it).
   // WalkStrip/WalkStep's own props are fully documented — this port added no other
   // undocumented surface.
-  const BUDGET = 78
+  // 2026-08-27 (OB-096): +13 for the five new src/ds/map/** ports (MapFloatingButton,
+  // ZoomControl, LevelPicker, VisibilityMark, MapTooltip) — every one of these props
+  // is bare in the DS's own .d.ts too (checked line by line against each), same
+  // DS-parity reasoning as every +N line above: MapFloatingButton's disabled/label/
+  // children/onClick, ZoomControl's onZoomIn/onZoomOut/zoomInDisabled/zoomOutDisabled,
+  // LevelPicker's onSelect, VisibilityMark's size/style, MapTooltip's kind/relationsOut.
+  const BUDGET = 91
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {

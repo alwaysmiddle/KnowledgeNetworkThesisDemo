@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { DomainDot } from './DomainDot'
 import { NodeChip, CHIP_METRICS as M } from './NodeChip'
 import type { DomainCode } from './vocab'
-import { useClipped } from '../chrome/IconButton'
+import { IconButton, useClipped } from '../chrome/IconButton'
 
 export interface NodeOption {
   id: string
@@ -39,6 +39,13 @@ export interface NodePickerProps {
   menuPortal?: HTMLElement | null
   /** the open menu's scroll cap, px. Default 280 */
   menuMaxHeight?: number
+  /** OPT-IN, AND IT WORKS ON BOTH STATES — same contract as `NodeChip`'s own: passing
+   *  the handler is the whole switch. Resolved, it passes straight through to the
+   *  `NodeChip` this renders, unchanged. Unresolved, it adds the same hover-revealed ✕
+   *  at the pill's trailing edge, after the chevron. An empty slot is removable from a
+   *  chain exactly as a filled one is, so a host never has to swap which control it
+   *  renders as a step resolves. */
+  onDelete?: () => void
 }
 
 /** A node NOT YET PICKED, standing where a `NodeChip` will stand once it is. Two states,
@@ -69,7 +76,7 @@ export interface NodePickerProps {
  *
  *  Typed port of the DS NodePicker.jsx (contract: NodePicker.d.ts). */
 export function NodePicker({
-  options, value, onChange, placeholder = 'pick a node', mark = 'border', search, menuPortal, menuMaxHeight = 280,
+  options, value, onChange, placeholder = 'pick a node', mark = 'border', search, menuPortal, menuMaxHeight = 280, onDelete,
 }: NodePickerProps) {
   const ROW_PAD = 4
   const [open, setOpen] = useState(false)
@@ -192,24 +199,48 @@ export function NodePicker({
   }
 
   const anchorEl: ReactNode = picked ? (
-    <NodeChip title={picked.title} domain={picked.domain} mark={mark} />
+    <NodeChip title={picked.title} domain={picked.domain} mark={mark} onDelete={onDelete} />
   ) : (
-    <button
-      type="button"
-      onClick={toggleOpen}
+    /* THE PILL IS THE SPAN, THE TOGGLE IS THE BUTTON INSIDE IT (DS OB-092). The whole
+       unresolved shell used to be one <button>; it is split so an optional ✕ can sit
+       inside the pill's own border without being nested in the control that opens the
+       menu — a button inside a button is invalid, and a ✕ outside the pill would read
+       as a different slot's control. The border, background, hover wash and padding
+       all stay on the span, so the pill's measured box is unchanged when no `onDelete`
+       is passed. */
+    <span
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: M.gap, cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: M.gap,
         font: 'inherit', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-medium)', color: 'var(--text-3)',
         padding: M.padYFlat + 'px ' + M.padXFlat + 'px', borderRadius: 'var(--radius-pill)',
         border: '1px solid var(--border-rule)', background: hover || open ? 'var(--surface-hover)' : 'var(--surface-raised)',
         transition: 'background var(--dur-hover) var(--ease-soft)',
       }}
     >
-      <span style={{ whiteSpace: 'nowrap' }}>{placeholder}</span>
-      <Chevron open={open} />
-    </button>
+      <button
+        type="button"
+        onClick={toggleOpen}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: M.gap, cursor: 'pointer',
+          font: 'inherit', color: 'inherit', background: 'none', border: 'none', padding: 0,
+        }}
+      >
+        <span style={{ whiteSpace: 'nowrap' }}>{placeholder}</span>
+        <Chevron open={open} />
+      </button>
+      {onDelete ? (
+        <IconButton
+          tone="danger"
+          title="delete this node"
+          label="delete this node"
+          reveal={hover}
+          onClick={onDelete}
+          style={{ marginLeft: 'auto', marginRight: -M.delPull }}
+        />
+      ) : null}
+    </span>
   )
 
   if (picked) return anchorEl

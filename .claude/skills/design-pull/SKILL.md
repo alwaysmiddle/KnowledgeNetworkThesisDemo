@@ -1,15 +1,21 @@
 ---
-name: design-sync
-description: Sync this repo with the KnowledgeNetwork Design System (a Claude Design project) in the READ direction — pull tokens, components and host-screen edits from the design project into src/ds and src/tokens, then write a receipt back. Use whenever the user says /design-sync, "sync the design system", "pull from the DS", "what does the design agent want", or asks to port/adopt a DS component or token. Overrides the bundled design-sync skill, which pushes the wrong way.
+name: design-pull
+description: Sync this repo with the KnowledgeNetwork Design System (a Claude Design project) in the READ direction — pull tokens, components and host-screen edits from the design project into src/ds and src/tokens, then write a receipt back. Use whenever the user says /design-pull, "sync the design system", "pull from the DS", "what does the design agent want", or asks to port/adopt a DS component or token.
 ---
 
-# design-sync — DS → this repo, and a receipt back
+# design-pull — DS → this repo, and a receipt back
 
-**Direction is the whole point.** The bundled `design-sync` skill converts a local
-design-system repo into an export and **uploads it to claude.ai/design**. That is
-backwards here and would overwrite the source of truth with a conversion of the
-app. This skill exists to win the name. If you ever find yourself building an
-export bundle to push, stop — you are running the wrong procedure.
+**Direction is the whole point, and the name says so.** Claude Code ships a
+*built-in* `/design-sync` command that converts a local design-system repo into
+an export and **uploads it to claude.ai/design** — the opposite direction from
+what this project needs, and it would overwrite the source of truth with a
+conversion of the app. That command is hardcoded, not a project-overridable
+skill, so it cannot be renamed or suppressed from here — a literal `/design-sync`
+typed in this repo always reaches the bundled command, never this file. This
+skill is deliberately named `design-pull` instead of contesting that name, so it
+gets its own unambiguous `/design-pull` invocation. If you ever find yourself
+building an export bundle to push, stop — you are running the wrong procedure
+(and probably typed `/design-sync`, not `/design-pull`).
 
 Here the design project **is** the source of truth for style. Work flows:
 

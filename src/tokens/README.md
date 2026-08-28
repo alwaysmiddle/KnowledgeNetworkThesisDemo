@@ -3,7 +3,7 @@
 These CSS files are a **vendored snapshot** of the `tokens/` folder in the
 **KnowledgeNetwork Design System** (a Claude Design project), which is the
 source of truth for style. They are kept **byte-identical** to the project so a
-future `/design-sync` `get_file` can diff cleanly against them.
+future `/design-pull` `get_file` can diff cleanly against them.
 
 The recorded fingerprint of this snapshot — DS project id, per-file `sha256`
 hashes, and sync date — lives in [`../ds/PROVENANCE.json`](../ds/PROVENANCE.json).
@@ -13,7 +13,7 @@ dependency is tracked in issue #66.
 
 **Do not hand-edit these files.** A value here is wrong the moment it disagrees
 with the design project. To change one, change it in the design project and
-re-vendor via `/design-sync`. This is issue #57 (roadmap #58); the drift guard
+re-vendor via `/design-pull`. This is issue #57 (roadmap #58); the drift guard
 that enforces "code only reaches these through `var(--token)`" is the DS
 adherence lint (`_adherence.oxlintrc.json`), wired in #61.
 

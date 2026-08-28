@@ -2,7 +2,7 @@
 
 A design agent works on this product's visual system inside a Claude Design
 project (**KnowledgeNetwork Design System**). It is the **source of truth for
-style**; code adopts it through `/design-sync`, component by component, never a
+style**; code adopts it through `/design-pull`, component by component, never a
 wholesale replace. This is issue #57 (roadmap #58).
 
 This file is the contract for how code and that agent exchange work. As of **#75**
@@ -26,7 +26,7 @@ vocabulary was missing.
 
 | | this repo | the design project |
 | --- | --- | --- |
-| **Claude Code** | read + write | read any file; write receipts freely; all other writes only through an approved `/design-sync` plan |
+| **Claude Code** | read + write | read any file; write receipts freely; all other writes only through an approved `/design-pull` plan |
 | **design agent** | read (pushed refs, a mounted tree, **and this repo's issues**) | read + write |
 
 Each agent writes only in its own home; both read both. No file is authored
@@ -58,7 +58,7 @@ twice, and there is no merge to resolve.
 ## design → code: obligations in `design-sync.md`
 
 The design agent **cannot write this repo**. It authors in its Design System
-project; code reads that through `/design-sync` (`list_files` / `get_file` to
+project; code reads that through `/design-pull` (`list_files` / `get_file` to
 read the current tokens and components, then `finalize_plan` + `write_files` to
 push a reviewed change). There is no local mirror — read the project directly.
 

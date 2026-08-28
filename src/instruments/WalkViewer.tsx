@@ -35,12 +35,13 @@ export default function WalkViewer({ bus }: { bus: Bus }) {
 
   return (
     <div className="h-full flex flex-col" aria-label="walk-viewer">
-      <div className="shrink-0 px-3 py-1.5 border-b border-slate-100">
-        <span className="text-[10px] font-bold text-slate-500">
-          {play.title}
-          {play.steps.length > 0 && ` · step ${play.cursor + 1} of ${play.steps.length}`}
-        </span>
-      </div>
+      {/* NO HEADER LINE OF OUR OWN (DS OB-093, 2026-08-26). This carried
+          "{title} · step N of M" in a hand-rolled bar above the strip — a second
+          header under the Pane's own, which the DS never designed and whose
+          styling (`text-slate-500`, a `border-slate-100` rule) was hand-rolled
+          rather than DS. The contract is `<Pane title="Walk Viewer">` with nothing
+          below the title; the strip's own `showCount` carries the tally. The walk's
+          NAME and the cursor's position are TrailStrip's job, which keeps both. */}
       <div style={{ height: 172, margin: '6px 12px' }}>
         <WalkStrip
           steps={play.steps}

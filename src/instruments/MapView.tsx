@@ -55,18 +55,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { ARROW_METRICS, NodeArrow, PaneCanvas, PIN_RING_WIDTH, StepDot, wrapTip } from '@/ds'
-import { byId, domainIds, EDGE_COLOR, MIXED_EDGE_COLOR, pathTo } from '../corpus/graph'
-import type { EdgeType } from '../corpus/graph'
+import { ARROW_METRICS, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, StepDot, VisibilityMark, ZoomControl } from '@/ds'
+import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
-import { colorOf, fillOf, inkOf, inkStrongOf } from '../model/color'
-import { countryPath, countryRings, maxTier, nestedDots, provincePath, provinceRings, territories } from '../model/nested'
+import { colorOf, inkOf, inkStrongOf, territoryFillOf } from '../model/color'
+import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
+import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel } from '../model/labelfit'
 import type { FitLine } from '../model/labelfit'
-import { parentOf } from '../model/nav'
+import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
 
 const VB_X = -40
@@ -86,10 +86,10 @@ export const MAP_WATER = '#eef4f8'
 // Levels run L0..maxTier — the deepest stratum in the DATA decides how far
 // the scale goes. Each level is a canonical scale; there is nothing between.
 const L_MAX = maxTier
-const BASE_NAME = ['domains', 'modules', 'topics', 'subtopics', 'concepts', 'details', 'fine structure']
 const BASE_S = [0.8, 1.6, 3.0, 5.5, 9.5, 14]
-const LEVEL_NAME = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_NAME[i] ?? `level ${i}`)
 const LEVEL_S = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_S[i] ?? BASE_S[BASE_S.length - 1] * Math.pow(1.5, i - (BASE_S.length - 1)))
+/** the LevelPicker's labels, "L0".."L{maxTier}" — OB-096 */
+const LEVEL_LABELS = Array.from({ length: L_MAX + 1 }, (_, i) => `L${i}`)
 const FLY_MS = 260
 // a LOOK's flight (a Connections click) can cross the whole map AND change
 // level in one move — at the wheel-step 260ms it read as a cut, not a flight.
@@ -117,8 +117,6 @@ const PARENT_BORDER_W = 2.6
 const PARENT_LABEL_PX = 26
 const ancBorderO = (d: number) => (d === 1 ? 0.6 : 0)
 const ancLabelO = (d: number) => (d === 1 ? 0.15 : 0)
-
-const EDGE_ORDER: EdgeType[] = ['depends_on', 'uses', 'implemented_with', 'see_also']
 
 interface View {
   tx: number
@@ -150,6 +148,16 @@ export default function MapView({ bus }: { bus: Bus }) {
   const { setHover: busSetHover, endHover: busEndHover, clearFocus: busClearFocus } = bus
   const [hover, setHover] = useState<string | null>(null)
   const hoverId = bus.hover
+
+  // OB-096 — the map's own floating chrome. `pointerPos` anchors MapTooltip
+  // beside the cursor (screen-relative to the svg, not a fixed corner);
+  // `hoverEdge` is which selection-overlay road, if any, the cursor is on
+  // (a relation tooltip only ever has something to show while a selection's
+  // roads are drawn); `walkVisible` gates the walk-route pins the visibility
+  // toggle hides.
+  const [pointerPos, setPointerPos] = useState<XY | null>(null)
+  const [hoverEdge, setHoverEdge] = useState<Bundle | null>(null)
+  const [walkVisible, setWalkVisible] = useState(true)
 
   const enterCell = (id: string) => {
     setHover(id)
@@ -379,10 +387,11 @@ export default function MapView({ bus }: { bus: Bus }) {
   // ── the selection overlay, whole: which topics the selection resolves to,
   // which of their edges survive the roll-up to this grain, and how those
   // collapse into one road per pair. All of it is model/atlas.ts's job now.
-  const { tier: selTier, arrows, bundles } = useMemo(() => roadsFor(sel), [sel])
-  // a selection below the topic grain gets empty roads from roadsFor — the
-  // chip needs to say "of its own", not just "none", or the map looks broken
-  const selBelowTopic = sel != null && selTier === 2 && !byId.get(sel)!.topic
+  const { tier: selTier, bundles } = useMemo(() => roadsFor(sel), [sel])
+  // a changed (or cleared) selection unmounts the old roads outright — no
+  // pointerleave ever fires on them — so a stale hoverEdge would otherwise
+  // survive pointing at a bundle object from the previous selection
+  useEffect(() => setHoverEdge(null), [sel])
 
   // viewport in world coords, for culling the deep tiers
   const f = clientBox ? Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 1
@@ -475,32 +484,35 @@ export default function MapView({ bus }: { bus: Bus }) {
       const last = steps[steps.length - 1]
       return last < cursorStep ? 'done' : last === cursorStep ? 'current' : 'ahead'
     }
-    const renderedAt = new Map<string, { c: XY; size: number }>() // visId → its most recent pin's position + size
-    return groups.map((g, i) => {
+    // OB-087 — a territory visited more than once (a non-adjacent revisit)
+    // gets one pin per visit, all sharing `visId`; `count` is how many. Sizing
+    // and placement both key off it, replacing the old fixed 24/34px-by-range
+    // constant: a lone pin stays full-size, each pin sharing a territory
+    // shrinks further (floored), matching the DS's own sizeFor formula
+    // (components/nav/nav.card.html).
+    const countByVisId = new Map<string, number>()
+    for (const g of groups) countByVisId.set(g.visId, (countByVisId.get(g.visId) ?? 0) + 1)
+    const indexByVisId = new Map<string, number>() // visId → how many placed so far
+    return groups.map((g) => {
       const label: number | string = g.steps.length > 1 ? `${g.steps[0]}-${g.steps[g.steps.length - 1]}` : g.steps[0]
-      const size = g.steps.length > 1 ? 34 : 24
-      const prevRender = renderedAt.get(g.visId)
+      const count = countByVisId.get(g.visId)!
+      const size = Math.max(16, 22 - (count - 1) * 3)
+      const idx = indexByVisId.get(g.visId) ?? 0
+      indexByVisId.set(g.visId, idx + 1)
+      // a revisit: spread around the territory's own centroid instead of
+      // stacking along the direction of arrival — the old geometry cleared
+      // each pin from the one before it, which reads as a line of discs
+      // marching away from the shared point rather than "several stops here".
+      // An evenly-spaced arc uses different parts of the territory's shape
+      // (DS: "corners, an arc, a simple grid" are all fine; the requirement is
+      // just not stacking them) and, as a side effect, spaces the arrows that
+      // meet each of these pins apart too (OB-090).
       let c = g.c
-      if (prevRender) {
-        // a revisit: offset away from the shared coordinate, in the direction
-        // of arrival — the same geometry the old ↺ badge used, generalized
-        // from "offset from the previous STEP" to "offset from the previous
-        // PIN", and from one repeat to any number (each further repeat offsets
-        // from the last one's already-offset position, staggering in
-        // sequence). The magnitude clears BOTH pins' own radii plus a gap,
-        // not a flat constant — the old badge's "18" was tuned for its own
-        // 15px circle and left this port's 24-34px StepDots overlapping their
-        // original at first pass, caught only by measuring rendered boxes.
-        const prevGroup = groups[i - 1]
-        const dx = prevGroup ? g.c.x - prevGroup.c.x : 0
-        const dy = prevGroup ? g.c.y - prevGroup.c.y : 0
-        const len = Math.hypot(dx, dy) || 1
-        const clear = px(prevRender.size / 2 + size / 2 + 6)
-        const ox = dx !== 0 || dy !== 0 ? (dx / len) * clear : clear
-        const oy = dx !== 0 || dy !== 0 ? (dy / len) * clear : -clear
-        c = { x: g.c.x + ox, y: g.c.y + oy }
+      if (count > 1) {
+        const angle = (2 * Math.PI * idx) / count - Math.PI / 2
+        const radius = px(size * 1.3 + 6) // clears a same-size neighbour at this shrunk size, plus a gap
+        c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
       }
-      renderedAt.set(g.visId, { c, size })
       return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], c, label, state: stateOf(g.steps), size }
     })
     // px closes over f/view.s, both already deps; a fresh px reference every
@@ -577,6 +589,15 @@ export default function MapView({ bus }: { bus: Bus }) {
   // OS-styled; this reads the moment the pointer lands.
   const hoverChip = hover ?? spotId
 
+  // OB-096 — the hovered node's OWN roads, for MapTooltip's relations row. A
+  // fresh call rather than reusing the selection's `bundles`/`arrows` above:
+  // the hovered node is rarely the selected one, and roadsFor is cheap
+  // enough at this corpus's scale (memoised on the id, so cursor movement
+  // that stays inside one cell recomputes nothing).
+  const { arrows: hoverArrows } = useMemo(() => roadsFor(hoverChip), [hoverChip])
+  const hoverRelIn = hoverChip ? hoverArrows.filter((a) => a.tgt === hoverChip).reduce((s, a) => s + a.n, 0) : 0
+  const hoverRelOut = hoverChip ? hoverArrows.filter((a) => a.src === hoverChip).reduce((s, a) => s + a.n, 0) : 0
+
   // item 3: a hovered counterpart lights the ROAD to it, not just its territory.
   // The bus hover arrives as a topic id (a Connections relationship row) or a map
   // cell; lift it to the road's grain (selTier) and the bundle whose end it
@@ -640,6 +661,10 @@ export default function MapView({ bus }: { bus: Bus }) {
           t.setPointerCapture(ev.pointerId)
         }}
         onPointerMove={(ev) => {
+          // OB-096 — MapTooltip is cursor-anchored, so every move (not just
+          // drag moves) updates where it sits, relative to this svg's own box.
+          const svgBox = svgRef.current!.getBoundingClientRect()
+          setPointerPos({ x: ev.clientX - svgBox.left, y: ev.clientY - svgBox.top })
           // ── node drag (arming or in flight) takes priority over pan ──────
           const nd = nodeDown.current
           if (nd) {
@@ -731,7 +756,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 d={countryPath[d]}
                 data-region={d}
                 data-rtier={0}
-                fill={fillOf(d)}
+                fill={territoryFillOf(d)}
                 fillOpacity={level === 0 ? 0.95 : 0}
                 stroke="#ffffff"
                 strokeOpacity={level === 0 ? 0.9 : 0}
@@ -741,9 +766,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 onClick={() => regionClick(d)}
                 onPointerEnter={() => enterCell(d)}
                 onPointerLeave={() => leaveCell(d)}
-              >
-                <title>{byId.get(d)!.title}</title>
-              </path>
+              />
             ))}
           </g>
           <g>
@@ -753,7 +776,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 d={provincePath[m]}
                 data-region={m}
                 data-rtier={1}
-                fill={fillOf(m)}
+                fill={territoryFillOf(m)}
                 fillOpacity={level === 1 ? 0.95 : 0}
                 stroke="#ffffff"
                 strokeOpacity={level === 1 ? 0.95 : 0}
@@ -763,9 +786,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 onClick={() => regionClick(m)}
                 onPointerEnter={() => enterCell(m)}
                 onPointerLeave={() => leaveCell(m)}
-              >
-                <title>{byId.get(m)!.title}</title>
-              </path>
+              />
             ))}
           </g>
           <g>
@@ -775,7 +796,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 d={t.d}
                 data-terr={t.id}
                 data-tier={t.tier}
-                fill={fillOf(t.id)}
+                fill={territoryFillOf(t.id)}
                 fillOpacity={isActive(t) ? (isMuted(t) ? 0.6 : 0.95) : 0}
                 stroke="#ffffff"
                 strokeOpacity={isActive(t) ? 0.95 : 0}
@@ -785,9 +806,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 onClick={() => regionClick(t.id)}
                 onPointerEnter={() => enterCell(t.id)}
                 onPointerLeave={() => leaveCell(t.id)}
-              >
-                <title>{byId.get(t.id)!.title}</title>
-              </path>
+              />
             ))}
           </g>
 
@@ -1000,18 +1019,30 @@ export default function MapView({ bus }: { bus: Bus }) {
 
               pointer-events none on the group so a pin or an arrow never
               intercepts a click meant for the cell fill below it. ──────── */}
-          {routeStops.length > 0 && (
+          {walkVisible && routeStops.length > 0 && (
             <g data-routepath data-step-count={bus.route.length} pointerEvents="none">
               {routeStops.slice(1).map((to, i) => {
                 const from = routeStops[i]
                 const dx = to.c.x - from.c.x
                 const dy = to.c.y - from.c.y
-                const dist = (Math.hypot(dx, dy) * view.s) / f // world units -> real px
+                const worldDist = Math.hypot(dx, dy) || 1
+                const dist = (worldDist * view.s) / f // world units -> real px
                 if (dist < 1) return null
                 const angle = (Math.atan2(dy, dx) * 180) / Math.PI
-                const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head)
+                // OB-090 — anchor the TAIL at the source pin's own edge (toward
+                // the target), not its centre. A centred tail is the SAME point
+                // for every arrow leaving a pin, however many attach there —
+                // exactly the "one shared anchor" the fix asks to stop. The
+                // head already anchored this way (short of `to`'s own radius,
+                // toward `from`); the tail now does the same in reverse, so
+                // every arrow's anchor is angled toward the end it actually
+                // connects to rather than a shared centre point.
+                const tailOffset = px(from.size / 2)
+                const tailX = from.c.x + (dx / worldDist) * tailOffset
+                const tailY = from.c.y + (dy / worldDist) * tailOffset
+                const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head - from.size / 2)
                 return (
-                  <g key={`ra-${to.key}`} transform={`translate(${from.c.x} ${from.c.y}) rotate(${angle}) scale(${f / view.s})`}>
+                  <g key={`ra-${to.key}`} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
                     <NodeArrow direction="right" length={length} joins={PIN_RING_WIDTH} />
                   </g>
                 )
@@ -1137,6 +1168,13 @@ export default function MapView({ bus }: { bus: Bus }) {
                     data-dir={bd.dir}
                     data-elit={lit ? 1 : 0}
                     opacity={dim ? 0.22 : 1}
+                    // OB-096 — MapTooltip's relation shape, on hover. `stroke`
+                    // rather than `auto`: only the drawn line (including its
+                    // wider white halo, a real hit target) responds, not the
+                    // curve's whole invisible fill-none bounding box.
+                    pointerEvents="stroke"
+                    onPointerEnter={() => setHoverEdge(bd)}
+                    onPointerLeave={() => setHoverEdge((h) => (h === bd ? null : h))}
                     style={{ transition: 'opacity 120ms' }}
                   >
                     <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(lit ? 4.6 : 3.6)} strokeOpacity={0.75} />
@@ -1247,68 +1285,50 @@ export default function MapView({ bus }: { bus: Bus }) {
           document.body,
         )}
 
-      {/* item 2: immediate title readout for the hovered (or cross-pane spotlit)
-          cell — tinted by its tree color, the same hue its territory and any
-          road to it carry. pointer-events-none so it never eats a click. */}
-      {hoverChip && (
-        <div
-          data-hoverchip={hoverChip}
-          className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-white/95 border border-slate-200 shadow-sm px-2.5 py-1 text-[12px] select-none pointer-events-none"
-        >
-          <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: colorOf(hoverChip) }} />
-          <span className="font-semibold truncate max-w-[240px]" style={{ color: colorOf(hoverChip) }}>
-            {byId.get(hoverChip)!.title}
-          </span>
-          <span className="text-slate-400 shrink-0">{byId.get(hoverChip)!.topic ? 'topic' : byId.get(hoverChip)!.kind}</span>
+      {/* ── OB-096: MapTooltip, cursor-anchored, replacing the old fixed
+          top-left hover chip (OB-095) — a relation hover (an edge of the
+          current selection) wins over a node hover, since the two can only
+          coexist when the pointer sits exactly on the boundary between an
+          edge's stroke and the territory under it. pointer-events-none so
+          the card itself never steals the hover it is reporting on. ────── */}
+      {pointerPos && (hoverEdge || hoverChip) && (
+        <div className="absolute z-10 pointer-events-none" style={{ left: pointerPos.x + 14, top: pointerPos.y + 14 }}>
+          {hoverEdge ? (
+            <MapTooltip
+              kind="relation"
+              hue={hoverEdge.type ? EDGE_COLOR[hoverEdge.type] : MIXED_EDGE_COLOR}
+              title={hoverEdge.type ? EDGE_LABEL[hoverEdge.type] : 'mixed'}
+              from={byId.get(hoverEdge.src)!.title}
+              to={byId.get(hoverEdge.tgt)!.title}
+            />
+          ) : (
+            <MapTooltip
+              kind="node"
+              hue={colorOf(hoverChip!)}
+              title={byId.get(hoverChip!)!.title}
+              typeLabel={byId.get(hoverChip!)!.topic ? 'topic' : byId.get(hoverChip!)!.kind}
+              nodeCount={byId.get(hoverChip!)!.kind === 'container' ? descendantCount(hoverChip!) : undefined}
+              relationsIn={hoverRelIn}
+              relationsOut={hoverRelOut}
+              parent={parentOf(hoverChip!) !== ROOT_ID ? byId.get(parentOf(hoverChip!))?.title : undefined}
+            />
+          )}
         </div>
       )}
 
-      <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 max-w-[calc(100%-24px)] rounded-lg bg-white/95 border border-slate-200 shadow-sm px-3 py-1.5 text-[12px] text-slate-600 select-none">
-        <span className="text-slate-400">level</span>
-        <div className="flex rounded border border-slate-300 overflow-hidden">
-          {LEVEL_NAME.map((name, l) => (
-            <button
-              key={l}
-              aria-label={`nested-level-${l}`}
-              onClick={() => flyToLevel(l)}
-              className={`px-2 py-0.5 ${level === l ? 'bg-slate-700 text-white font-semibold' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
-              title={wrapTip(`L${l} · ${name}`)}
-            >
-              L{l}
-            </button>
-          ))}
-        </div>
-        <span className="text-slate-400">×{view.s.toFixed(2)}</span>
-        <span className="w-px h-4 bg-slate-200" />
-        <span className="text-slate-400" title={wrapTip('every frame is a designed level — there is no in-between zoom')}>
-          wheel steps levels · double-click dives
-        </span>
-        {sel ? (
-          <span data-selchip className="flex items-center gap-2 text-slate-700">
-            <span>
-              ▣ <span className="font-semibold">{byId.get(sel)!.title}</span>
-            </span>
-            {arrows.length > 0 ? (
-              EDGE_ORDER.map((t) => {
-                const n = arrows.filter((a) => a.type === t).reduce((s, a) => s + a.n, 0)
-                return n > 0 ? (
-                  <span key={t} style={{ color: EDGE_COLOR[t] }} className="font-semibold">
-                    ● {n}
-                  </span>
-                ) : null
-              })
-            ) : (
-              <span className="text-slate-400">
-                {selTier < 2 ? 'no outward links at this level' : selBelowTopic ? 'no typed links of its own — relations live at the topic grain' : 'no typed links'}
-              </span>
-            )}
-            <span className="text-slate-400">· click again, water or Esc to clear</span>
-          </span>
-        ) : (
-          <span className="text-slate-400">
-            {territories.length} territories · {nestedDots.length} places
-          </span>
-        )}
+      {/* ── OB-096/097: the map's own floating chrome, all built on
+          MapFloatingButton. Levels bottom-left (changes WHAT you're looking
+          at — depth into the corpus); zoom + visibility bottom-right
+          (changes HOW you're looking — the viewport). Replaces the deleted
+          bottom info bar (OB-094): levels move here, zoom % and the wheel/
+          double-click hint aren't worth the space once real zoom buttons
+          exist, and the selection summary folds into MapTooltip above. ── */}
+      <LevelPicker style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
+      <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <MapFloatingButton size={36} title={walkVisible ? 'hide walk nodes' : 'show walk nodes'} onClick={() => setWalkVisible((v) => !v)}>
+          <VisibilityMark open={walkVisible} style={walkVisible ? undefined : { color: 'var(--bark-400)' }} />
+        </MapFloatingButton>
+        <ZoomControl onZoomIn={() => flyToLevel(level + 1)} onZoomOut={() => flyToLevel(level - 1)} zoomInDisabled={level >= L_MAX} zoomOutDisabled={level <= 0} />
       </div>
     </PaneCanvas>
   )

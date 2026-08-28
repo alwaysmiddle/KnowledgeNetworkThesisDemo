@@ -88,6 +88,15 @@ export function parentOf(id: string): string {
   return byId.get(id)?.parentId ?? ROOT_ID
 }
 
+/** How many nodes `id` contains, at every depth — for a hover readout that
+ * wants "this container holds N nodes" (OB-096) without a caller re-walking
+ * `childrenOf` by hand. 0 for a leaf. */
+export function descendantCount(id: string): number {
+  let n = 0
+  for (const k of childrenOf.get(id) ?? []) n += 1 + descendantCount(k.id)
+  return n
+}
+
 /** Container ids that should start expanded: `rootId` and its direct
  * container children — two levels of container structure open by default. */
 export function depth2Expanded(rootId: string): Set<string> {
