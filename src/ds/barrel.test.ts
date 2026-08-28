@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark, chipSpec, nestedFamilyPaint, usedStroke } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark, chipSpec, usedStroke } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -124,16 +124,11 @@ describe('ported but not adopted DS components', () => {
     expect(typeof ChipGeometry).toBe('object')
   })
 
-  // OB-086 ported this and `model/color.ts` DID adopt it — it was the map's
-  // territory fill from ed7a5e6 until 2026-08-27, when four-color adjacency
-  // replaced it (see that file's territory-fill header). It is UNADOPTED now,
-  // not unported: the DS's answer to "the fill goes flat past two levels" was
-  // depth grading, and the map answered the same complaint a different way —
-  // depth still grades the fill, but which of two siblings is lighter is now
-  // decided by who they touch, which a per-node paint function cannot know.
-  // Kept rather than deleted because it is the DS's own statement of the
-  // grading rule, and the receipt for it stands.
-  it('nestedFamilyPaint — was the map fill (OB-086), superseded by four-color adjacency', () => {
-    expect(typeof nestedFamilyPaint).toBe('function')
-  })
+  // NOT LISTED HERE ANY MORE: `nestedFamilyPaint`. It was the map's territory
+  // fill from ed7a5e6 (OB-086) until b656ebc, when four-color adjacency replaced
+  // it, and #221 deleted the port on 2026-08-28 rather than carrying it unused.
+  // That is a deliberate divergence from the DS source — do not re-port it back
+  // in on the next design-pull without reading PROVENANCE's DomainDot entry
+  // first, which carries the measured reason (94 distinct colours across 711
+  // bordering regions, no matter how large the corpus gets).
 })

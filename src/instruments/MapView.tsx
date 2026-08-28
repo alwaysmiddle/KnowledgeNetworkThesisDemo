@@ -583,20 +583,23 @@ export default function MapView({ bus }: { bus: Bus }) {
   const spotId = hoverId && hoverId !== hover ? hoverId : lookId && lookId !== sel ? lookId : null
   const spotOutline = spotId ? outlineOf(spotId) : undefined
 
-  // item 2: the styled, IMMEDIATE title readout — whichever cell is highlighted
-  // on the map right now, be it my own cursor's (hover) or a cross-pane hover's
-  // spotlight (spotId). Not the native <title>, which lags ~half a second and is
-  // OS-styled; this reads the moment the pointer lands.
-  const hoverChip = hover ?? spotId
+  // item 2: THE HIGHLIGHTED CELL — whichever one is lit on the map right now, be it my
+  // own cursor's (hover) or a cross-pane hover's spotlight (spotId). It feeds
+  // MapTooltip's immediate title readout, rather than the native <title>, which
+  // lags ~half a second and is OS-styled; this reads the moment the pointer
+  // lands. Named `hoverChip` until 2026-08-28 (#221), after the fixed top-left
+  // hover chip it used to feed — OB-095 deleted that surface at 1e530af and
+  // OB-096 put a cursor-anchored tooltip in its place; the name outlived it.
+  const hoverNode = hover ?? spotId
 
   // OB-096 — the hovered node's OWN roads, for MapTooltip's relations row. A
   // fresh call rather than reusing the selection's `bundles`/`arrows` above:
   // the hovered node is rarely the selected one, and roadsFor is cheap
   // enough at this corpus's scale (memoised on the id, so cursor movement
   // that stays inside one cell recomputes nothing).
-  const { arrows: hoverArrows } = useMemo(() => roadsFor(hoverChip), [hoverChip])
-  const hoverRelIn = hoverChip ? hoverArrows.filter((a) => a.tgt === hoverChip).reduce((s, a) => s + a.n, 0) : 0
-  const hoverRelOut = hoverChip ? hoverArrows.filter((a) => a.src === hoverChip).reduce((s, a) => s + a.n, 0) : 0
+  const { arrows: hoverArrows } = useMemo(() => roadsFor(hoverNode), [hoverNode])
+  const hoverRelIn = hoverNode ? hoverArrows.filter((a) => a.tgt === hoverNode).reduce((s, a) => s + a.n, 0) : 0
+  const hoverRelOut = hoverNode ? hoverArrows.filter((a) => a.src === hoverNode).reduce((s, a) => s + a.n, 0) : 0
 
   // item 3: a hovered counterpart lights the ROAD to it, not just its territory.
   // The bus hover arrives as a topic id (a Connections relationship row) or a map
@@ -1291,7 +1294,7 @@ export default function MapView({ bus }: { bus: Bus }) {
           coexist when the pointer sits exactly on the boundary between an
           edge's stroke and the territory under it. pointer-events-none so
           the card itself never steals the hover it is reporting on. ────── */}
-      {pointerPos && (hoverEdge || hoverChip) && (
+      {pointerPos && (hoverEdge || hoverNode) && (
         <div className="absolute z-10 pointer-events-none" style={{ left: pointerPos.x + 14, top: pointerPos.y + 14 }}>
           {hoverEdge ? (
             <MapTooltip
@@ -1304,13 +1307,13 @@ export default function MapView({ bus }: { bus: Bus }) {
           ) : (
             <MapTooltip
               kind="node"
-              hue={colorOf(hoverChip!)}
-              title={byId.get(hoverChip!)!.title}
-              typeLabel={byId.get(hoverChip!)!.topic ? 'topic' : byId.get(hoverChip!)!.kind}
-              nodeCount={byId.get(hoverChip!)!.kind === 'container' ? descendantCount(hoverChip!) : undefined}
+              hue={colorOf(hoverNode!)}
+              title={byId.get(hoverNode!)!.title}
+              typeLabel={byId.get(hoverNode!)!.topic ? 'topic' : byId.get(hoverNode!)!.kind}
+              nodeCount={byId.get(hoverNode!)!.kind === 'container' ? descendantCount(hoverNode!) : undefined}
               relationsIn={hoverRelIn}
               relationsOut={hoverRelOut}
-              parent={parentOf(hoverChip!) !== ROOT_ID ? byId.get(parentOf(hoverChip!))?.title : undefined}
+              parent={parentOf(hoverNode!) !== ROOT_ID ? byId.get(parentOf(hoverNode!))?.title : undefined}
             />
           )}
         </div>
