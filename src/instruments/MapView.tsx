@@ -62,10 +62,10 @@ import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
-import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
+import { cellPolyOf, countryLabels, endpointAtTier, flightTargetOf, outlineOf, pinSpotClear, provinceLabels, ringsCrossT, roadsFor, walkAnchorAt } from '../model/atlas'
 import type { Bundle } from '../model/atlas'
-import { fitLabel, fitRegionLabel } from '../model/labelfit'
-import type { FitLine } from '../model/labelfit'
+import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
+import type { FitLine, LabelBox } from '../model/labelfit'
 import { descendantCount, parentOf } from '../model/nav'
 import type { Bus } from '../studio/bus'
 
@@ -116,7 +116,25 @@ const FADE = 'fill-opacity 350ms, stroke-opacity 350ms, stroke-width 350ms'
 const PARENT_BORDER_W = 2.6
 const PARENT_LABEL_PX = 26
 const ancBorderO = (d: number) => (d === 1 ? 0.6 : 0)
-const ancLabelO = (d: number) => (d === 1 ? 0.15 : 0)
+const ancLabelO = (d: number) => (d === 1 ? 0.32 : 0)
+/** THE PARENT LAYER'S NAME GETS A CASE OF ITS OWN, and it is that — not the
+ *  opacity alone — that makes the ghost legible (owner, 2026-08-28: the parent
+ *  headings are too faint, make them more visible).
+ *
+ *  The ghost is set in the region's OWN hue over that region's own fill, so it is
+ *  tint on tint: at 0.15 it read as a stain rather than a word, and simply
+ *  turning it up muddies into the fill instead of separating from it — more ink,
+ *  still no edge. A white case gives the glyphs a boundary, and with one the same
+ *  word carries at far less ink than it would need bare. So the opacity moves
+ *  0.15 → 0.32 AND the case arrives; either half alone is the wrong fix.
+ *
+ *  DELIBERATELY THINNER AND SOFTER THAN THE ACTIVE GRAIN'S CASE (2.4 at 0.85):
+ *  the ghost is context, not the stratum being read, and must not come forward
+ *  far enough to compete with the names on the level you are actually on. The
+ *  element's own `opacity` still multiplies fill and case together, so the hover
+ *  fade to 0.03 keeps working untouched — the ghost you are standing inside
+ *  still steps aside. */
+const GHOST_CASE = { stroke: '#ffffff', strokeWidth: 3.2, strokeOpacity: 0.75 }
 
 interface View {
   tx: number
@@ -408,6 +426,16 @@ export default function MapView({ bus }: { bus: Bus }) {
    * level renders the same authored style at its canonical scale */
   const px = (v: number) => (v * f) / view.s
 
+  /** the parent layer's case, applied ONLY where a name is acting as a ghost.
+   *  A domain name at L0 and a module name at L1 are the ACTIVE grain, not
+   *  context — they are the level you are reading — and they keep exactly the
+   *  treatment they shipped with. The same element draws both roles, so the
+   *  distinction has to be made per render rather than per component. */
+  const ghostCase = (on: boolean) =>
+    on
+      ? { stroke: GHOST_CASE.stroke, strokeWidth: px(GHOST_CASE.strokeWidth), strokeOpacity: GHOST_CASE.strokeOpacity, paintOrder: 'stroke' }
+      : {}
+
   // ── SEARCH MATCHES (#25) — the supply pane's live hit set, lit on the map ──
   // A match deep in a subtree owns no cell at this stratum, so it ROLLS UP to
   // its VISIBLE ANCESTOR: pathTo(m)[level+1] is the containment ancestor sitting
@@ -430,26 +458,101 @@ export default function MapView({ bus }: { bus: Bus }) {
     }
   }
 
+  // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
+  // zoom — so a name's line breaks are decided once per level, not per frame
+  const labelFit = useMemo(() => {
+    const active = new Map<string, FitLine[]>()
+    const ghost = new Map<string, FitLine[]>()
+    // OB-108: every fitted label's own extent, so a walk pin can be kept off the
+    // name it would otherwise delete. Built HERE rather than beside the pins
+    // because this is the only place that knows each label's font size — the
+    // three cases below each choose their own — and a box without its size is a
+    // second guess at the same number.
+    const box = new Map<string, LabelBox>()
+    const noteBox = (id: string, lines: FitLine[] | null, fs: number) => {
+      const bx = lines ? labelBox(lines, fs) : null
+      if (bx) box.set(id, bx)
+    }
+    // REGION names (SelfNotes: "labels overlap / region text not wrapped"):
+    // the L0/L1 names go through the same wrap-into-the-cell mechanic as the
+    // deep tiers now, against the honest region chord — with fitRegionLabel's
+    // shrink instead of a drop, because they are the only names their level
+    // has. Computed one level past their visibility window so the 350ms
+    // opacity fades keep an element to fade.
+    const region = new Map<string, { lines: FitLine[]; fs: number }>()
+    const world = (v: number) => (v * f) / LEVEL_S[level]
+    if (level <= 2)
+      for (const c of countryLabels) {
+        const size = level === 0 ? 24 : PARENT_LABEL_PX
+        const fit = fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size))
+        region.set(c.key, { lines: fit.lines, fs: size * fit.shrink })
+        noteBox(c.key, fit.lines, world(size * fit.shrink))
+      }
+    if (level <= 3)
+      for (const m of provinceLabels) {
+        const size = level <= 1 ? 15 : PARENT_LABEL_PX
+        const fit = fitRegionLabel(m.label, provinceRings[m.key], m.x, m.y, world(size))
+        region.set(m.key, { lines: fit.lines, fs: size * fit.shrink })
+        noteBox(m.key, fit.lines, world(size * fit.shrink))
+      }
+    if (level < 2) return { active, ghost, region, box }
+    for (const t of territories) {
+      if (t.tier === level || (t.leaf && t.tier < level)) {
+        const fs = world(t.tier === level ? 12.5 : 11.5)
+        const fit = fitLabel(byId.get(t.id)!.title, t, fs, false)
+        if (fit) active.set(t.id, fit)
+        noteBox(t.id, fit, fs)
+      } else if (level >= 3 && !t.leaf && t.tier === level - 1) {
+        const fs = world(PARENT_LABEL_PX)
+        const fit = fitLabel(byId.get(t.id)!.title, t, fs, true)!
+        ghost.set(t.id, fit)
+        // THE PARENT WATERMARK COUNTS AS A LABEL TOO (OB-108). It is the name of
+        // the very cell a pin at this level belongs to, so a pin over it is the
+        // same fault as one over an active name, only quieter. It is a WEAK case
+        // on purpose: the ghost is set at the parent grain and can span most of
+        // the region, so there is often nowhere inside the cell that clears it —
+        // and `pinSpotClear` then leaves the pin where it was rather than
+        // shoving it somewhere worse. Registering it costs one box and improves
+        // the cases where a clear spot does exist.
+        noteBox(t.id, fit, fs)
+      }
+    }
+    return { active, ghost, region, box }
+  }, [level, f])
+
+  /** every name actually drawn at this level, as boxes — what a walk pin has to
+   *  stay off (OB-108). Its own memo so `routeStops` re-runs when the labels
+   *  move, not when anything else in `labelFit` does. */
+  const labelBoxes = useMemo(() => [...labelFit.box.values()], [labelFit])
+
   // ── ROUTE PATH (#26) — ordered walk positions for the current map level ──────
   // For each stop in bus.route, roll up to the visible ancestor at `level` using
   // the same pathTo(id)[level + 1] idiom the match pins use. `seen` tracks the
   // 1-based step of each stop's first appearance so a later return to the same
   // visible ancestor can be told apart from its primary visit (routeStops below
   // turns that into an offset second pin, OB-069).
+  //
+  // OB-109: the resolve is `walkAnchorAt` in model/atlas.ts now, not spelled out
+  // here. It rolls a stop UP to the ancestor owning a cell at this level, and —
+  // the half that never existed — CLAMPS a stop shallower than the level onto its
+  // own centroid instead of resolving to `undefined` and silently dropping the
+  // whole walk from L3 down. The reasoning, and why the search-match tally above
+  // deliberately does the opposite, are in that function's docblock. The rule is
+  // a pure function of the corpus and a level, so it is tested there rather than
+  // through a browser.
   const routeVis = useMemo(() => {
     if (bus.route.length === 0) return []
     const seen = new Map<string, number>() // visId → 1-based step of first occurrence
     const out: Array<{ visId: string; c: XY; step: number; revisit: boolean }> = []
     for (let i = 0; i < bus.route.length; i++) {
       const id = bus.route[i]
-      const visId = pathTo(id)[level + 1]
-      if (!visId) continue
-      const ft = flightTargetOf(visId)
-      if (!ft || ft.tier !== level) continue
+      const anchor = walkAnchorAt(id, level)
+      if (!anchor) continue
+      const { visId, c } = anchor
       const step = i + 1
       const revisit = seen.has(visId)
       if (!revisit) seen.set(visId, step)
-      out.push({ visId, c: ft.c, step, revisit })
+      out.push({ visId, c, step, revisit })
     }
     return out
   }, [bus.route, level])
@@ -513,49 +616,28 @@ export default function MapView({ bus }: { bus: Bus }) {
         const radius = px(size * 1.3 + 6) // clears a same-size neighbour at this shrunk size, plus a gap
         c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
       }
+      // OB-108 — AND IT RUNS LAST, AFTER THE CROWDING SPREAD ABOVE. The spread
+      // decides where several pins sharing a territory sit relative to each
+      // OTHER; this decides whether wherever any one of them landed is on top of
+      // a name. Run the other way round, the spread would take a cleared pin and
+      // put it straight back over the text.
+      // EVERY LABEL DRAWN AT THIS LEVEL, not just this cell's own. Past the level
+      // where a stop owns a cell its label is gone and its CHILDREN's names are
+      // what the pin can land on — same fault, different owner. `pinSpotClear`
+      // does the proximity filtering; handing it the whole set keeps the decision
+      // about which labels count in one place.
+      // The nudge is per pin, so in principle two spread pins could be pushed
+      // toward each other. In practice the spread radius is already wider than a
+      // label box's half-height, so they clear the name in different directions;
+      // if that ever stops holding it is a spread problem, not this one.
+      c = pinSpotClear(c, cellPolyOf(g.visId, g.c), labelBoxes, px(size / 2))
       return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], c, label, state: stateOf(g.steps), size }
     })
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeVis, bus.activeWalk, bus.draftCursor, f, view.s])
+  }, [routeVis, bus.activeWalk, bus.draftCursor, f, view.s, labelBoxes])
 
-  // wrapped labels, fitted at the level's CANONICAL scale — not the mid-flight
-  // zoom — so a name's line breaks are decided once per level, not per frame
-  const labelFit = useMemo(() => {
-    const active = new Map<string, FitLine[]>()
-    const ghost = new Map<string, FitLine[]>()
-    // REGION names (SelfNotes: "labels overlap / region text not wrapped"):
-    // the L0/L1 names go through the same wrap-into-the-cell mechanic as the
-    // deep tiers now, against the honest region chord — with fitRegionLabel's
-    // shrink instead of a drop, because they are the only names their level
-    // has. Computed one level past their visibility window so the 350ms
-    // opacity fades keep an element to fade.
-    const region = new Map<string, { lines: FitLine[]; fs: number }>()
-    const world = (v: number) => (v * f) / LEVEL_S[level]
-    if (level <= 2)
-      for (const c of countryLabels) {
-        const size = level === 0 ? 24 : PARENT_LABEL_PX
-        const fit = fitRegionLabel(c.label, countryRings[c.key], c.x, c.y, world(size))
-        region.set(c.key, { lines: fit.lines, fs: size * fit.shrink })
-      }
-    if (level <= 3)
-      for (const m of provinceLabels) {
-        const size = level <= 1 ? 15 : PARENT_LABEL_PX
-        const fit = fitRegionLabel(m.label, provinceRings[m.key], m.x, m.y, world(size))
-        region.set(m.key, { lines: fit.lines, fs: size * fit.shrink })
-      }
-    if (level < 2) return { active, ghost, region }
-    for (const t of territories) {
-      if (t.tier === level || (t.leaf && t.tier < level)) {
-        const fit = fitLabel(byId.get(t.id)!.title, t, world(t.tier === level ? 12.5 : 11.5), false)
-        if (fit) active.set(t.id, fit)
-      } else if (level >= 3 && !t.leaf && t.tier === level - 1) {
-        ghost.set(t.id, fitLabel(byId.get(t.id)!.title, t, world(PARENT_LABEL_PX), true)!)
-      }
-    }
-    return { active, ghost, region }
-  }, [level, f])
 
   // territories in play: everything up to one tier below the stratum (so the
   // next level fades IN instead of popping), viewport-culled by owning topic
@@ -882,6 +964,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                   fontWeight={800}
                   fill={colorOf(c.key)}
                   opacity={level === 0 ? 0.55 : ancLabelOAt(level, c.key)}
+                  {...ghostCase(level !== 0)}
                   style={{ userSelect: 'none', transition: 'opacity 350ms' }}
                 >
                   {fit.lines.map((ln, i) => (
@@ -904,6 +987,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                   fontWeight={level === 1 ? 700 : 800}
                   fill={level === 1 ? labelInkOf(m.key) : colorOf(m.key)}
                   opacity={level === 1 ? 0.9 : ancLabelOAt(level - 1, m.key)}
+                  {...ghostCase(level !== 1)}
                   style={{ userSelect: 'none', transition: 'opacity 350ms' }}
                 >
                   {fit.lines.map((ln, i) => (
@@ -927,6 +1011,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                     fontWeight={800}
                     fill={colorOf(t.id)}
                     opacity={ancLabelOAt(1, t.id)}
+                    {...ghostCase(true)}
                     style={{ userSelect: 'none', transition: 'opacity 200ms' }}
                   >
                     {labelFit.ghost.get(t.id)!.map((ln, i) => (

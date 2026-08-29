@@ -26,6 +26,43 @@ export interface FitLine {
   text: string
 }
 
+/** The box a fitted label actually occupies, in world units — the union of its
+ *  lines' own boxes.
+ *
+ *  It lives HERE because it is the same measurement `fitLabel` already makes:
+ *  a line's width is `text.length * fs * CHAR_W`, and `CHAR_W` is this module's
+ *  private constant. A caller that needed a label's extent would have to retype
+ *  that number, and the two would drift the first time the UI font changed.
+ *
+ *  `x` on a `FitLine` is the line's CENTRE (the text is drawn `text-anchor:
+ *  middle`) and `y` is its BASELINE, so the box runs half a width either side of
+ *  x, and from roughly four-fifths of the font size above the baseline to a
+ *  fifth below it — cap height up, descender down. Approximate on purpose: this
+ *  is used to keep other marks off the text, where being a pixel generous is
+ *  free and being a pixel mean is the bug. */
+export interface LabelBox {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+export function labelBox(lines: FitLine[], fs: number): LabelBox | null {
+  if (lines.length === 0) return null
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (const l of lines) {
+    const half = (l.text.length * fs * CHAR_W) / 2
+    x0 = Math.min(x0, l.x - half)
+    x1 = Math.max(x1, l.x + half)
+    y0 = Math.min(y0, l.y - fs * 0.8)
+    y1 = Math.max(y1, l.y + fs * 0.2)
+  }
+  return { x0, y0, x1, y1 }
+}
+
 export function fitLabel(title: string, t: Territory, fs: number, force: boolean): FitLine[] | null {
   const lh = fs * 1.12
   const wOf = (s: string) => s.length * fs * CHAR_W
