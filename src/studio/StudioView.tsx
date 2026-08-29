@@ -18,21 +18,33 @@
 // the deck, on the same bus, leaving active/mounted/flexMap/presetId untouched
 // so exiting restores the exact desk that was there.
 
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
-import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PaneHeader, PresetButton, SectionLabel } from '@/ds'
+import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, InstrumentRow, Pane, PresetButton, SectionLabel } from '@/ds'
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
 import PresentationFrame from '../present/PresentationFrame'
 import { usePresentSession } from '../present/session'
 import { AppToolbar } from './AppToolbar'
+import { PALETTE_TIP } from './PaletteGlyph'
 import { useStudioBus } from './bus'
 import { FAMILIES } from './families'
 import type { Family } from './families'
 import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './instruments'
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
+
+/** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
+ *  `--dur-hover` (140ms): the CSS runs the transition and this only decides when
+ *  to unmount, so a number below it cuts the animation off mid-flight and one
+ *  above it leaves an invisible pane holding its column open. */
+const PALETTE_ANIM_MS = 140
+
+/** where the palette is in its flight. `dir` is which way it is going; `phase` is
+ *  which hop of the FLIP it is on — `measuring` and `shrink` exist only for
+ *  opening, which has to be measured at rest before it can start shrunk. */
+type PaletteAnim = { dir: 'closing' | 'opening'; phase: 'measuring' | 'shrink' | 'grow' | 'go'; dx: number; dy: number }
 
 export default function StudioView() {
   // ── composition: which panes are on screen, and how big ───────────────────
@@ -53,6 +65,70 @@ export default function StudioView() {
   // palette that hides its contents on first paint is a worse list than the flat
   // one it replaced. Folding is there for when you know what you want.
   const [openFamilies, setOpenFamilies] = useState<Family[]>([...FAMILIES])
+  // ── the palette pane: closable, and re-openable (OB-104) ──────────────────
+  // It was an always-on <aside> with no ✕ and no toolbar toggle. The DS pairs
+  // the two deliberately — a pane that closes with nothing to reopen it is a
+  // one-way door — so both arrive together, along with the transition that ties
+  // them: closing shrinks the pane toward the toolbar icon it will live in.
+  const [showPalette, setShowPalette] = useState(true)
+  const paletteWrapRef = useRef<HTMLDivElement | null>(null)
+  const [paletteAnim, setPaletteAnim] = useState<PaletteAnim | null>(null)
+
+  /** WHERE THE PANE IS FLYING TO, MEASURED LIVE — not a fixed corner. The icon's
+   *  x moves with the toolbar's own content, so a constant was wrong on the DS's
+   *  first pass. Centre to centre, since the pane scales about its own centre. */
+  const paletteDelta = () => {
+    const wrap = paletteWrapRef.current
+    const icon = document.querySelector(`[title="${PALETTE_TIP.hide}"], [title="${PALETTE_TIP.show}"]`)
+    if (!wrap || !icon) return { dx: 0, dy: 0 }
+    const pr = wrap.getBoundingClientRect()
+    const ir = icon.getBoundingClientRect()
+    return {
+      dx: ir.left + ir.width / 2 - (pr.left + pr.width / 2),
+      dy: ir.top + ir.height / 2 - (pr.top + pr.height / 2),
+    }
+  }
+  const closePalette = () => {
+    setPaletteAnim({ dir: 'closing', phase: 'go', ...paletteDelta() })
+    window.setTimeout(() => {
+      setShowPalette(false)
+      setPaletteAnim(null)
+    }, PALETTE_ANIM_MS)
+  }
+  const openPalette = () => {
+    setShowPalette(true)
+    setPaletteAnim({ dir: 'opening', phase: 'measuring', dx: 0, dy: 0 })
+  }
+  // FLIP, in two hops. Opening cannot animate from a box that does not exist yet,
+  // so the pane MOUNTS AT REST and is measured before paint (`useLayoutEffect`),
+  // then jumped to the shrunk-at-icon start with transitions OFF, then — one
+  // frame later — given its transition back and released to rest. Two renders
+  // collapsed into one paint; without the transitions-off hop the browser
+  // interpolates the jump too and the pane flies the wrong way first.
+  useLayoutEffect(() => {
+    if (paletteAnim && paletteAnim.dir === 'opening' && paletteAnim.phase === 'measuring') {
+      setPaletteAnim({ dir: 'opening', phase: 'shrink', ...paletteDelta() })
+    }
+  }, [paletteAnim])
+  useEffect(() => {
+    if (paletteAnim && paletteAnim.dir === 'opening' && paletteAnim.phase === 'shrink') {
+      const id = requestAnimationFrame(() => setPaletteAnim((a) => (a && a.phase === 'shrink' ? { ...a, phase: 'grow' } : a)))
+      return () => cancelAnimationFrame(id)
+    }
+  }, [paletteAnim])
+  const paletteAtRest = !paletteAnim || paletteAnim.phase === 'grow'
+  const paletteStyle: CSSProperties = {
+    flex: 'none',
+    width: 'var(--sidebar-w)',
+    flexShrink: 0,
+    transformOrigin: 'center center',
+    transform: paletteAnim && !paletteAtRest ? `translate(${paletteAnim.dx}px,${paletteAnim.dy}px) scale(0.06)` : 'translate(0,0) scale(1)',
+    opacity: paletteAtRest ? 1 : 0,
+    transition:
+      paletteAnim && paletteAnim.phase === 'shrink'
+        ? 'none'
+        : 'transform var(--dur-hover) var(--ease-settle), opacity var(--dur-hover) var(--ease-settle)',
+  }
   // presenting is a MODE, not a composition (#195) — it takes the whole screen
   // and leaves active/mounted/flexMap/presetId untouched, so exiting restores
   // exactly the desk that was there. Declared above ensureActive, which reads it.
@@ -200,23 +276,47 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar onPresent={enter} />
+      <AppToolbar onPresent={enter} palette={{ on: showPalette, onToggle: () => (showPalette ? closePalette() : openPalette()) }} />
 
       <div className="flex-1 min-h-0 flex gap-3 p-3">
-        {/* #96: the palette is now a pane — paper face, border-frame hairline,
-            rounded-lg, legend PaneHeader. It was a flat bordered sidebar
+        {/* #96: the palette is a pane — paper face, border-frame hairline,
+            rounded-lg, legend header. It was a flat bordered sidebar
             (border-r border-slate-200 bg-white) which read as an unfinished
-            migration against the warm panes beside it. overflow-visible is
-            required so the legend title can float above the top border. */}
-        <aside aria-label="studio-sidebar" className="relative w-52 shrink-0 flex flex-col overflow-visible rounded-lg border border-frame bg-paper">
-          <PaneHeader title="palette" variant="legend" legendBg="var(--surface-canopy)" />
-          <div className="mb-3 min-h-0 flex-1 overflow-auto">
+            migration against the warm panes beside it.
+            OB-104: it is the DS `Pane` itself now, not a hand-rolled frame around
+            a `PaneHeader` — the ✕ is `Pane`'s `onClose`, and hand-rolling the
+            frame is exactly how the app ended up without one. The wrapper div is
+            not decoration: it owns the width and the flight transform, so the
+            pane inside is free to be a plain full-height pane. */}
+        {showPalette ? (
+        <div ref={paletteWrapRef} style={paletteStyle}>
+        <Pane
+          as="aside"
+          aria-label="studio-sidebar"
+          title="palette"
+          variant="legend"
+          legendBg="var(--surface-canopy)"
+          onClose={closePalette}
+          scroll="both"
+          style={{ height: '100%' }}
+        >
             <div className="border-b border-hair p-3 pt-2">
               <SectionLabel>presets</SectionLabel>
               <div className="flex flex-col gap-1">
                 {PRESETS.map((p) => (
                   <div key={p.id} aria-label={`studio-preset-${p.id}`}>
-                    <PresetButton label={p.label} hint={p.hint} active={presetId === p.id} onClick={() => applyPreset(p)} />
+                    {/* OB-106: picking a named preset closes the palette through the
+                        same transition the ✕ uses. You picked a composition; the
+                        chooser has done its job and gets out of the way. */}
+                    <PresetButton
+                      label={p.label}
+                      hint={p.hint}
+                      active={presetId === p.id}
+                      onClick={() => {
+                        applyPreset(p)
+                        if (showPalette) closePalette()
+                      }}
+                    />
                   </div>
                 ))}
               </div>
@@ -261,8 +361,9 @@ export default function StudioView() {
                 })}
               </div>
             </div>
-          </div>
-        </aside>
+        </Pane>
+        </div>
+        ) : null}
 
         {/* #77/#96: the canopy desk. Panes float on it with gap-3 between them;
             the 12px gutter matches the p-3 window inset on the outer flex row.

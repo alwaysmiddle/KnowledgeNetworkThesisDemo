@@ -8,6 +8,11 @@ import { WalkerMark } from '../chrome/WalkerMark'
 import { LocateMark } from '../chrome/LocateMark'
 import { StepDot } from './StepDot'
 
+/** how much wheel delta commits ONE step of the walk in the seek variant. Not a
+ *  pixel scroll — the accumulated delta crosses this and the cursor moves to the
+ *  next waypoint, remainder carried. */
+const WHEEL_STEP_PX = 40
+
 /** THE STRIP'S GEOMETRY, published for the same reason `RAIL_METRICS` is: a number
  *  written once here and read back by the renderer cannot drift from a number retyped
  *  at a call site. */
@@ -351,6 +356,71 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
   }
 
   const cols = scrollbar ? '1fr ' + (M.corner + 8) + 'px' : '1fr'
+  /* MOUSE WHEEL OVER THE PANE ALSO MOVES THE TRACK (OB-103). The track otherwise
+     only pans by trackpad/touch swipe or a click-and-drag; a plain mouse's vertical
+     wheel has no horizontal gesture of its own, so whichever axis carries the larger
+     delta becomes movement. Bound on the ROOT, not the track, so it fires over the
+     dots AND the bar below them.
+     Guarded on `scrollable`: with nothing to scroll the wheel passes through to the
+     page untouched rather than being swallowed for no reason. THAT GUARD IS WHY
+     `scrollable` STILL EXISTS — it stopped gating the seek bar's mount under OB-089
+     and this is now its only reader.
+     SEEK VARIANT: ONE STEP PER NOTCH, not a proportional pixel scroll. A mouse
+     notch's ~100px delta is often wider than the gap between two waypoints on a short
+     walk, so a raw-delta version skipped several at once. The delta ACCUMULATES in a
+     ref across events and commits a step only past the threshold, carrying the
+     remainder — a fast trackpad scroll still advances several steps smoothly, a single
+     notch advances exactly one.
+     SCROLLBAR VARIANT: continuous pixel scroll — there is no waypoint to snap to. */
+  const wheelAccumRef = useRef(0)
+  const onPaneWheel = (e: WheelEvent) => {
+    const el = trackRef.current
+    if (!el || !scrollable) return
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+    if (!delta) return
+    e.preventDefault()
+    if (scrollbar) {
+      el.scrollLeft += delta
+      return
+    }
+    const targets = targetsRef.current
+    if (!targets.length) return
+    wheelAccumRef.current += delta
+    while (Math.abs(wheelAccumRef.current) >= WHEEL_STEP_PX) {
+      const dir = wheelAccumRef.current > 0 ? 1 : -1
+      wheelAccumRef.current -= dir * WHEEL_STEP_PX
+      const next = Math.max(0, Math.min(targets.length - 1, nearest + dir))
+      if (next === nearest) {
+        wheelAccumRef.current = 0
+        break
+      }
+      el.scrollLeft = targets[next]
+      setNearest(next)
+      lastSeekRef.current = next
+      if (onSeek) onSeek(next)
+    }
+  }
+  /* BOUND NATIVELY, NOT AS `onWheel` — A DELIBERATE DIVERGENCE FROM THE DS .jsx.
+     React attaches `wheel` at the root as a PASSIVE listener, so `preventDefault()`
+     inside a React `onWheel` handler is refused: Chromium logs "Unable to
+     preventDefault inside passive event listener invocation" on every notch and the
+     page keeps its own scroll as well as ours. Measured, not assumed — see
+     tools/studio-spike/drive-walkwheel.mjs, which collects that message. The handler
+     BODY is the DS's, unchanged; only how it is attached differs, because there is no
+     way to express `{ passive: false }` through the JSX prop.
+     The ref indirection keeps ONE listener across the component's life while the
+     handler itself is rebuilt every render (it closes over `nearest` and `onSeek`). */
+  const wheelRef = useRef<(e: WheelEvent) => void>(() => {})
+  useEffect(() => {
+    wheelRef.current = onPaneWheel
+  })
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => wheelRef.current(e)
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
   return (
     <div ref={rootRef} style={{ position: 'relative', height: '100%', minHeight: showCount ? 172 : 154, display: 'flex', flexDirection: 'column', minWidth: 0, padding: '0 14px', userSelect: 'none' }}>
       {/* THE COUNT SITS IN ITS OWN RESERVED ROW ABOVE THE TRACK, never over it — a
