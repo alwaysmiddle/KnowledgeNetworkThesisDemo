@@ -1,0 +1,366 @@
+// OB-116 / OB-107 / OB-117 (#227) — the walk's ARROWS on the map: the halo behind
+// them, the bow that pulls a doubled-back pair apart, and the recede while a
+// node's relationships are on screen.
+//
+// The arithmetic is unit-tested — `walkarrow.test.ts` measures the bow's own
+// geometry, `nodearrow.test.ts` renders the component and reads the shaft back
+// out. What only a browser can answer is whether the map PLACES the drawing where
+// the arithmetic says: every arrow goes through a `rotate()` and a counter-scale
+// that no unit test sees, and the whole reason `shaftTailOffset` exists is that
+// the drawing's origin is not its shaft. Off by one `across / 2` and every line
+// on the map runs beside the two pins it joins instead of between them — which
+// looks like a slightly untidy map, not like a bug.
+//
+// So the load-bearing check here is geometric: read each drawn shaft's own start
+// point out of the live SVG, in screen coordinates, and confirm it sits ON the
+// line between the two pins. It fails by ~6px against the unoffset code, which is
+// small enough to argue about in a screenshot and not at all small in a number.
+//
+// Spawns vite ITSELF — backgrounded dev servers die on this machine, so the
+// script owns the server lifecycle. Same pattern as drive-mappins.mjs.
+//
+// Run from anywhere:  node tools/studio-spike/drive-maparrows.mjs
+// Exits nonzero on any failed check or any page error.
+import { createRequire } from 'node:module'
+import { spawn } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
+
+const REPO = 'D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo'
+const OUT = REPO + '/tools/studio-spike/shots'
+const PORT = 5212
+mkdirSync(OUT, { recursive: true })
+
+const require = createRequire(REPO + '/package.json')
+const { chromium } = require('playwright-core')
+
+const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--port', String(PORT), '--strictPort'], {
+  cwd: REPO,
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
+let viteOut = ''
+await new Promise((res, rej) => {
+  const t = setTimeout(() => rej(new Error('vite did not become ready:\n' + viteOut)), 30000)
+  const watch = (d) => {
+    viteOut += String(d)
+    if (viteOut.includes('localhost:')) {
+      clearTimeout(t)
+      res()
+    }
+  }
+  vite.stdout.on('data', watch)
+  vite.stderr.on('data', watch)
+  vite.on('exit', (c) => rej(new Error('vite exited early ' + c + ':\n' + viteOut)))
+})
+
+const errors = []
+const checks = []
+const ok = (name, cond, detail = '') => {
+  checks.push(`${cond ? 'PASS' : 'FAIL'}  ${name}${detail ? '   ' + detail : ''}`)
+  if (!cond) errors.push(name + (detail ? ' — ' + detail : ''))
+}
+
+const browser = await chromium.launch({ channel: 'msedge', headless: true })
+const page = await browser.newPage({ viewport: { width: 1750, height: 950 } })
+page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
+page.on('console', (m) => {
+  if (m.type() === 'error') errors.push('console: ' + m.text())
+})
+
+await page.goto(`http://localhost:${PORT}/`)
+await page.evaluate(() => localStorage.clear())
+await page.reload()
+await page.waitForTimeout(700)
+
+// give the map the whole desk, as drive-mappins does — the opening preset leaves
+// it a quarter of the window and most of the walk outside the viewport
+for (const inst of ['unfoldgraph', 'document', 'walkviewer']) {
+  await page.getByLabel(`studio-inst-${inst}`).click()
+  await page.waitForTimeout(150)
+}
+await page.waitForTimeout(500)
+
+/** every walk arrow, measured in SCREEN coordinates: where its own painted shaft
+ *  starts and ends, and where the two pins it joins actually are. The DOM cannot
+ *  be asked this directly — the shaft's coordinates are in a rotated, scaled user
+ *  space nested three transforms deep — so this goes through getScreenCTM, which
+ *  is the browser's own answer to the same question. */
+const measure = () =>
+  page.evaluate(() => {
+    const toScreen = (el, x, y) => {
+      const m = el.getScreenCTM()
+      return { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f }
+    }
+    const centre = (el) => {
+      const r = el.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    }
+    const pins = [...document.querySelectorAll('[data-routestop]')].map(centre)
+    const out = []
+    for (const g of document.querySelectorAll('[data-routearrow]')) {
+      const i = Number(g.getAttribute('data-routearrow'))
+      const bow = Number(g.getAttribute('data-bow'))
+      // the PAINTED shaft, not the casing: the casing is drawn first and strokes
+      // --surface-raised, the paint second in --accent-walk / --bark-300
+      const strokes = [...g.querySelectorAll('line, path[fill="none"]')]
+      const shaft = strokes.filter((el) => !(el.getAttribute('stroke') || '').includes('surface-raised')).pop()
+      if (!shaft) continue
+      const start = shaft.tagName === 'line'
+        ? toScreen(shaft, shaft.x1.baseVal.value, shaft.y1.baseVal.value)
+        : (() => { const p = shaft.getPointAtLength(0); return toScreen(shaft, p.x, p.y) })()
+      const cased = [...g.querySelectorAll('[stroke*="surface-raised"], [fill*="surface-raised"]')].length
+      // and HOW FAR THE DRAWN LINE LEAVES ITS OWN CHORD, in screen px. The
+      // formula's own answer is unit-tested; what only a browser can say is what
+      // that becomes after the rotate and the counter-scale, which is the number
+      // a reader actually sees.
+      let bulge = 0
+      let screenLen = 0
+      if (shaft.tagName !== 'line') {
+        const total = shaft.getTotalLength()
+        const p0 = shaft.getPointAtLength(0)
+        const p1 = shaft.getPointAtLength(total)
+        const a = toScreen(shaft, p0.x, p0.y)
+        const b = toScreen(shaft, p1.x, p1.y)
+        const dx = b.x - a.x
+        const dy = b.y - a.y
+        screenLen = Math.hypot(dx, dy) || 1
+        for (let k = 0; k <= 40; k++) {
+          const q = shaft.getPointAtLength((k / 40) * total)
+          const p = toScreen(shaft, q.x, q.y)
+          bulge = Math.max(bulge, Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / screenLen)
+        }
+      }
+      out.push({ i, bow, start, cased, bulge, screenLen, from: pins[i], to: pins[i + 1] })
+    }
+    return { pins: pins.length, arrows: out }
+  })
+
+/** how far a point sits OFF the line between two others, in px */
+const offLine = (p, a, b) => {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len = Math.hypot(dx, dy) || 1
+  return Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / len
+}
+
+const first = await measure()
+ok('the walk is drawn on the map', first.arrows.length > 0, `${first.arrows.length} arrows, ${first.pins} pins`)
+
+// ── OB-116: the halo, on EVERY arrow, long and short ────────────────────────
+const uncased = first.arrows.filter((a) => a.cased !== 2)
+ok(
+  'every arrow carries a casing behind BOTH its shaft and its head',
+  uncased.length === 0,
+  uncased.length ? `${uncased.length} without: ${JSON.stringify(uncased.map((a) => [a.i, a.cased]))}` : `${first.arrows.length}/${first.arrows.length}`,
+)
+
+// ── the placement, which is what only a browser can check ───────────────────
+const off = first.arrows.map((a) => offLine(a.start, a.from, a.to))
+const worst = Math.max(...off)
+ok(
+  'every shaft STARTS on the line between the two pins it joins',
+  worst < 2,
+  `worst ${worst.toFixed(2)}px off, median ${off.slice().sort((x, y) => x - y)[off.length >> 1].toFixed(2)}px`,
+)
+
+// ── OB-107: a doubled-back pin bows its pair, and the rest stay straight ────
+// NOT AT L0. The walk's twelve stops collapse onto four territories up here, and
+// four pins in a rough square double back through nothing. The case OB-090 and
+// this item are both about — steps that leave a region and come back to it —
+// only exists once the map is fine-grained enough to draw those stops apart, so
+// the sweep dives the way a reader does (double-click a pin's own cell, the
+// map's real dive gesture; the zoom button dives at the pane CENTRE and flies
+// away from the walk) and measures at every level it reaches.
+const levelNow = () => page.$eval('[data-nested]', (el) => Number(el.getAttribute('data-level')))
+const diveOnAPin = async () => {
+  const b = await page.locator('[data-routestop]').first().boundingBox()
+  if (!b) return false
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2)
+  await page.waitForTimeout(800)
+  return true
+}
+
+const sweep = [{ level: await levelNow(), ...first }]
+for (let i = 0; i < 6; i++) {
+  if ((await levelNow()) >= 6) break
+  if (!(await diveOnAPin())) break
+  sweep.push({ level: await levelNow(), ...(await measure()) })
+}
+const fmt = sweep.map((s) => `L${s.level}:${s.arrows.filter((a) => a.bow !== 0).length}/${s.arrows.length}`).join(' ')
+
+const anyBowed = sweep.flatMap((s) => s.arrows).filter((a) => a.bow !== 0)
+ok('the walk doubles back somewhere, and those arrows bow', anyBowed.length > 0, `bowed/total by level — ${fmt}`)
+ok('and the arrows that run near nothing stay straight', sweep.some((s) => s.arrows.some((a) => a.bow === 0)), fmt)
+
+// A BOWED PAIR TAKES ONE SIGN, NOT TWO. Both shafts at a doubled-back pin get
+// the same signed bow, which — because they travel through the pin in opposite
+// directions — puts them on opposite sides of the corridor they share. A pair
+// that came out with two different signs would have curved together instead.
+const pairsSplit = sweep.flatMap((s) =>
+  s.arrows.filter((a, i) => a.bow !== 0 && s.arrows[i + 1] && s.arrows[i + 1].bow !== 0 && Math.sign(a.bow) !== Math.sign(s.arrows[i + 1].bow)),
+)
+ok('every bowed pair shares one sign', pairsSplit.length === 0, JSON.stringify(pairsSplit.map((a) => [a.i, a.bow])))
+
+// AND THE BEND HAS TO SURVIVE THE SCALE, which is the regression that got past
+// everything else. `bow` was first capped at a flat 28px, so every bowed arrow —
+// a 308px one at L1 and a 5938px one at L6 alike — bent by exactly 14px: a
+// visible lean on the short shaft, 0.24% and indistinguishable from straight on
+// the long one. Every unit test passed and every geometric check here passed,
+// because the arithmetic was doing precisely what it had been told to do. Only
+// looking at the screen catches it, so this looks at the screen: the bulge must
+// GROW with the shaft, and no bowed arrow may bend by so little that it reads as
+// a straight line.
+const bowedNow = sweep.flatMap((s) => s.arrows).filter((a) => a.bow !== 0)
+const bulges = bowedNow.map((a) => Number(a.bulge.toFixed(1)))
+const tooFlat = bowedNow.filter((a) => a.bulge < 10 || a.bulge / a.screenLen < 0.0075)
+ok(
+  'the bend is proportional to the shaft, not a flat offset that vanishes on a long one',
+  new Set(bulges).size > 1,
+  `${new Set(bulges).size} distinct bulges over ${bowedNow.length} bowed arrows — ${Math.min(...bulges)}px to ${Math.max(...bulges)}px`,
+)
+ok(
+  'and no bowed arrow bends so little it still reads as straight',
+  tooFlat.length === 0,
+  tooFlat.length
+    ? JSON.stringify(tooFlat.map((a) => [Math.round(a.screenLen), Number(a.bulge.toFixed(1))]))
+    : `worst ${Math.min(...bowedNow.map((a) => a.bulge / a.screenLen * 100)).toFixed(2)}% of shaft`,
+)
+
+// the alignment invariant has to hold at EVERY level, bowed arrows included — a
+// bow moves where the shaft sits inside the drawing, which is exactly why
+// shaftTailOffset takes it as an argument
+const offAll = sweep.flatMap((s) => s.arrows.map((a) => offLine(a.start, a.from, a.to)))
+ok(
+  'and every shaft, straight or bowed, still starts on its own pin-to-pin line',
+  Math.max(...offAll) < 2,
+  `worst ${Math.max(...offAll).toFixed(2)}px over ${offAll.length} arrows`,
+)
+
+await page.screenshot({ path: OUT + '/map-arrows-deep.png' })
+
+// back up to L2, where a territory's own name is drawn large enough to judge the
+// halo against, for the shots and the recede checks below
+const zoomOut = page.locator('[aria-label="map-view"]').getByRole('button', { name: /zoom out/i })
+while ((await levelNow()) > 2 && !(await zoomOut.isDisabled())) {
+  await zoomOut.click()
+  await page.waitForTimeout(700)
+}
+
+// ── OB-117: the walk recedes while a selection's relations are on screen ────
+const receded = () => page.$eval('[data-routearrows]', (el) => ({ flag: el.getAttribute('data-receded'), op: el.getAttribute('opacity') }))
+const toneNow = () => page.$eval('[data-routearrow] line:not([stroke*="surface-raised"]), [data-routearrow] path[fill="none"]:not([stroke*="surface-raised"])', (el) => el.getAttribute('stroke'))
+
+let r = await receded()
+ok('at rest the walk draws at full weight', r.flag === '0' && r.op === '1', JSON.stringify(r))
+ok('and in acorn — the hue of movement', (await toneNow()).includes('accent-walk'), await toneNow())
+
+// SELECT A TERRITORY — and do it with a real pointer at a point known to be
+// INSIDE the shape. Playwright's element click aims at a bounding-box position,
+// and a map region is a concave polygon whose box corners are mostly other
+// people's ground: the click lands on the <svg> behind it and is refused. Walk
+// the pane's own centre line until a region takes it.
+const pane = await page.locator('[aria-label="map-view"]').boundingBox()
+let selected = false
+for (const fx of [0.5, 0.42, 0.58, 0.34, 0.66]) {
+  await page.mouse.click(pane.x + pane.width * fx, pane.y + pane.height * 0.5)
+  await page.waitForTimeout(450)
+  selected = (await page.locator('[data-seloverlay]').count()) === 1
+  if (selected) break
+}
+ok('a node can be selected, which is what draws its relationships', selected)
+
+r = await receded()
+ok('with relations on screen the walk recedes', r.flag === '1' && r.op === '0.6', JSON.stringify(r))
+ok('shaft AND head drop to --bark-300, not just the shaft', (await toneNow()).includes('bark-300'), await toneNow())
+
+// PAINT ORDER: an SVG paints in document order, so "relations on top" is a
+// question about which element comes later in the tree, not about z-index.
+const relationsOnTop = await page.evaluate(() => {
+  const walk = document.querySelector('[data-routepath]')
+  const rels = document.querySelector('[data-seloverlay]')
+  if (!walk || !rels) return null
+  // Node.DOCUMENT_POSITION_FOLLOWING === 4
+  return (walk.compareDocumentPosition(rels) & 4) !== 0
+})
+ok('every relationship arrow paints AFTER the walk, so it sits on top', relationsOnTop === true, String(relationsOnTop))
+
+// AND PAINTING ON TOP IS NOT THE SAME AS READING ON TOP. The recede shipped,
+// passed every check above, and the owner still reported the relations hard to
+// see — because the two layers were sized the wrong way round: a relation head
+// was 5.5 x 5.6 against the walk's ARROW_METRICS 8 x 8.8, so the RECEDED layer
+// carried the bigger arrowheads and no amount of dimming could outrank that.
+// Dimming adjusts contrast; it cannot reorder two things whose sizes disagree
+// with their importance. So the invariant is about size, measured on screen.
+const layerWeights = await page.evaluate(() => {
+  // IN SCREEN AREA, not user units. The two heads live in different user
+  // spaces — the walk's inside MapView's `scale(f / view.s)` counter-scale, the
+  // relation's in world space where `px()` has already divided by the same zoom
+  // — so their raw getBBox numbers are not comparable and comparing them says
+  // nothing. |det(CTM)| is exactly the factor a user-space area is multiplied by
+  // on its way to the screen, which makes the two answers the same question.
+  const area = (el) => {
+    const b = el.getBBox()
+    const m = el.getScreenCTM()
+    return b.width * b.height * Math.abs(m.a * m.d - m.b * m.c)
+  }
+  const relHead = document.querySelector('[data-seledge] [data-selhead]')
+  const walkHead = [...document.querySelectorAll('[data-routearrow] path[fill]:not([fill="none"])')]
+    .filter((el) => !(el.getAttribute('fill') || '').includes('surface-raised')).pop()
+  const relShaft = document.querySelector('[data-seledge] path[fill="none"]:not([stroke="#ffffff"])')
+  return {
+    relHead: relHead ? area(relHead) : null,
+    walkHead: walkHead ? area(walkHead) : null,
+    relShaft: relShaft ? parseFloat(getComputedStyle(relShaft).strokeWidth) : null,
+  }
+})
+ok(
+  'a relation arrowhead is not smaller than the walk arrowhead it is meant to outrank',
+  layerWeights.relHead !== null && layerWeights.walkHead !== null && layerWeights.relHead > layerWeights.walkHead,
+  `relation ${layerWeights.relHead?.toFixed(1)} vs walk ${layerWeights.walkHead?.toFixed(1)} sq units`,
+)
+ok(
+  'and every relation arrowhead carries its own casing, as its shaft does',
+  await page.evaluate(() => [...document.querySelectorAll('[data-seledge] [data-selhead]')]
+    .every((h) => h.previousElementSibling && (h.previousElementSibling.getAttribute('fill') || '') === '#ffffff')),
+  `${await page.evaluate(() => document.querySelectorAll('[data-seledge] [data-selhead]').length)} heads`,
+)
+
+await page.mouse.move(4, 4)
+await page.waitForTimeout(250)
+await page.screenshot({ path: OUT + '/map-arrows-receded.png' })
+
+// deselect and confirm it comes back — the item asks for both directions
+await page.keyboard.press('Escape')
+await page.waitForTimeout(500)
+r = await receded()
+ok('deselecting returns the walk to full weight', r.flag === '0' && r.op === '1', JSON.stringify(r))
+ok('and to acorn', (await toneNow()).includes('accent-walk'), await toneNow())
+
+// park the pointer off the map first — MapTooltip follows it and would sit over
+// the very arrows these shots exist to show
+await page.mouse.move(4, 4)
+await page.waitForTimeout(250)
+await page.screenshot({ path: OUT + '/map-arrows.png' })
+
+// AND ONE CLOSE-UP, cropped to the walk itself. The full-pane shot is what the
+// map looks like; it is not enough to judge a 1.5px shaft's halo or a 14px bulge
+// against, and OB-116 and OB-107 are both judged at exactly that scale.
+{
+  const boxes = await page.$$eval('[data-routestop]', (els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, w: r.width, h: r.height })))
+  const pad = 60
+  const x = Math.min(...boxes.map((b) => b.x)) - pad
+  const y = Math.min(...boxes.map((b) => b.y)) - pad
+  const right = Math.max(...boxes.map((b) => b.x + b.w)) + pad
+  const bottom = Math.max(...boxes.map((b) => b.y + b.h)) + pad
+  await page.screenshot({ path: OUT + '/map-arrows-close.png', clip: { x: Math.max(0, x), y: Math.max(0, y), width: right - Math.max(0, x), height: bottom - Math.max(0, y) } })
+}
+
+await page.evaluate(() => localStorage.clear())
+await browser.close()
+vite.kill()
+
+console.log(checks.join('\n'))
+if (errors.length) {
+  console.error('\n' + errors.length + ' failure(s):\n' + errors.join('\n'))
+  process.exit(1)
+}
+console.log('\nall checks passed — shots at tools/studio-spike/shots/map-arrows{,-receded,-close,-deep}.png')
