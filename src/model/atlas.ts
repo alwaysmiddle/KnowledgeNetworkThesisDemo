@@ -9,11 +9,12 @@
 // trim-and-bundle machinery pointed at a different edge set, and it could not
 // even be attempted while this lived inside a render function.
 
-import { byId, domainIds, domainOf, topicIds, topicsUnder } from '../corpus/graph'
+import { byId, domainIds, domainOf, pathTo, topicIds, topicsUnder } from '../corpus/graph'
 import type { EdgeType, GEdge } from '../corpus/graph'
 import type { XY } from './derive'
+import type { LabelBox } from './labelfit'
 import { edgesTouching, leafPos, provinceIds, provinceOf, topicAnchorOf } from './flat'
-import { countryPath, countryRings, provincePath, provinceRings, territories, topicPoly } from './nested'
+import { countryPath, countryRings, pointInPoly, provincePath, provinceRings, territories, topicPoly } from './nested'
 
 // ── Geography: the label anchors and region centres, derived once ────────────
 const centroidOf = (members: string[]) => ({
@@ -67,6 +68,150 @@ export const flightTargetOf = (id: string): { c: XY; tier: number } | null => {
   const t = terrCenter.get(id)
   if (t) return t
   return byId.has(id) ? terrCenter.get(topicAnchorOf(id)) ?? null : null
+}
+
+/** WHERE A WALK STOP SITS ON THE MAP AT A GIVEN LEVEL, and the one rule that
+ * decides whether it is drawn at all.
+ *
+ * The map is an atlas: at level k the level-k nodes ARE the cells. A walk's
+ * stops are corpus nodes at whatever depth the author picked, so almost none of
+ * them owns a cell at the level currently on screen, and each has to resolve to
+ * something that does. The answer is the DEEPEST ancestor — the stop itself
+ * counting as its own — whose cell is at or above this stratum.
+ *
+ * WHY IT WALKS THE CHAIN INSTEAD OF INDEXING IT. The obvious form, and the one
+ * this replaced, is `pathTo(id)[level + 1]`: take the ancestor sitting exactly
+ * `level` steps down. That reads well and is wrong twice, both silently
+ * (OB-109).
+ *
+ * 1. CONTAINMENT DEPTH IS NOT CELL TIER. `pathTo` counts containers; `tier`
+ *    counts grain. `auto-continuous-integration` is 4 deep
+ *    (root/se/tool/auto/…) and owns a TIER-2 cell, because `auto` is a container
+ *    the atlas never gives a cell to — `flightTargetOf('auto')` is null. At L2
+ *    the index landed on `auto`, got null, and dropped the stop.
+ * 2. THE INDEX RUNS OFF THE END. Once the level is deeper than the stop, there
+ *    is no ancestor at that index at all. The demo corpus carries territories to
+ *    tier 6 while a walk's stops are tier-2 topics, so from L3 down EVERY stop
+ *    resolved to `undefined` and the entire walk — pins and arrows — left the
+ *    map with no warning.
+ *
+ * Walking up from the stop and taking the first ancestor with `tier <= level`
+ * answers both: it skips cell-less containers instead of failing on them, and it
+ * stops at the stop itself when nothing coarser is needed.
+ *
+ * A STOP COARSER THAN THE GRAIN ON SCREEN STILL HAS A PLACE. Its own cell is no
+ * longer drawn and its children's are, so it anchors on its own centroid — a
+ * point inside the union of the cells its children now tile. Nothing untrue is
+ * claimed: the walk does pass through here, and the arrows between stops still
+ * join two real positions. That is the deliberate, documented choice OB-109 asks
+ * for in place of a level where stops silently stop drawing.
+ *
+ * It is deliberately NOT the choice the search-match tally in MapView makes. A
+ * match that is an ancestor of the whole stratum is a COUNT ("3 matches under
+ * Systems Programming"), and a count has nowhere to land once its cell is gone.
+ * A walk stop is a single place, so it always has a centroid to sit on.
+ *
+ * `null` only for an id the map has never heard of. */
+export const walkAnchorAt = (id: string, level: number): { visId: string; c: XY } | null => {
+  const chain = pathTo(id)
+  for (let k = chain.length - 1; k >= 0; k--) {
+    const ft = flightTargetOf(chain[k])
+    if (ft && ft.tier <= level) return { visId: chain[k], c: ft.c }
+  }
+  return null
+}
+
+/** The outline any map region is drawn with, as POINTS rather than as an svg
+ * path string — `outlineOf`'s geometric twin. A territory carries its own convex
+ * `poly`; a domain or a module is a union of cells and carries rings instead, of
+ * which the one actually containing the region's centre is the one a mark has to
+ * stay inside. Null for an id the atlas draws no region for. */
+const regionRings = (id: string): XY[][] | null => countryRings[id] ?? provinceRings[id] ?? null
+
+export const cellPolyOf = (id: string, at: XY): XY[] | null => {
+  const t = territories.find((x) => x.id === id)
+  if (t) return t.poly
+  const rings = regionRings(id)
+  if (!rings || rings.length === 0) return null
+  return rings.find((r) => pointInPoly(at, r)) ?? rings.reduce((a, b) => (b.length > a.length ? b : a))
+}
+
+/** how far outward the search steps, and how many directions it tries at each
+ * step. Sixteen directions is a 22.5° grid — fine enough that a cell narrow in
+ * one axis still has a way out along the other. */
+const SPOT_ANGLES = 16
+const SPOT_STEPS = 8
+
+/** WHERE A PIN GOES WHEN THE GROUND IT WANTS IS ALREADY SPOKEN FOR.
+ *
+ * A territory's name is drawn across its centre, and a walk pin is drawn at that
+ * same centre. The pin is a filled disc with a step number in it — an opaque
+ * mark, not a wash — so it does not dim the name underneath, it deletes it
+ * (OB-108: pin 6 over "Cryptography", pin 7 over "Turing", the "1-4" pin over
+ * "Digital Logic").
+ *
+ * NOT AN OPACITY PROBLEM, and the design system says why: lowering the pin's
+ * opacity to let the label through also lowers the contrast of the number inside
+ * it, which is the one thing the pin exists to show clearly. The mark has to move
+ * instead.
+ *
+ * IT TAKES EVERY LABEL ON SCREEN, NOT THE PIN'S OWN. OB-108 is worded as "its own
+ * territory's label", and that is the case its screenshots show — but it is only
+ * the shallow half of the problem. Zoom past the level where a stop owns a cell
+ * and the stop keeps its pin (see `walkAnchorAt`) while the ground under it is
+ * re-tiled by its CHILDREN, each with a name of its own. Its own label is gone by
+ * then; the pin lands on someone else’s. Same fault, same solid disc over a word,
+ * and a per-id check cannot see it. So the caller hands in the labels actually
+ * drawn at this level and the search clears them all — which satisfies OB-108’s
+ * own case as a subset.
+ *
+ * The search steps outward from `from` in a ring of directions and returns the
+ * first position that is inside the cell AND clear of every box, preferring —
+ * among the candidates at the radius that first works — the one with the most
+ * room around it. Stepping outward keeps the displacement small; picking the
+ * roomiest at that radius stops a pin from ending up wedged against the end of a
+ * word, which technically clears the box and reads as a collision anyway.
+ *
+ * Returns `from` unchanged when it already clears everything, and gives up — also
+ * returning `from` — when no candidate works. A pin outside its own territory
+ * would be a worse lie than one over a word, and at deep zoom the parent
+ * watermark alone can cover a whole region, so giving up has to stay an option
+ * rather than becoming a shove.
+ *
+ * `radius` is the pin’s own half-width in world units; every box is grown by it
+ * so a disc-versus-box test becomes a point-versus-box one. */
+export function pinSpotClear(from: XY, poly: XY[] | null, boxes: LabelBox[], radius: number): XY {
+  if (!poly || boxes.length === 0) return from
+  const pad = boxes.map((b) => ({ x0: b.x0 - radius, y0: b.y0 - radius, x1: b.x1 + radius, y1: b.y1 + radius }))
+  /** only the labels this pin could possibly touch. At a deep level the map
+   *  draws hundreds of names and the pin is near a handful of them; testing the
+   *  rest on every candidate is work that can never change the answer. */
+  const near = pad.filter((b) => Math.hypot(Math.max(b.x0 - from.x, 0, from.x - b.x1), Math.max(b.y0 - from.y, 0, from.y - b.y1)) < SPOT_STEPS * Math.max((b.y1 - b.y0) / 2, radius) + radius)
+  if (near.length === 0) return from
+  const hits = (p: XY) => near.some((b) => p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1)
+  if (!hits(from)) return from
+  /** distance from a point to the NEAREST box — 0 inside one, growing outside.
+   *  The tie-break: more room reads as more cleared. */
+  const clearance = (p: XY) =>
+    Math.min(...near.map((b) => Math.hypot(Math.max(b.x0 - p.x, 0, p.x - b.x1), Math.max(b.y0 - p.y, 0, p.y - b.y1))))
+  // the half-height of the tallest box it is standing on is the smallest step
+  // that can possibly leave it, so the search starts there instead of crawling
+  // out from zero
+  const standing = near.filter((b) => from.x >= b.x0 && from.x <= b.x1 && from.y >= b.y0 && from.y <= b.y1)
+  const step = Math.max(...standing.map((b) => (b.y1 - b.y0) / 2), radius)
+  for (let s = 1; s <= SPOT_STEPS; s++) {
+    const r = step * s
+    let best: { p: XY; room: number } | null = null
+    for (let a = 0; a < SPOT_ANGLES; a++) {
+      const th = (2 * Math.PI * a) / SPOT_ANGLES
+      const p = { x: from.x + Math.cos(th) * r, y: from.y + Math.sin(th) * r }
+      if (hits(p) || !pointInPoly(p, poly)) continue
+      const room = clearance(p)
+      if (!best || room > best.room) best = { p, room }
+    }
+    if (best) return best.p // first radius that works anywhere — stay close
+  }
+  return from
 }
 
 /** Which src/tgt in a selection's Bundle a node would touch — the grain-lift a
