@@ -2,6 +2,7 @@ import { CopyMark, LoadMark, NewMapMark, PasteMark, PrintMark, SaveMark, Toolbar
 import type { ToolbarItemSpec } from '@/ds'
 
 import { redoDraft, undoDraft } from '../instruments/walkdesk/authordraft'
+import { PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
 
 /** The application toolbar (#55): universal, app-level operations pinned directly
  *  under the app header — the DS Toolbar's designed slot. Built entirely on the
@@ -21,17 +22,28 @@ import { redoDraft, undoDraft } from '../instruments/walkdesk/authordraft'
  *  screen — so it belongs here rather than on any instrument. It carries no
  *  keyboard shortcut on purpose: PowerPoint's F5 is the browser's reload, which
  *  in a Vite-heavy workflow is a key the author presses constantly. Shift+F5 is
- *  the candidate if one is ever wanted. */
-export function AppToolbar({ onPresent }: { onPresent?: () => void } = {}) {
-  const newMap: ToolbarItemSpec[] = [{ glyph: <NewMapMark />, title: 'New map', disabled: true }]
+ *  the candidate if one is ever wanted.
+ *
+ *  THE PALETTE TOGGLE IS THE ONE ITEM HERE THAT IS NOT OPTIONAL CHROME (OB-104):
+ *  the palette pane's ✕ closes it, and this is the only thing that brings it back.
+ *  Ship one without the other and the pane is a one-way door. */
+export function AppToolbar({ onPresent, palette }: { onPresent?: () => void; palette?: { on: boolean; onToggle: () => void } } = {}) {
+  // GROUP ORDER IS THE OBLIGATION, not a preference (OB-105): palette, then the
+  // four document-lifecycle actions in the order they are actually used — create,
+  // load, save, print (output last) — then editing, then the clipboard. `new map`
+  // used to stand alone in front and print/save/load ran backwards.
+  const paletteGroup: ToolbarItemSpec[] = palette
+    ? [{ glyph: <PaletteGlyph />, title: palette.on ? PALETTE_TIP.hide : PALETTE_TIP.show, on: palette.on, onClick: palette.onToggle }]
+    : []
   const editing: ToolbarItemSpec[] = [
     { glyph: '↶', title: 'Undo (Ctrl+Z)', onClick: undoDraft },
     { glyph: '↷', title: 'Redo (Ctrl+Y)', onClick: redoDraft },
   ]
   const document: ToolbarItemSpec[] = [
-    { glyph: <PrintMark />, title: 'Print (Ctrl+P)', disabled: true },
-    { glyph: <SaveMark />, title: 'Save (Ctrl+S)', disabled: true },
+    { glyph: <NewMapMark />, title: 'New map', disabled: true },
     { glyph: <LoadMark />, title: 'Load', disabled: true },
+    { glyph: <SaveMark />, title: 'Save (Ctrl+S)', disabled: true },
+    { glyph: <PrintMark />, title: 'Print (Ctrl+P)', disabled: true },
   ]
   const clipboard: ToolbarItemSpec[] = [
     { glyph: <CopyMark />, title: 'Copy (Ctrl+C)', disabled: true },
@@ -45,7 +57,13 @@ export function AppToolbar({ onPresent }: { onPresent?: () => void } = {}) {
   const present: ToolbarItemSpec[] = [{ glyph: '▶', title: 'Present', tone: 'walk', onClick: onPresent }]
   return (
     <Toolbar
-      groups={[{ items: newMap }, { items: editing }, { items: document }, { items: clipboard }, { items: present }]}
+      groups={[
+        ...(paletteGroup.length ? [{ items: paletteGroup }] : []),
+        { items: document },
+        { items: editing },
+        { items: clipboard },
+        { items: present },
+      ]}
     />
   )
 }

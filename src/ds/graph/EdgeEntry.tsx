@@ -145,10 +145,11 @@ export function EdgeEntry({
         <span style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, paddingBottom: 1, boxSizing: 'border-box', fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-semibold)', color: 'var(--text-1)', textAlign: 'center', lineHeight: 'var(--lh-snug)', overflowWrap: 'break-word' }}>{label}</span>
         {/* the head goes on the end that RECEIVES */}
         <span style={{ width: '100%', display: 'flex', alignItems: 'center', color: hue, lineHeight: 0.7 }}>
-          {/* the head keeps its 9px against the thinner shaft: it is the only part that says
-              which way the relation runs, so it becomes the connector's emphasis rather
-              than the line being it */}
-          {direction !== 'out' ? <span style={{ fontSize: 9, flex: 'none' }}>{'◀'}</span> : null}
+          {/* the head keeps a step of emphasis over the thinner shaft: it is the only part
+              that says which way the relation runs. 7px, not the 9px this drew until
+              2026-08-28 — full-size read as competing with the pill text beside it rather
+              than just marking direction (owner-reported). */}
+          {direction !== 'out' ? <span style={{ fontSize: 7, flex: 'none' }}>{'◀'}</span> : null}
           {/* THE SHAFT IS `EDGE_SHAFT_STROKE` — see its docblock: 1.25, matching the 1px
               border of the chips at its ends, because a connector never outweighs what it
               connects.
@@ -158,7 +159,7 @@ export function EdgeEntry({
               reading visibly thicker than their neighbours. crispEdges snaps every shaft to
               the same device-pixel height. */}
           <svg height="2" preserveAspectRatio="none" shapeRendering="crispEdges" style={{ flex: 1, minWidth: 0, display: 'block' }} aria-hidden="true"><rect width="100%" y="0.25" height={EDGE_SHAFT_STROKE} fill={hue} /></svg>
-          {direction !== 'in' ? <span style={{ fontSize: 9, flex: 'none' }}>{'▶'}</span> : null}
+          {direction !== 'in' ? <span style={{ fontSize: 7, flex: 'none' }}>{'▶'}</span> : null}
         </span>
       </span>
       <span style={{ minWidth: 0, flex: '1 1 0', display: 'flex', justifyContent: 'flex-start' }}><EntryNode title={to} domain={toDomain} anchor={toAnchor} within={toWithin} onClick={onTo} /></span>
