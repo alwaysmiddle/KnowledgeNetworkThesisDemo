@@ -33,7 +33,7 @@ import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, Pointe
 
 import { byId, childrenOf, domainIds, domainOf } from '../../corpus/graph'
 import {
-  ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf,
+  ARROW_METRICS, NodeArrow, NodeChip, NodePicker, chipBorder, chipSizeOf, shaftTailOffset,
   VersionedGroup, GroupGeometry, GROUP_METRICS,
   wrapTip, PaneScroller,
 } from '@/ds'
@@ -687,7 +687,17 @@ export default function AuthorRoad({
                 key={`a${i}`}
                 data-rarrow
                 data-rarrow-tone={a.live ? 'walk' : 'quiet'}
-                style={{ position: 'absolute', left: a.x1 - ARROW_METRICS.across / 2, top: a.y1 }}
+                // `shaftTailOffset`, not `ARROW_METRICS.across / 2`. The two
+                // agreed until 2026-08-29: `across` was a fixed constant here, so
+                // half of it was where the shaft sat. The DS's own .jsx derives
+                // the box from the SCALED half-width now, so a lighter `joins`
+                // draws a narrower box with the shaft nearer its edge — and a road
+                // holding a VersionedGroup takes `joins = 1` (its `joinBorder`),
+                // which would have put every arrow on it 0.73px off its column.
+                // The published constant is still the right SPAN reservation (a
+                // scaled head is only ever smaller); it is no longer the right
+                // cross-axis position.
+                style={{ position: 'absolute', left: a.x1 - shaftTailOffset({ joins: roadJoins }).across, top: a.y1 }}
               >
                 <NodeArrow
                   direction="down"

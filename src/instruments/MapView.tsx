@@ -55,7 +55,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { ARROW_METRICS, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, StepDot, VisibilityMark, ZoomControl } from '@/ds'
+import { ARROW_METRICS, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, shaftTailOffset, StepDot, VisibilityMark, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
@@ -63,6 +63,7 @@ import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
 import { cellPolyOf, countryLabels, endpointAtTier, flightTargetOf, outlineOf, pinSpotClear, provinceLabels, ringsCrossT, roadsFor, walkAnchorAt } from '../model/atlas'
+import { bowFor, bowSignAt } from '../model/walkarrow'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
 import type { FitLine, LabelBox } from '../model/labelfit'
@@ -638,6 +639,49 @@ export default function MapView({ bus }: { bus: Bus }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeVis, bus.activeWalk, bus.draftCursor, f, view.s, labelBoxes])
 
+  // ── OB-107: WHICH WALK LINES BOW, AND WHICH WAY ────────────────────────────
+  // OB-090 point 1 pulled the arrows' shared ANCHOR apart — every line now
+  // leaves and meets a pin at its own edge rather than at one shared centre.
+  // What survived it is two lines that still run near-parallel for most of
+  // their LENGTH and read as one doubled shaft right up to the head. `bow`
+  // curves a shaft away from its own axis; this decides who gets one.
+  //
+  // THE DS LEAVES BOTH CALLS TO US (its `done when` says so, the same split as
+  // OB-090 point 2): which lines count as "close", and how far to bow them.
+  //
+  // WHICH: a walk is a PATH, so a stop has exactly two lines at it — the one
+  // arriving and the one leaving. They run close when the walk DOUBLES BACK:
+  // both the previous stop and the next lie in nearly the same direction from
+  // this one, so the two shafts share a corridor. Under BOW_CLOSE_DEG apart,
+  // measured outward from the shared pin, is that case. (Two lines can also run
+  // close WITHOUT sharing a pin; the DS's checkable is the shared-pin case and
+  // that is what this covers. Named here so the next reader knows it was a
+  // scope decision, not an oversight.)
+  //
+  // WHICH WAY: the DS proposed alternating the sign between the pair. That is
+  // right for two lines both POINTING AT a pin, and wrong here, because a
+  // path's two lines travel in OPPOSITE directions through it — so ONE sign,
+  // taken by both, sends them to opposite sides of the corridor. Which sign
+  // that is depends on whether the next stop lies clockwise or anticlockwise of
+  // the previous one from this pin; `bowSignAt` reads it off the geometry, and
+  // getting it backwards curves the two TOWARD each other. Measured on the
+  // drawn curves in `walkarrow.test.ts`, both arrangements, rather than argued.
+  const routeBowSign = useMemo(() => {
+    const signs = new Array<number>(Math.max(0, routeStops.length - 1)).fill(0)
+    for (let p = 1; p < routeStops.length - 1; p++) {
+      const sign = bowSignAt(routeStops[p].c, routeStops[p - 1].c, routeStops[p + 1].c)
+      if (sign === 0) continue
+      signs[p - 1] = sign
+      signs[p] = sign
+    }
+    return signs
+  }, [routeStops])
+
+  // OB-117 — the walk recedes while a node's relationships are on screen. The
+  // relation arrows are drawn by the `sel` overlay and by nothing else, so the
+  // selection IS the condition; deselecting restores full weight on its own.
+  const walkReceded = sel !== null
+
 
   // territories in play: everything up to one tier below the stratum (so the
   // next level fades IN instead of popping), viewport-culled by owning topic
@@ -1109,6 +1153,12 @@ export default function MapView({ bus }: { bus: Bus }) {
               intercepts a click meant for the cell fill below it. ──────── */}
           {walkVisible && routeStops.length > 0 && (
             <g data-routepath data-step-count={bus.route.length} pointerEvents="none">
+              {/* OB-117 — the ARROWS recede, not the pins: the item's `done when`
+                  names the shaft and the head, and the DS's own side-by-side mock
+                  (guidelines/map-walk-relations-declutter-options.html) draws lines
+                  and no step marks at all. One wrapper carries both halves of the
+                  recede, since tone alone leaves the mark at full strength. */}
+              <g data-routearrows data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
               {routeStops.slice(1).map((to, i) => {
                 const from = routeStops[i]
                 const dx = to.c.x - from.c.x
@@ -1129,12 +1179,40 @@ export default function MapView({ bus }: { bus: Bus }) {
                 const tailX = from.c.x + (dx / worldDist) * tailOffset
                 const tailY = from.c.y + (dy / worldDist) * tailOffset
                 const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head - from.size / 2)
+                // OB-107 — magnitude is proportional to the shaft, capped: a bow
+                // is meant to open a gap between two lines, and a fixed px offset
+                // that reads as a gentle curve on a long line is a semicircle on a
+                // short one. Sign comes from the policy above, and 0 draws the
+                // straight <line> exactly as before.
+                const bow = bowFor(routeBowSign[i], length)
+                // THE DRAWING'S ORIGIN IS NOT THE SHAFT'S TAIL. NodeArrow puts the
+                // shaft at `across / 2` down its own box, and `casing`'s pad and
+                // `bow`'s sign move it again — so placing the <svg> at the pin
+                // leaves the LINE beside the two pins it joins. Cancelling the
+                // offset here is what makes bowing +b and -b symmetric about the
+                // real pin-to-pin line, which the alternating sign depends on.
+                const tail = shaftTailOffset({ joins: PIN_RING_WIDTH, bow, casing: true })
                 return (
-                  <g key={`ra-${to.key}`} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
-                    <NodeArrow direction="right" length={length} joins={PIN_RING_WIDTH} />
+                  <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
+                    <g transform={`translate(${-tail.along} ${-tail.across})`}>
+                      {/* OB-116 — `casing` on EVERY walk arrow, long and short,
+                          quiet and current: a halo behind shaft and head so the
+                          line reads over a territory fill instead of competing
+                          with it. Not a bigger head — that does not scale to a map
+                          with many arrows, which is the map this is. */}
+                      <NodeArrow
+                        direction="right"
+                        length={length}
+                        joins={PIN_RING_WIDTH}
+                        bow={bow}
+                        casing
+                        tone={walkReceded ? 'hint' : 'walk'}
+                      />
+                    </g>
                   </g>
                 )
               })}
+              </g>
               {routeStops.map((s) => (
                 <g
                   key={s.key}
@@ -1265,14 +1343,27 @@ export default function MapView({ bus }: { bus: Bus }) {
                     onPointerLeave={() => setHoverEdge((h) => (h === bd ? null : h))}
                     style={{ transition: 'opacity 120ms' }}
                   >
-                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(lit ? 4.6 : 3.6)} strokeOpacity={0.75} />
-                    <path d={d} fill="none" stroke={col} strokeWidth={px(lit ? 3.4 : bd.n > 1 ? 2.4 : 1.8)} strokeOpacity={0.92} />
+                    {/* A RELATION IS THE FOCUS LAYER, so it must not draw lighter
+                        than the walk it displaces. It did: the walk's head is
+                        ARROW_METRICS 8 long by 8.8 wide on a 1.5px shaft, and these
+                        were 5.5 by 5.6 on 1.8 — the RECEDED layer carrying the bigger
+                        arrowheads. OB-117 tried to open that gap by dimming the walk
+                        and could not, because the gap was the wrong way round to
+                        begin with; owner still reported the relations hard to read
+                        with the recede shipped and working. Sized a step ABOVE the
+                        walk's head instead of a step below it.
+
+                        The head takes the same white casing as its shaft, which is
+                        OB-116's argument one layer up: a bare triangle over a
+                        saturated territory fill is a smudge, and enlarging it only
+                        makes a bigger smudge. */}
+                    <path d={d} fill="none" stroke="#ffffff" strokeWidth={px(lit ? 6.2 : 4.8)} strokeOpacity={0.75} />
+                    <path d={d} fill="none" stroke={col} strokeWidth={px(lit ? 4.4 : bd.n > 1 ? 3.4 : 2.6)} strokeOpacity={0.92} />
                     {bd.dir === 'fwd' && (
-                      <path
-                        d={`M0,0 L${-px(5.5)},${px(2.8)} L${-px(5.5)},${-px(2.8)} Z`}
-                        transform={`translate(${bx} ${by}) rotate(${ang})`}
-                        fill={col}
-                      />
+                      <g transform={`translate(${bx} ${by}) rotate(${ang})`}>
+                        <path d={`M${px(1.4)},0 L${-px(10.4)},${px(6.2)} L${-px(10.4)},${-px(6.2)} Z`} fill="#ffffff" fillOpacity={0.75} />
+                        <path data-selhead d={`M0,0 L${-px(9)},${px(5)} L${-px(9)},${-px(5)} Z`} fill={col} />
+                      </g>
                     )}
                     {bd.n > 1 && (
                       <text
