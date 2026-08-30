@@ -48,10 +48,7 @@ export function PaletteGlyph({ size = 17, style }: PaletteGlyphProps) {
   )
 }
 
-/** The two titles the toggle carries, published because they are also a SELECTOR.
- *  `StudioView` finds this button by `title` to measure where the palette should
- *  shrink toward, exactly as the DS template does — and `Toolbar` puts the title
- *  through `wrapTip`, which returns a string unchanged at 44 characters or fewer.
- *  Both of these are 16. Keep them short, or the selector stops matching in
- *  silence. */
+/** The two titles the palette toggle carries. Locating the button BY one of
+ *  them lives in `paletteanchor.ts` — see that file for why it is a JS
+ *  comparison against `wrapTip(tip)` and not a CSS attribute selector. */
 export const PALETTE_TIP = { hide: 'hide the palette', show: 'show the palette' } as const

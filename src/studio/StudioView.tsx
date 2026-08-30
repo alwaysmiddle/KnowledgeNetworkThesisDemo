@@ -28,7 +28,7 @@ import { byId, domainOf } from '../corpus/graph'
 import PresentationFrame from '../present/PresentationFrame'
 import { usePresentSession } from '../present/session'
 import { AppToolbar } from './AppToolbar'
-import { PALETTE_TIP } from './PaletteGlyph'
+import { findPaletteIcon } from './paletteanchor'
 import { useStudioBus } from './bus'
 import { FAMILIES } from './families'
 import type { Family } from './families'
@@ -79,7 +79,7 @@ export default function StudioView() {
    *  first pass. Centre to centre, since the pane scales about its own centre. */
   const paletteDelta = () => {
     const wrap = paletteWrapRef.current
-    const icon = document.querySelector(`[title="${PALETTE_TIP.hide}"], [title="${PALETTE_TIP.show}"]`)
+    const icon = findPaletteIcon()
     if (!wrap || !icon) return { dx: 0, dy: 0 }
     const pr = wrap.getBoundingClientRect()
     const ir = icon.getBoundingClientRect()

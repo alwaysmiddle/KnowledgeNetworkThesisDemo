@@ -84,11 +84,40 @@ ok('the palette pane has a ✕', (await closeX.count()) === 1)
 const toggle = page.getByTitle('hide the palette', { exact: true })
 ok('the toolbar has the palette toggle, reading "hide" while open', (await toggle.count()) === 1)
 
-// THE SELECTOR THE ANIMATION DEPENDS ON. If wrapTip ever folds this title, the
-// attribute stops being the literal string and this is the only thing that says so.
+// HOW THE ANIMATION FINDS THE BUTTON (OB-118 point 2). It compares `el.title` in
+// JS against `wrapTip(tip)`, and it used to be a CSS attribute selector on the raw
+// tip. Both halves of that change matter and both are checked here on the live DOM.
 ok(
-  'the toggle is findable by the exact title StudioView measures against',
-  await page.evaluate(() => !!document.querySelector('[title="hide the palette"], [title="show the palette"]')),
+  'the toggle is findable the way StudioView actually finds it — title compared in JS',
+  await page.evaluate(() =>
+    [...document.querySelectorAll('button[title]')].some(
+      (el) => el.title === 'hide the palette' || el.title === 'show the palette',
+    ),
+  ),
+)
+
+// AND WHY IT IS NOT A SELECTOR. `Toolbar` folds any title past 44 characters, and a
+// CSS string may not carry a raw newline — so the old form did not degrade to "no
+// match", it threw. Proven against a stand-in button rather than by lengthening the
+// app's own copy, so the check holds whatever that copy says.
+ok(
+  'and a folded title breaks the OLD selector form, which is why it is gone',
+  await page.evaluate(() => {
+    const probe = document.createElement('button')
+    // the newline is built, not escaped, so no layer between here and the page
+    // can quietly turn it back into a space
+    probe.setAttribute('title', ['hide the palette panel and give the desk', 'more room to work in'].join(String.fromCharCode(10)))
+    document.body.appendChild(probe)
+    let selector = 'no match'
+    try {
+      selector = document.querySelector(`[title="${probe.title}"]`) ? 'matched' : 'no match'
+    } catch (e) {
+      selector = 'threw ' + e.name
+    }
+    const inJs = [...document.querySelectorAll('button[title]')].some((el) => el.title === probe.title)
+    probe.remove()
+    return selector.startsWith('threw') && inJs
+  }),
 )
 
 // ── 2. OB-105: group order — palette, then new map / load / save / print ────
