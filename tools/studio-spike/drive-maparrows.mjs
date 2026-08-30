@@ -246,11 +246,19 @@ while ((await levelNow()) > 2 && !(await zoomOut.isDisabled())) {
 }
 
 // ── OB-117: the walk recedes while a selection's relations are on screen ────
-const receded = () => page.$eval('[data-routearrows]', (el) => ({ flag: el.getAttribute('data-receded'), op: el.getAttribute('opacity') }))
+const recededOf = (sel) => page.$eval(sel, (el) => ({ flag: el.getAttribute('data-receded'), op: el.getAttribute('opacity') }))
+const receded = () => recededOf('[data-routearrows]')
+// OB-122 widened the recede to the numbered pins. Read as its OWN layer, not
+// folded into the arrows' check: the two are separate wrappers precisely so one
+// can regress without the other, and a check that reads only the arrows would go
+// on passing while the pins sat at full weight — which is the bug OB-122 is.
+const recededPins = () => recededOf('[data-routepins]')
 const toneNow = () => page.$eval('[data-routearrow] line:not([stroke*="surface-raised"]), [data-routearrow] path[fill="none"]:not([stroke*="surface-raised"])', (el) => el.getAttribute('stroke'))
 
 let r = await receded()
 ok('at rest the walk draws at full weight', r.flag === '0' && r.op === '1', JSON.stringify(r))
+let p = await recededPins()
+ok('at rest the numbered pins draw at full weight too', p.flag === '0' && p.op === '1', JSON.stringify(p))
 ok('and in acorn — the hue of movement', (await toneNow()).includes('accent-walk'), await toneNow())
 
 // SELECT A TERRITORY — and do it with a real pointer at a point known to be
@@ -271,6 +279,11 @@ ok('a node can be selected, which is what draws its relationships', selected)
 r = await receded()
 ok('with relations on screen the walk recedes', r.flag === '1' && r.op === '0.6', JSON.stringify(r))
 ok('shaft AND head drop to --bark-300, not just the shaft', (await toneNow()).includes('bark-300'), await toneNow())
+p = await recededPins()
+ok('OB-122 — and the numbered pins recede with them, to the same 0.6', p.flag === '1' && p.op === '0.6', JSON.stringify(p))
+ok('both layers dim on the same 120ms, so the walk moves as one',
+  (await page.$eval('[data-routepins]', (el) => el.style.transition)) === (await page.$eval('[data-routearrows]', (el) => el.style.transition)),
+  await page.$eval('[data-routepins]', (el) => el.style.transition))
 
 // PAINT ORDER: an SVG paints in document order, so "relations on top" is a
 // question about which element comes later in the tree, not about z-index.
@@ -333,6 +346,8 @@ await page.keyboard.press('Escape')
 await page.waitForTimeout(500)
 r = await receded()
 ok('deselecting returns the walk to full weight', r.flag === '0' && r.op === '1', JSON.stringify(r))
+p = await recededPins()
+ok('and the pins come back with it — both directions, both layers', p.flag === '0' && p.op === '1', JSON.stringify(p))
 ok('and to acorn', (await toneNow()).includes('accent-walk'), await toneNow())
 
 // park the pointer off the map first — MapTooltip follows it and would sit over

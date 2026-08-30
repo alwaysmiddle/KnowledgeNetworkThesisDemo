@@ -1153,11 +1153,18 @@ export default function MapView({ bus }: { bus: Bus }) {
               intercepts a click meant for the cell fill below it. ──────── */}
           {walkVisible && routeStops.length > 0 && (
             <g data-routepath data-step-count={bus.route.length} pointerEvents="none">
-              {/* OB-117 — the ARROWS recede, not the pins: the item's `done when`
-                  names the shaft and the head, and the DS's own side-by-side mock
-                  (guidelines/map-walk-relations-declutter-options.html) draws lines
-                  and no step marks at all. One wrapper carries both halves of the
-                  recede, since tone alone leaves the mark at full strength. */}
+              {/* OB-117, WIDENED BY OB-122 — the whole walk recedes now, arrows
+                  AND pins. OB-117 scoped it to the shaft and the head, because
+                  that is what its `done when` named and the DS's side-by-side mock
+                  (guidelines/map-walk-relations-declutter-options.html) drew lines
+                  with no step marks at all. That left the pins as the loudest thing
+                  on the map once the arrows dimmed — the owner's call, answering
+                  receipts/3107899.md question (a).
+
+                  One wrapper per layer rather than one around both: they recede
+                  together but they are not one drawing, and `data-routearrows` is
+                  already the handle the OB-117 driver reads. Tone alone leaves the
+                  mark at full strength, which is why the arrows carry opacity too. */}
               <g data-routearrows data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
               {routeStops.slice(1).map((to, i) => {
                 const from = routeStops[i]
@@ -1213,6 +1220,21 @@ export default function MapView({ bus }: { bus: Bus }) {
                 )
               })}
               </g>
+              {/* OB-122 — the pins recede on the SAME condition and the same
+                  120ms as the arrows above.
+
+                  OPACITY IS THE WHOLE OF IT HERE, and that is a limit of the
+                  component, not a shortcut. The item asks for "the same
+                  --bark-300-equivalent tone AND ~0.6 opacity as the arrows", but
+                  `NodeArrow` takes a `tone` prop and `StepDot` takes none — its
+                  props are `{ n, state, variant, size, optional, onClick, title }`
+                  and its colour comes from `state`, which is what tells current
+                  from done from ahead. Painting every pin bark-300 would collapse
+                  those three into one, so the tone half needs a receded treatment
+                  the DS owns, not a filter forced on it from out here. Asked in
+                  the receipt; opacity ships now because it is the half that is
+                  ours to give. */}
+              <g data-routepins data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
               {routeStops.map((s) => (
                 <g
                   key={s.key}
@@ -1225,6 +1247,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                   </foreignObject>
                 </g>
               ))}
+              </g>
             </g>
           )}
 
