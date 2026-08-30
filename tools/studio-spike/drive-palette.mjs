@@ -7,12 +7,16 @@
 // matters is the ROUND TRIP — close it, then get it back — and that needs a real
 // browser because the way back is measured off a live `getBoundingClientRect`.
 //
-// THE ONE SILENT FAILURE THIS EXISTS TO CATCH: StudioView finds the toolbar icon
-// by `[title="hide the palette"]`, and `Toolbar` puts every title through
-// `wrapTip`, which inserts newlines past 44 characters. Lengthen either tip and
-// the selector stops matching, `paletteDelta()` bails to {0,0}, and the pane
-// fades in place instead of flying — no error, no test failure, just a worse
-// animation. Asserted directly below.
+// TWO SILENT FAILURES THIS EXISTS TO CATCH, neither of which throws or drops a
+// frame:
+//
+//   1. StudioView finds the toolbar icon by its title, and `Toolbar` puts every
+//      title through `wrapTip`, which folds past 44 characters. Match the raw
+//      tip and lengthening the copy breaks the flight — and as a CSS selector it
+//      did not even degrade to "no match", it threw (OB-118 point 2).
+//   2. the flight was one motion and the DESK was another: the panes beside the
+//      palette held still for the whole transition and then jumped the full
+//      column width in the single frame the unmount landed on. Section 4.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine, so the
 // script owns the server lifecycle. Same pattern as drive-present.mjs.
@@ -69,8 +73,8 @@ const sidebars = () => page.$$eval('[aria-label="studio-sidebar"]', (els) => els
 // order, which IS the group order the obligation is about
 const toolbarTitles = () =>
   page.$$eval('[aria-label="studio-header"] + div button', (els) => els.map((el) => (el.getAttribute('title') || '').replace(/\n/g, ' ')))
-// settle past --dur-hover (140ms) plus the unmount, with room to spare
-const settle = () => page.waitForTimeout(500)
+// settle past --dur-palette (400ms) plus the unmount, with room to spare
+const settle = () => page.waitForTimeout(700)
 
 await page.goto(`http://localhost:${PORT}/`)
 await page.evaluate(() => localStorage.clear())
@@ -149,7 +153,57 @@ await settle()
 ok('the toggle brings the palette back — the door swings both ways', (await sidebars()) === 1)
 ok('and the toggle reads "hide" again', (await page.getByTitle('hide the palette', { exact: true }).count()) === 1)
 
-// ── 4. OB-106: picking a named preset closes the palette ────────────────────
+// ── 4. the close is ONE motion, not a flight and then a lurch ──────────────
+// The pane's own flight was always smooth — measured at a steady 17ms/frame with
+// nothing dropped, in both directions. The DESK was the stutter: the panes
+// beside the palette held their exact position for the whole transition and
+// then moved 220px, the column plus its gap, in the ONE frame the unmount
+// landed on.
+// Opening was the same two beats in the other order, the jump first.
+//
+// So this samples the NEIGHBOUR rather than the palette, every frame across a
+// close, and asks whether it travels or teleports. The palette flying smoothly
+// is not evidence about this and never was.
+const reflow = await page.evaluate(async () => {
+  const wrap = document.querySelector('[aria-label="studio-sidebar"]').parentElement
+  const neighbour = [...wrap.parentElement.children].find((c) => c !== wrap)
+  const xs = []
+  let on = true
+  const step = () => {
+    if (!on) return
+    xs.push(Math.round(neighbour.getBoundingClientRect().left))
+    requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+  ;[...document.querySelectorAll('button[title]')].find((el) => el.title === 'hide the palette').click()
+  await new Promise((r) => setTimeout(r, 900))
+  on = false
+  let biggest = 0
+  for (let i = 1; i < xs.length; i++) biggest = Math.max(biggest, Math.abs(xs[i] - xs[i - 1]))
+  return { seen: new Set(xs).size, biggest, from: xs[0], to: xs[xs.length - 1], travelled: Math.abs(xs[xs.length - 1] - xs[0]) }
+})
+ok(
+  'the palette closes at all — the neighbour ends up where the column was',
+  reflow.travelled > 100,
+  `${reflow.from}px → ${reflow.to}px`,
+)
+ok(
+  'the panes beside it make room over many frames, not one',
+  reflow.seen >= 6,
+  `${reflow.seen} distinct positions across the close`,
+)
+// the old behaviour puts 100% of the move in a single frame, so this is the
+// check that actually fails against it
+ok(
+  'and no single frame carries half the move',
+  reflow.biggest < reflow.travelled / 2,
+  `biggest step ${reflow.biggest}px of ${reflow.travelled}px`,
+)
+
+await page.getByTitle('show the palette', { exact: true }).click()
+await settle()
+
+// ── 5. OB-106: picking a named preset closes the palette ────────────────────
 await page.getByLabel('studio-preset-explore').click()
 await settle()
 ok('picking Explore closes the palette', (await sidebars()) === 0)

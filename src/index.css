@@ -84,6 +84,26 @@
   box-sizing: content-box;
 }
 
+/* ── The palette pane's flight, and why its duration lives here ─────────────
+   `src/tokens/motion.css` is vendored from the DS verbatim and fingerprinted in
+   src/ds/PROVENANCE.json, so a duration the DS's ladder does not carry cannot be
+   added to it — the drift check would report a divergence, and correctly. That
+   ladder tops out at --dur-relayout (300ms). This is 400ms at the owner's call:
+   the pane crosses the whole width of its own column on the way to the toolbar
+   icon while the desk closes the gap behind it, and the DS's longest rung was
+   still reading as hurried for a move that size. If the DS ever adds a rung
+   above 300ms, this alias should give way to it.
+
+   THE REDUCED-MOTION LINE IS LOAD-BEARING, not decoration. This transition ran
+   on --dur-move, which motion.css collapses to 1ms under the setting; writing a
+   raw `400ms` into the component would have dropped that silently, and a 220px
+   slide is exactly what the setting exists for. StudioView's unmount timer
+   deliberately does not shrink alongside it — see PALETTE_ANIM_MS there. */
+:root { --dur-palette: 400ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-palette: 1ms; }
+}
+
 /* Expand/collapse in the map view relayouts every box; animating the transform
    makes the reshaping legible (nodes visibly make room) instead of teleporting.
    Safe globally because node dragging is disabled in all experiment views. */
