@@ -96,7 +96,31 @@ const FLY_MS = 260
 // level in one move — at the wheel-step 260ms it read as a cut, not a flight.
 // Slow enough for the eye to keep the territory; wheel steps stay snappy.
 const LOOK_FLY_MS = 750
-const FADE = 'fill-opacity 350ms, stroke-opacity 350ms, stroke-width 350ms'
+// The level-change cross-fade: a cell's paint and its outline arrive and leave
+// together, so a stratum swap reads as one movement instead of two.
+//
+// STROKE-WIDTH IS DELIBERATELY NOT IN THIS LIST (#238). It was, and it was wrong
+// twice over. Every stroke on the map is `px(k)` = `k * f / view.s`, so its width
+// is a CONSTANT at any given level and changes only while `view.s` is moving —
+// which is to say, only during a zoom flight, where it is ALREADY interpolating
+// smoothly on its own, once per animation frame.
+//
+//   the cost — a 350ms transition restarted ~16 times over a 260ms flight, on
+//   every one of ~350 elements, on a property that (unlike transform and opacity)
+//   is not compositor-only and so forces layout and paint on the main thread each
+//   time. Measured by probe-maplag.mjs, medians of 5: a zoom round trip at L2
+//   738ms -> 428ms, and layouts 82 -> 33.
+//
+//   the bug — a transition does not only cost, it LAGS, and this one lagged
+//   enormously. Sampling the rendered width against the attribute React had just
+//   written, frame by frame through one flight: the gap peaked at 98.8% — the
+//   line-work drawing at 1.72 units where the map had asked for 0.86, i.e. TWICE
+//   the intended weight — and was still more than 1% out 587ms in, well over
+//   double the length of the flight it was supposedly smoothing. With the property
+//   removed the same sampling reads 0% on every frame. So this is a correctness
+//   fix that happens to also be faster: there is no level change at which a width
+//   jumps, so the transition was never smoothing anything, only blurring it.
+const FADE = 'fill-opacity 350ms, stroke-opacity 350ms'
 
 // ── THE CONTEXT WINDOW ───────────────────────────────────────────────────────
 // One formal rule for ALL receded line-work and ghost text, keyed on
