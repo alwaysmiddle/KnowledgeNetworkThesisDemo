@@ -37,8 +37,12 @@
   --moss-700: #33512d;
   --moss-800: #263c22;
 
-  /* ── Acorn: the hue of MOVEMENT through the corpus — a walk, a stop, a jump, ─
-     the road — never a state of something standing still. Reserved. ──────── */
+  /* ── Acorn: MOVEMENT through the corpus — going somewhere, by any route. A walk,
+     a stop, the arrow between two, the jump that leaves the path, the control that
+     starts a traversal, the count of how far you have come. Reserved for that, and
+     never for a state of something standing still (see pond) or for decoration.
+     Re-worded 2026-08-20: it used to say "on the authored path — and nothing else",
+     which its own examples contradicted (a jump mark leaves the authored path). ── */
   --acorn-50:  #fbf4e8;
   --acorn-100: #f5e6cb;
   --acorn-200: #eccfa0;
@@ -259,6 +263,7 @@
   --hue-slot-15: var(--hue-violet);
   --hue-slot-16: var(--hue-mallow);
 
+
   /* ── DATA · the shipped EXAMPLE palette ─────────────────────────────────
      The six CS domains and four CS relationships this system was built for. They are
      KEPT (the owner's call, 2026-08-21j) as a worked example of the ring in use, and
@@ -290,7 +295,9 @@
   --edge-uses: var(--hue-clay-stroke);
   --edge-see-also: var(--hue-mallow-stroke);
   --edge-implemented-with: var(--hue-brick-stroke);
-  --edge-mixed: #8a8071;
+  --edge-mixed: oklch(0.52 0.035 255); /* deliberately NOT a 17th ring hue (chroma well
+    below the ring's 0.14-0.15) and NOT bark (bark's undertone is warm; this is cool) —
+    "several types", not "no type" and not "neutral". OB-123, 2026-08-29. */
 
   --edge-depends-on-raw: #94a3b8;
   --edge-uses-raw: #eb6834;
@@ -325,6 +332,13 @@
   --border-frame: var(--bark-400);         /* a PANE's own frame — visible on purpose */
   --border-strong: rgba(53, 49, 42, 0.28); /* a thing you can act on */
   --border-dashed: var(--bark-300);        /* dashed ALWAYS means conditional */
+  /* the border of a walk-tinted CONTROL in its active state — a pressed toggle over
+     `--accent-walk-wash` with `--text-walk` ink. Acorn, because acorn is the hue of
+     MOVEMENT through the corpus and such a control starts or holds a traversal.
+     NOT for an optional anything — an optional node dashes its own border. This token used to
+     be called `--state-optional`, a name that described nothing it did; that alias was deleted
+     on 2026-08-21j when OB-042's receipt landed, and the note where it stood says why. */
+  --border-walk: var(--acorn-300);
 
   /* ── Ink ────────────────────────────────────────────────────────────── */
   --text-1: var(--bark-800);
@@ -357,18 +371,18 @@
      Do NOT use it for a keyboard focus ring — that is `--ring-focus`, and an open editor
      suppresses it so only one edge is ever drawn. */
   --state-editing: var(--pond-vivid);
+  /* the tint behind a line while it's being typed into — pond's own 50, so the wash and the
+     outline read as one family. Added 2026-08-28 alongside VersionedGroup's edit mode: an
+     outline alone read as "this happens to have a border", not "this is a textbox" once three
+     lines lit up at once instead of one. */
+  --state-editing-wash: var(--pond-50);
   --state-danger: var(--berry-500);
   --state-danger-wash: var(--berry-50);
-  /* THE BORDER OF A WALK-TINTED TOGGLE IN ITS ACTIVE STATE — `AuthorRoad.tsx`'s and
-     `WalkEditorView.tsx`'s "optional" toggle, both over `--accent-walk-wash` with
-     `--text-walk` ink. NOT the colour of an optional NODE, whatever the old name said: a
-     node's hue is its DOMAIN, so an optional node is drawn by DASHING its own border instead
-     (`NodeChip optional`, `NodeArrow dashed`, the group's empty-version zone). Acorn means
-     movement, so painting an optional STEP with it would claim the opposite of what it is —
-     this is a control in the walk family, not an optional anything, which is why the old name
-     was wrong rather than the value.
-     @deprecated `--state-optional` — same value, kept only as an alias until every reader of
-     the old name is gone. */
-  --border-walk: var(--acorn-300);
-  --state-optional: var(--border-walk);
+  /* `--state-optional` was deleted here on 2026-08-21j, the turn OB-042's receipt landed
+     (`aac8764`), exactly as the alias's own note said it would be. The trap it carried is
+     worth keeping without the token: acorn is the hue of MOVEMENT through the corpus, and
+     optionality is a property of a node standing still — an optional node is drawn by DASHING
+     its own border, because a node's hue is its TOPIC and is not available for a state. What
+     the token actually was, read from its two call sites: the border of a walk-tinted TOGGLE in
+     its active state. That is `--border-walk`, above. */
 }
