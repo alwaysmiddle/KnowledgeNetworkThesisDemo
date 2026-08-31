@@ -143,6 +143,40 @@ const midlineRuns = () =>
 
 const tipUp = () => page.evaluate(() => !!document.querySelector('[data-maptip]'))
 
+/** frame-by-frame through one zoom flight: how far the RENDERED stroke width sits
+ *  from the attribute React has just written to the same element.
+ *
+ *  This is the second thing #238's fix 2 is about, and the more important one. The
+ *  map sets stroke-width to px(k) every frame of a flight; a CSS transition on that
+ *  property does not smooth anything (the value was already continuous) but it does
+ *  EASE TOWARD a target that has already moved on, so the line-work renders at the
+ *  wrong weight for the whole gesture. Sampled against the version that had
+ *  `stroke-width` in FADE, the gap peaked at 98.8% — twice the intended weight —
+ *  and was still >1% out 587ms into a 260ms flight. It should now read 0.
+ *
+ *  Returns the worst gap seen, as a percentage. Resolves after the flight. */
+const strokeLagPct = () =>
+  page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const svg = document.querySelector('svg[data-nested]')
+        const els = [...svg.querySelectorAll('[data-border], [data-terr], [data-region]')].slice(0, 60)
+        let worst = 0
+        const t0 = performance.now()
+        const tick = () => {
+          for (const e of els) {
+            const attr = parseFloat(e.getAttribute('stroke-width') || '0')
+            const rendered = parseFloat(getComputedStyle(e).strokeWidth)
+            if (!attr || !isFinite(rendered)) continue
+            worst = Math.max(worst, Math.abs(rendered - attr) / attr)
+          }
+          if (performance.now() - t0 < 700) requestAnimationFrame(tick)
+          else resolve(+(worst * 100).toFixed(1))
+        }
+        requestAnimationFrame(tick)
+      }),
+  )
+
 /** a bouncing shuttle of fixed-size steps inside [a, b] at height y — fixed size
  *  because sub-pixel steps get coalesced into no event at all (trap 2 above) */
 const shuttle = (run, down) => async () => {
@@ -171,6 +205,7 @@ const median = (xs) => {
 }
 
 const rows = []
+const strokeLag = []
 const run = async (lvl, name, body, park) => {
   const takes = []
   let last = {}
@@ -231,17 +266,42 @@ for (const target of LEVELS) {
   sizes.push(s)
   const { cells, water } = await midlineRuns()
 
+  // one flight, sampled — see strokeLagPct. Taken before the timed scenarios so
+  // it starts from the same settled camera they do.
+  if (s.level < 4) {
+    const b0 = await box()
+    await page.mouse.move(b0.x + b0.w * 0.5, b0.y + b0.h * 0.5)
+    await page.waitForTimeout(300)
+    const pending = strokeLagPct()
+    await page.mouse.wheel(0, -60)
+    strokeLag.push({ level: s.level, pct: await pending })
+    await page.mouse.wheel(0, 60)
+    await page.waitForTimeout(700)
+  }
+
   await run(s.level, 'idle (no input)', () => page.waitForTimeout(1200))
   if (water) await run(s.level, 'moves over WATER (no tooltip)', shuttle(water, false), { x: water.a, y: water.y })
   if (cells) await run(s.level, 'moves over CELLS (tooltip up)', shuttle(cells, false), { x: cells.a, y: cells.y })
   const panRun = cells ?? water
   if (panRun) await run(s.level, 'pan (button down)', shuttle(panRun, true), { x: panRun.a, y: panRun.y })
+  // A ROUND TRIP, in and back out, not a single step in. `run` repeats a scenario
+  // REPS times to take a median, and a one-way zoom runs out of levels: reps 3
+  // onward sat at L_MAX and measured an ignored wheel event, which is where the
+  // absurd (4-361ms) spread in the first version of this row came from. In-and-out
+  // returns to the level it started at, so every rep measures the same thing and
+  // the row is repeatable. Two flights per rep — read it against itself across
+  // runs, not against the single-gesture rows above.
   if (s.level < 4)
-    await run(s.level, 'ZOOM one level (wheel)', async () => {
+    await run(s.level, 'ZOOM round trip (2 flights)', async () => {
       const b = await box()
       await page.mouse.move(b.x + b.w * 0.5, b.y + b.h * 0.5)
+      const at = await level()
       await page.mouse.wheel(0, -60)
-      await page.waitForTimeout(700)
+      await page.waitForTimeout(600)
+      await page.mouse.wheel(0, 60)
+      await page.waitForTimeout(600)
+      const back = await level()
+      return { tips: back === at ? '' : `LEVEL DRIFT ${at}->${back}` }
     })
 }
 
@@ -287,7 +347,13 @@ console.log('with far fewer than 61 measured less input, not less cost.')
 // 280 and 15 vs 412. The bar is set at a quarter, which no run of either version
 // has come close to straddling.
 const LIMIT = 0.25
+const STROKE_LIMIT = 5
 const failures = []
+for (const { level: lvl, pct } of strokeLag) {
+  const ok = pct < STROKE_LIMIT
+  console.log(`${ok ? 'PASS' : 'FAIL'}  L${lvl} stroke width tracks its attribute through a flight — worst gap ${pct}%, limit ${STROKE_LIMIT}%`)
+  if (!ok) failures.push(`L${lvl} stroke lag ${pct}%`)
+}
 for (const lvl of LEVELS) {
   const water = rows.find((r) => r.level === lvl && r.name.includes('WATER'))
   const cells = rows.find((r) => r.level === lvl && r.name.includes('CELLS'))
