@@ -52,7 +52,7 @@
 // walk route would reuse, and it has its own tests. What is left here is what a
 // component should be: a camera, a hover, and a paint order.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { ARROW_METRICS, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, shaftTailOffset, StepDot, VisibilityMark, ZoomControl } from '@/ds'
@@ -178,9 +178,37 @@ export default function MapView({ bus }: { bus: Bus }) {
   const [hoverEdge, setHoverEdge] = useState<Bundle | null>(null)
   const [walkVisible, setWalkVisible] = useState(true)
 
+  // #238 — the last cursor position seen over this pane, in CLIENT coords. A ref
+  // and not state, deliberately: it is written on every single pointermove and
+  // must never cause a render. It exists only so the tooltip can be placed at the
+  // instant it MOUNTS, because `pointerPos` is no longer tracked while the tooltip
+  // is down — see the gate in onPointerMove.
+  const lastClient = useRef<XY | null>(null)
+
+  /** put the card where the cursor already is. Called wherever a hover BEGINS,
+   *  because the per-move gate is closed until that instant, so `pointerPos` is
+   *  still holding wherever the PREVIOUS hover left it — without this the card
+   *  appears for a frame at the last cell's coordinates and reads as a jump.
+   *
+   *  CALLED FROM THE HOVER HANDLERS, NOT FROM AN EFFECT. An effect keyed on "is
+   *  anything hovered" looks equivalent and is not: crossing from one cell to the
+   *  next drops that condition and re-raises it, so the effect fires on every
+   *  boundary and forces a second render pass for the same gesture. Measured — it
+   *  put the tooltip-up case UP from 433ms to 505ms, i.e. it cost more than the
+   *  gate saved. Setting both states inside one handler batches them into the one
+   *  render that was already happening. */
+  const placeTipAtCursor = () => {
+    const c = lastClient.current
+    const svg = svgRef.current
+    if (!c || !svg) return
+    const b = svg.getBoundingClientRect()
+    setPointerPos({ x: c.x - b.left, y: c.y - b.top })
+  }
+
   const enterCell = (id: string) => {
     setHover(id)
     busSetHover(id)
+    placeTipAtCursor()
   }
   const leaveCell = (id: string) => {
     setHover((h) => (h === id ? null : h))
@@ -718,6 +746,42 @@ export default function MapView({ bus }: { bus: Bus }) {
   // OB-096 put a cursor-anchored tooltip in its place; the name outlived it.
   const hoverNode = hover ?? spotId
 
+  // ── #238: WHEN THE CURSOR'S POSITION IS WORTH KNOWING ─────────────────────
+  // `pointerPos` is read for exactly one thing — placing MapTooltip beside the
+  // cursor (OB-096) — and the tooltip only mounts when there is something to
+  // report. So the position is only worth tracking while `tipLive` holds, and
+  // this is the single expression that decides both, so the gate and the render
+  // condition below cannot drift apart.
+  //
+  // Ungated it cost, per second of cursor movement over water at L2: 430ms of
+  // scripting, a forced layout per move, and ZERO style recalculations — a full
+  // re-render of ~500 SVG elements to move a card that was not on screen, against
+  // a 4ms idle floor. Measured by tools/studio-spike/probe-maplag.mjs.
+  //
+  // What this does NOT fix, and the issue stays open for: while the tooltip IS up
+  // the gate is open and the per-move re-render is back at full price (~420ms on
+  // the same measure). Removing that too means not putting the position in state
+  // at all — writing it to the card's own style through a ref. That is deliberately
+  // not done here: the Design System is being asked whether MapTooltip should
+  // anchor to the hovered ELEMENT rather than the cursor, which deletes this whole
+  // class of work instead of optimising it, and would throw the ref machinery away.
+  const tipLive = hoverEdge !== null || hoverNode !== null
+
+  // The one hover that arrives with no pointer event of ours to hang the placement
+  // off: `spotId`, a hover published by ANOTHER instrument. Keyed on spotId alone,
+  // so it fires when the bus hover changes and not on every cell boundary the
+  // cursor crosses. useLayoutEffect rather than useEffect so the card is placed
+  // before paint instead of visibly jumping into position after it.
+  //
+  // Worth naming what this still cannot do: there is no cursor over this pane in
+  // that case, so the card lands at the last position that was, which may be
+  // nowhere near the cell being reported. That is a property of cursor-anchoring,
+  // not of the gate, and it is one of the two things #238 puts to the Design
+  // System — element-anchoring would answer it for free.
+  useLayoutEffect(() => {
+    if (spotId) placeTipAtCursor()
+  }, [spotId])
+
   // OB-096 — the hovered node's OWN roads, for MapTooltip's relations row. A
   // fresh call rather than reusing the selection's `bundles`/`arrows` above:
   // the hovered node is rarely the selected one, and roadsFor is cheap
@@ -790,10 +854,17 @@ export default function MapView({ bus }: { bus: Bus }) {
           t.setPointerCapture(ev.pointerId)
         }}
         onPointerMove={(ev) => {
-          // OB-096 — MapTooltip is cursor-anchored, so every move (not just
-          // drag moves) updates where it sits, relative to this svg's own box.
-          const svgBox = svgRef.current!.getBoundingClientRect()
-          setPointerPos({ x: ev.clientX - svgBox.left, y: ev.clientY - svgBox.top })
+          // OB-096 — MapTooltip is cursor-anchored, so while it is up every move
+          // (not just drag moves) updates where it sits, relative to this svg's
+          // own box. GATED on `tipLive` (#238): with nothing being reported there
+          // is no card to place, and both the getBoundingClientRect and the state
+          // update are pure waste. The ref write is unconditional and free — it is
+          // what lets the card be placed correctly the moment the gate opens.
+          lastClient.current = { x: ev.clientX, y: ev.clientY }
+          if (tipLive) {
+            const svgBox = svgRef.current!.getBoundingClientRect()
+            setPointerPos({ x: ev.clientX - svgBox.left, y: ev.clientY - svgBox.top })
+          }
           // ── node drag (arming or in flight) takes priority over pan ──────
           const nd = nodeDown.current
           if (nd) {
@@ -1362,7 +1433,10 @@ export default function MapView({ bus }: { bus: Bus }) {
                     // wider white halo, a real hit target) responds, not the
                     // curve's whole invisible fill-none bounding box.
                     pointerEvents="stroke"
-                    onPointerEnter={() => setHoverEdge(bd)}
+                    onPointerEnter={() => {
+                      setHoverEdge(bd)
+                      placeTipAtCursor()
+                    }}
                     onPointerLeave={() => setHoverEdge((h) => (h === bd ? null : h))}
                     style={{ transition: 'opacity 120ms' }}
                   >
@@ -1493,8 +1567,8 @@ export default function MapView({ bus }: { bus: Bus }) {
           coexist when the pointer sits exactly on the boundary between an
           edge's stroke and the territory under it. pointer-events-none so
           the card itself never steals the hover it is reporting on. ────── */}
-      {pointerPos && (hoverEdge || hoverNode) && (
-        <div className="absolute z-10 pointer-events-none" style={{ left: pointerPos.x + 14, top: pointerPos.y + 14 }}>
+      {pointerPos && tipLive && (
+        <div data-maptip className="absolute z-10 pointer-events-none" style={{ left: pointerPos.x + 14, top: pointerPos.y + 14 }}>
           {hoverEdge ? (
             <MapTooltip
               kind="relation"
