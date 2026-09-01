@@ -33,6 +33,16 @@
 //     because almost no pointermove happened. Steps are a fixed pixel size, and
 //     every scenario reports the pointermove count it actually generated, so a
 //     silently-empty run is visible in the output instead of looking like a win.
+//  3. A PAN DRIFTS, AND A DRIFTING PAN MEASURES A DIFFERENT MAP EACH REP. The
+//     hover scenarios bounce inside a run with a triangle wave, which is fine
+//     when the camera is still. Under a BUTTON-DOWN shuttle the same wave leaves
+//     the camera somewhere new at the end of every rep, so rep 5 pans a different
+//     stretch of map than rep 1 — and if that stretch is cells rather than water
+//     the tooltip comes up and the cost roughly triples. That produced a median
+//     of 512ms over a (142-526) spread for a gesture whose real, repeatable cost
+//     was 196ms: the row read as "no change" for a fix that had cut it by 60%.
+//     The pan is therefore an EXACT out-and-back, ending on the camera it
+//     started from, and it is aimed at water where water exists.
 //
 // It ends with ONE assertion, and it is a RATIO rather than a wall-clock number:
 // moving the cursor with nothing to report must cost a small fraction of moving it
@@ -199,6 +209,39 @@ const shuttle = (run, down) => async () => {
   return { tips: `${up}/7`, moves: await page.evaluate(() => window.__pm) }
 }
 
+/** the pan gesture: exactly `STEPS/2` steps out and the same back, so the camera
+ *  is returned to where the rep found it (trap 3). Deliberately NOT `shuttle` —
+ *  a triangle wave inside a run only returns to its start when the run happens
+ *  to divide evenly, and under a held button that difference accumulates. */
+const panGesture = (run) => async () => {
+  const half = STEPS >> 1
+  const reach = Math.min(half * STEP_PX, Math.max(STEP_PX * 4, run.b - run.a))
+  const steps = Math.round(reach / STEP_PX)
+  await page.evaluate(() => {
+    window.__pm = 0
+    if (!window.__pmOn) {
+      document.querySelector('svg[data-nested]').addEventListener('pointermove', () => window.__pm++, true)
+      window.__pmOn = 1
+    }
+  })
+  let x = run.a
+  await page.mouse.move(x, run.y)
+  await page.mouse.down()
+  let up = 0
+  let seen = 0
+  for (const dir of [1, -1])
+    for (let i = 0; i < steps; i++) {
+      x += dir * STEP_PX
+      await page.mouse.move(x, run.y)
+      if (i % 5 === 0) {
+        seen++
+        if (await tipUp()) up++
+      }
+    }
+  await page.mouse.up()
+  return { tips: `${up}/${seen}`, moves: await page.evaluate(() => window.__pm) }
+}
+
 const median = (xs) => {
   const v = [...xs].sort((a, b) => a - b)
   return v[v.length >> 1]
@@ -282,8 +325,12 @@ for (const target of LEVELS) {
   await run(s.level, 'idle (no input)', () => page.waitForTimeout(1200))
   if (water) await run(s.level, 'moves over WATER (no tooltip)', shuttle(water, false), { x: water.a, y: water.y })
   if (cells) await run(s.level, 'moves over CELLS (tooltip up)', shuttle(cells, false), { x: cells.a, y: cells.y })
-  const panRun = cells ?? water
-  if (panRun) await run(s.level, 'pan (button down)', shuttle(panRun, true), { x: panRun.a, y: panRun.y })
+  // WATER first, unlike the hover rows: a pan over cells drags the tooltip along
+  // with it, and the tooltip's own per-move cost then swamps the camera's — which
+  // is a real finding (see the tip column at L4, where the midline has no water
+  // long enough to pan along) but not what this row is trying to isolate.
+  const panRun = water ?? cells
+  if (panRun) await run(s.level, 'pan (button down)', panGesture(panRun), { x: panRun.a, y: panRun.y })
   // A ROUND TRIP, in and back out, not a single step in. `run` repeats a scenario
   // REPS times to take a median, and a one-way zoom runs out of levels: reps 3
   // onward sat at L_MAX and measured an ignored wheel event, which is where the
@@ -347,6 +394,23 @@ console.log('with far fewer than 61 measured less input, not less cost.')
 // 280 and 15 vs 412. The bar is set at a quarter, which no run of either version
 // has come close to straddling.
 const LIMIT = 0.25
+
+// A PAN MUST BE CHEAPER PER MOVE THAN A HOVER (#238 fix 3). Moving the camera
+// changes one attribute on one <g> and nothing about what is drawn under it;
+// moving the cursor across cells changes what the map REPORTS, which is a real
+// render. So the first has to cost materially less than the second, and if the
+// two are ever the same number again it means the camera has been let back into
+// the render path.
+//
+// Per MOVE, not per scenario: a level whose midline has no long stretch of water
+// gets a shorter pan (L4 manages 31 moves against the hover rows' 61), and the
+// raw totals would then flatter the pan for doing less work.
+//
+// Falsified in both directions on the run that set it: with the camera in React
+// the ratio was 0.86 / 1.00 / 1.07 at L0 / L2 / L4 — a pan cost the same as a
+// hover, which is the bug stated as a check — and with it out, 0.43 / 0.36 /
+// 0.31. Nothing has landed between 0.43 and 0.86, so the bar sits at 0.6.
+const PAN_LIMIT = 0.6
 const STROKE_LIMIT = 5
 const failures = []
 for (const { level: lvl, pct } of strokeLag) {
@@ -364,6 +428,17 @@ for (const lvl of LEVELS) {
     `${ok ? 'PASS' : 'FAIL'}  L${lvl} idle-hover ratio ${ratio.toFixed(3)} (${water.task}ms over water / ${cells.task}ms over cells), limit ${LIMIT}`,
   )
   if (!ok) failures.push(`L${lvl} ratio ${ratio.toFixed(3)}`)
+}
+for (const lvl of LEVELS) {
+  const pan = rows.find((r) => r.level === lvl && r.name.startsWith('pan'))
+  const cells = rows.find((r) => r.level === lvl && r.name.includes('CELLS'))
+  if (!pan || !cells || !cells.task || !pan.moves || !cells.moves) continue
+  const ratio = pan.task / pan.moves / (cells.task / cells.moves)
+  const ok = ratio < PAN_LIMIT
+  console.log(
+    `${ok ? 'PASS' : 'FAIL'}  L${lvl} pan-hover ratio ${ratio.toFixed(3)} (${pan.task}ms over ${pan.moves} pan moves / ${cells.task}ms over ${cells.moves} hover moves), limit ${PAN_LIMIT}`,
+  )
+  if (!ok) failures.push(`L${lvl} pan ratio ${ratio.toFixed(3)}`)
 }
 if (errors.length) console.log('\nERRORS:\n' + errors.join('\n'))
 
