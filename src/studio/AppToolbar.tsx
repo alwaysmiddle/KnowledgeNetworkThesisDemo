@@ -2,7 +2,7 @@ import { CopyMark, LoadMark, NewMapMark, PasteMark, PrintMark, SaveMark, Toolbar
 import type { ToolbarItemSpec } from '@/ds'
 
 import { redoDraft, undoDraft } from '../instruments/walkdesk/authordraft'
-import { PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
+import { PALETTE_HOOK, PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
 
 /** The application toolbar (#55): universal, app-level operations pinned directly
  *  under the app header — the DS Toolbar's designed slot. Built entirely on the
@@ -33,7 +33,20 @@ export function AppToolbar({ onPresent, palette }: { onPresent?: () => void; pal
   // load, save, print (output last) — then editing, then the clipboard. `new map`
   // used to stand alone in front and print/save/load ran backwards.
   const paletteGroup: ToolbarItemSpec[] = palette
-    ? [{ glyph: <PaletteGlyph />, title: palette.on ? PALETTE_TIP.hide : PALETTE_TIP.show, on: palette.on, onClick: palette.onToggle }]
+    ? [
+        {
+          glyph: <PaletteGlyph />,
+          title: palette.on ? PALETTE_TIP.hide : PALETTE_TIP.show,
+          on: palette.on,
+          onClick: palette.onToggle,
+          // THE ANIMATION'S ANCHOR (OB-124). StudioView measures where the pane
+          // should fly to off this button's box, and needs to find it without
+          // reading its tooltip — the one thing about it that changes as it
+          // toggles. `hook` is the DS's own answer; `paletteanchor.ts` existed
+          // only because the component had no such prop.
+          hook: PALETTE_HOOK,
+        },
+      ]
     : []
   const editing: ToolbarItemSpec[] = [
     { glyph: '↶', title: 'Undo (Ctrl+Z)', onClick: undoDraft },

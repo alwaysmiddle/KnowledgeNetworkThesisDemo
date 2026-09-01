@@ -10,10 +10,12 @@
 // TWO SILENT FAILURES THIS EXISTS TO CATCH, neither of which throws or drops a
 // frame:
 //
-//   1. StudioView finds the toolbar icon by its title, and `Toolbar` puts every
-//      title through `wrapTip`, which folds past 44 characters. Match the raw
-//      tip and lengthening the copy breaks the flight — and as a CSS selector it
-//      did not even degrade to "no match", it threw (OB-118 point 2).
+//   1. StudioView measures the flight off the toolbar icon's box, so it has to
+//      FIND that icon. It used to find it by tooltip, which is copy that changes
+//      as the toggle flips and folds past `wrapTip`'s 44 characters — and a
+//      folded title is not a CSS selector that misses, it is invalid CSS that
+//      throws. The DS `Toolbar` now carries a `hook` (OB-124), so section 1
+//      asserts the ATTRIBUTE and no lookup here reads a title.
 //   2. the flight was one motion and the DESK was another: the panes beside the
 //      palette held still for the whole transition and then jumped the full
 //      column width in the single frame the unmount landed on. Section 4.
@@ -68,6 +70,10 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push('console: ' + m.text())
 })
 
+// the palette toggle's stable handle — `PALETTE_HOOK_SELECTOR` in
+// src/studio/PaletteGlyph.tsx, restated here because a driver cannot import from
+// src/. If these two ever disagree the first check in section 1 fails loudly.
+const HOOK = '[data-toolbar-hook="palette-toggle"]'
 const sidebars = () => page.$$eval('[aria-label="studio-sidebar"]', (els) => els.length)
 // the toolbar is the div directly after the app header; read its buttons in DOM
 // order, which IS the group order the obligation is about
@@ -85,43 +91,27 @@ await page.waitForTimeout(600)
 ok('the palette pane is on screen at rest', (await sidebars()) === 1)
 const closeX = page.locator('[aria-label="studio-sidebar"]').getByRole('button', { name: 'close' })
 ok('the palette pane has a ✕', (await closeX.count()) === 1)
-const toggle = page.getByTitle('hide the palette', { exact: true })
-ok('the toolbar has the palette toggle, reading "hide" while open', (await toggle.count()) === 1)
+const toggle = page.locator(HOOK)
+ok('the toolbar has the palette toggle', (await toggle.count()) === 1)
+ok('and it reads "hide" while the palette is open', (await toggle.getAttribute('title')) === 'hide the palette')
 
-// HOW THE ANIMATION FINDS THE BUTTON (OB-118 point 2). It compares `el.title` in
-// JS against `wrapTip(tip)`, and it used to be a CSS attribute selector on the raw
-// tip. Both halves of that change matter and both are checked here on the live DOM.
+// HOW THE ANIMATION FINDS THE BUTTON (OB-124). `data-toolbar-hook`, the DS
+// Toolbar's own prop, read with exactly the selector StudioView uses. Checked on
+// the live DOM because the prop travelling from AppToolbar to an attribute is
+// the half a unit test covers, and this is the other half: that the string the
+// animation queries with resolves to one element on the real page.
 ok(
-  'the toggle is findable the way StudioView actually finds it — title compared in JS',
-  await page.evaluate(() =>
-    [...document.querySelectorAll('button[title]')].some(
-      (el) => el.title === 'hide the palette' || el.title === 'show the palette',
-    ),
-  ),
+  'the toggle is findable the way StudioView actually finds it — one element under the hook',
+  (await page.evaluate((sel) => document.querySelectorAll(sel).length, HOOK)) === 1,
 )
 
-// AND WHY IT IS NOT A SELECTOR. `Toolbar` folds any title past 44 characters, and a
-// CSS string may not carry a raw newline — so the old form did not degrade to "no
-// match", it threw. Proven against a stand-in button rather than by lengthening the
-// app's own copy, so the check holds whatever that copy says.
+// AND THAT THE HANDLE HOLDS STILL. The tooltip is the thing that changes as the
+// toggle flips — which is why matching on it was wrong, and why the check that
+// matters is that the hook does NOT change with it. Section 3 closes the palette
+// and comes back through this same locator to prove it.
 ok(
-  'and a folded title breaks the OLD selector form, which is why it is gone',
-  await page.evaluate(() => {
-    const probe = document.createElement('button')
-    // the newline is built, not escaped, so no layer between here and the page
-    // can quietly turn it back into a space
-    probe.setAttribute('title', ['hide the palette panel and give the desk', 'more room to work in'].join(String.fromCharCode(10)))
-    document.body.appendChild(probe)
-    let selector = 'no match'
-    try {
-      selector = document.querySelector(`[title="${probe.title}"]`) ? 'matched' : 'no match'
-    } catch (e) {
-      selector = 'threw ' + e.name
-    }
-    const inJs = [...document.querySelectorAll('button[title]')].some((el) => el.title === probe.title)
-    probe.remove()
-    return selector.startsWith('threw') && inJs
-  }),
+  'no toolbar button is located by its title any more',
+  await page.evaluate(() => document.querySelectorAll('[data-toolbar-hook]').length > 0),
 )
 
 // ── 2. OB-105: group order — palette, then new map / load / save / print ────
@@ -145,13 +135,13 @@ await page.waitForTimeout(200)
 await closeX.click()
 await settle()
 ok('the ✕ closes the palette — unmounted, not hidden', (await sidebars()) === 0)
-const reopen = page.getByTitle('show the palette', { exact: true })
-ok('and the toggle now reads "show"', (await reopen.count()) === 1)
+const reopen = page.locator(HOOK)
+ok('and the same button — same hook across the flip — now reads "show"', (await reopen.getAttribute('title')) === 'show the palette')
 
 await reopen.click()
 await settle()
 ok('the toggle brings the palette back — the door swings both ways', (await sidebars()) === 1)
-ok('and the toggle reads "hide" again', (await page.getByTitle('hide the palette', { exact: true }).count()) === 1)
+ok('and the toggle reads "hide" again', (await page.locator(HOOK).getAttribute('title')) === 'hide the palette')
 
 // ── 4. the close is ONE motion, not a flight and then a lurch ──────────────
 // The pane's own flight was always smooth — measured at a steady 17ms/frame with
@@ -164,7 +154,7 @@ ok('and the toggle reads "hide" again', (await page.getByTitle('hide the palette
 // So this samples the NEIGHBOUR rather than the palette, every frame across a
 // close, and asks whether it travels or teleports. The palette flying smoothly
 // is not evidence about this and never was.
-const reflow = await page.evaluate(async () => {
+const reflow = await page.evaluate(async (sel) => {
   const wrap = document.querySelector('[aria-label="studio-sidebar"]').parentElement
   const neighbour = [...wrap.parentElement.children].find((c) => c !== wrap)
   const xs = []
@@ -175,13 +165,13 @@ const reflow = await page.evaluate(async () => {
     requestAnimationFrame(step)
   }
   requestAnimationFrame(step)
-  ;[...document.querySelectorAll('button[title]')].find((el) => el.title === 'hide the palette').click()
+  document.querySelector(sel).click()
   await new Promise((r) => setTimeout(r, 900))
   on = false
   let biggest = 0
   for (let i = 1; i < xs.length; i++) biggest = Math.max(biggest, Math.abs(xs[i] - xs[i - 1]))
   return { seen: new Set(xs).size, biggest, from: xs[0], to: xs[xs.length - 1], travelled: Math.abs(xs[xs.length - 1] - xs[0]) }
-})
+}, HOOK)
 ok(
   'the palette closes at all — the neighbour ends up where the column was',
   reflow.travelled > 100,
@@ -200,16 +190,16 @@ ok(
   `biggest step ${reflow.biggest}px of ${reflow.travelled}px`,
 )
 
-await page.getByTitle('show the palette', { exact: true }).click()
+await page.locator(HOOK).click()
 await settle()
 
 // ── 5. OB-106: picking a named preset closes the palette ────────────────────
 await page.getByLabel('studio-preset-explore').click()
 await settle()
 ok('picking Explore closes the palette', (await sidebars()) === 0)
-ok('and it is reopenable afterwards', (await page.getByTitle('show the palette', { exact: true }).count()) === 1)
+ok('and it is reopenable afterwards', (await page.locator(HOOK).getAttribute('title')) === 'show the palette')
 
-await page.getByTitle('show the palette', { exact: true }).click()
+await page.locator(HOOK).click()
 await settle()
 await page.screenshot({ path: OUT + '/palette.png' })
 

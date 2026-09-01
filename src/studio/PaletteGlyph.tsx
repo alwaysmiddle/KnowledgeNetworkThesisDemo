@@ -48,7 +48,17 @@ export function PaletteGlyph({ size = 17, style }: PaletteGlyphProps) {
   )
 }
 
-/** The two titles the palette toggle carries. Locating the button BY one of
- *  them lives in `paletteanchor.ts` — see that file for why it is a JS
- *  comparison against `wrapTip(tip)` and not a CSS attribute selector. */
+/** The two titles the palette toggle carries. They are copy, and nothing may
+ *  locate the button by them: the tooltip changes as the toggle flips, and past
+ *  `wrapTip`'s 44 characters it FOLDS, which no CSS attribute selector can
+ *  express. Find the button by `PALETTE_HOOK` instead (OB-124). */
 export const PALETTE_TIP = { hide: 'hide the palette', show: 'show the palette' } as const
+
+/** The palette toggle's stable handle, passed as the DS `Toolbar` item's `hook`
+ *  and reaching the DOM as `data-toolbar-hook`. One constant, so the toolbar,
+ *  the animation that measures off the button, and the drivers all name the
+ *  same string. */
+export const PALETTE_HOOK = 'palette-toggle'
+
+/** The selector that finds it — the whole of what `paletteanchor.ts` used to be. */
+export const PALETTE_HOOK_SELECTOR = `[data-toolbar-hook="${PALETTE_HOOK}"]`

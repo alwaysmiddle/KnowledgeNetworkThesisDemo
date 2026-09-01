@@ -28,7 +28,7 @@ import { byId, domainOf } from '../corpus/graph'
 import PresentationFrame from '../present/PresentationFrame'
 import { usePresentSession } from '../present/session'
 import { AppToolbar } from './AppToolbar'
-import { findPaletteIcon } from './paletteanchor'
+import { PALETTE_HOOK_SELECTOR } from './PaletteGlyph'
 import { useStudioBus } from './bus'
 import { FAMILIES } from './families'
 import type { Family } from './families'
@@ -95,10 +95,15 @@ export default function StudioView() {
 
   /** WHERE THE PANE IS FLYING TO, MEASURED LIVE — not a fixed corner. The icon's
    *  x moves with the toolbar's own content, so a constant was wrong on the DS's
-   *  first pass. Centre to centre, since the pane scales about its own centre. */
+   *  first pass. Centre to centre, since the pane scales about its own centre.
+   *
+   *  The button is found by its `data-toolbar-hook` (OB-124). It used to be found
+   *  by its tooltip, through a whole module of matching machinery, because the DS
+   *  `Toolbar` had no stable handle to offer; it does now, so the machinery is
+   *  gone rather than repaired. */
   const paletteDelta = () => {
     const wrap = paletteWrapRef.current
-    const icon = findPaletteIcon()
+    const icon = document.querySelector(PALETTE_HOOK_SELECTOR)
     if (!wrap || !icon) return { dx: 0, dy: 0 }
     const pr = wrap.getBoundingClientRect()
     const ir = icon.getBoundingClientRect()
