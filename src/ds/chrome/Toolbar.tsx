@@ -18,6 +18,20 @@ export interface ToolbarItemSpec {
   /** walk = acorn (movement through the corpus); primary = moss */
   tone?: 'quiet' | 'walk' | 'primary'
   onClick?: () => void
+  /** a stable identifier for a caller that needs to find THIS item's own DOM node
+   *  later (an animation anchor, a driver, a tour step) — rendered as
+   *  `data-toolbar-hook`. Added because `title` is free text that changes ("show
+   *  the palette" / "hide the palette") and, past `wrapTip`'s 44 characters,
+   *  FOLDS — a folded title cannot be written as a CSS attribute selector at all
+   *  (a CSS string may not carry a raw newline, so `querySelector` throws rather
+   *  than misses). Pass a hook for anything that must be found this way; never
+   *  match a toolbar item by its `title`. (OB-124)
+   *
+   *  NOT ported: the DS's sibling `morph` prop. Its `view-transition-name` shape
+   *  belongs to `ViewMorph`, which the DS declares a divergence — their Studio
+   *  shell runs on view transitions and this app deliberately keeps its own FLIP
+   *  palette animation (`f4bb691`). See OB-124's revision note. */
+  hook?: string
 }
 
 /** A docked strip of actions that sits directly under the app bar. Items are
@@ -101,7 +115,7 @@ export function Toolbar({ groups = [], trailing, dense = true, brand, motif }: T
   )
 }
 
-function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense }: ToolbarItemSpec & { dense?: boolean }) {
+function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense, hook }: ToolbarItemSpec & { dense?: boolean }) {
   const [hot, setHot] = useState(false)
   const walk = tone === 'walk'
   const ink = disabled
@@ -122,6 +136,7 @@ function ToolbarItem({ label, glyph, title, on, disabled, tone, onClick, dense }
       title={wrapTip(title || label)}
       disabled={disabled}
       onClick={onClick}
+      data-toolbar-hook={hook}
       onMouseEnter={() => setHot(true)}
       onMouseLeave={() => setHot(false)}
       style={{
