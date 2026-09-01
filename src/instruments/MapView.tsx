@@ -89,6 +89,22 @@ export const MAP_WATER = '#eef4f8'
 const L_MAX = maxTier
 const BASE_S = [0.8, 1.6, 3.0, 5.5, 9.5, 14]
 const LEVEL_S = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_S[i] ?? BASE_S[BASE_S.length - 1] * Math.pow(1.5, i - (BASE_S.length - 1)))
+
+/** How far the camera may drift, in WORLD units, before a pan has to re-render.
+ *
+ *  A pan changes nothing about the scene except one `transform` on the root <g>,
+ *  so the transform is written straight to the DOM on every move and React is
+ *  left out of it (#238 fix 3). The one thing that DOES depend on where the
+ *  camera sits is `onScreen` culling — pan far enough and a cell that was off
+ *  the edge has to mount — and culling only happens in a render. So the pan
+ *  commits `view` to state whenever it has drifted this far since the last
+ *  commit, and the DOM carries it the rest of the time.
+ *
+ *  The number is half the TIGHTEST cull margin any caller passes (60), so a
+ *  cell can never be needed on screen before the render that mounts it: it has
+ *  a full margin of warning and we act at half of it. Raising it past 60 would
+ *  make things pop in at the edge; lowering it toward 0 just re-renders more. */
+const PAN_COMMIT = 30
 /** the LevelPicker's labels, "L0".."L{maxTier}" — OB-096 */
 const LEVEL_LABELS = Array.from({ length: L_MAX + 1 }, (_, i) => `L${i}`)
 const FLY_MS = 260
@@ -245,10 +261,34 @@ export default function MapView({ bus }: { bus: Bus }) {
   const levelRef = useRef(level)
   const hoverRef = useRef(hover)
   useEffect(() => {
-    viewRef.current = view
     levelRef.current = level
     hoverRef.current = hover
   })
+
+  // ── THE CAMERA IS NOT REACT'S (#238 fix 3) ─────────────────────────────────
+  // The root <g> carries no `transform` prop; this is its only writer. Two
+  // things follow, and both are the point:
+  //
+  //   `viewRef.current` is the LIVE camera and always current, because the pan
+  //   writes it on every move. Everything that needs to know where the camera
+  //   actually is right now — flyTween, flyToLevel — already read it, and now
+  //   get a straight answer mid-drag instead of the last committed one.
+  //
+  //   `view` state is a COMMITTED SNAPSHOT, and is deliberately allowed to lag
+  //   during a pan. It exists to drive the things a render has to recompute:
+  //   `worldRect`/`onScreen` culling and `px()`. See PAN_COMMIT for how far it
+  //   is allowed to lag and why that is safe.
+  //
+  // Painting from a layout effect rather than from JSX means a render caused by
+  // something else entirely (a hover, a selection) cannot snap the camera back
+  // to the last committed position — React never holds an opinion about the
+  // transform at all, so it has nothing to snap back TO.
+  const sceneRef = useRef<SVGGElement | null>(null)
+  const paintCamera = (v: View) => sceneRef.current?.setAttribute('transform', `translate(${v.tx} ${v.ty}) scale(${v.s})`)
+  useLayoutEffect(() => {
+    viewRef.current = view
+    paintCamera(view)
+  }, [view])
 
   // a level change swaps which paths are hit targets mid-hover, so no
   // pointerleave ever fires on the old one — clear it explicitly, on the bus
@@ -914,7 +954,13 @@ export default function MapView({ bus }: { bus: Bus }) {
           const dy = (ev.clientY - drag.current.y) * ff
           drag.current = { x: ev.clientX, y: ev.clientY }
           dragDist.current += Math.hypot(dx, dy)
-          setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }))
+          // The move itself: straight to the DOM, no render. `view` here is the
+          // last COMMITTED camera (the handler is rebuilt by the render that
+          // commits it), so measuring drift against it needs no extra ref.
+          const next = { ...viewRef.current, tx: viewRef.current.tx + dx, ty: viewRef.current.ty + dy }
+          viewRef.current = next
+          paintCamera(next)
+          if (Math.hypot(next.tx - view.tx, next.ty - view.ty) / next.s >= PAN_COMMIT) setView(next)
         }}
         onPointerUp={(ev) => {
           if (nodeDown.current) {
@@ -942,6 +988,10 @@ export default function MapView({ bus }: { bus: Bus }) {
             setDragging(false)
             return
           }
+          // settle: whatever drift never crossed PAN_COMMIT is committed now, so
+          // the map is culled for exactly where it ended up. A no-op when the
+          // last move already committed.
+          if (drag.current) setView(viewRef.current)
           drag.current = null
           setDragging(false)
         }}
@@ -969,7 +1019,10 @@ export default function MapView({ bus }: { bus: Bus }) {
             <feGaussianBlur stdDeviation={px(7.5)} />
           </filter>
         </defs>
-        <g transform={`translate(${view.tx} ${view.ty}) scale(${view.s})`}>
+        {/* no `transform` prop — see paintCamera. The camera is written here
+            imperatively so a pan costs one attribute write instead of a render
+            of everything below this node. */}
+        <g ref={sceneRef}>
           {/* ── FILLS, painted shallow → deep. Only the active level carries
               paint (pale tree colors) and pointer events; everything else is
               mounted transparent so level changes FADE. ─────────────────── */}
