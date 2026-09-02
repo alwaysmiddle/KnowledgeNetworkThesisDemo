@@ -23,10 +23,43 @@ export interface StepDotProps {
    *  caller's to derive from its member steps (done if all are behind the cursor, current
    *  if the cursor is inside it, else ahead) — StepDot only draws the label it's given.
    *  A range draws as an auto-width PILL rather than a circle, the plain CSS way; see
-   *  the `isRange` branch for why that one case keeps CSS. */
+   *  the `isRange` branch for why that one case keeps CSS.
+   *
+   *  A RANGE IS A STRING OVER ONE CHARACTER. A NUMBER IS NEVER A RANGE: 10, 25 and 60
+   *  are circles exactly like 1–9. Until the DS fixed it (2026-09-01) the test read
+   *  `String(n).length > 1`, and this port carried it faithfully — so every stop from
+   *  ten on took the auto-width pill branch and drew flattened, in any walk over nine
+   *  stops, since the `pin` variant landed. `WalkStrip` and `MapView` both pass a
+   *  number, so both were drawing them. (DS OB-129.) */
   n: number | string
   /** done = behind the cursor, current = the cursor, ahead = not yet reached */
   state?: 'done' | 'current' | 'ahead'
+  /** 0…1 — HOW FAR THIS DOT IS INTO ARRIVING AT `current`, for a walk played on a
+   *  FRACTIONAL cursor. Undefined or 0 draws exactly what this component always drew, so
+   *  no existing caller moves.
+   *
+   *  AN ANIMATED CALLER PASSES DIRECTION ONLY — `state={behind ? 'done' : 'ahead'}`,
+   *  never `'current'`. That is continuous by construction: at the stop itself `arrival`
+   *  is 1, so both directions blend to the identical current look and the done/ahead flip
+   *  is invisible; either side of it the blend falls off symmetrically. Passing a ROUNDED
+   *  `'current'` while animating is the one way to get this wrong — it holds that dot at
+   *  the full current look while its neighbour blends, and both jump half a blend as the
+   *  rounding flips, at the midpoint of the crossing. `'current'` stays legal and is
+   *  simply inert alongside `arrival`, since its own base IS the current look; it is what
+   *  a RESTING caller passes, as before.
+   *
+   *  WHY IT IS A PROP AND NOT THE HOST'S JOB: a host can only reach the OUTSIDE of this
+   *  component — opacity and transform. Without it the fill, the ring and the number snap
+   *  at the halfway point of a crossing, which is the exact instant a pin is at its
+   *  largest and the eye is on it: a pop with a jump inside it. Only the three colours
+   *  cross, in oklab, so the mix stays on the walk's own ramp instead of travelling
+   *  through grey; GEOMETRY DOES NOT BLEND (the optional dash, the shrunk fill and the
+   *  ring weights all stay keyed on the discrete `state`).
+   *
+   *  NOTHING IN THIS APP PASSES IT YET. It arrives here because DS OB-129 amends itself
+   *  to say the fix and this prop are the same authored file and must be re-ported
+   *  together; the caller is DS OB-132, the map's played walk, which is not started. */
+  arrival?: number
   /** rail (default) = filled dot for the walk strip; pin = paper-white face with the
    *  state's colour on the ring and number only, for the same dot pinned over a map,
    *  where the territory underneath already carries colour */
@@ -52,9 +85,11 @@ export interface StepDotProps {
  *  `.jsx`, which inlines the same 1.5. */
 export const PIN_RING_WIDTH = 1.5
 
-export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, optional, onClick, title }: StepDotProps) {
-  const isRange = String(n).length > 1
-  const skin = variant === 'pin'
+export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, arrival, optional, onClick, title }: StepDotProps) {
+  /* A RANGE IS A STRING ("1-3"), never a number — see `n`. `String(n).length > 1` made
+     every two-digit stop NUMBER take the pill branch, so stops 10+ drew flattened. */
+  const isRange = typeof n === 'string' && n.length > 1
+  const base = variant === 'pin'
     ? (state === 'current'
         ? { bg: 'var(--surface-paper)', bd: 'var(--accent-walk)', ink: 'var(--accent-walk)' }
         : state === 'done'
@@ -65,6 +100,20 @@ export function StepDot({ n, state = 'ahead', variant = 'rail', size = 24, optio
         : state === 'done'
           ? { bg: 'var(--acorn-100)', bd: 'var(--acorn-200)', ink: 'var(--text-walk)' }
           : { bg: 'var(--surface-raised)', bd: 'var(--border-rule)', ink: 'var(--text-3)' })
+  /* ARRIVAL: THE SAME THREE STATES, CROSSED CONTINUOUSLY. `state` says which look this dot
+     is blending FROM — `done` behind the cursor, `ahead` in front — and `arrival` says how
+     far toward `current` it has got. See the prop's own docblock for why it is a prop and
+     why only colour blends; the short version is that a host can reach only the outside of
+     this component, so without it the face snaps at the midpoint of a crossing.
+     `current` is inert here: its own base already IS the current look. */
+  const a = arrival === undefined ? 0 : Math.max(0, Math.min(1, arrival))
+  const cur =
+    variant === 'pin'
+      ? { bg: 'var(--surface-paper)', bd: 'var(--accent-walk)', ink: 'var(--accent-walk)' }
+      : { bg: 'var(--accent-walk)', bd: 'var(--accent-walk)', ink: 'var(--text-inverse)' }
+  const mix = (from: string, to: string) =>
+    a <= 0 ? from : a >= 1 ? to : `color-mix(in oklab, ${to} ${Math.round(a * 100)}%, ${from})`
+  const skin = a <= 0 ? base : { bg: mix(base.bg, cur.bg), bd: mix(base.bd, cur.bd), ink: mix(base.ink, cur.ink) }
   const ringW = variant === 'pin' ? PIN_RING_WIDTH : 1
   /* BOLDER ONLY FOR `current` — that is the one state whose fill and border share the
      same token (rail `current`: bg=bd=--accent-walk), so the dash needs real weight to
