@@ -79,7 +79,7 @@ const sidebars = () => page.$$eval('[aria-label="studio-sidebar"]', (els) => els
 // order, which IS the group order the obligation is about
 const toolbarTitles = () =>
   page.$$eval('[aria-label="studio-header"] + div button', (els) => els.map((el) => (el.getAttribute('title') || '').replace(/\n/g, ' ')))
-// settle past --dur-palette (400ms) plus the unmount, with room to spare
+// settle past --dur-flight (400ms) plus the unmount, with room to spare
 const settle = () => page.waitForTimeout(700)
 
 await page.goto(`http://localhost:${PORT}/`)
@@ -202,6 +202,34 @@ ok('and it is reopenable afterwards', (await page.locator(HOOK).getAttribute('ti
 await page.locator(HOOK).click()
 await settle()
 await page.screenshot({ path: OUT + '/palette.png' })
+
+// ── 6. OB-125: the duration is the DS's rung now, and it still collapses ────
+// The flight ran on an app-owned `--dur-palette` declared in src/index.css, with
+// a hand-written `@media (prefers-reduced-motion: reduce) { --dur-palette: 1ms }`
+// beside it. That line was LOAD-BEARING: a 220px slide is exactly what the
+// setting exists for. OB-125 deletes both and moves the flight onto the DS's
+// `--dur-flight`, which collapses inside tokens/motion.css.
+//
+// So the only step that could silently drop reduced motion is the deletion, and
+// asserting it is not enough — read the duration the browser actually resolves,
+// off the element that actually transitions. `paletteStyle` is on the sidebar's
+// PARENT, the same box section 4 samples the neighbour against.
+const durationOf = () =>
+  page.evaluate(() => {
+    const wrap = document.querySelector('[aria-label="studio-sidebar"]').parentElement
+    return getComputedStyle(wrap).transitionDuration
+  })
+// every property in the list carries the same duration, so they all read alike
+const allAre = (d, ms) => d.split(',').every((p) => p.trim() === ms)
+
+const atRest = await durationOf()
+ok('the flight runs at 400ms — the token, no longer a local --dur-palette', allAre(atRest, '0.4s'), atRest)
+ok('and no --dur-palette survives to resolve it', await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-palette').trim() === ''))
+
+await page.emulateMedia({ reducedMotion: 'reduce' })
+const reduced = await durationOf()
+ok('prefers-reduced-motion still collapses it to 1ms, now from motion.css', allAre(reduced, '0.001s'), reduced)
+await page.emulateMedia({ reducedMotion: 'no-preference' })
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()

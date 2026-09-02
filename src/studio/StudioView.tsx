@@ -36,12 +36,16 @@ import { byInstrument, flattenSlots, INSTRUMENTS, lensTypeOf, PRESETS } from './
 import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
 
 /** the palette's fly-to-the-toolbar transition, in ms. It MUST equal
- *  `--dur-palette`, the variable `paletteStyle` transitions on: the CSS runs the
+ *  `--dur-flight`, the token `paletteStyle` transitions on: the CSS runs the
  *  transition and this only decides when to unmount, so a number below it cuts
  *  the animation off mid-flight and one above it leaves an invisible pane
- *  holding its column open. That variable is declared in src/index.css, NOT in
- *  src/tokens/motion.css, and the reason is written there — the token file is
- *  vendored from the DS verbatim and fingerprinted, so 400ms cannot live in it.
+ *  holding its column open.
+ *
+ *  `--dur-flight` IS THE DS'S OWN TOP RUNG NOW (OB-125), in
+ *  src/tokens/motion.css with the rest of the ladder. It used to be a local
+ *  `--dur-palette` declared in src/index.css, because the vendored token file is
+ *  fingerprinted and a duration the DS did not carry could not be added to it;
+ *  the DS added the rung at the same 400ms and that workaround is gone.
  *
  *  The duration has moved twice, and the reasons are worth keeping. It began at
  *  `--dur-hover` (140ms), which is this system's wash duration — right for the
@@ -51,9 +55,9 @@ import type { Instrument, InstrumentId, Preset, Slot } from './instruments'
  *  left/top/width/height at this duration), the file's own rule being that a
  *  relayout should be legible rather than a teleport. 400ms is the owner's call
  *  on top of that: legible was the right principle and 200ms was still short for
- *  a move this wide.
+ *  a move this wide. The DS took the value as measured, not re-derived.
  *
- *  ONE ASYMMETRY, DELIBERATE. `--dur-palette` collapses to 1ms under
+ *  ONE ASYMMETRY, DELIBERATE. `--dur-flight` collapses to 1ms under
  *  `prefers-reduced-motion` and this timer does not follow it. That is not drift:
  *  the margin below collapses the column as part of the same transition, so a
  *  pane still mounted after the CSS has finished is invisible AND takes no
@@ -171,7 +175,7 @@ export default function StudioView() {
     transition:
       paletteAnim && paletteAnim.phase === 'shrink'
         ? 'none'
-        : 'transform var(--dur-palette) var(--ease-settle), opacity var(--dur-palette) var(--ease-settle), margin-right var(--dur-palette) var(--ease-settle)',
+        : 'transform var(--dur-flight) var(--ease-settle), opacity var(--dur-flight) var(--ease-settle), margin-right var(--dur-flight) var(--ease-settle)',
   }
   // presenting is a MODE, not a composition (#195) — it takes the whole screen
   // and leaves active/mounted/flexMap/presetId untouched, so exiting restores

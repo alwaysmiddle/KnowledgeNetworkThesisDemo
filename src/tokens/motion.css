@@ -11,6 +11,13 @@
   --dur-fade: 250ms; /* @kind other */
   --dur-enter: 280ms; /* @kind other */
   --dur-relayout: 300ms; /* @kind other */
+  /* A WHOLE PANEL CROSSING THE SURFACE, and the top of the ladder. Above --dur-relayout
+     because it is a longer trip than nodes making room: the palette flies its own width
+     while the desk closes up behind it, and the two have to read as one movement. Chosen,
+     not derived — the app measured this move at both 200ms and 400ms on their own screen
+     and judged 400; do not re-derive it from the rungs below, which describe shorter trips.
+     Anything smaller than a whole panel wants --dur-relayout or less. Added 2026-08-31. */
+  --dur-flight: 400ms; /* @kind other */
 
   --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1); /* @kind other */
   --ease-settle: cubic-bezier(0.32, 0.72, 0, 1); /* @kind other */
@@ -23,6 +30,25 @@
   --transition-wash: background-color var(--dur-hover) var(--ease-soft),
                      border-color var(--dur-hover) var(--ease-soft),
                      box-shadow var(--dur-hover) var(--ease-soft); /* @kind other */
+  /* LINE-WORK AT A FIXED SCALE ONLY. The bundled form is right for the road, the chain and the
+     relation cards, whose strokes change width in discrete steps a person chose — and it is a
+     TRAP on anything inside a live zoom, where a stroke is counter-scaled against the camera
+     (`k * f / view.s`) and therefore recomputed every frame.
+     The general rule, and the reason this caveat is worth its lines: TRANSITION A VALUE THE CODE
+     SETS IN DISCRETE STEPS, NEVER ONE IT RECOMPUTES CONTINUOUSLY. A transition interpolates from
+     where a property was RENDERING toward where it has just been SET, so if the setter is already
+     moving every frame the transition permanently chases a target that has moved again, and what
+     it draws in the meantime is a value nobody asked for.
+     Measured on the app's map, sampling rendered stroke width against the width just written,
+     frame by frame through one 260ms zoom flight: the gap peaked at 98.8% (line-work drawing at
+     1.72 units where the map asked for 0.86) and was still over 1% out 587ms in. On screen the map
+     thickened as you zoomed and thinned back long after you stopped. With `stroke-width` dropped
+     from their own copy of this list: 0% on every sampled frame, and a zoom round trip roughly
+     halved (L0 405 -> 252ms, L2 738 -> 387ms) since `stroke-width` is not compositor-only.
+     On a zooming surface, animate `opacity` alone and let the counter-scale own the width. NOT
+     split into a second opacity-only token deliberately: a second name is a second chance to pick
+     the wrong one, and CSS cannot tell which surface a token was used on, so a split would
+     relocate this judgement rather than mechanise it. */
   --transition-trace: opacity var(--dur-trace) var(--ease-soft),
                       stroke-width var(--dur-trace) var(--ease-soft); /* @kind other */
 }
@@ -39,5 +65,9 @@
     --dur-fade: 1ms; /* @kind other */
     --dur-enter: 1ms; /* @kind other */
     --dur-relayout: 1ms; /* @kind other */
+    /* Load-bearing, not housekeeping. The palette move previously inherited --dur-move's
+       collapse to 1ms; a bare 400ms written into a component would have dropped reduced
+       motion silently for a 220px slide, which is precisely what the setting exists for. */
+    --dur-flight: 1ms; /* @kind other */
   }
 }

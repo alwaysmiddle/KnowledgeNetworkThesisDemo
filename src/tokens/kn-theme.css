@@ -360,6 +360,13 @@
        duration-[var(--dur-fade)]      250ms
        duration-[var(--dur-enter)]     280ms   something arriving
        duration-[var(--dur-relayout)]  300ms   nodes visibly making room
+       duration-[var(--dur-flight)]    400ms   a whole panel crossing the surface
+
+   `--transition-trace` (in tokens/motion.css) bundles opacity AND stroke-width, and is for
+   line-work at a FIXED scale only. On a zooming surface, where a stroke is counter-scaled
+   against the camera and so recomputed every frame, animate opacity alone — the full
+   reasoning and the measurements are on the token itself. General form: transition a value
+   the code sets in discrete steps, never one it recomputes continuously.
 
    Layout constants are likewise token references, not utilities — they are
    measurements, not a scale:
