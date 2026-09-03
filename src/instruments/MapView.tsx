@@ -62,8 +62,9 @@ import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
-import { cellPolyOf, countryLabels, endpointAtTier, flightTargetOf, outlineOf, pinSpotClear, provinceLabels, ringsCrossT, roadsFor, walkAnchorAt } from '../model/atlas'
+import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { bowFor, bowSignAt } from '../model/walkarrow'
+import { walkPins } from '../model/walkpins'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
 import type { FitLine, LabelBox } from '../model/labelfit'
@@ -618,118 +619,29 @@ export default function MapView({ bus }: { bus: Bus }) {
    *  move, not when anything else in `labelFit` does. */
   const labelBoxes = useMemo(() => [...labelFit.box.values()], [labelFit])
 
-  // ── ROUTE PATH (#26) — ordered walk positions for the current map level ──────
-  // For each stop in bus.route, roll up to the visible ancestor at `level` using
-  // the same pathTo(id)[level + 1] idiom the match pins use. `seen` tracks the
-  // 1-based step of each stop's first appearance so a later return to the same
-  // visible ancestor can be told apart from its primary visit (routeStops below
-  // turns that into an offset second pin, OB-069).
+  // ── THE WALK'S PINS (#26) — where each stop is drawn at this level ──────────
+  // The whole decision moved to `model/walkpins.ts` (#249, OB-128). It used to
+  // be two memos here — a resolve, then a collapse into what actually gets
+  // drawn — and five obligations had rewritten them between them, each argued
+  // from a screenshot because a memo closed over React state cannot be called
+  // with a walk and a level and asked what it would draw. It is a pure function
+  // of the walk, the level and the zoom now, tested against real coordinates in
+  // walkpins.test.ts; and the two items still queued against it (OB-114,
+  // OB-132) have a named thing to change rather than a memo to re-derive.
   //
-  // OB-109: the resolve is `walkAnchorAt` in model/atlas.ts now, not spelled out
-  // here. It rolls a stop UP to the ancestor owning a cell at this level, and —
-  // the half that never existed — CLAMPS a stop shallower than the level onto its
-  // own centroid instead of resolving to `undefined` and silently dropping the
-  // whole walk from L3 down. The reasoning, and why the search-match tally above
-  // deliberately does the opposite, are in that function's docblock. The rule is
-  // a pure function of the corpus and a level, so it is tested there rather than
-  // through a browser.
-  const routeVis = useMemo(() => {
-    if (bus.route.length === 0) return []
-    const seen = new Map<string, number>() // visId → 1-based step of first occurrence
-    const out: Array<{ visId: string; c: XY; step: number; revisit: boolean }> = []
-    for (let i = 0; i < bus.route.length; i++) {
-      const id = bus.route[i]
-      const anchor = walkAnchorAt(id, level)
-      if (!anchor) continue
-      const { visId, c } = anchor
-      const step = i + 1
-      const revisit = seen.has(visId)
-      if (!revisit) seen.set(visId, step)
-      out.push({ visId, c, step, revisit })
-    }
-    return out
-  }, [bus.route, level])
-
-  // ── ROUTE PINS (OB-069) — routeVis collapsed into what actually gets drawn.
-  // Two things routeVis does NOT tell apart, both settled by the design system
-  // after a pill, a corner badge and an inline digit all failed legibility on a
-  // 24px mark (2026-08-22): a CONTIGUOUS run of steps sharing a visible ancestor
-  // (three stops on the same territory back to back) is ONE pin with a range
-  // label ("1-3"), never three stacked circles at the same point; a NON-adjacent
-  // repeat — the walk leaves and later comes back — is always a SECOND StepDot,
-  // offset clear of the first, never a merged mark. `routeVis`'s own `revisit`
-  // flag can't distinguish these (it only asks "seen before, anywhere"), so this
-  // groups by ADJACENCY instead and treats the first repeat of a visId, whenever
-  // it happens, as a revisit.
-  const routeStops = useMemo(() => {
-    if (routeVis.length === 0) return []
-    type Group = { visId: string; c: XY; steps: number[] }
-    const groups: Group[] = []
-    for (const s of routeVis) {
-      const last = groups[groups.length - 1]
-      if (last && last.visId === s.visId) last.steps.push(s.step)
-      else groups.push({ visId: s.visId, c: s.c, steps: [s.step] })
-    }
-    // bus.route is truncated to the played prefix while a SAVED walk is active
-    // (bus.ts's activateWalk), so the cursor is always the LAST raw step. With
-    // no saved walk, the route may instead be the DRAFT open on the desk
-    // (walkdesk/presented.ts publishes it live) — bus.draftCursor is that
-    // road's own cursor, moved by Walk·Viewer's seek bar or the walk editor.
-    const cursorStep = bus.activeWalk ? bus.activeWalk.cursor + 1 : bus.draftCursor + 1
-    const stateOf = (steps: number[]): 'done' | 'current' | 'ahead' => {
-      const last = steps[steps.length - 1]
-      return last < cursorStep ? 'done' : last === cursorStep ? 'current' : 'ahead'
-    }
-    // OB-087 — a territory visited more than once (a non-adjacent revisit)
-    // gets one pin per visit, all sharing `visId`; `count` is how many. Sizing
-    // and placement both key off it, replacing the old fixed 24/34px-by-range
-    // constant: a lone pin stays full-size, each pin sharing a territory
-    // shrinks further (floored), matching the DS's own sizeFor formula
-    // (components/nav/nav.card.html).
-    const countByVisId = new Map<string, number>()
-    for (const g of groups) countByVisId.set(g.visId, (countByVisId.get(g.visId) ?? 0) + 1)
-    const indexByVisId = new Map<string, number>() // visId → how many placed so far
-    return groups.map((g) => {
-      const label: number | string = g.steps.length > 1 ? `${g.steps[0]}-${g.steps[g.steps.length - 1]}` : g.steps[0]
-      const count = countByVisId.get(g.visId)!
-      const size = Math.max(16, 22 - (count - 1) * 3)
-      const idx = indexByVisId.get(g.visId) ?? 0
-      indexByVisId.set(g.visId, idx + 1)
-      // a revisit: spread around the territory's own centroid instead of
-      // stacking along the direction of arrival — the old geometry cleared
-      // each pin from the one before it, which reads as a line of discs
-      // marching away from the shared point rather than "several stops here".
-      // An evenly-spaced arc uses different parts of the territory's shape
-      // (DS: "corners, an arc, a simple grid" are all fine; the requirement is
-      // just not stacking them) and, as a side effect, spaces the arrows that
-      // meet each of these pins apart too (OB-090).
-      let c = g.c
-      if (count > 1) {
-        const angle = (2 * Math.PI * idx) / count - Math.PI / 2
-        const radius = px(size * 1.3 + 6) // clears a same-size neighbour at this shrunk size, plus a gap
-        c = { x: g.c.x + Math.cos(angle) * radius, y: g.c.y + Math.sin(angle) * radius }
-      }
-      // OB-108 — AND IT RUNS LAST, AFTER THE CROWDING SPREAD ABOVE. The spread
-      // decides where several pins sharing a territory sit relative to each
-      // OTHER; this decides whether wherever any one of them landed is on top of
-      // a name. Run the other way round, the spread would take a cleared pin and
-      // put it straight back over the text.
-      // EVERY LABEL DRAWN AT THIS LEVEL, not just this cell's own. Past the level
-      // where a stop owns a cell its label is gone and its CHILDREN's names are
-      // what the pin can land on — same fault, different owner. `pinSpotClear`
-      // does the proximity filtering; handing it the whole set keeps the decision
-      // about which labels count in one place.
-      // The nudge is per pin, so in principle two spread pins could be pushed
-      // toward each other. In practice the spread radius is already wider than a
-      // label box's half-height, so they clear the name in different directions;
-      // if that ever stops holding it is a spread problem, not this one.
-      c = pinSpotClear(c, cellPolyOf(g.visId, g.c), labelBoxes, px(size / 2))
-      return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], c, label, state: stateOf(g.steps), size }
-    })
+  // bus.route is truncated to the played prefix while a SAVED walk is active
+  // (bus.ts's activateWalk), so the cursor is always the LAST raw step. With no
+  // saved walk, the route may instead be the DRAFT open on the desk
+  // (walkdesk/presented.ts publishes it live) — bus.draftCursor is that road's
+  // own cursor, moved by Walk·Viewer's seek bar or the walk editor.
+  const cursorStep = bus.activeWalk ? bus.activeWalk.cursor + 1 : bus.draftCursor + 1
+  const routeStops = useMemo(
+    () => walkPins({ route: bus.route, level, cursorStep, px, labelBoxes }),
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeVis, bus.activeWalk, bus.draftCursor, f, view.s, labelBoxes])
+    [bus.route, level, cursorStep, f, view.s, labelBoxes],
+  )
 
   // ── OB-107: WHICH WALK LINES BOW, AND WHICH WAY ────────────────────────────
   // OB-090 point 1 pulled the arrows' shared ANCHOR apart — every line now
