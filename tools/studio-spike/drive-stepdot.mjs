@@ -114,6 +114,32 @@ if ((await play.count()) === 0) {
 await play.click()
 await page.waitForTimeout(700)
 
+// SEEK TO THE END BEFORE LOOKING AT THE MAP. `activateWalk` publishes only the
+// PLAYED PREFIX, so hitting play puts ONE stop on `bus.route` and the map draws a
+// single pin — which is why the range-label half of this file used to report
+// "SKIP  no crowded cell in this corpus is drawing a range label" and pass anyway.
+// The strip shows the whole walk either way, so the omission was invisible from
+// the rail measurements above it. Lifted from `drive-pincrowd.mjs`, which needs
+// the same thing for the same reason: the seek BAR is the strip's only control
+// that moves the cursor (the dots above it are display only), it has no label, so
+// it is found by shape — the 4px rail is the only aria-hidden bar in the strip,
+// and the element that takes the pointer is its parent.
+const seekBar = await page.evaluate(() => {
+  const scope = document.querySelector('[aria-label="walk-viewer"]')
+  const bar = [...scope.querySelectorAll('[aria-hidden="true"]')].find((e) => Math.round(e.getBoundingClientRect().height) === 4)
+  if (!bar) return null
+  const r = bar.parentElement.getBoundingClientRect()
+  return { x: r.x, y: r.y, w: r.width, h: r.height }
+})
+if (!seekBar) {
+  console.error('no seek bar in the walk viewer — cannot reach the end of the walk')
+  await browser.close()
+  vite.kill()
+  process.exit(1)
+}
+await page.mouse.click(seekBar.x + seekBar.w - 1, seekBar.y + seekBar.h / 2)
+await page.waitForTimeout(800)
+
 const rail = await dots('[aria-label="walk-viewer"]')
 const twoDigit = rail.filter((d) => d.label.length > 1)
 ok('the walk is long enough to have two-digit stops at all', twoDigit.length > 0, `${rail.length} stops, ${twoDigit.length} of them 10+`)
@@ -151,15 +177,20 @@ if (pins.length === 0) {
   ok('and measures square', pinNums.every((d) => Math.abs(d.w - d.h) < 0.5), pinNums.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '))
   // pins are sized per crowding, so they are NOT all the same size as each other
   // — squareness is the whole claim here, not a shared width.
-  if (pinRanges.length > 0) {
-    ok(
-      'and a RANGE label ("1-3") still takes the pill branch — no SVG face',
-      pinRanges.every((d) => !d.svg),
-      pinRanges.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '),
-    )
-  } else {
-    checks.push('SKIP  no crowded cell in this corpus is drawing a range label — pill branch unmeasured here')
-  }
+
+  // THE PILL BRANCH IS THE POINT OF THE FILE, so its absence is a failure and not
+  // a SKIP. It used to be a SKIP, and the SKIP was firing: the branch OB-129
+  // rewrote was going unmeasured in the browser on every run while the file
+  // reported all-green. A range label needs two stops to land on ONE cell, which
+  // is what the coarse levels do — so it is asserted where merging actually
+  // happens rather than wherever the preset left the camera.
+  ok('some cell is crowded enough to draw a range label at this level', pinRanges.length > 0,
+    `${pins.length} pins: ${pins.map((d) => d.label).join(', ')}`)
+  ok(
+    'and a RANGE label ("1-3") still takes the pill branch — no SVG face',
+    pinRanges.length > 0 && pinRanges.every((d) => !d.svg),
+    pinRanges.map((d) => `${d.label} ${d.w}x${d.h}`).join(', '),
+  )
 }
 
 await page.screenshot({ path: OUT + '/stepdot.png' })

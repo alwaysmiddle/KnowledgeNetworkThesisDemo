@@ -189,6 +189,13 @@ for (let i = 0; i < 8; i++) {
   if (!(await diveOnAPin())) break
 }
 
+// THE SWEEP HAS TO HAVE SWEPT. Every check above is inside the loop, so a dive
+// that failed on the first turn would leave ONE level measured and the run would
+// still be green while claiming "at any level". `drive-mappins.mjs` guards its own
+// level sweep the same way, and this file did not.
+ok('the sweep dived through the levels, not just the one it started on',
+  report.some((r) => r.level >= 3), report.map((r) => `L${r.level}`).join(' '))
+
 // ── HOW MUCH ROOM IS ACTUALLY LEFT ─────────────────────────────────────────
 // Reported rather than asserted, and printed even when everything passes. The
 // pass/fail above only says "not touching", which stays true right up to the
