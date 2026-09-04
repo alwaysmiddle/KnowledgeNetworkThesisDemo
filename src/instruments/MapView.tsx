@@ -55,7 +55,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { ARROW_METRICS, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, shaftTailOffset, StepDot, VisibilityMark, ZoomControl } from '@/ds'
+import { ARROW_METRICS, headForSet, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, shaftTailOffset, StepDot, VisibilityMark, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
@@ -643,6 +643,35 @@ export default function MapView({ bus }: { bus: Bus }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bus.route, level, cursorStep, f, view.s, labelBoxes],
   )
+
+  // ── OB-126: ONE HEAD FOR THE WHOLE WALK, NOT ONE PER ARROW ──────────────
+  // `headFor`'s length cap is written for a LONE line — it stops one long shaft
+  // growing a spearhead. Applied per-arrow across a SET it makes head size a
+  // function of length, which the line already draws, and a reader takes a bigger
+  // head as EMPHASIS: hops under ~267px would take the published 8px head and hops
+  // over ~427px the full 12.8px, 2.5× the triangle's area, on arrows that mean the
+  // same thing. So every hop is measured first and the set is asked ONCE for the
+  // smallest head all of them can carry.
+  //
+  // ONE PASS, AND IT IS EXACT WHEREVER IT MATTERS. A length is the pin-to-pin
+  // distance minus the head, so the two depend on each other — but the cap only
+  // lifts the head above 8 once the SHORTEST hop passes ~267px, and `headForSet`
+  // takes the minimum. Any walk with one short hop in it resolves to exactly 8,
+  // which is what this map already drew, with no circularity at all. The provisional
+  // lengths below therefore use the published head, and differ from the final ones
+  // only in the all-long case, by at most the few px the head grew.
+  const walkArrowHead = useMemo(() => {
+    const lengths: number[] = []
+    for (let i = 1; i < routeStops.length; i++) {
+      const from = routeStops[i - 1]
+      const to = routeStops[i]
+      const worldDist = Math.hypot(to.c.x - from.c.x, to.c.y - from.c.y) || 1
+      const dist = (worldDist * view.s) / f
+      if (dist < 1) continue
+      lengths.push(Math.max(1, dist - to.size / 2 - ARROW_METRICS.head - from.size / 2))
+    }
+    return headForSet({ joins: PIN_RING_WIDTH, lengths })
+  }, [routeStops, view.s, f])
 
   // ── OB-107: WHICH WALK LINES BOW, AND WHICH WAY ────────────────────────────
   // OB-090 point 1 pulled the arrows' shared ANCHOR apart — every line now
@@ -1253,7 +1282,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 const tailOffset = px(from.size / 2)
                 const tailX = from.c.x + (dx / worldDist) * tailOffset
                 const tailY = from.c.y + (dy / worldDist) * tailOffset
-                const length = Math.max(1, dist - to.size / 2 - ARROW_METRICS.head - from.size / 2)
+                const length = Math.max(1, dist - to.size / 2 - walkArrowHead.head - from.size / 2)
                 // OB-107 — magnitude is proportional to the shaft, capped: a bow
                 // is meant to open a gap between two lines, and a fixed px offset
                 // that reads as a gentle curve on a long line is a semicircle on a
@@ -1266,7 +1295,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 // leaves the LINE beside the two pins it joins. Cancelling the
                 // offset here is what makes bowing +b and -b symmetric about the
                 // real pin-to-pin line, which the alternating sign depends on.
-                const tail = shaftTailOffset({ joins: PIN_RING_WIDTH, bow, casing: true })
+                const tail = shaftTailOffset({ joins: PIN_RING_WIDTH, bow, casing: true, headSize: walkArrowHead })
                 return (
                   <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
                     <g transform={`translate(${-tail.along} ${-tail.across})`}>
@@ -1279,6 +1308,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                         direction="right"
                         length={length}
                         joins={PIN_RING_WIDTH}
+                        headSize={walkArrowHead}
                         bow={bow}
                         casing
                         tone={walkReceded ? 'hint' : 'walk'}

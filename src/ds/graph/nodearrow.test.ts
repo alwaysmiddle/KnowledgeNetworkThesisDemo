@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement } from 'react'
 import { describe, expect, test } from 'vitest'
 
-import { ARROW_METRICS, NodeArrow, shaftTailOffset } from './NodeArrow'
+import { ARROW_METRICS, headFor, headForSet, NodeArrow, shaftTailOffset } from './NodeArrow'
 import type { NodeArrowProps } from './NodeArrow'
 
 const draw = (props: NodeArrowProps) => renderToStaticMarkup(createElement(NodeArrow, props))
@@ -130,5 +130,99 @@ describe('casing', () => {
     expect(c.front - c.back).toBeCloseTo(b.front - b.back, 6) // same width
     expect(c.tip - shaftTailIn(cased).across).toBeCloseTo(b.tip - shaftTailIn(bare).across, 6)
     expect(cased).toContain(`stroke-width="${ARROW_METRICS.stroke}"`) // same shaft weight
+  })
+})
+
+/** the PAINTED head triangle, read out of the markup rather than off a constant.
+ *  The casing draws its own larger triangle first when `casing` is on, so the LAST
+ *  three-point path is always the paint. Returned as the box the triangle occupies,
+ *  which is what a reader of the map actually sees. */
+function headBoxIn(svg: string): { along: number; across: number } {
+  const tris = [...svg.matchAll(/ d="M([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) Z"/g)]
+  if (!tris.length) throw new Error('no head triangle in:\n' + svg)
+  const t = tris[tris.length - 1].slice(1).map(Number)
+  const xs = [t[0], t[2], t[4]]
+  const ys = [t[1], t[3], t[5]]
+  return { along: Math.max(...xs) - Math.min(...xs), across: Math.max(...ys) - Math.min(...ys) }
+}
+
+describe('the head is capped by its own shaft length (OB-126)', () => {
+  // THE CASE THAT WAS BROKEN. The map's pin ring is a 4px border, so `joins={4}`
+  // scales the published head by 4/1.5 = 2.67 — which drew a 21px head 23.5px
+  // across on a 450px hop. A spearhead on a hairline curve.
+  test('a long, heavy arrow no longer draws a spearhead', () => {
+    const box = headBoxIn(draw({ direction: 'right', length: 450, joins: 4 }))
+    expect(box.along).toBeLessThanOrEqual(450 * ARROW_METRICS.headLengthMax)
+    expect(box.along).toBeCloseTo(13.5, 2)
+    // and it is far below what the weight alone would have given it
+    expect(box.along).toBeLessThan(ARROW_METRICS.head * (4 / ARROW_METRICS.stroke))
+  })
+
+  // THE CASES THAT MUST NOT MOVE. Every existing caller — a chain gap, the road,
+  // a relation card — draws a short arrow, and the cap is floored at the published
+  // head precisely so none of them changes.
+  test('the published stub is untouched: 14px gap, full rank', () => {
+    const box = headBoxIn(draw({ direction: 'right', length: 14 }))
+    expect(box.along).toBeCloseTo(ARROW_METRICS.head, 2)
+    expect(box.across).toBeCloseTo(ARROW_METRICS.halfWidth * 2, 2)
+  })
+
+  test('and a heavy shaft under ~267px still takes the floor, not the ceiling', () => {
+    expect(headBoxIn(draw({ direction: 'right', length: 60, joins: 4 })).along)
+      .toBeCloseTo(ARROW_METRICS.head, 2)
+  })
+
+  test('omitting length gives the upper bound, and no drawn arrow exceeds it', () => {
+    const bound = headFor({ joins: 4 })
+    for (const length of [14, 60, 267, 450, 900, 5000]) {
+      expect(headFor({ joins: 4, length }).head).toBeLessThanOrEqual(bound.head)
+    }
+  })
+
+  test('the triangle keeps its proportions as it shrinks', () => {
+    const capped = headFor({ joins: 4, length: 450 })
+    // 3dp, not more: both numbers are rounded to 2dp on the way out, so the ratio
+    // carries that rounding (0.5504 against 0.55). The claim is that the head stays
+    // the SAME arrowhead at a smaller size, not that it survives to six places.
+    expect(capped.halfWidth / capped.head).toBeCloseTo(ARROW_METRICS.halfWidth / ARROW_METRICS.head, 3)
+  })
+})
+
+describe('a set of arrows drawn together shares one head (OB-126 amendment)', () => {
+  // Per-arrow sizing is the opposite failure to the one the cap was written for:
+  // head size becomes a function of length, length is already drawn by the line,
+  // and a reader takes the bigger head as emphasis.
+  const LENGTHS = [120, 300, 450, 800]
+
+  test('the set takes the SMALLEST head it allows, not an average', () => {
+    const set = headForSet({ joins: 4, lengths: LENGTHS })
+    const each = LENGTHS.map((l) => headFor({ joins: 4, length: l }).head)
+    expect(set.head).toBe(Math.min(...each))
+    const mean = each.reduce((a, b) => a + b, 0) / each.length
+    expect(set.head).toBeLessThan(mean)
+  })
+
+  test('one short hop in the set puts every arrow on the published head', () => {
+    expect(headForSet({ joins: 4, lengths: [90, 450, 900] }).head).toBeCloseTo(ARROW_METRICS.head, 2)
+  })
+
+  test('no lengths at all falls through to the upper bound', () => {
+    expect(headForSet({ joins: 4 })).toEqual(headFor({ joins: 4 }))
+    expect(headForSet({ joins: 4, lengths: [] })).toEqual(headFor({ joins: 4 }))
+  })
+
+  // THE DONE-WHEN, as an assertion: a short hop and a long cross-map hop must
+  // measure the SAME triangle once the view has sized the set.
+  test('two arrows of very different lengths draw one identical triangle', () => {
+    const shared = headForSet({ joins: 4, lengths: LENGTHS })
+    const short = headBoxIn(draw({ direction: 'right', length: 120, joins: 4, headSize: shared }))
+    const long = headBoxIn(draw({ direction: 'right', length: 800, joins: 4, headSize: shared }))
+    expect(short).toEqual(long)
+  })
+
+  test('and without the shared head they would NOT have matched', () => {
+    const short = headBoxIn(draw({ direction: 'right', length: 120, joins: 4 }))
+    const long = headBoxIn(draw({ direction: 'right', length: 800, joins: 4 }))
+    expect(short.along).not.toBeCloseTo(long.along, 2)
   })
 })
