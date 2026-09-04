@@ -100,11 +100,9 @@ ok('a version name PAST its cap ends in an ellipsis',
   !!strings['over-cap'].version && strings['over-cap'].version.endsWith('\u2026')
     && strings['over-cap'].version.length < 90,
   JSON.stringify(strings['over-cap'].version))
-ok('the cut is made at a WORD, not mid-run',
-  !/\s\S{1,2}\u2026$/.test(strings['over-cap'].title || ''),
-  JSON.stringify(strings['over-cap'].title))
-
-// the tooltip keeps the WHOLE name (folded, but whole)
+// the tooltip keeps the WHOLE name (folded, but whole) — and it is also the only
+// place the untruncated string is readable from, so it is fetched before the
+// word-boundary check below rather than after it
 const tip = await page.evaluate(() => {
   const root = document.querySelector('[data-case="over-cap"]')
   for (const el of root.querySelectorAll('span[title]')) {
@@ -116,6 +114,24 @@ const tip = await page.evaluate(() => {
 ok('the tooltip still carries the whole title',
   !!tip && tip.replace(/\n/g, ' ').includes('comes back to it, in order'),
   JSON.stringify(tip))
+
+// THE CUT LANDS ON A WORD BOUNDARY — asked of the string it was cut FROM.
+//
+// This check used to be `!/\s\S{1,2}…$/`, i.e. "the last token before the ellipsis
+// is at least three characters", and it was wrong twice over. It cannot tell a
+// two-letter FRAGMENT from a two-letter WORD, so a correct cut ending "…first byte
+// of…" failed it; and because the cut point is decided by measured text width, which
+// token it lands on depends on the machine's font rendering, so the same code passed
+// on one machine and failed on another. Comparing against the whole string answers
+// the actual question and does not care where the cut fell.
+const whole = (tip || '').replace(/\s+/g, ' ').trim()
+const shown = (strings['over-cap'].title || '').replace(/…$/, '').trim()
+// `clampToLines` strips trailing punctuation along with the space, so the character
+// that follows the shown text in the original may be a comma rather than a space
+const cutAtWord = !!shown && !!whole && whole.startsWith(shown)
+  && (whole.length === shown.length || /[\s,;:]/.test(whole[shown.length]))
+ok('the cut is made at a WORD, not mid-run', cutAtWord,
+  JSON.stringify(shown) + ' cut from ' + JSON.stringify(whole.slice(0, shown.length + 12) + '…'))
 
 // ── 3. OB-029: opening and closing moves the card by 0 ─────────────────────
 const heightOf = (c) => caseBox(c).evaluate((el) => {

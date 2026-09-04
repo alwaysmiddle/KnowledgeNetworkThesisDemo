@@ -64,9 +64,27 @@ await page.evaluate(() => localStorage.clear())
 await page.reload()
 await page.waitForTimeout(600)
 
+// #234: BOTH the presets and the instrument switches live inside the palette pane,
+// and picking a preset now CLOSES that pane — OB-106, shipped at `6b4742a`, after
+// this file was written. So every preset click here hid the thing the next line
+// reached for. Anything that reaches into the palette opens it first, and asks
+// whether it is open rather than clicking blind, since a blind click on an open
+// palette closes it.
+//
+// The hook is the toolbar button's stable handle, the same one `drive-palette.mjs`
+// uses; OB-124 exists precisely so it does not move when the button's title does.
+const openPalette = async () => {
+  const toggle = page.locator('[data-toolbar-hook="palette-toggle"]')
+  if ((await toggle.getAttribute('title')) !== 'hide the palette') {
+    await toggle.click()
+    await page.waitForTimeout(400)
+  }
+}
+
 // open a few instruments so there is plenty of text on screen to measure
 await page.getByLabel('studio-preset-plan').click()
 await page.waitForTimeout(500)
+await openPalette()
 await page.getByLabel('studio-inst-tree').click()
 await page.waitForTimeout(500)
 
@@ -151,6 +169,7 @@ let swept = 0
 let tipCount = 0
 const wide = []
 for (const preset of PRESETS) {
+  await openPalette()
   await page.getByLabel(`studio-preset-${preset}`).click()
   await page.waitForTimeout(400)
   wide.push(...(await overLong(MEASURE)))
@@ -158,9 +177,14 @@ for (const preset of PRESETS) {
   swept++
 }
 // then every instrument on its own, so nothing is missed by never being composed
+await openPalette()
+const missing = []
 for (const inst of INSTRUMENTS) {
   const row = page.getByLabel(`studio-inst-${inst}`, { exact: true })
-  if (!(await row.count())) continue
+  // a name that is not on screen used to `continue` in silence, which is how the
+  // closed palette above hid itself: the sweep skipped all fifteen instruments and
+  // still reported a pass. A skip is now a recorded failure, not a shrug.
+  if (!(await row.count())) { missing.push(inst); continue }
   await row.click()
   await page.waitForTimeout(350)
   wide.push(...(await overLong(MEASURE)))
@@ -174,6 +198,9 @@ ok(`every tooltip folds at ${MEASURE}, across ${swept} screens`, wide.length ===
   wide.length ? JSON.stringify(wide.slice(0, 5)) : 'no over-long lines')
 
 ok('there are tooltips on the page to have checked', tipCount > 0, `${tipCount} titled elements`)
+
+ok('every instrument named above was actually found and swept', missing.length === 0,
+  missing.length ? `never found: ${missing.join(', ')}` : `all ${INSTRUMENTS.length}`)
 
 // ── 3. aria-label keeps the UNFOLDED string ─────────────────────────────────
 const folded = await page.evaluate(() => {

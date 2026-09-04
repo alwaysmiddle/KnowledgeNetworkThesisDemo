@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:browser": "node tools/studio-spike/run-browsertests.mjs",
     "typecheck": "tsc -b",
     "verify": "npm run typecheck && npm run lint && npm run test"
   },

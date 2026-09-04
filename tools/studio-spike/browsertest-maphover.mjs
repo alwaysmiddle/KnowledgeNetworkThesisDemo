@@ -1,4 +1,8 @@
-// drive-maphover.mjs — OB-127 (#251), in a real browser.
+// browsertest-maphover.mjs — OB-127 (#251).
+//
+// A TEST. It opens the real app in a real browser and asserts what a person sees.
+// The name says that, because the file beside it that measures rather than asserts
+// is a different thing and should not be guessable only by opening it.
 //
 // The obligation's done-when is written about what a person sees: "hovering a
 // tree row or a connections row HIGHLIGHTS the matching territory on the map and
@@ -39,7 +43,7 @@
 // that was entirely its own.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine.
-// Run from anywhere:  node tools/studio-spike/drive-maphover.mjs
+// Run from anywhere:  node tools/studio-spike/browsertest-maphover.mjs
 // Exits nonzero on any failed check or any page error.
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'

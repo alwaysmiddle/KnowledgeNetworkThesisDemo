@@ -25,3 +25,10 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # The unit tests. Until 2026-09-03 this workflow built and linted and never
+      # ran them, so the whole suite only ran when someone typed the command on
+      # their own machine. The browser tests in tools/studio-spike are NOT here:
+      # they drive the system's installed Edge, which a runner does not have.
+      - name: Test
+        run: npm test
