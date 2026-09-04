@@ -258,7 +258,7 @@
   --color-edge-uses: oklch(0.6 0.14 42);
   --color-edge-see-also: oklch(0.6 0.14 322);
   --color-edge-implemented-with: oklch(0.6 0.14 20);
-  --color-edge-mixed: #8a8071;
+  --color-edge-mixed: oklch(0.52 0.035 255);
 
   --color-edge-depends-on-raw: #94a3b8;
   --color-edge-uses-raw: #eb6834;
@@ -285,6 +285,9 @@
   --color-frame: #b0a693;                  /* a pane's own frame */
   --color-border-strong: rgba(53, 49, 42, 0.28);
   --color-border-dashed: #d3cabb;          /* dashed ALWAYS means conditional */
+  /* a walk-tinted CONTROL's border in its active state — a pressed toggle. Named
+     `border-walk` rather than `walk`, which is already the walk ACCENT below. */
+  --color-border-walk: #ddb26e;
 
   /* ══ Colour · ink ═════════════════════════════════════════════════════════ */
   --color-ink-1: #35312a;
@@ -306,8 +309,8 @@
   --color-editing: #2e86c8;        /* the line you are typing into — pond's vivid step, drawn on TEXT at 1px */
   --color-danger: #b4574a;
   --color-danger-wash: #fbf0ee;
-  --color-border-walk: #ddb26e;
-  --color-optional: #ddb26e;       /* @deprecated — same value as --color-border-walk; alias only */
+  /* `--color-optional` was deleted on 2026-08-21j with its token twin, OB-042's receipt having
+     landed at `aac8764`. Use `border-walk`; an optional node dashes its own border. */
 
   /* ══ Radii — the brand is ROUND. Nothing in a P.Kt UI is square. ══════════ */
   --radius-xs: 6px;

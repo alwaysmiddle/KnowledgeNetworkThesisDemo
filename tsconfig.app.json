@@ -32,9 +32,11 @@
     "noUncheckedSideEffectImports": true
   },
   "include": ["src"],
-  /* src/ds/adherence.test.ts scans the SOURCE for DS host-rule violations, so it
-     is a node program (node:fs, node:path) rather than app code. It builds under
-     tsconfig.node.json instead, which keeps "node" out of the types above — where
-     it would let app code reach for node APIs the browser does not have. */
-  "exclude": ["src/ds/adherence.test.ts"]
+  /* Two tests READ THE SOURCE rather than run it, so they are node programs
+     (node:fs, node:path) and not app code: adherence.test.ts scans for DS
+     host-rule violations, and edgecolor.test.ts reads the token stylesheets to
+     check the relation palette still matches them. Both build under
+     tsconfig.node.json instead, which keeps "node" out of the types above —
+     where it would let app code reach for node APIs the browser does not have. */
+  "exclude": ["src/ds/adherence.test.ts", "src/corpus/edgecolor.test.ts"]
 }
