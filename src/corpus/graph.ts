@@ -45,13 +45,34 @@ export const DOMAIN_COLOR: Record<string, string> = {
   se: '#1baf7a', // aqua — shipping
 }
 
+// THE NATURALISED COLUMN, NOT THE RAW ONE (OB-123). Until 2026-09-03 these were
+// full-saturation orange, red and hot pink drawn over paper pastels, while every
+// fill, label and walk hairline around them had already been naturalised — so the
+// relation arrows looked like they belonged to a different drawing, because they
+// did. `tokens/colors.css` states the rule they were breaching: a view converts its
+// swatches and its strokes together or not at all. Every legend swatch in the app
+// reads this same table, so they move together.
+//
+// The five values mirror `--edge-*` in `src/tokens/colors.css` exactly, and
+// `edgecolor.test.ts` reads that file and asserts they still agree. That test is the
+// point: a hand-kept mirror going stale unnoticed is precisely how
+// `--color-edge-mixed` sat a generation behind in `tokens/kn-theme.css`.
+//
+// WHY NOT `var(--edge-uses)` DIRECTLY: these strings are handed to SVG `stroke` and
+// `fill` PRESENTATION ATTRIBUTES, where a `var()` does not resolve — it is not a
+// parse error, the attribute is simply dropped and the shape renders black. Same
+// constraint that makes `src/model/color.ts` compute its own oklch values rather
+// than reading the tokens.
 export const EDGE_COLOR: Record<EdgeType, string> = {
-  depends_on: '#94a3b8', // neutral slate — the backbone, deliberately quiet
-  uses: '#eb6834', // orange
-  see_also: '#e87ba4', // magenta
-  implemented_with: '#e34948', // red
+  // --edge-depends-on. Deliberately NOT a ring hue: the prerequisite backbone is the
+  // common case, and the common case recedes.
+  depends_on: '#ada291',
+  uses: 'oklch(0.6 0.14 42)', // --edge-uses, via --hue-clay-stroke
+  see_also: 'oklch(0.6 0.14 322)', // --edge-see-also, via --hue-mallow-stroke
+  implemented_with: 'oklch(0.6 0.14 20)', // --edge-implemented-with, via --hue-brick-stroke
 }
-export const MIXED_EDGE_COLOR = '#64748b' // aggregate of several types
+// --edge-mixed: an aggregate of several types, deliberately not a 17th ring hue.
+export const MIXED_EDGE_COLOR = 'oklch(0.52 0.035 255)'
 
 export const EDGE_LABEL: Record<EdgeType, string> = {
   depends_on: 'builds on',
