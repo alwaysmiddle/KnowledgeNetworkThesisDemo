@@ -36,6 +36,12 @@ function tsxUnder(...paths: string[]): string[] {
     for (const e of readdirSync(p, { withFileTypes: true })) walk(join(p, e.name))
   }
   for (const p of paths) walk(join(ROOT, p))
+  // A SWEEP THAT SWEPT NOTHING PASSES EVERYTHING. Nine rules in this file end in
+  // `expect(...).toEqual([])` over a list this returns, and "no violations" is not a
+  // claim about the codebase unless something was actually read. A path that does
+  // not exist already throws in `statSync`; this covers the quieter case, a
+  // directory that survives a restructure with no .tsx left under it.
+  if (!out.length) throw new Error(`tsxUnder(${paths.join(", ")}) matched no .tsx files — every rule scanned over it would pass by reading nothing`)
   return out
 }
 
@@ -78,6 +84,21 @@ const show = (hits: Hit[]) => hits.map((h) => `${h.file}:${h.line}  ${h.text}`)
 // and is not. That single distinction separates the two cleanly across this app —
 // every `bg-white/95` chip floating over a canvas is correctly untouched, and it
 // SHOULD keep its background: it is not the body, it sits on top of one.
+describe('the sweep itself', () => {
+  // EVERY RULE IN THIS FILE ENDS IN `expect(...).toEqual([])`, which is also what an
+  // empty scan produces. These two make the rest mean something: one proves the
+  // scanner refuses to read nothing, the other proves it finds the app when asked.
+  it('refuses to scan nothing, so no rule below can pass by reading no files', () => {
+    // src/tokens holds the CSS custom-property files and nothing else — a .tsx will
+    // never live there, so this stays a stable stand-in for a path gone empty.
+    expect(() => tsxUnder('src/tokens')).toThrow(/matched no \.tsx files/)
+  })
+
+  it('and does find the app when asked for it', () => {
+    expect(tsxUnder('src').length).toBeGreaterThan(20)
+  })
+})
+
 describe('DS PaneHeader rule 2 — a pane body paints no background', () => {
   // CLEARED by OB-039 (#126). Every debt this list ever carried is now either a
   // PaneScroller/PaneCanvas body with no face of its own (ContoursView,

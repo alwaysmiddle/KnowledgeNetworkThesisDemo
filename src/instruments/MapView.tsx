@@ -64,6 +64,7 @@ import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/colo
 import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { bowFor, bowSignAt } from '../model/walkarrow'
+import { hoverMarks } from '../model/maphover'
 import { walkPins } from '../model/walkpins'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
@@ -710,17 +711,33 @@ export default function MapView({ bus }: { bus: Bus }) {
   // until the look is superseded (next look, any focus change). "Highlight" is
   // half of what the click asked for; the flight above is the other half.
   const lookId = peek ? (outlineOf(peek.id) ? peek.id : endpointAtTier(peek.id, 2)) : null
-  const spotId = hoverId && hoverId !== hover ? hoverId : lookId && lookId !== sel ? lookId : null
+
+  // item 2: WHICH HOVER GETS WHAT. The spotlight described above and the card
+  // described below are one decision with two different answers, so they are
+  // decided together, in `src/model/maphover.ts` rather than inline here — that
+  // file's header carries the reasoning. The short version is OB-127 (#251): a
+  // hover published by another pane lights a cell and stops there. It used to
+  // also raise a card, at whatever point over this pane the cursor last occupied,
+  // which was routinely nowhere near the cell being reported.
+  const marks = hoverMarks({
+    cursorCell: hover,
+    selectedCell: sel,
+    publishedCell: hoverId,
+    lookedAtCell: lookId,
+    onRelation: hoverEdge !== null,
+  })
+  const spotId = marks.spotlightId
   const spotOutline = spotId ? outlineOf(spotId) : undefined
 
-  // item 2: THE HIGHLIGHTED CELL — whichever one is lit on the map right now, be it my
-  // own cursor's (hover) or a cross-pane hover's spotlight (spotId). It feeds
-  // MapTooltip's immediate title readout, rather than the native <title>, which
-  // lags ~half a second and is OS-styled; this reads the moment the pointer
-  // lands. Named `hoverChip` until 2026-08-28 (#221), after the fixed top-left
-  // hover chip it used to feed — OB-095 deleted that surface at 1e530af and
-  // OB-096 put a cursor-anchored tooltip in its place; the name outlived it.
-  const hoverNode = hover ?? spotId
+  // THE CELL THE CARD IS ABOUT — our own cursor's, and now only ever our own. It
+  // feeds MapTooltip's immediate title readout rather than the native <title>,
+  // which lags ~half a second and is OS-styled; this reads the moment the pointer
+  // lands. Called `hoverChip` until 2026-08-28 (#221) after the fixed top-left
+  // chip it used to feed (OB-095 deleted that surface at 1e530af, OB-096 put the
+  // cursor-anchored card in its place), then `hoverNode` until OB-127 took the
+  // published hover out of it. Named for the card now, since the name has already
+  // outlived two surfaces.
+  const cardNode = marks.card?.kind === 'node' ? marks.card.id : null
 
   // ── #238: WHEN THE CURSOR'S POSITION IS WORTH KNOWING ─────────────────────
   // `pointerPos` is read for exactly one thing — placing MapTooltip beside the
@@ -734,38 +751,29 @@ export default function MapView({ bus }: { bus: Bus }) {
   // re-render of ~500 SVG elements to move a card that was not on screen, against
   // a 4ms idle floor. Measured by tools/studio-spike/probe-maplag.mjs.
   //
-  // What this does NOT fix, and the issue stays open for: while the tooltip IS up
-  // the gate is open and the per-move re-render is back at full price (~420ms on
-  // the same measure). Removing that too means not putting the position in state
-  // at all — writing it to the card's own style through a ref. That is deliberately
-  // not done here: the Design System is being asked whether MapTooltip should
-  // anchor to the hovered ELEMENT rather than the cursor, which deletes this whole
-  // class of work instead of optimising it, and would throw the ref machinery away.
-  const tipLive = hoverEdge !== null || hoverNode !== null
+  // What this does NOT fix, and #238 stays open for: while the tooltip IS up the
+  // gate is open and the per-move re-render is back at full price (~420ms on the
+  // same measure). Removing that too means not putting the position in state at
+  // all — writing it to the card's own style through a ref. That was held back
+  // pending the Design System's answer on whether MapTooltip anchors to the hovered
+  // ELEMENT instead, which would have deleted this class of work rather than
+  // optimised it. OB-127 answered: the cursor, unqualified. So the ref rewrite is
+  // now all that is left of #238, and it waits on nobody.
+  const tipLive = marks.card !== null
 
-  // The one hover that arrives with no pointer event of ours to hang the placement
-  // off: `spotId`, a hover published by ANOTHER instrument. Keyed on spotId alone,
-  // so it fires when the bus hover changes and not on every cell boundary the
-  // cursor crosses. useLayoutEffect rather than useEffect so the card is placed
-  // before paint instead of visibly jumping into position after it.
-  //
-  // Worth naming what this still cannot do: there is no cursor over this pane in
-  // that case, so the card lands at the last position that was, which may be
-  // nowhere near the cell being reported. That is a property of cursor-anchoring,
-  // not of the gate, and it is one of the two things #238 puts to the Design
-  // System — element-anchoring would answer it for free.
-  useLayoutEffect(() => {
-    if (spotId) placeTipAtCursor()
-  }, [spotId])
+  // REMOVED at OB-127, recorded so it is not rebuilt: a `useLayoutEffect` keyed on
+  // `spotId` that called `placeTipAtCursor()` whenever another pane published a
+  // hover, placing the card before paint so it did not visibly jump. Careful work
+  // on a problem that stopped existing — that case draws no card at all now.
 
   // OB-096 — the hovered node's OWN roads, for MapTooltip's relations row. A
   // fresh call rather than reusing the selection's `bundles`/`arrows` above:
   // the hovered node is rarely the selected one, and roadsFor is cheap
   // enough at this corpus's scale (memoised on the id, so cursor movement
   // that stays inside one cell recomputes nothing).
-  const { arrows: hoverArrows } = useMemo(() => roadsFor(hoverNode), [hoverNode])
-  const hoverRelIn = hoverNode ? hoverArrows.filter((a) => a.tgt === hoverNode).reduce((s, a) => s + a.n, 0) : 0
-  const hoverRelOut = hoverNode ? hoverArrows.filter((a) => a.src === hoverNode).reduce((s, a) => s + a.n, 0) : 0
+  const { arrows: hoverArrows } = useMemo(() => roadsFor(cardNode), [cardNode])
+  const hoverRelIn = cardNode ? hoverArrows.filter((a) => a.tgt === cardNode).reduce((s, a) => s + a.n, 0) : 0
+  const hoverRelOut = cardNode ? hoverArrows.filter((a) => a.src === cardNode).reduce((s, a) => s + a.n, 0) : 0
 
   // item 3: a hovered counterpart lights the ROAD to it, not just its territory.
   // The bus hover arrives as a topic id (a Connections relationship row) or a map
@@ -1569,13 +1577,13 @@ export default function MapView({ bus }: { bus: Bus }) {
           ) : (
             <MapTooltip
               kind="node"
-              hue={colorOf(hoverNode!)}
-              title={byId.get(hoverNode!)!.title}
-              typeLabel={byId.get(hoverNode!)!.topic ? 'topic' : byId.get(hoverNode!)!.kind}
-              nodeCount={byId.get(hoverNode!)!.kind === 'container' ? descendantCount(hoverNode!) : undefined}
+              hue={colorOf(cardNode!)}
+              title={byId.get(cardNode!)!.title}
+              typeLabel={byId.get(cardNode!)!.topic ? 'topic' : byId.get(cardNode!)!.kind}
+              nodeCount={byId.get(cardNode!)!.kind === 'container' ? descendantCount(cardNode!) : undefined}
               relationsIn={hoverRelIn}
               relationsOut={hoverRelOut}
-              parent={parentOf(hoverNode!) !== ROOT_ID ? byId.get(parentOf(hoverNode!))?.title : undefined}
+              parent={parentOf(cardNode!) !== ROOT_ID ? byId.get(parentOf(cardNode!))?.title : undefined}
             />
           )}
         </div>
