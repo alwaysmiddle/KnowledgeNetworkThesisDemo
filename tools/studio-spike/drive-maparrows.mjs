@@ -108,6 +108,24 @@ const measure = () =>
         ? toScreen(shaft, shaft.x1.baseVal.value, shaft.y1.baseVal.value)
         : (() => { const p = shaft.getPointAtLength(0); return toScreen(shaft, p.x, p.y) })()
       const cased = [...g.querySelectorAll('[stroke*="surface-raised"], [fill*="surface-raised"]')].length
+      /* THE DRAWN HEAD, read as the rendered triangle's own bbox — OB-126's done-when asks
+         for the bbox and not the attribute, because the attribute is the number we set and
+         the bbox is the number a reader sees. Taken in the arrow's LOCAL user space, where a
+         straight arrow's head is axis-aligned: bbox width is the head's length along the
+         shaft, height its full across. The casing draws a larger triangle first, so the
+         painted head is the last filled path that is neither `none` nor the casing. */
+      const headEl = [...g.querySelectorAll('path')].filter((el) => {
+        const f = el.getAttribute('fill') || ''
+        return f && f !== 'none' && !f.includes('surface-raised')
+      }).pop()
+      const hb = headEl ? headEl.getBBox() : null
+      const head = hb ? { along: Math.round(hb.width * 100) / 100, across: Math.round(hb.height * 100) / 100 } : null
+      /* the shaft's own local length, for the ratio below. The component draws x2 at
+         `length + 1` (a 1px overlap into the head), so this runs a pixel long — which makes
+         the ratio very slightly conservative, in the safe direction. */
+      const localLen = shaft.tagName === 'line'
+        ? Math.round(Math.abs(shaft.x2.baseVal.value - shaft.x1.baseVal.value) * 100) / 100
+        : null
       // and HOW FAR THE DRAWN LINE LEAVES ITS OWN CHORD, in screen px. The
       // formula's own answer is unit-tested; what only a browser can say is what
       // that becomes after the rotate and the counter-scale, which is the number
@@ -129,7 +147,7 @@ const measure = () =>
           bulge = Math.max(bulge, Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / screenLen)
         }
       }
-      out.push({ i, bow, start, cased, bulge, screenLen, from: pins[i], to: pins[i + 1] })
+      out.push({ i, bow, start, cased, bulge, screenLen, head, localLen, from: pins[i], to: pins[i + 1] })
     }
     return { pins: pins.length, arrows: out }
   })
@@ -186,6 +204,77 @@ for (let i = 0; i < 6; i++) {
   sweep.push({ level: await levelNow(), ...(await measure()) })
 }
 const fmt = sweep.map((s) => `L${s.level}:${s.arrows.filter((a) => a.bow !== 0).length}/${s.arrows.length}`).join(' ')
+
+// ── OB-126: ONE HEAD ACROSS THE WHOLE WALK, AND NOT A SPEARHEAD ───────────
+// MEASURED OVER THE WHOLE SWEEP, NOT AT L0, and that is the difference between a check
+// and a decoration. At L0 this walk's hops are all ~172px, every one of them under the
+// ~267px where the length cap starts to bite, so all three draw the published 8px head
+// whether or not the view sized them as a set — the assertion would pass on the code it
+// is here to catch. Diving levels stretches the hops until they straddle that threshold,
+// which is the only place the two behaviours differ.
+//
+// Straight arrows only: a bowed head is rotated by the curve's own tangent inside the
+// same local space, so its axis-aligned bbox measures the rotation rather than the head.
+const allStraightLens = sweep.flatMap((s) => s.arrows).filter((a) => a.bow === 0 && a.head && a.localLen).map((a) => a.localLen)
+const straightBy = sweep.map((s) => {
+  const st = s.arrows.filter((a) => a.bow === 0 && a.head && a.localLen)
+  return {
+    level: s.level,
+    heads: [...new Set(st.map((a) => `${a.head.along}×${a.head.across}`))],
+    lens: st.map((a) => a.localLen),
+  }
+}).filter((p) => p.lens.length >= 2)
+
+ok('there are levels with straight arrows to compare', straightBy.length > 0,
+  `${straightBy.length} of ${sweep.length}`)
+
+// WHAT THIS MAP ACTUALLY DRAWS, AND IT IS NOT WHAT OB-126 DESCRIBES — measured here
+// rather than argued, because the item's own premise is the thing that turned out to be
+// wrong. It was filed off a screenshot read as "a 4px shaft over ~450px, scale 2.67, so a
+// 21px head 23.5px across". The map passes `joins={PIN_RING_WIDTH}`, and PIN_RING_WIDTH is
+// 1.5 — FULL RANK. At full rank the weight scale is 1, so the proportional head IS the
+// published 8, and no length can lift it: the cap only ever reduces. This map has drawn an
+// 8px head on every walk arrow at every length, all along. The 4px shaft in the screenshot
+// is the screenshot's own scale, not the shaft.
+//
+// Which makes the two checks below REGRESSION GUARDS rather than proof of a fix, and saying
+// so is the point of this comment. The uniformity check CANNOT currently fail: at full rank
+// every arrow answers 8 whether the view sizes the set or each arrow answers for itself. It
+// becomes able to fail the moment the pin ring gets heavier than full rank — which is
+// precisely the state the item describes, and the state in which this map would have grown
+// the spearhead it was opened about. The head assertion below therefore pins the WEIGHT as
+// well as the size, so a heavier ring shows up here as a failure to look at rather than as a
+// silent change of drawing.
+const drawnHeads = [...new Set(straightBy.flatMap((p) => p.heads))]
+ok('the walk draws ONE head, the published 8×8.8, at every level and every hop length',
+  drawnHeads.length === 1 && drawnHeads[0] === '8×8.8',
+  `${drawnHeads.join(', ')} over ${allStraightLens.length} straight hops, ${Math.round(Math.min(...allStraightLens))}–${Math.round(Math.max(...allStraightLens))}px`)
+
+const split = straightBy.filter((p) => p.heads.length > 1)
+ok('every arrow on a level draws the SAME head, however long its own hop',
+  split.length === 0,
+  split.length
+    ? split.map((p) => `L${p.level}: ${p.heads.join(' vs ')}`).join('; ')
+    : straightBy.map((p) => `L${p.level}:${p.heads[0]}`).join(' '))
+
+// the fault this item was opened about: the map's 4px pin ring scales the published head
+// by 2.67, so before the cap a long hop drew a 21px head 23.5px across — a spearhead on a
+// hairline curve
+const allStraight = sweep.flatMap((s) => s.arrows).filter((a) => a.bow === 0 && a.head && a.localLen)
+const overCap = allStraight.filter((a) => a.head.along > Math.max(8.01, a.localLen * 0.03))
+ok('no arrow anywhere draws a head over 3% of its own shaft',
+  overCap.length === 0,
+  overCap.length
+    ? overCap.map((a) => `${a.head.along}px on ${Math.round(a.localLen)}px`).join(', ')
+    /* reported over the LONG arrows only. A short hop sits at the 8px floor, so its ratio is
+       naturally over 3% (8/171 = 4.7%) and quoting it as the worst case would read as a near
+       miss when it is the floor doing exactly its job. */
+    : (() => {
+        const long = allStraight.filter((a) => a.localLen > 267)
+        return long.length
+          ? `worst ${Math.max(...long.map((a) => a.head.along / a.localLen * 100)).toFixed(2)}% over ${long.length} long arrows (${allStraight.length - long.length} more at the 8px floor)`
+          : `${allStraight.length} straight arrows, all at the 8px floor`
+      })())
 
 const anyBowed = sweep.flatMap((s) => s.arrows).filter((a) => a.bow !== 0)
 ok('the walk doubles back somewhere, and those arrows bow', anyBowed.length > 0, `bowed/total by level — ${fmt}`)

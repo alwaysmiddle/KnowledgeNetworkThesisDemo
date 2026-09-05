@@ -110,6 +110,17 @@ export interface NodeArrowProps {
    *  adjacent territories) as fully as a long one. Works with `bow`; the casing follows the
    *  curve too. Default false. */
   casing?: boolean
+  /** ★ LOCAL — THE HEAD THIS ARROW MUST DRAW, when a view has computed one head for a whole
+   *  SET of arrows. Takes `headForSet`'s result verbatim and overrides this arrow's own
+   *  `headFor({ joins, length })`.
+   *
+   *  IT IS LOCAL BECAUSE THE DS PUBLISHED `headForSet` WITH NOWHERE TO PUT ITS ANSWER. That
+   *  function's whole contract is "call it ONCE per view and pass the result to all of them",
+   *  and OB-126's done-when asks for two rendered heads on one map to measure the same
+   *  triangle — but `NodeArrow` exposes no prop that accepts a head, so every arrow re-derives
+   *  its own from its own length, which is exactly the emphasis fault `headForSet` exists to
+   *  remove. Reported; delete this prop and pass the object however the DS decides to take it. */
+  headSize?: { head: number; halfWidth: number }
 }
 
 const TONE: Record<string, string> = {
@@ -128,9 +139,16 @@ const DASH = '4 4'
  *  into a `length`) and the cross-axis extent (to centre the shaft on the column). Same
  *  shape as NodeChip's `chipSize` and VersionedGroup's `GROUP_METRICS`. */
 export const ARROW_METRICS = {
-  /** the head's length along the shaft at the full-rank shaft weight — an arrow's total
-   *  span is `length + head`. The RESERVED value: a lighter `joins` draws a smaller head
-   *  (OB-067), never a larger one, so a board sizing off this constant always has room. */
+  /** the head's length along the shaft at the PUBLISHED STUB — weight 1.5, length 14. An
+   *  arrow's total span is `length + head`.
+   *
+   *  THIS IS A SAFE UPPER BOUND ONLY WHEN A `length` IS UNKNOWN, and the sentence it replaces
+   *  was false (OB-126). That sentence said a lighter `joins` draws a smaller head "never a
+   *  larger one, so a board sizing off this constant always has room" — true only for shafts
+   *  LIGHTER than full rank, which is all the OB-067 scaling contemplated. A HEAVIER shaft
+   *  scales the head UP: the map's own 4px pin ring over a 450px hop drew a 21px head 23.5px
+   *  across off exactly this number, a spearhead on a hairline curve. Ask `headFor({ joins,
+   *  length })` for the head that will actually be drawn. */
   head: 8,
   /** the head's half-width at the full-rank shaft weight, either side of the shaft — the
    *  same reservation as `head`. */
@@ -140,9 +158,78 @@ export const ARROW_METRICS = {
    *  file used to carry is gone: a gap that meets something else asks `shaftFor` for its own
    *  weight and does not come here. */
   stroke: SHAFT_STROKE,
-  /** the cross-axis extent of the whole drawing; the shaft sits at `across / 2` */
+  /** the cross-axis extent of the whole drawing; the shaft sits at `across / 2` ONLY in the
+   *  plain case (full rank, no casing, no bow, short) — `shaftTailOffset` is the real answer */
   across: 4.4 * 2 + 3,
+  /** THE HEAD'S CEILING ON A LONG LINE, as a fraction of the shaft's own `length`. CHOSEN,
+   *  not derived (OB-126). The head is sized off the shaft's WEIGHT, which was the whole story
+   *  while every caller drew a 14px gap between two chips. On a long routed line it is the
+   *  wrong input: `head: 8` against `stroke: 1.5` is a head 5.9× its shaft's width, and that
+   *  ratio is RIGHT for a stub, where the head IS the arrow and the shaft is barely there.
+   *  Carried onto a 4px shaft over 450px it draws a symbol sitting on a curve rather than a
+   *  terminator on a line. A long shaft does not need a proportionally large head, because the
+   *  line is already unmissable; the head only has to end it. 0.03 puts a 450px line on a
+   *  13.5px head 14.9px across — 3.7× its shaft. Tune the LOOK upstream; no arithmetic forces
+   *  0.03. */
+  headLengthMax: 0.03,
 } as const
+
+/** THE DRAWN HEAD — `{ head, halfWidth }` for the arrow about to be rendered, which is what
+ *  `ARROW_METRICS` only describes at the published stub.
+ *
+ *  TWO INPUTS PULLING OPPOSITE WAYS. The shaft's WEIGHT (`joins`) scales the head up: a heavy
+ *  line needs a head that can terminate it. The shaft's LENGTH caps it: a long line is already
+ *  unmissable, so its head only has to end it.
+ *
+ *  OMIT `length` AND YOU GET THE UPPER BOUND, deliberately, rather than a default standing in
+ *  for a real number: the cap can only ever reduce the head, so a board reserving space before
+ *  it knows its own span gets a box no drawing will overflow. Pass `length` for the drawn
+ *  value — and the SAME `length` to `shaftTailOffset`, which reads `halfWidth` from here. */
+export function headFor(
+  opts: { joins?: ChipForm | number; length?: number } = {},
+): { head: number; halfWidth: number } {
+  const { joins, length } = opts
+  const T = joins !== undefined ? shaftFor(joins) : SHAFT_STROKE
+  const proportional = ARROW_METRICS.head * (T / SHAFT_STROKE)
+  /* min against max(published, cap) rather than against the cap alone, so the ceiling never
+     bites a SHORT line: at length 14 the cap is 0.42px and the published 8px head stands. */
+  const cap = length === undefined ? Infinity : Math.max(ARROW_METRICS.head, length * ARROW_METRICS.headLengthMax)
+  const head = Math.round(Math.min(proportional, cap) * 100) / 100
+  /* the triangle keeps its proportions: halfWidth follows the head's OWN final ratio, not the
+     shaft's, so a capped head is a smaller version of the same arrowhead. */
+  return { head, halfWidth: Math.round(ARROW_METRICS.halfWidth * (head / ARROW_METRICS.head) * 100) / 100 }
+}
+
+/** ONE HEAD FOR A SET OF ARROWS DRAWN TOGETHER — pass every shaft length in the picture and
+ *  give the answer to all of them. A view that draws MANY arrows at once must not let
+ *  `headFor` size each one off its own length.
+ *
+ *  WHY, and it is the opposite failure to the one the cap was written for. The cap fixes a
+ *  LONE long line, where a head sized off weight alone becomes a spearhead. Read across a SET
+ *  at one weight it does something else: head size becomes a function of length, and length is
+ *  already drawn by the line. On this map's own walk, hops under ~267px take the published 8px
+ *  head and hops over ~427px take the full 12.8px — 2.5× the triangle's AREA, on arrows that
+ *  mean exactly the same thing, and a reader takes a bigger head as EMPHASIS.
+ *
+ *  THE ANSWER IS THE SMALLEST HEAD THE SET ALLOWS, not an average and not a chosen constant:
+ *  every arrow then carries a head its own shaft could have carried, so the set is uniform
+ *  without any single arrow being overdrawn. A set containing one short hop resolves to
+ *  `ARROW_METRICS.head` (8). Averaging was rejected — it lets a short arrow wear a head too big
+ *  for it, the fault the cap exists to prevent.
+ *
+ *  Call it ONCE per view and pass the result to every arrow through `headSize`. */
+export function headForSet(
+  opts: { joins?: ChipForm | number; lengths?: number[] } = {},
+): { head: number; halfWidth: number } {
+  const { joins, lengths } = opts
+  if (!lengths || lengths.length === 0) return headFor({ joins })
+  let best: { head: number; halfWidth: number } | null = null
+  for (const L of lengths) {
+    const h = headFor({ joins, length: L })
+    if (best === null || h.head < best.head) best = h
+  }
+  return best!
+}
 
 /** THE HALO (OB-116) — a caller-drawn line's own casing: `--surface-raised` behind the shaft
  *  AND the head, so the arrow reads against any fill under it rather than only against the
@@ -177,28 +264,34 @@ const CASING_OPACITY = 0.92
  *  positive one leaves it where it was, so the same magnitude bowed either way would not be
  *  symmetric about the line. Reported for the DS to publish; delete this when it does. */
 export function shaftTailOffset(
-  opts: { joins?: ChipForm | number; bow?: number; casing?: boolean } = {},
+  opts: { joins?: ChipForm | number; bow?: number; casing?: boolean; length?: number; headSize?: { head: number; halfWidth: number } } = {},
 ): { along: number; across: number } {
-  const { joins, bow = 0, casing = false } = opts
-  const T = joins !== undefined ? shaftFor(joins) : SHAFT_STROKE
-  const scaledHalf = Math.round(ARROW_METRICS.halfWidth * (T / SHAFT_STROKE) * 100) / 100
+  const { joins, bow = 0, casing = false, length, headSize } = opts
+  /* `length` (OB-126) reaches the tail through `halfWidth`, which follows the capped head's
+     ratio — so a LONG arrow's tail sits closer to its box's midline than it used to. Omitting
+     it keeps the pre-cap arithmetic, which is the upper bound: safe for reserving space, WRONG
+     as a position for anything past ~267px. Pass what you pass the render. `headSize` overrides
+     both, for a caller drawing a SET at one head; see `headForSet`. */
+  const scaledHalf = (headSize ?? headFor({ joins, length })).halfWidth
   const across = scaledHalf * 2 + 3
   const pad = casing ? Math.ceil(CASING_EXTRA / 2) + 1 : 0
   return { along: pad, across: pad + (bow >= 0 ? across / 2 : across / 2 + Math.abs(bow)) }
 }
 
 export function NodeArrow({
-  direction = 'down', length = 14, tone = 'walk', dashed, color, title, joins, bow = 0, casing = false,
+  direction = 'down', length = 14, tone = 'walk', dashed, color, title, joins, bow = 0, casing = false, headSize,
 }: NodeArrowProps) {
   const paint = color || TONE[tone] || TONE.walk
   /* the rule, applied — the neighbour's form decides, and the default is the full-rank
      chain that draws most of these */
   const T = joins !== undefined ? shaftFor(joins) : SHAFT_STROKE
-  // the head scales with the shaft it sits on (OB-067) — 1 at the full-rank case, so the
-  // common chain/road draw is untouched; ARROW_METRICS stays the reservation, never exceeded.
-  const scale = T / SHAFT_STROKE
-  const scaledHead = Math.round(ARROW_METRICS.head * scale * 100) / 100
-  const scaledHalf = Math.round(ARROW_METRICS.halfWidth * scale * 100) / 100
+  /* THE HEAD, from the one function that owns both corrections (OB-067's weight scaling and
+     OB-126's length cap) rather than re-derived here. `headSize` wins when a view has sized a
+     whole SET at once — see the prop, and `headForSet`. At the full-rank stub every path
+     through this returns the published 8 / 4.4, so the chain and the road draw as they did. */
+  const drawnHead = headSize ?? headFor({ joins, length })
+  const scaledHead = drawnHead.head
+  const scaledHalf = drawnHead.halfWidth
   const span = length + scaledHead
   const across = scaledHalf * 2 + 3
   const down = direction === 'down'
