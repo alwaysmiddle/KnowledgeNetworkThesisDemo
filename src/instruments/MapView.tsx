@@ -66,6 +66,7 @@ import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabel
 import { bowFor, bowSignAt } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
 import { walkPins } from '../model/walkpins'
+import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
 import type { FitLine, LabelBox } from '../model/labelfit'
@@ -214,11 +215,19 @@ export default function MapView({ bus }: { bus: Bus }) {
   // beside the cursor (screen-relative to the svg, not a fixed corner);
   // `hoverEdge` is which selection-overlay road, if any, the cursor is on
   // (a relation tooltip only ever has something to show while a selection's
-  // roads are drawn); `walkVisible` gates the walk-route pins the visibility
-  // toggle hides.
+  // roads are drawn).
   const [pointerPos, setPointerPos] = useState<XY | null>(null)
   const [hoverEdge, setHoverEdge] = useState<Bundle | null>(null)
-  const [walkVisible, setWalkVisible] = useState(true)
+  // THE VISIBILITY EYE hides THE WHOLE WALK DRAWING — pins AND arrows, one wrapper,
+  // since OB-122 — and it hides it PER WALK (OB-134 clause 4, #252). This comment used
+  // to say the flag gated "the walk-route pins", which had described half of what it
+  // did for two of the DS's items, and is very likely the sentence their stale reading
+  // (`1e530af`) was taken from. `hiddenWalks` is the set of walks the eye has hidden;
+  // `walkVisible` is derived, so a change of walk shows the new walk with no click and
+  // no effect — the rule itself is `src/model/walkvisibility.ts`.
+  const [hiddenWalks, setHiddenWalks] = useState<ReadonlySet<string>>(() => new Set())
+  const walkKey = walkKeyOf(bus.activeWalk)
+  const walkVisible = walkDrawn(hiddenWalks, walkKey)
 
   // #238 — the last cursor position seen over this pane, in CLIENT coords. A ref
   // and not state, deliberately: it is written on every single pointermove and
@@ -1628,7 +1637,8 @@ export default function MapView({ bus }: { bus: Bus }) {
           exist, and the selection summary folds into MapTooltip above. ── */}
       <LevelPicker style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
       <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <MapFloatingButton size={36} title={walkVisible ? 'hide walk nodes' : 'show walk nodes'} onClick={() => setWalkVisible((v) => !v)}>
+        {/* names the DRAWING, not its nodes: the button moves pins and arrows together */}
+        <MapFloatingButton size={36} title={walkVisible ? 'hide the walk' : 'show the walk'} onClick={() => setHiddenWalks((h) => toggleWalkHidden(h, walkKey))}>
           <VisibilityMark open={walkVisible} style={walkVisible ? undefined : { color: 'var(--bark-400)' }} />
         </MapFloatingButton>
         <ZoomControl onZoomIn={() => flyToLevel(level + 1)} onZoomOut={() => flyToLevel(level - 1)} zoomInDisabled={level >= L_MAX} zoomOutDisabled={level <= 0} />
