@@ -7,6 +7,9 @@ import { PaneFrameContext } from '../chrome/PaneHeader'
 import { WalkerMark } from '../chrome/WalkerMark'
 import { LocateMark } from '../chrome/LocateMark'
 import { StepDot } from './StepDot'
+import { WalkPreview, previewAnchor } from './WalkPreview'
+import { StopTitle, PlayToggle, stopState, WALK_HOVER_GROW, WALK_ROW_HOVER_GROW, walkHoverStyle } from './WalkParts'
+import type { StopState } from './WalkParts'
 
 /** how much wheel delta commits ONE step of the walk in the seek variant. Not a
  *  pixel scroll — the accumulated delta crosses this and the cursor moves to the
@@ -17,12 +20,31 @@ const WHEEL_STEP_PX = 40
  *  written once here and read back by the renderer cannot drift from a number retyped
  *  at a call site. */
 export const WALK_METRICS = {
-  dot: 28,
-  slotW: 56,
-  gap: 34,
-  labelOverhang: 16,
-  walkerLift: 4,
+  dot: 28,        /* the rail dot's own size — bigger than the trail's 24: this pane's
+                      one job is reading the walk, so the mark gets the room */
+  slotW: 56,      /* the dot's own column — tight around the 28px dot, so the arrow's
+                      gap (below) is the only real space between it and its neighbour;
+                      the label bleeds past this on both sides via `labelOverhang` */
+  gap: 34,        /* arrow length between two dots — the arrow's head adds a few more.
+                      Sized together with `labelOverhang` so two full-width wrapped
+                      labels can never touch. */
+  labelOverhang: 16, /* how far the title label may bleed past its own dot's column,
+                        left and right — capped so a label's total width (slotW + 2×this)
+                        stays under dot-to-dot spacing (owner-reported, 2026-08-23). */
+  walkerLift: 4,  /* clearance between the walker mark's feet and the dot's own ring */
+  walker: 22,     /* the walker mark's own size. Published because the TRACK's top padding is
+                      derived from it (`walker + walkerLift`) rather than guessed: the mark is
+                      absolutely positioned above the dot, so it does not push the track open
+                      and a padding short of this clips its head. */
   corner: 28,
+  countRow: 15, /* the count's own reserved row — the figure's own line box at `--fs-micro`
+                    plus a hair, not a round number. It was 18, which put 3px of air under a
+                    line of 11px type in a pane the owner was already calling too big. It is
+                    also the difference between the two minimum heights (115 / 130). */
+  transport: 26,  /* the play/pause button's own square in the seek row. Smaller than the
+                      corner act (28) on purpose: the corner act is an occasional rescue and
+                      wants the bigger target, this one sits permanently beside a 4px rail and
+                      would otherwise be the loudest thing in the row. */
 }
 
 /**
@@ -38,7 +60,12 @@ export const WALK_METRICS = {
  * same fact along the connecting line: acorn behind the cursor, quiet bark ahead. Never
  * dashed for this — dashing means CONDITIONAL, and "not yet walked" is not that.
  *
- * Typed port of the DS WalkStrip.jsx (contract: WalkStrip.d.ts). */
+ * THE ROW ANSWERS AS A WHOLE (`WALK_ROW_HOVER_GROW` 1.08) AND THE HOVERED STOP LOUDER
+ * (`WALK_HOVER_GROW` 1.18), both from `WalkParts` — the marks growing inside their
+ * fixed-width slot, so the row never reflows (OB-140).
+ *
+ * Typed port of the DS WalkStrip.jsx (contract: WalkStrip.d.ts); re-ported 2026-09-05
+ * under OB-131/OB-133 (transport, count, WalkPreview, WalkParts, the 115/130 box). */
 export interface WalkStep {
   id: string
   title: string
@@ -46,7 +73,9 @@ export interface WalkStep {
   note?: string
   /** the step the walk may skip. Draws with a DASHED ring — never a different colour
    *  or weight — and the arrow leading INTO it dashes on its own; never pass `dashed`
-   *  anywhere for that yourself. Same rule `NodeChain` already follows for `NodeChip`. */
+   *  anywhere for that yourself. Same rule `NodeChain` already follows for `NodeChip`.
+   *  Its title carries " (optional)" — `WalkParts`' `StopTitle`, the same span the dock's
+   *  open row draws, so the word and its styling cannot differ between the two. */
   optional?: boolean
 }
 
@@ -57,13 +86,17 @@ export interface WalkStripProps {
   /** 'seek' (default) — no scrollbar, a waypoint seek bar under the track instead.
    *  'scrollbar' — the house-styled native scrollbar, no seek bar, no waypoints, no
    *  hover preview (a native scrollbar has no hoverable surface to hang one on).
-   *  Both variants share every other piece — the track, the walker, the optional
-   *  treatment, the corner act — through the same code path; only the track's own
-   *  scroll affordance changes. */
+   *  Both variants share every other piece through the same code path. */
   variant?: 'seek' | 'scrollbar'
-  /** shows the walk's own node count ("12 nodes", bare like `VersionedGroup`'s own
-   *  tally) in a reserved row above the track. Off by default — this MOVES THE BOX: it
-   *  adds 18px to the strip's own minimum height (154 → 172). */
+  /** THE COUNT ROW, and WHICH FACT IT CARRIES (2026-09-01). `'total'` — the walk's own
+   *  SIZE, "60 nodes". `'position'` — where the cursor STANDS in it, "12 / 60 nodes".
+   *  Omitted — no row at all, and the minimum height drops by `WALK_METRICS.countRow`.
+   *  Two DIFFERENT FACTS in the same corner, so one prop with two values rather than a
+   *  boolean that quietly changed meaning. In `'position'` the separator is inside the
+   *  mono run (`12 / 60`) so the pair holds its column as the cursor crosses 9 → 10. */
+  count?: 'total' | 'position'
+  /** @deprecated Pass `count="total"` instead — same row, same drawing. Kept working and
+   *  not a meaning change: `showCount` always meant the walk's SIZE. `count` wins if both. */
   showCount?: boolean
   /** index of the step the cursor is standing on. THE HOST OWNS THIS, AND ONLY THIS —
    *  the strip has no click-to-jump. A step's dot and label are display only; the app
@@ -71,22 +104,29 @@ export interface WalkStripProps {
   cursor: number
   /** the pointer entered step `index`, or left every step (`null`). This is NOT how
    *  the cursor moves — it is the one thing a pointer here still reports, for another
-   *  pane that wants to react to "the user is looking at step N" without the strip
-   *  needing to know why. */
+   *  pane that wants to react to "the user is looking at step N". */
   onStepHover?: (index: number | null) => void
   /** the pointer entered the arrow leading INTO step `index`, or left every arrow
-   *  (`null`). Same report-only contract as `onStepHover`, for the gap rather than the
-   *  stop itself. */
+   *  (`null`). Same report-only contract as `onStepHover`, for the gap. */
   onArrowHover?: (index: number | null) => void
-  /** SEEK VARIANT ONLY — the seek bar (or a click-and-drag pan of the track itself)
-   *  picked step `index`, live during a drag. This is the one control in the whole
-   *  component allowed to move the walk's cursor; the host is expected to set
-   *  `cursor` to `index` in response. Never fires in `variant="scrollbar"`. */
+  /** SEEK VARIANT ONLY — the seek bar (always mounted, OB-089), a click-and-drag pan of
+   *  the track, OR a mouse wheel over the pane picked step `index`, live during the
+   *  gesture. The host is expected to set `cursor` to `index` in response. Never fires
+   *  in `variant="scrollbar"`. */
   onSeek?: (index: number) => void
+  /** THE SECOND CONTROL THAT MOVES THE CURSOR, and the only other one (2026-09-01). Pass
+   *  a handler and a play/pause button mounts at the LEFT END OF THE SEEK ROW; omit it
+   *  and there is no transport at all, rather than a dead button. The strip does not run
+   *  the walk and holds no timer: this fires, the HOST plays. IT DOES NOT FIRE `onSeek`. */
+  onPlayToggle?: () => void
+  /** which glyph the transport draws — play (false) or pause (true). Display only; the
+   *  strip never sets it and never infers it from `cursor` moving. */
+  playing?: boolean
   /** hovering the seek bar (no click), OR a node's own dot, shows a small preview
    *  window near the pointer/dot. Return the preview content for `step`; the strip
-   *  only positions the popup and never invents a fallback — omit this and hovering
-   *  shows nothing extra. */
+   *  only positions the popup and never invents a fallback. THE POPUP IS `WalkPreview`
+   *  (2026-09-01), the same element `WalkDock` and the map's walk pins use — pass all
+   *  three the SAME function and a stop previews identically wherever the pointer finds it. */
   renderPreview?: (step: WalkStep, index: number) => ReactNode
   /** fires after the corner act recentres the scroller. */
   onRecenter?: () => void
@@ -96,9 +136,11 @@ interface StopProps {
   n: number
   title: string
   note?: string
-  state: 'done' | 'current' | 'ahead'
+  state: StopState
   current: boolean
   optional?: boolean
+  /** the whole row is under the pointer — every mark grows by `WALK_ROW_HOVER_GROW` */
+  rowHot: boolean
   onHover?: (index: number | null) => void
   onPreviewEnter?: (index: number, rect: DOMRect) => void
   onPreviewLeave?: () => void
@@ -108,57 +150,76 @@ interface StopProps {
 
 /** ONE STEP: the dot, the walker mark above it when it is the cursor, and the step's
  *  own name wrapped underneath, up to two lines. The label is WIDER than the dot's own
- *  column (`labelOverhang` on each side) and centred on it with a negative margin. */
+ *  column (`labelOverhang` on each side) and centred on it with a negative margin, so
+ *  neighbouring stops' names can sit close without their dots crowding. NOT CLICKABLE —
+ *  the app owns the cursor entirely. `onHover` is the app's own window into the pointer;
+ *  `onPreviewEnter`/`onPreviewLeave` drive the SAME popup the seek bar shows, anchored to
+ *  this dot instead of the pointer. `dragging()` suppresses both while a track drag is
+ *  committed. */
 // note isn't read here — same as the DS's own Stop, which destructures it and never
 // uses it either; kept in StopProps only because it's a real WalkStep field callers pass
-function Stop({ n, title, state, current, optional, onHover, onPreviewEnter, onPreviewLeave, dragging, wrapRef }: StopProps) {
+function Stop({ n, title, state, current, optional, rowHot, onHover, onPreviewEnter, onPreviewLeave, dragging, wrapRef }: StopProps) {
+  const [hot, setHot] = useState(false)
   const M = WALK_METRICS
   return (
     <div ref={wrapRef} title={wrapTip(optional ? title + ' (optional)' : title)}
       onMouseEnter={(e) => {
         if (dragging && dragging()) return
+        setHot(true)
         if (onHover) onHover(n - 1)
         if (onPreviewEnter) onPreviewEnter(n - 1, e.currentTarget.getBoundingClientRect())
       }}
       onMouseLeave={() => {
         if (dragging && dragging()) return
+        setHot(false)
         if (onHover) onHover(null)
         if (onPreviewLeave) onPreviewLeave()
       }}
       style={{ flex: 'none', width: M.slotW, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-      <div style={{ position: 'relative', display: 'flex' }}>
+      {/* THE STOP GROWS UNDER THE POINTER by `WALK_HOVER_GROW` — the presenter strip's gesture,
+          given to this surface in the same breath (owner, 2026-09-04). It scales the MARK
+          inside a fixed-width slot, so the row does not reflow, and the amount is published in
+          `WalkParts` so all three walk surfaces grow by one number. */}
+      <div style={{ position: 'relative', display: 'flex', ...walkHoverStyle(hot ? WALK_HOVER_GROW : rowHot ? WALK_ROW_HOVER_GROW : 1) }}>
         {current ? (
           <span aria-hidden="true" style={{
             position: 'absolute', left: '50%', bottom: '100%', transform: 'translateX(-50%)',
             marginBottom: M.walkerLift, color: 'var(--accent-walk)',
           }}>
-            <WalkerMark size={22} animated />
+            <WalkerMark size={M.walker} animated />
           </span>
         ) : null}
         <StepDot n={n} state={state} size={M.dot} optional={optional} />
       </div>
-      {/* THE TITLE'S OWN CLAMP (2 LINES) NEVER INCLUDES "(OPTIONAL)" — it is a sibling
-          block below, not appended inside the clamped span, so a title that already
-          fills both lines cannot swallow the appended word. */}
-      <span style={{
-          width: M.slotW + M.labelOverhang * 2, margin: `0 -${M.labelOverhang}px`,
-          overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: optional ? 3 : 2,
-          textAlign: 'center', textWrap: 'pretty',
-          fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)',
-          fontWeight: current ? 'var(--fw-semibold)' : 'var(--fw-regular)',
-          color: current ? 'var(--text-walk)' : state === 'done' ? 'var(--text-2)' : 'var(--text-3)',
-        } as CSSProperties}>{title}{optional ? (
-          <span style={{ fontStyle: 'italic', fontWeight: 'var(--fw-regular)', color: 'var(--text-3)' }}> (optional)</span>
-        ) : null}</span>
+      {/* THE TITLE IS `StopTitle` (WalkParts, 2026-09-01) — the clamp (2 lines, 3 for an optional
+          step so the suffix is not swallowed), the weight, the state ink and the "(optional)"
+          word are the ONE rule the dock's open row reads too. Only the placement is this
+          strip's: wider than the dot's column by `labelOverhang` each side, centred on it. */}
+      <StopTitle title={title} optional={!!optional} state={state} lines={2}
+        style={{ width: M.slotW + M.labelOverhang * 2, margin: `0 -${M.labelOverhang}px` }} />
     </div>
   )
 }
 
 interface DragState { x: number; scrollLeft: number; moved: boolean }
 
-export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount = false, onStepHover, onArrowHover, onRecenter, onSeek, renderPreview }: WalkStripProps) {
+/** THE HOST OWNS THE STEPS AND THE CURSOR, same split as `NodeRail`. THE SEEK BAR (below the
+ *  track, replacing the scrollbar entirely) is N FIXED WAYPOINTS, ONE PER NODE: a click or drag
+ *  snaps the viewport to whichever step is nearest, and IT ALSO MOVES THE WALK'S CURSOR
+ *  (`onSeek`) — the one exception to "no click-to-jump" in the whole component, plus the
+ *  transport button since 2026-09-01. HOVERING IT shows a PREVIEW POPUP for the nearest step
+ *  (`renderPreview`); hovering a dot shows the same popup anchored to the dot. A committed
+ *  track drag suspends hover reporting and moves the cursor too. `variant="scrollbar"` swaps
+ *  the seek bar for the house scrollbar and keeps everything else. */
+export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount = false, count, playing = false, onPlayToggle, onStepHover, onArrowHover, onRecenter, onSeek, renderPreview }: WalkStripProps) {
+  /* `showCount` is the 2026-08-23 name and still works: it always meant the walk's SIZE, and
+     that is exactly `count="total"`. */
+  const countMode = count || (showCount ? 'total' : null)
   const M = WALK_METRICS
   const scrollbar = variant === 'scrollbar'
+  /* THE ROW ANSWERS AS A WHOLE, the presenter strip's gesture: every mark grows a little while the
+     pointer is anywhere on the strip, and the one under it grows more (owner, 2026-09-04). */
+  const [rowHot, setRowHot] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -211,16 +272,12 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
   }, [check, steps.length, cursor])
 
   /* WHAT THE BAR DRAWS, and the one place the two cases differ (DS OB-089). While the
-     track can scroll, `nearest` is the honest answer — it is measured from the real
-     scroll position, so the bar agrees with what is actually on screen. When it CANNOT
-     scroll, every waypoint collapses onto the same scrollLeft (0) and `check`'s
-     distance search cannot tell them apart, so `nearest` is stuck at 0 and the bar
-     would read 0% on every short walk regardless of where the cursor is.
-     DERIVED HERE RATHER THAN STORED: writing `cursor` into `nearest` from inside
-     `check` would be setting state from a PROP inside an effect body, which is exactly
-     what react-hooks/set-state-in-effect forbids (and what the note above `setNearest`
-     in the app-driven effect already warns about). Nothing needs storing — both inputs
-     are already here at render time. */
+     track can scroll, `nearest` is measured from the real scroll position. When it
+     CANNOT scroll, every waypoint collapses onto scrollLeft 0 and `check`'s distance
+     search cannot tell them apart, so the bar reads `cursor` directly.
+     ★ LOCAL — DERIVED HERE RATHER THAN STORED: the DS writes `setNearest(cursor)` inside
+     `check()`'s no-scroll branch, which is setting state from a PROP inside an effect
+     body — exactly what react-hooks/set-state-in-effect forbids. Same rendered result. */
   const barIndex = scrollable ? nearest : cursor
 
   const recenter = () => {
@@ -252,7 +309,8 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
   }, [cursor, scrollbar])
 
   /* THE SEEK BAR IS N FIXED WAYPOINTS, NOT A FREE SCROLLBAR: a click or drag anywhere
-     on it snaps the viewport to whichever STEP is nearest the pointer. */
+     on it snaps the viewport to whichever STEP is nearest the pointer, and tells the
+     host which stop was picked. */
   const seekTo = (clientX: number) => {
     const bar = barRef.current
     const el = trackRef.current
@@ -282,8 +340,8 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
   }
 
   /* THE PREVIEW POPUP: hovering the bar — no click needed — shows a small window near
-     the pointer for whichever step is nearest it, the same convention a video
-     scrubber uses. renderPreview is the HOST's content. */
+     the pointer for whichever step is nearest it. NO PREVIEW WHILE DRAGGING — the popup
+     is for looking ahead BEFORE committing. */
   const indexAt = (clientX: number) => {
     const bar = barRef.current
     if (!bar || !steps.length) return 0
@@ -301,19 +359,21 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
   const onBarHoverLeave = () => setHoverIndex(null)
 
   /* HOVERING A NODE'S OWN DOT ALSO SHOWS THE PREVIEW — the same popup, anchored to
-     the dot instead of following the pointer. Not gated on !scrollbar: the scrollbar
-     variant has no seek bar to hover, but its dots still can. */
+     the dot (`previewAnchor`) instead of following the pointer. Not gated on !scrollbar:
+     the scrollbar variant has no seek bar to hover, but its dots still can. */
   const onNodePreviewEnter = (i: number, rect: DOMRect) => {
     if (!renderPreview) return
+    const a = previewAnchor(rect)
     setHoverIndex(i)
-    setHoverX(rect.left + rect.width / 2)
-    setHoverTop(rect.top)
+    setHoverX(a.x)
+    setHoverTop(a.top)
   }
   const onNodePreviewLeave = () => setHoverIndex(null)
 
   /* CLICK-AND-DRAG TO PAN THE TRACK — dragging any empty part of the track scrolls
-     it, the same gesture a trackpad swipe already gives for free. A small movement
-     threshold before it commits keeps an ordinary click from being read as a drag. */
+     it. A small movement threshold before it commits keeps an ordinary click from
+     being read as a drag; once committed, hover/preview reporting suspends and the
+     drag also moves the cursor (seek variant only). */
   const dragRef = useRef<DragState | null>(null)
   const onTrackPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     const el = trackRef.current
@@ -332,9 +392,6 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
       }
       if (d.moved) {
         el2.scrollLeft = d.scrollLeft - dx
-        /* DRAGGING THE TRACK ITSELF ALSO MOVES THE CURSOR (seek variant only) — the
-           same act the bar's own drag does; a pan and a seek are the same gesture on
-           two different surfaces. */
         if (!scrollbar) {
           const targets = targetsRef.current
           let best = 0
@@ -356,22 +413,11 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
   }
 
   const cols = scrollbar ? '1fr ' + (M.corner + 8) + 'px' : '1fr'
-  /* MOUSE WHEEL OVER THE PANE ALSO MOVES THE TRACK (OB-103). The track otherwise
-     only pans by trackpad/touch swipe or a click-and-drag; a plain mouse's vertical
-     wheel has no horizontal gesture of its own, so whichever axis carries the larger
-     delta becomes movement. Bound on the ROOT, not the track, so it fires over the
-     dots AND the bar below them.
-     Guarded on `scrollable`: with nothing to scroll the wheel passes through to the
-     page untouched rather than being swallowed for no reason. THAT GUARD IS WHY
-     `scrollable` STILL EXISTS — it stopped gating the seek bar's mount under OB-089
-     and this is now its only reader.
-     SEEK VARIANT: ONE STEP PER NOTCH, not a proportional pixel scroll. A mouse
-     notch's ~100px delta is often wider than the gap between two waypoints on a short
-     walk, so a raw-delta version skipped several at once. The delta ACCUMULATES in a
-     ref across events and commits a step only past the threshold, carrying the
-     remainder — a fast trackpad scroll still advances several steps smoothly, a single
-     notch advances exactly one.
-     SCROLLBAR VARIANT: continuous pixel scroll — there is no waypoint to snap to. */
+  /* MOUSE WHEEL OVER THE PANE ALSO MOVES THE TRACK (OB-103): whichever axis carries the
+     larger delta becomes movement, bound on the ROOT so it fires over the dots AND the
+     bar. Guarded on `scrollable` — its only reader since OB-089. SEEK VARIANT: ONE STEP
+     PER NOTCH, delta accumulated across events, remainder carried. SCROLLBAR VARIANT:
+     continuous pixel scroll. */
   const wheelAccumRef = useRef(0)
   const onPaneWheel = (e: WheelEvent) => {
     const el = trackRef.current
@@ -400,16 +446,12 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
       if (onSeek) onSeek(next)
     }
   }
-  /* BOUND NATIVELY, NOT AS `onWheel` — A DELIBERATE DIVERGENCE FROM THE DS .jsx.
-     React attaches `wheel` at the root as a PASSIVE listener, so `preventDefault()`
-     inside a React `onWheel` handler is refused: Chromium logs "Unable to
-     preventDefault inside passive event listener invocation" on every notch and the
-     page keeps its own scroll as well as ours. Measured, not assumed — see
-     tools/studio-spike/drive-walkwheel.mjs, which collects that message. The handler
-     BODY is the DS's, unchanged; only how it is attached differs, because there is no
-     way to express `{ passive: false }` through the JSX prop.
-     The ref indirection keeps ONE listener across the component's life while the
-     handler itself is rebuilt every render (it closes over `nearest` and `onSeek`). */
+  /* ★ LOCAL — BOUND NATIVELY, NOT AS `onWheel`. React attaches `wheel` at the root as a
+     PASSIVE listener, so `preventDefault()` inside a React `onWheel` handler is refused
+     (Chromium logs it once per notch; tools/studio-spike/drive-walkwheel.mjs collects that
+     message). The handler BODY is the DS's, unchanged; only the attachment differs. The
+     ref keeps ONE listener across the component's life while the handler is rebuilt every
+     render (it closes over `nearest` and `onSeek`). */
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {})
   useEffect(() => {
     wheelRef.current = onPaneWheel
@@ -422,14 +464,19 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
     return () => el.removeEventListener('wheel', handler)
   }, [])
   return (
-    <div ref={rootRef} style={{ position: 'relative', height: '100%', minHeight: showCount ? 172 : 154, display: 'flex', flexDirection: 'column', minWidth: 0, padding: '0 14px', userSelect: 'none' }}>
+    <div ref={rootRef} onMouseEnter={() => setRowHot(true)} onMouseLeave={() => setRowHot(false)} style={{ position: 'relative', height: '100%', minHeight: countMode ? 130 : 115, display: 'flex', flexDirection: 'column', minWidth: 0, padding: '0 14px', userSelect: 'none' }}>
       {/* THE COUNT SITS IN ITS OWN RESERVED ROW ABOVE THE TRACK, never over it — a
           plain absolute overlay collides with the walker mark whenever the current
-          step happens to be the last one. */}
-      {showCount ? (
-        <div style={{ flex: 'none', height: 18, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-3)' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-medium)' }}>{steps.length}</span>
+          step happens to be the last one. Bare, like `VersionedGroup`'s own tally. */}
+      {countMode ? (
+        <div style={{ flex: 'none', height: M.countRow, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-micro)', lineHeight: 'var(--lh-snug)', color: 'var(--text-2)' }}>
+            {/* THE WHOLE FIGURE IS ONE MONO RUN, separator included — `12 / 60` has to hold its
+                column as the cursor moves through 9 → 10, and a UI-font slash between two mono
+                numbers reflows the pair on every step. The noun stays UI, as it always was. */}
+            <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', fontWeight: 'var(--fw-medium)' }}>
+              {countMode === 'position' && steps.length > 0 ? (cursor + 1) + ' / ' + steps.length : steps.length}
+            </span>
             {' ' + (steps.length === 1 ? 'node' : 'nodes')}
           </span>
         </div>
@@ -437,24 +484,24 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', minWidth: 0 }}>
       {/* THE BLOCK IS A GRID, NOT A FLEX ROW, so the seek bar's row can share the exact
           same column as the content row without measuring anything. */}
-      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: cols, rowGap: 6, width: '100%', minWidth: 0 }}>
+      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: cols, rowGap: 3, width: '100%', minWidth: 0 }}>
         <div ref={trackRef} data-sb-off={scrollbar ? undefined : ''} onPointerDown={onTrackPointerDown} style={{
           gridColumn: 1, gridRow: 1,
           minWidth: 0, display: 'flex', alignItems: 'flex-start', overflowX: 'auto', overflowY: 'hidden',
-          padding: `32px ${M.labelOverhang}px 14px`, userSelect: 'none', cursor: 'grab',
+          padding: `${M.walker + M.walkerLift}px ${M.labelOverhang}px 4px`, userSelect: 'none', cursor: 'grab',
           scrollbarWidth: scrollbar ? undefined : 'none', msOverflowStyle: scrollbar ? undefined : 'none',
         } as CSSProperties}>
           {steps.map((s, i) => (
             <Fragment key={s.id}>
               {i > 0 ? (
-                <span style={{ flex: 'none', display: 'flex', alignItems: 'center', height: M.dot }}
+                <span style={{ flex: 'none', display: 'flex', alignItems: 'center', height: M.dot, transform: rowHot ? 'scaleY(' + WALK_ROW_HOVER_GROW + ')' : 'none', transition: 'transform var(--dur-hover) var(--ease-soft)' }}
                   onMouseEnter={() => { if (dragRef.current && dragRef.current.moved) return; if (onArrowHover) onArrowHover(i) }}
                   onMouseLeave={() => { if (dragRef.current && dragRef.current.moved) return; if (onArrowHover) onArrowHover(null) }}>
                   <NodeArrow direction="right" length={M.gap} tone={i <= cursor ? 'walk' : 'quiet'} dashed={!!s.optional} />
                 </span>
               ) : null}
-              <Stop n={i + 1} title={s.title} note={s.note} optional={s.optional}
-                state={i === cursor ? 'current' : i < cursor ? 'done' : 'ahead'}
+              <Stop n={i + 1} title={s.title} note={s.note} optional={s.optional} rowHot={rowHot}
+                state={stopState(i, cursor)}
                 current={i === cursor}
                 wrapRef={(el) => { if (el) stopEls.current[i] = el; else delete stopEls.current[i] }}
                 onHover={onStepHover} dragging={() => !!(dragRef.current && dragRef.current.moved)}
@@ -463,13 +510,17 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
           ))}
         </div>
         {/* THE SEEK BAR ROW — same column as the track, one row below. ALWAYS mounted
-            in the seek variant, whether or not the track can scroll (DS OB-089,
-            2026-08-26). It is the only control in this component that can move the
-            cursor — the dots and the labels above it are display only — so a walk short
-            enough to fit its pane still needs it. Gating it on `scrollable` left such a
-            walk with no way to move the active node from here at all. */}
+            in the seek variant, whether or not the track can scroll (DS OB-089). */}
         {!scrollbar ? (
-          <div style={{ gridColumn: 1, gridRow: 2, display: 'flex', alignItems: 'center', gap: 8, paddingRight: M.corner + 8 }}>
+          <div style={{ gridColumn: 1, gridRow: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* THE TRANSPORT SITS IN THE ROW, NOT OVER IT, and the TRACK above spans the full
+                width regardless — a play button is a seek-row control, so indenting the whole
+                component for it would cost the track a column of walk to buy the button a seat
+                (owner, 2026-09-01). Mounts only when the host passes `onPlayToggle`. */}
+            {onPlayToggle ? (
+              /* `PlayToggle` (WalkParts) — the same button the dock draws at 20px; this row's is 26. */
+              <PlayToggle playing={playing} onToggle={onPlayToggle} size={M.transport} glyph={[11, 12]} />
+            ) : null}
             {/* THE HIT AREA IS TALLER THAN THE DRAWN RAIL — a browser's own scrollbar
                 solves this with an invisible gutter wider than the drawn thumb; this
                 does the same. */}
@@ -487,30 +538,42 @@ export function WalkStrip({ steps = [], cursor = 0, variant = 'seek', showCount 
             </div>
             <span style={{
               flex: 'none', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'var(--tnum)', fontSize: 'var(--fs-micro)',
-              color: 'var(--text-3)', width: 30, textAlign: 'right',
+              color: 'var(--text-2)', width: 30, textAlign: 'right',
             }}>{steps.length > 1 ? Math.round((barIndex / (steps.length - 1)) * 100) : 0}%</span>
+            {/* THE CORNER ACT IS A ROW ITEM HERE, NOT AN ABSOLUTE OVERLAY (2026-09-01). Floating
+                in the strip's corner meant the seek row reserved `corner + 8` of padding it could
+                never use — 36px of permanently empty white to the right of the percentage. In
+                the row it takes exactly its own width, the bar takes the rest. */}
+            <span style={{
+              flex: 'none', width: M.corner, height: M.corner, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: offCursor ? 1 : 0, pointerEvents: offCursor ? 'auto' : 'none',
+              transition: 'opacity var(--dur-fade) var(--ease-soft)',
+            }}>
+              <IconButton size={M.corner} reveal={live && offCursor} reachable={offCursor}
+                title="active node" label="active node" onClick={recenter} style={{ color: 'var(--text-3)' }}>
+                <LocateMark />
+              </IconButton>
+            </span>
           </div>
         ) : null}
         {hoverIndex !== null && renderPreview ? (
-          /* POSITIONED AGAINST THE VIEWPORT (fixed), not the bar — a preview window is
-             meant to float free of the pane's own clipping. */
-          <div aria-hidden="true" style={{
-            position: 'fixed', left: hoverX, top: hoverTop - 12,
-            transform: 'translate(-50%, -100%)', zIndex: 20, pointerEvents: 'none',
-          }}>
-            {renderPreview(steps[hoverIndex], hoverIndex)}
-          </div>
+          /* THE ONE POPUP EVERY WALK SURFACE SHARES (`WalkPreview`, 2026-09-01) — fixed against
+             the viewport, `PREVIEW_GAP` above the bar's top edge. The dock and a walk pin on
+             the map hang the same card off the same geometry. */
+          <WalkPreview x={hoverX} top={hoverTop}>{renderPreview(steps[hoverIndex], hoverIndex)}</WalkPreview>
         ) : null}
-        <span style={{
-          position: 'absolute', right: 2, bottom: 2,
-          opacity: offCursor ? 1 : 0, pointerEvents: offCursor ? 'auto' : 'none',
-          transition: 'opacity var(--dur-fade) var(--ease-soft)',
-        }}>
-          <IconButton size={M.corner} reveal={live && offCursor} reachable={offCursor}
-            title="active node" label="active node" onClick={recenter} style={{ color: 'var(--text-3)' }}>
-            <LocateMark />
-          </IconButton>
-        </span>
+        {scrollbar ? (
+          <span style={{
+            position: 'absolute', right: 2, bottom: 2,
+            opacity: offCursor ? 1 : 0, pointerEvents: offCursor ? 'auto' : 'none',
+            transition: 'opacity var(--dur-fade) var(--ease-soft)',
+          }}>
+            <IconButton size={M.corner} reveal={live && offCursor} reachable={offCursor}
+              title="active node" label="active node" onClick={recenter} style={{ color: 'var(--text-3)' }}>
+              <LocateMark />
+            </IconButton>
+          </span>
+        ) : null}
       </div>
       </div>
     </div>

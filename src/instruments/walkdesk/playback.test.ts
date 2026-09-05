@@ -10,7 +10,7 @@ import { byId } from '../../corpus/graph'
 import type { Walk } from '../../model/walkstore'
 import { leafIds, resolveRoad } from './mockwalk'
 import type { Stop } from './mockwalk'
-import { clampCursor, playSteps } from './playback'
+import { clampCursor, nextOnTick, playSteps, routeIsWalk } from './playback'
 
 /** real corpus topics — playSteps reads `byId.get(id)!.title`, so a made-up id
  * would throw rather than fail an assertion */
@@ -120,5 +120,43 @@ describe('clampCursor', () => {
     // mounted. -1 would index off the end of an empty array.
     expect(clampCursor(0, 0)).toBe(0)
     expect(clampCursor(7, 0)).toBe(0)
+  })
+})
+
+// #246 — the dock's mount condition and the clock's one arithmetic.
+describe('routeIsWalk — is the route the map draws the walk being played?', () => {
+  const steps = [{ id: A }, { id: B }, { id: C }]
+
+  it('the whole draft, published by presented.ts', () => {
+    expect(routeIsWalk([A, B, C], steps)).toBe(true)
+  })
+
+  it('the played PREFIX of a saved walk (activateWalk publishes only that)', () => {
+    expect(routeIsWalk([A], steps)).toBe(true)
+    expect(routeIsWalk([A, B], steps)).toBe(true)
+  })
+
+  it('a curriculum from bus.teach is not a walk', () => {
+    expect(routeIsWalk([B, A], steps)).toBe(false)
+    expect(routeIsWalk([C], steps)).toBe(false)
+  })
+
+  it('an empty route is nothing to dock onto; a longer route than the walk is not it', () => {
+    expect(routeIsWalk([], steps)).toBe(false)
+    expect(routeIsWalk([A, B, C, A], steps)).toBe(false)
+    expect(routeIsWalk([A], [])).toBe(false)
+  })
+})
+
+describe('nextOnTick — one tick of the clock', () => {
+  it('advances by one stop', () => {
+    expect(nextOnTick(0, 3)).toBe(1)
+    expect(nextOnTick(1, 3)).toBe(2)
+  })
+
+  it('reports the end as null, so the host stops the clock instead of seeking past it', () => {
+    expect(nextOnTick(2, 3)).toBeNull()
+    expect(nextOnTick(0, 0)).toBeNull()
+    expect(nextOnTick(0, 1)).toBeNull()
   })
 })

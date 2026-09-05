@@ -1,3 +1,7 @@
+// RENAMED from WalkPreview.tsx (#246, 2026-09-05): the design system published its own
+// `WalkPreview` — the hover card every walk surface hangs above a stop (src/ds/nav/
+// WalkPreview.tsx, OB-131) — and two files of one name for two different things is how a
+// reader opens the wrong one. This is the walk read as CHAPTERS; the file now says so.
 // The walk as chapters (0005 D9, panel 06). A walk *is* a table of contents, so
 // the resolved road reads as a book — the ONE surface in the instrument that is
 // *read* rather than operated. None of the editing vocabulary crosses over: no
@@ -25,7 +29,7 @@ function leafCount(s: Stop): number {
   return s.variants[0]?.steps.reduce((a, c) => a + leafCount(c), 0) ?? 0
 }
 
-export default function WalkPreview({ walk }: { walk: Stop[] }) {
+export default function WalkChapters({ walk }: { walk: Stop[] }) {
   // one render pass, imperative — a running stop number (n), a chapter number, and
   // a key counter that makes a revisited node (stk-tcp-udp appears twice) unique.
   let n = 0

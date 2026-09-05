@@ -21,6 +21,9 @@
 // document sitting on whatever was last clicked. A navigator that does not
 // navigate is the bug; `seek` writes the focus for both sources, once.
 
+import { useEffect, useRef, useSyncExternalStore } from 'react'
+
+import { WALK_PLAYBACK_DEFAULTS } from '@/ds'
 import type { WalkStep } from '@/ds'
 
 import { byId } from '../../corpus/graph'
@@ -71,6 +74,16 @@ export interface Playback {
    *  than there are slides should get nothing, not a crash. */
   seek(i: number): void
   next(): void
+  /** THE CLOCK (#246). True while the walk advances on its own, one stop per
+   *  `WALK_PLAYBACK_DEFAULTS.step` milliseconds (the DS's 900), stopping by itself
+   *  at the last stop. ONE clock for every surface: the viewer's strip, the map's
+   *  dock and the presenter all read the same flag and any of them may toggle it,
+   *  so pressing play on the map and pause on the strip is one gesture on one
+   *  walk, not two players disagreeing. The clock moves the INTEGER cursor — the
+   *  dock's fractional travel between stops (DS OB-130 clause 5) is not built;
+   *  the knob steps. */
+  playing: boolean
+  toggle(): void
   prev(): void
   first(): void
   last(): void
@@ -99,6 +112,52 @@ export function clampCursor(raw: number, len: number): number {
   return Math.min(Math.max(raw, 0), len - 1)
 }
 
+/** whether the route the map draws IS the walk being played — the dock's mount
+ *  condition (#246). `bus.route` has three writers: `activateWalk` publishes the
+ *  played PREFIX of a saved walk, `presented.ts` publishes the desk draft's leaf
+ *  ids whole, and `bus.teach` publishes a curriculum that is no walk at all. The
+ *  first two are a prefix of the played steps (the whole list counts as a
+ *  prefix); the third is not, and an empty route is nothing to dock onto. */
+export function routeIsWalk(route: readonly string[], steps: readonly { id: string }[]): boolean {
+  return route.length > 0 && route.length <= steps.length && route.every((id, i) => steps[i].id === id)
+}
+
+/** where one tick of the clock moves the cursor, or null when the walk is at
+ *  its end and the clock should stop instead. */
+export function nextOnTick(cursor: number, len: number): number | null {
+  return cursor + 1 < len ? cursor + 1 : null
+}
+
+// ── the clock ───────────────────────────────────────────────────────────────
+// Module-level on purpose: `playing` is a fact about THE walk, not about any one
+// pane, and three panes mount this hook. Each mounted instance registers its
+// own ticker; the interval fires the FIRST one only, and since every instance
+// derives the same steps and cursor from the same bus, which one advances the
+// walk does not matter. When the last instance unmounts the next tick finds no
+// ticker and stops the clock.
+
+let playing = false
+const watchers = new Set<() => void>()
+const tickers = new Set<() => void>()
+let timer: ReturnType<typeof setInterval> | null = null
+
+function tick() {
+  const first = tickers.values().next().value
+  if (first) first()
+  else setPlaying(false)
+}
+
+function setPlaying(next: boolean) {
+  if (next === playing) return
+  playing = next
+  if (playing) timer = setInterval(tick, WALK_PLAYBACK_DEFAULTS.step)
+  else if (timer) { clearInterval(timer); timer = null }
+  for (const w of watchers) w()
+}
+
+const subscribe = (w: () => void) => { watchers.add(w); return () => { watchers.delete(w) } }
+const snapshot = () => playing
+
 // ── the hook ────────────────────────────────────────────────────────────────
 
 export function useWalkPlayback(bus: Bus): Playback {
@@ -123,6 +182,25 @@ export function useWalkPlayback(bus: Bus): Playback {
     bus.setFocus(s.id, 'walk')
   }
 
+  const isPlaying = useSyncExternalStore(subscribe, snapshot)
+  // the ticker must read THIS render's cursor, steps and seek. They land in a ref
+  // from an effect after every render (a ref written during render is what
+  // react-hooks/refs forbids; an effect keyed on `seek`, a fresh closure per
+  // render, is what exhaustive-deps warns about), and the ticker itself is
+  // registered once and reads the ref when the clock fires.
+  const latest = useRef({ cursor, len: steps.length, seek })
+  useEffect(() => { latest.current = { cursor, len: steps.length, seek } })
+  useEffect(() => {
+    const t = () => {
+      const now = latest.current
+      const to = nextOnTick(now.cursor, now.len)
+      if (to === null) setPlaying(false)
+      else now.seek(to)
+    }
+    tickers.add(t)
+    return () => { tickers.delete(t) }
+  }, [])
+
   return {
     source: saved ? 'saved' : 'draft',
     title: saved ? saved.title : 'the road you are authoring',
@@ -135,5 +213,13 @@ export function useWalkPlayback(bus: Bus): Playback {
     prev: () => seek(cursor - 1),
     first: () => seek(0),
     last: () => seek(steps.length - 1),
+    playing: isPlaying,
+    // play at the end restarts from the first stop, the way every player does
+    toggle: () => {
+      if (isPlaying) { setPlaying(false); return }
+      if (steps.length === 0) return
+      if (cursor >= steps.length - 1) seek(0)
+      setPlaying(true)
+    },
   }
 }

@@ -55,9 +55,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { ARROW_METRICS, headForSet, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, shaftTailOffset, StepDot, VisibilityMark, ZoomControl } from '@/ds'
+import { ARROW_METRICS, headForSet, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
+import { routeIsWalk, useWalkPlayback } from './walkdesk/playback'
+import { renderStopPreview } from './walkdesk/stoppreview'
 import { FLAT_H, FLAT_W, leafPos, provinceIds } from '../model/flat'
 import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
@@ -229,6 +231,26 @@ export default function MapView({ bus }: { bus: Bus }) {
   const walkKey = walkKeyOf(bus.activeWalk)
   const walkVisible = walkDrawn(hiddenWalks, walkKey)
 
+  // ── #246: THE WALK DOCK — the walk's own transport, docked on the pane's bottom
+  // edge (DS OB-130). It plays the SAME walk the pins draw, through the same
+  // `useWalkPlayback` the viewer's strip and the presenter read, so its knob, the
+  // strip's cursor and the pins' current stop are one cursor. It mounts only while
+  // the route on the map IS the played walk (`routeIsWalk`): a `bus.teach`
+  // curriculum draws pins but is no walk, and an empty route is nothing to dock
+  // onto. `pinHover` is a pin's own hover — index into `play.steps` plus the
+  // viewport anchor the DS's `WalkPreview` hangs the card from.
+  const play = useWalkPlayback(bus)
+  const dockShown = routeIsWalk(bus.route, play.steps)
+  const [pinHover, setPinHover] = useState<{ i: number; x: number; top: number } | null>(null)
+  // THE LOOK FLIGHT'S INSET (DS OB-130: "the host insets its auto-fit by
+  // WALK_DOCK_METRICS.closed"). This map has no auto-fit — its camera is level-
+  // driven, and the only move that centres a point is the LOOK flight below — so
+  // the inset lands there: while the dock is mounted the looked-at node is centred
+  // in the map ABOVE the closed dock rather than in the whole pane, which is
+  // `closed / 2` px higher, in the SVG's units (`f` = units per px, the same
+  // formula `toUser` and the render-time `f` carry).
+  const lookInset = dockShown && clientBox ? (WALK_DOCK_METRICS.closed / 2) * Math.max(VB_W / clientBox.w, VB_H / clientBox.h) : 0
+
   // #238 — the last cursor position seen over this pane, in CLIENT coords. A ref
   // and not state, deliberately: it is written on every single pointermove and
   // must never cause a render. It exists only so the tooltip can be placed at the
@@ -380,7 +402,7 @@ export default function MapView({ bus }: { bus: Bus }) {
     setLevel(t.tier)
     levelRef.current = t.tier
     const s = LEVEL_S[t.tier]
-    flyTween({ s, tx: U_CX - t.c.x * s, ty: U_CY - t.c.y * s }, LOOK_FLY_MS)
+    flyTween({ s, tx: U_CX - t.c.x * s, ty: U_CY - lookInset - t.c.y * s }, LOOK_FLY_MS)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peek])
 
@@ -1343,11 +1365,25 @@ export default function MapView({ bus }: { bus: Bus }) {
                   ours to give. */}
               <g data-routepins data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
               {routeStops.map((s) => (
+                /* #246: A PIN'S OWN HOVER AND CLICK. The pins' wrapper is pointer-transparent so
+                   the cells under the walk keep their hover; each pin opts back in. Hover shows
+                   the same preview card the dock and the strip show, anchored on the pin's box
+                   (DS OB-131's bare-`<g>` recipe: bind enter/leave on the `<g>` and render
+                   `WalkPreview` from `previewAnchor(getBoundingClientRect())`), never during a
+                   drag. Entering a pin leaves the cell under it, so the cell's MapTooltip goes
+                   as this card comes — one card at a time. A click falls through to the cell
+                   the pin stands on, so a pin is still a way to select its region. `s.step` is
+                   1-based; `play.steps` is the walk `bus.route` is a prefix of. */
                 <g
                   key={s.key}
                   data-routestop={s.visId}
                   data-step={s.step}
                   transform={`translate(${s.c.x} ${s.c.y}) scale(${f / view.s})`}
+                  pointerEvents={dockShown ? 'all' : 'none'}
+                  style={dockShown ? { cursor: 'pointer' } : undefined}
+                  onPointerEnter={(e) => { if (!dragging && dockShown) setPinHover({ i: s.step - 1, ...previewAnchor(e.currentTarget.getBoundingClientRect()) }) }}
+                  onPointerLeave={() => setPinHover(null)}
+                  onClick={() => regionClick(s.visId)}
                 >
                   <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
                     <StepDot n={s.label} state={s.state} variant="pin" size={s.size} />
@@ -1635,14 +1671,35 @@ export default function MapView({ bus }: { bus: Bus }) {
           bottom info bar (OB-094): levels move here, zoom % and the wheel/
           double-click hint aren't worth the space once real zoom buttons
           exist, and the selection summary folds into MapTooltip above. ── */}
-      <LevelPicker style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
-      <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* #246: the floating chrome climbs over the closed dock while one is docked,
+          so the level picker and the zoom buttons never sit under its rail */}
+      <LevelPicker style={{ position: 'absolute', left: 12, bottom: 12 + (dockShown ? WALK_DOCK_METRICS.closed : 0), zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
+      <div style={{ position: 'absolute', right: 12, bottom: 12 + (dockShown ? WALK_DOCK_METRICS.closed : 0), zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* names the DRAWING, not its nodes: the button moves pins and arrows together */}
         <MapFloatingButton size={36} title={walkVisible ? 'hide the walk' : 'show the walk'} onClick={() => setHiddenWalks((h) => toggleWalkHidden(h, walkKey))}>
           <VisibilityMark open={walkVisible} style={walkVisible ? undefined : { color: 'var(--bark-400)' }} />
         </MapFloatingButton>
         <ZoomControl onZoomIn={() => flyToLevel(level + 1)} onZoomOut={() => flyToLevel(level - 1)} zoomInDisabled={level >= L_MAX} zoomOutDisabled={level <= 0} />
       </div>
+
+      {/* ── #246: THE WALK DOCK (DS OB-130), an overlay on the pane's bottom edge — the
+          SVG never changes size when it opens, the pins under it show through. Same
+          steps, cursor, clock and preview card as Walk·Viewer's strip. zIndex 11: over
+          the pins' hover card and the tooltip, under nothing of this pane's own. */}
+      {dockShown && (
+        <WalkDock
+          steps={play.steps}
+          position={play.cursor}
+          playing={play.playing}
+          onPlayToggle={play.toggle}
+          onSeek={play.seek}
+          renderPreview={renderStopPreview}
+          style={{ zIndex: 11 }}
+        />
+      )}
+      {pinHover && play.steps[pinHover.i] && (
+        <WalkPreview x={pinHover.x} top={pinHover.top}>{renderStopPreview(play.steps[pinHover.i])}</WalkPreview>
+      )}
     </PaneCanvas>
   )
 }

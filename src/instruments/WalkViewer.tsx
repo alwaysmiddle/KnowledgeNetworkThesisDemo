@@ -21,6 +21,7 @@ import { WalkStrip } from '@/ds'
 
 import { usePresentedRoad, usePublishPresentedRoute } from './walkdesk/presented'
 import { useWalkPlayback } from './walkdesk/playback'
+import { renderStopPreview } from './walkdesk/stoppreview'
 import type { Bus } from '../studio/bus'
 
 export default function WalkViewer({ bus }: { bus: Bus }) {
@@ -42,23 +43,18 @@ export default function WalkViewer({ bus }: { bus: Bus }) {
           rather than DS. The contract is `<Pane title="Walk Viewer">` with nothing
           below the title; the strip's own `showCount` carries the tally. The walk's
           NAME and the cursor's position are TrailStrip's job, which keeps both. */}
-      <div style={{ height: 172, margin: '6px 12px' }}>
+      {/* 130, NOT 172 (#246): the strip's own minimum with a count row is 130 since the
+          OB-133 re-port (WALK_METRICS: dots, titles, the seek row with its transport), and
+          42px of air under it was the old figure's leftover. */}
+      <div style={{ height: 130, margin: '6px 12px' }}>
         <WalkStrip
           steps={play.steps}
           cursor={play.cursor}
-          showCount
+          count="total"
+          playing={play.playing}
+          onPlayToggle={play.toggle}
           onSeek={play.seek}
-          renderPreview={(step) => {
-            // WalkStrip never clamps hoverIndex against a shrinking steps
-            // array, so a step can arrive here undefined mid-edit — guard,
-            // don't assume the prop's own type.
-            if (!step?.note) return null
-            return (
-              <div className="px-2 py-1 rounded border border-slate-200 bg-white shadow-lg text-[11px] max-w-[220px] text-slate-600">
-                {step.note}
-              </div>
-            )
-          }}
+          renderPreview={renderStopPreview}
         />
       </div>
     </div>

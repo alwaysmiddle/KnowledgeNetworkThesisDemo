@@ -20,7 +20,7 @@
 //   authoring decision until a presentation surface reads the result.
 //
 //   the road's RECEIPT — resolveRoad() with the branch picked and the skipped
-//   optionals dropped — is not a permanent second lane. It is the WalkPreview
+//   optionals dropped — is not a permanent second lane. It is the WalkChapters
 //   slide-in below (0005 D9): opened on demand, overlaying the road rather than
 //   splitting the pane. An always-visible receipt beside the road was tried and
 //   retired (`ce08f09`); whether one comes back, and in what shape, is #27.
@@ -39,7 +39,7 @@ import { useEffect } from 'react'
 import AuthorRoad from './AuthorRoad'
 import { redoDraft, undoDraft, useAuthorDraft, usePreviewOpen, useRoad } from './authordraft'
 import { usePresentedRoad, usePublishPresentedRoute } from './presented'
-import WalkPreview from './WalkPreview'
+import WalkChapters from './WalkChapters'
 import { useHover } from '../../studio/bus'
 import type { Bus } from '../../studio/bus'
 import { IconButton } from '@/ds'
@@ -124,7 +124,7 @@ export default function WalkEditorView({ bus }: { bus: Bus }) {
             <IconButton onClick={() => setPreviewOpen(false)} title="back to the road" />
           </div>
           <div className="flex-1 min-h-0">
-            <WalkPreview walk={resolved} />
+            <WalkChapters walk={resolved} />
           </div>
         </div>
       </div>

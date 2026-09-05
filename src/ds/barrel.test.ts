@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, RailStop, RestoreMark, chipSpec, usedStroke } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkAdvance, walkArrow, walkBand, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -122,6 +122,34 @@ describe('ported but not adopted DS components', () => {
     expect(typeof chipSpec).toBe('function')
     expect(typeof usedStroke).toBe('function')
     expect(typeof ChipGeometry).toBe('object')
+  })
+
+  // #246 (OB-130/131/133) — the walk dock arc. WalkDock, WalkPreview and
+  // previewAnchor are adopted (MapView); WALK_PLAYBACK_DEFAULTS is read by
+  // walkdesk/playback.ts. These cross the barrel with them and have no app
+  // importer of their own: the WalkParts pieces are read by WalkStrip and WalkDock
+  // from inside src/ds; WalkPinHover is the DS's HTML-pin wrapper and our pins are
+  // SVG `<g>`s, which bind the same two lines themselves; the band/arrow/clock
+  // recipes wait for OB-132 (the map's pins and arrows reading `walkBand`) and for
+  // a fractional clock nobody has asked for yet (OB-130 clause 5).
+  it('WalkParts pieces — read by WalkStrip and WalkDock from inside src/ds; no app importer', () => {
+    expect(typeof StopTitle).toBe('function')
+    expect(typeof PlayToggle).toBe('function')
+    expect(typeof OptionalSuffix).toBe('function')
+    expect(typeof walkHoverStyle).toBe('function')
+    expect(typeof WalkParts).toBe('object')
+  })
+
+  it('WalkPinHover — for HTML pins; the map binds the recipe on its SVG pins itself', () => {
+    expect(typeof WalkPinHover).toBe('function')
+  })
+
+  it('walkBand / segmentWalked / walkArrow / walkAdvance / walkEase — published for OB-132, no caller yet', () => {
+    expect(typeof walkBand).toBe('function')
+    expect(typeof segmentWalked).toBe('function')
+    expect(typeof walkArrow).toBe('function')
+    expect(typeof walkAdvance).toBe('function')
+    expect(typeof walkEase).toBe('function')
   })
 
   // NOT LISTED HERE ANY MORE: `nestedFamilyPaint`. It was the map's territory
