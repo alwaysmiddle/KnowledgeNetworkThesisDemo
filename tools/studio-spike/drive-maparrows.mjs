@@ -79,6 +79,18 @@ for (const inst of ['unfoldgraph', 'document', 'walkviewer']) {
 }
 await page.waitForTimeout(500)
 
+// OB-132 — THE BAND DRAWS ONLY WHAT IS NEAR THE WALK'S POSITION: five stops behind it,
+// two ahead, nothing beyond. At the opening cursor (stop 1) that is three pins and two
+// arrows, and the doubled-back pair this driver measures is not among them. Seeking to
+// the third-last stop puts every stop of the seven-stop draft inside the band (at most
+// five behind, two ahead), so the whole walk is drawn — faded toward the trail's floor,
+// but drawn, and geometry does not care about opacity.
+await page.locator('[aria-label="map-view"] [data-walk-dock]').focus()
+await page.keyboard.press('End')
+await page.keyboard.press('ArrowLeft')
+await page.keyboard.press('ArrowLeft')
+await page.waitForTimeout(300)
+
 /** every walk arrow, measured in SCREEN coordinates: where its own painted shaft
  *  starts and ends, and where the two pins it joins actually are. The DOM cannot
  *  be asked this directly — the shaft's coordinates are in a rotated, scaled user
@@ -94,7 +106,10 @@ const measure = () =>
       const r = el.getBoundingClientRect()
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
     }
-    const pins = [...document.querySelectorAll('[data-routestop]')].map(centre)
+    // by the pin's own walk-order index (`data-pin`): a pin outside the band is not
+    // drawn at all, so a list in document order would misnumber every pin after a gap
+    const pins = {}
+    for (const g of document.querySelectorAll('[data-routestop]')) pins[Number(g.getAttribute('data-pin'))] = centre(g)
     const out = []
     for (const g of document.querySelectorAll('[data-routearrow]')) {
       const i = Number(g.getAttribute('data-routearrow'))
@@ -149,7 +164,7 @@ const measure = () =>
       }
       out.push({ i, bow, start, cased, bulge, screenLen, head, localLen, from: pins[i], to: pins[i + 1] })
     }
-    return { pins: pins.length, arrows: out }
+    return { pins: Object.keys(pins).length, arrows: out }
   })
 
 /** how far a point sits OFF the line between two others, in px */
@@ -348,7 +363,9 @@ let r = await receded()
 ok('at rest the walk draws at full weight', r.flag === '0' && r.op === '1', JSON.stringify(r))
 let p = await recededPins()
 ok('at rest the numbered pins draw at full weight too', p.flag === '0' && p.op === '1', JSON.stringify(p))
-ok('and in acorn — the hue of movement', (await toneNow()).includes('accent-walk'), await toneNow())
+// the first drawn arrow is BEHIND the position, so it is walked: acorn (OB-132 — an arrow
+// ahead of the position draws quiet, bark-400, until the walk reaches it)
+ok('and a walked arrow in acorn — the hue of movement', (await toneNow()).includes('accent-walk'), await toneNow())
 
 // SELECT A TERRITORY — and do it with a real pointer at a point known to be
 // INSIDE the shape. Playwright's element click aims at a bounding-box position,
@@ -437,7 +454,7 @@ r = await receded()
 ok('deselecting returns the walk to full weight', r.flag === '0' && r.op === '1', JSON.stringify(r))
 p = await recededPins()
 ok('and the pins come back with it — both directions, both layers', p.flag === '0' && p.op === '1', JSON.stringify(p))
-ok('and to acorn', (await toneNow()).includes('accent-walk'), await toneNow())
+ok('and the walked arrow to acorn', (await toneNow()).includes('accent-walk'), await toneNow())
 
 // park the pointer off the map first — MapTooltip follows it and would sit over
 // the very arrows these shots exist to show

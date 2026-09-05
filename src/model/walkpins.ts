@@ -75,10 +75,12 @@ export interface WalkPin {
   visId: string
   /** 1-based index of the first walk stop this pin stands for */
   step: number
+  /** 1-based index of the LAST stop it stands for — `step` itself unless the pin is a
+   *  merged run. `pinPosition` reads both: a walk anywhere inside the run is ON this pin. */
+  stepEnd: number
   c: XY
   /** what is printed inside: a number, or a "6-9" range for a merged run */
   label: number | string
-  state: 'done' | 'current' | 'ahead'
   size: number
 }
 
@@ -87,8 +89,6 @@ export interface WalkPinInput {
   route: string[]
   /** the map's current nesting level */
   level: number
-  /** 1-based position of the walk's cursor; every pin before it reads 'done' */
-  cursorStep: number
   /** real screen px -> world units at the current zoom. The pins are sized in
    *  screen px and positioned in world units, so every distance compared here
    *  has to cross that boundary exactly once. */
@@ -213,7 +213,7 @@ export function separate(pins: WalkPin[], px: (v: number) => number): void {
 }
 
 // ── the whole thing ─────────────────────────────────────────────────────────
-export function walkPins({ route, level, cursorStep, px, labelBoxes }: WalkPinInput): WalkPin[] {
+export function walkPins({ route, level, px, labelBoxes }: WalkPinInput): WalkPin[] {
   if (route.length === 0) return []
   const groups = merged(resolved(route, level))
   if (groups.length === 0) return []
@@ -225,11 +225,6 @@ export function walkPins({ route, level, cursorStep, px, labelBoxes }: WalkPinIn
   )
   const crowdSize = new Map<number, number>()
   for (const id of crowdOf) crowdSize.set(id, (crowdSize.get(id) ?? 0) + 1)
-
-  const stateOf = (steps: number[]): 'done' | 'current' | 'ahead' => {
-    const last = steps[steps.length - 1]
-    return last < cursorStep ? 'done' : last === cursorStep ? 'current' : 'ahead'
-  }
 
   // 4 — fan the pins that want the SAME point. Only exact coincidence, which in
   //     practice means several separate visits to one cell: an evenly-spaced arc
@@ -262,9 +257,39 @@ export function walkPins({ route, level, cursorStep, px, labelBoxes }: WalkPinIn
     //     whole set keeps the decision about which labels count in one place.
     c = pinSpotClear(c, cellPolyOf(g.visId, g.c), labelBoxes, px(size / 2))
     const label: number | string = g.steps.length > 1 ? `${g.steps[0]}-${g.steps[g.steps.length - 1]}` : g.steps[0]
-    return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], c, label, state: stateOf(g.steps), size }
+    return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], stepEnd: g.steps[g.steps.length - 1], c, label, size }
   })
 
   separate(pins, px)
   return pins
 }
+
+// ── the walk's position, in PINS ────────────────────────────────────────────
+/** WHERE THE WALK IS, COUNTED IN PINS RATHER THAN STOPS — what the map's band reads
+ *  (DS OB-132). The DS's `walkBand(index, position)` is written for one mark per stop. A
+ *  pin here can stand for a RUN of stops (a merged "4-7" at a coarse level, stage 2), and a
+ *  stop the map cannot place is dropped from the pins altogether (stage 1). So the band is
+ *  read in PIN units: a position anywhere inside a pin's run is ON that pin — distance 0,
+ *  the whole run is "you are here" — and a position between two pins' runs is the same
+ *  fraction of the way between the two PINS, which is what carries the arrow between them.
+ *  At a level fine enough for one pin per stop this is the identity and the map reads
+ *  exactly the DS's rule. `position` is the player's 0-based fractional stop;
+ *  `step`/`stepEnd` are 1-based. ★ LOCAL, reported on the receipt. */
+export function pinPosition(pins: readonly { step: number; stepEnd: number }[], position: number): number {
+  if (pins.length === 0) return 0
+  const s = position + 1
+  for (let k = 0; k < pins.length; k++) {
+    const p = pins[k]
+    if (s > p.stepEnd) continue
+    if (s >= p.step || k === 0) return k
+    const prev = pins[k - 1]
+    return k - 1 + (s - prev.stepEnd) / (p.step - prev.stepEnd)
+  }
+  return pins.length - 1
+}
+
+/** A ROUTE THAT IS NOT A WALK HAS NO POSITION — a `bus.teach` curriculum draws pins, but
+ *  nobody is walking it — and so no band: every pin at full opacity and rest size, ahead of
+ *  nobody. These are the four fields the map reads off `walkBand()`. ★ LOCAL: the DS's band
+ *  has no "no walk" case, because its host never draws a route it is not playing. */
+export const PIN_NO_POSITION = { behind: false, active: 0, pinOpacity: 1, pinScale: 1 } as const

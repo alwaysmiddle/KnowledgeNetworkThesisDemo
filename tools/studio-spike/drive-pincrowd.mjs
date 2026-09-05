@@ -106,8 +106,13 @@ const closestFirst = (ds) => {
 }
 
 const levelNow = () => page.$eval('[data-nested]', (el) => Number(el.getAttribute('data-level')))
+// ON A PIN THAT IS IN THE PANE. Since OB-132 the first pin in the DOM is the oldest one
+// still inside the band, five stops behind the position and wherever the camera left it —
+// a double-click on a box outside the pane dives nowhere. Same rule as drive-mappins.
 const diveOnAPin = async () => {
-  const b = await page.locator('[data-routestop]').first().boundingBox()
+  const pane = await page.locator('[aria-label="map-view"]').boundingBox()
+  const boxes = await page.locator('[data-routestop]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })))
+  const b = boxes.find((r) => r.x >= pane.x && r.x + r.width <= pane.x + pane.width && r.y >= pane.y && r.y + r.height <= pane.y + pane.height)
   if (!b) return false
   await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2)
   await page.waitForTimeout(800)
@@ -159,6 +164,13 @@ await page.mouse.click(bar.x + bar.w - 1, bar.y + bar.h / 2)
 await page.waitForTimeout(800)
 const routeLen = await page.$eval('[data-routepath]', (e) => Number(e.getAttribute('data-step-count')))
 ok('the whole saved walk is on the map, not just its played first stop', routeLen >= 11, `${routeLen} stops on the route`)
+
+// OB-132 — the band draws five stops behind the position and two ahead, nothing further.
+// At the last stop that is stops 7–12; one stop back it is 6–12, which puts the reported
+// pair (6 and 11) both on the map, where this driver can measure them.
+await page.locator('[aria-label="map-view"] [data-walk-dock]').focus()
+await page.keyboard.press('ArrowLeft')
+await page.waitForTimeout(300)
 
 // the whole desk for the map, exactly as drive-mappins.mjs does it: the opening
 // preset leaves the map a quarter of the window, so most pins sit outside the

@@ -226,3 +226,66 @@ describe('a set of arrows drawn together shares one head (OB-126 amendment)', ()
     expect(short.along).not.toBeCloseTo(long.along, 2)
   })
 })
+
+describe('walked — the split shaft and the travelling head (★ LOCAL, OB-132)', () => {
+  const base: NodeArrowProps = { direction: 'right', length: 100, casing: true }
+  /** every painted shaft stroke in draw order: its paint and its dash, or none */
+  const shaftsOf = (svg: string) =>
+    [...svg.matchAll(/<(?:line|path)[^>]*?stroke="([^"]+)"[^>]*?>/g)]
+      .filter((m) => !m[1].includes('surface-raised'))
+      .map((m) => ({ paint: m[1], dash: (m[0].match(/stroke-dasharray="([^"]+)"/) || [])[1] ?? null, pathLength: /pathLength="1"/.test(m[0]) }))
+  /** the painted head's base x, from its path — `M<x> <y> L…` for direction right */
+  const headOf = (svg: string) => {
+    const heads = [...svg.matchAll(/<path d="M([-\d.]+) [-\d.]+ L[^"]*" fill="([^"]+)"/g)].filter((m) => !m[2].includes('surface-raised'))
+    const m = heads.pop()!
+    return { x: Number(m[1]), fill: m[2] }
+  }
+
+  test('undefined draws byte for byte what it always drew', () => {
+    expect(draw({ ...base, walked: undefined })).toBe(draw(base))
+    expect(draw({ direction: 'right', length: 40, bow: 8, walked: undefined })).toBe(draw({ direction: 'right', length: 40, bow: 8 }))
+  })
+
+  test('0 is one quiet shaft with the head at the end in the quiet paint; 1 is one acorn shaft, acorn head', () => {
+    const none = draw({ ...base, tone: 'quiet', walked: 0 })
+    expect(shaftsOf(none)).toEqual([{ paint: 'var(--bark-400)', dash: null, pathLength: false }])
+    expect(headOf(none)).toEqual({ x: 100, fill: 'var(--bark-400)' })
+    const all = draw({ ...base, tone: 'quiet', walked: 1 })
+    expect(shaftsOf(all)).toEqual([{ paint: 'var(--accent-walk)', dash: null, pathLength: false }])
+    expect(headOf(all)).toEqual({ x: 100, fill: 'var(--accent-walk)' })
+  })
+
+  test('between, the shaft is two strokes split as dash offsets on one pathLength, and the head sits at the split', () => {
+    const svg = draw({ ...base, tone: 'quiet', walked: 0.25, aheadOpacity: 0.8 })
+    expect(shaftsOf(svg)).toEqual([
+      { paint: 'var(--bark-400)', dash: '0 0.25 0.75 1', pathLength: true },
+      { paint: 'var(--accent-walk)', dash: '0.25 1', pathLength: true },
+    ])
+    expect(svg).toContain('stroke-opacity="0.8"')
+    expect(headOf(svg)).toEqual({ x: 25, fill: 'var(--accent-walk)' })
+    // the casing's head travels with it
+    expect(svg).toContain('d="M25 ')
+  })
+
+  test('receded, both parts take the receded paint', () => {
+    const svg = draw({ ...base, tone: 'hint', walkedTone: 'hint', walked: 0.5 })
+    expect(shaftsOf(svg).map((s) => s.paint)).toEqual(['var(--bark-300)', 'var(--bark-300)'])
+    expect(headOf(svg).fill).toBe('var(--bark-300)')
+  })
+
+  test('on a bowed shaft the head travels along the CURVE — off the chord, pointing along it', () => {
+    const rest = draw({ direction: 'right', length: 100, bow: 20 })
+    const mid = draw({ direction: 'right', length: 100, bow: 20, walked: 0.5 })
+    const tip = (svg: string) => svg.match(/L([-\d.]+) ([-\d.]+) L/)!.slice(1).map(Number)
+    const [rx] = tip(rest)
+    const [mx, my] = tip(mid)
+    expect(mx).toBeLessThan(rx)
+    // half way along a symmetric bow the head is at the curve's own midpoint — the
+    // control point's half — and points straight along the axis
+    const tail = shaftTailIn(mid)
+    expect(my - tail.across).toBeCloseTo(10, 0)
+    const [p1x, p1y, , , p3x, p3y] = mid.match(/<path d="M([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) Z" fill="var/)!.slice(1).map(Number)
+    expect(p1x).toBeCloseTo(p3x, 1)
+    expect(Math.abs(p1y - p3y)).toBeCloseTo(2 * ARROW_METRICS.halfWidth, 1)
+  })
+})

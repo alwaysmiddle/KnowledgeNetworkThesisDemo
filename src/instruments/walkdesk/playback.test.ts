@@ -10,7 +10,7 @@ import { byId } from '../../corpus/graph'
 import type { Walk } from '../../model/walkstore'
 import { leafIds, resolveRoad } from './mockwalk'
 import type { Stop } from './mockwalk'
-import { clampCursor, nextOnTick, playSteps, routeIsWalk } from './playback'
+import { clampCursor, playSteps, routeIsWalk } from './playback'
 
 /** real corpus topics — playSteps reads `byId.get(id)!.title`, so a made-up id
  * would throw rather than fail an assertion */
@@ -148,15 +148,3 @@ describe('routeIsWalk — is the route the map draws the walk being played?', ()
   })
 })
 
-describe('nextOnTick — one tick of the clock', () => {
-  it('advances by one stop', () => {
-    expect(nextOnTick(0, 3)).toBe(1)
-    expect(nextOnTick(1, 3)).toBe(2)
-  })
-
-  it('reports the end as null, so the host stops the clock instead of seeking past it', () => {
-    expect(nextOnTick(2, 3)).toBeNull()
-    expect(nextOnTick(0, 0)).toBeNull()
-    expect(nextOnTick(0, 1)).toBeNull()
-  })
-})
