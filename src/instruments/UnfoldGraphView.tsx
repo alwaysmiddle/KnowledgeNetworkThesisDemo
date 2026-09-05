@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { PaneScroller } from '@/ds'
+import { LEGEND_INSET, PaneScroller } from '@/ds'
 import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { edgesTouching } from '../model/flat'
@@ -213,7 +213,8 @@ export default function UnfoldGraphView({ bus, initialStart = null, resetTo = nu
 
   return (
     <div className="relative h-full flex flex-col">
-      <div className="shrink-0 px-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600 bg-white border-b border-slate-200">
+      {/* OB-143: the row's first letter sits under the legend's — left only, by the constant */}
+      <div className="shrink-0 pr-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600 bg-white border-b border-slate-200" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="font-bold text-slate-800 text-[12px]">Unfold·Graph — trial: same unfold, but a graph</span>
         <span className="text-slate-400">every node once · picking one already on the map snaps back to it (dashed cross-link)</span>
         <span className="flex-1" />

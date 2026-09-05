@@ -18,7 +18,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-import { DocHeader, SectionLabel, WalkCard } from '@/ds'
+import { DocHeader, LEGEND_INSET, SectionLabel, WalkCard } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf, pathTo, ROOT_ID } from '../corpus/graph'
@@ -46,9 +46,13 @@ export default function DocumentPanel({ bus }: { bus: Bus }) {
     <div aria-label="document-panel">
       <DocHeader kind={n.topic ? 'topic' : n.kind} title={n.title} domain={domainOf(currentId) as DomainCode} ancestry={ancestry} />
 
-      <div className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100">{DOC_BODY[currentId]}</div>
+      {/* OB-143: the body's text starts under the legend's first letter — LEFT only, by the
+          constant. The right padding is the scrollbar's and stays. DocHeader above pads its
+          own --space-5 (20) and is not touched: it is a DS component, and 20 against 21 is
+          inside the clause's ±1px. */}
+      <div className="pr-4 py-3 text-[12px] leading-relaxed text-slate-700 border-b border-slate-100" style={{ paddingLeft: LEGEND_INSET }}>{DOC_BODY[currentId]}</div>
 
-      <div className="px-4 py-3">
+      <div className="pr-4 py-3" style={{ paddingLeft: LEGEND_INSET }}>
         <SectionLabel count={throughWalks.length}>walks through here</SectionLabel>
         {throughWalks.length === 0 ? (
           <div className="text-[11px] text-slate-400">no authored walk stops here</div>

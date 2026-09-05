@@ -7,6 +7,7 @@
 // It owns only its drill path. The road it reads comes from presented.ts, which
 // resolves the SAME draft the walk editor writes.
 
+import { LEGEND_INSET } from '@/ds'
 import { useDrill, usePresentedRoad } from './presented'
 import WalkColumns from './WalkColumns'
 import { useHover } from '../../studio/bus'
@@ -19,7 +20,8 @@ export default function WalkColumnsView({ bus }: { bus: Bus }) {
 
   return (
     <div data-walkcolumns className="h-full flex flex-col">
-      <div className="shrink-0 px-3 py-1.5 border-b border-slate-100">
+      {/* OB-143: the caption's first letter sits under the legend's — left only, by the constant */}
+      <div className="shrink-0 pr-3 py-1.5 border-b border-slate-100" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="text-[10px] font-bold text-slate-500">
           columns — a RESOLVED road, one column per open tier · reading only
         </span>

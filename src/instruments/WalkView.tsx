@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from 'react'
 
-import { DomainDot, DOMAIN_TOKEN, PaneScroller, wrapTip } from '@/ds'
+import { DomainDot, DOMAIN_TOKEN, LEGEND_INSET, PaneScroller, wrapTip } from '@/ds'
 import { byId, domainIds, edges, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
 import { domainCodeOf } from '../model/domaincode'
 import type { Bus } from '../studio/bus'
@@ -119,7 +119,8 @@ export default function WalkView({ bus }: { bus: Bus }) {
 
   return (
     <div className="relative h-full flex flex-col">
-      <div className="shrink-0 px-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600">
+      {/* OB-143: the row's first letter sits under the legend's — left only, by the constant */}
+      <div className="shrink-0 pr-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="font-bold text-slate-800 text-[12px]">Walk — step-by-step downstream</span>
         <span className="text-slate-400">
           click a link to extend · click a link in an earlier column to fork there · click a step card to backtrack · ↺ marks a revisit
