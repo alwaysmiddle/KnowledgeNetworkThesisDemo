@@ -14,6 +14,20 @@ import { Grip } from './Grip'
  *  answer and still needs the header to be a direct child. */
 export const PaneFrameContext = createContext<RefObject<HTMLElement | null> | null>(null)
 
+/** THE TWO NUMBERS THE LEGEND IS DRAWN WITH, named so the inset below can be derived from
+ *  them rather than typed beside them: the legend row is placed this far in from the frame,
+ *  and the title span pads this much more. Used in the JSX below and nowhere else. */
+const LEGEND_ROW_LEFT = 16
+const LEGEND_TITLE_PAD = 5
+
+/** WHERE THE LEGEND'S FIRST LETTER SITS, measured from the frame's edge — the row's 16 plus
+ *  the title's 5. DERIVED, not chosen: change either constant above and this follows, never
+ *  the other way round. Published (OB-143, owner 2026-09-04) so a body can put its own text
+ *  on the same line — a host pads its body's LEFT by it, and only the left: the right
+ *  padding exists for the scrollbar and is a different number for a different reason. The
+ *  old bodies sat at 12–16, a near-miss that read as neither a step nor an alignment. */
+export const LEGEND_INSET = LEGEND_ROW_LEFT + LEGEND_TITLE_PAD
+
 /** Every instrument pane wears the same hat: just its title, sitting ON the
  *  pane's own hairline border like a legend — the border is the frame and the
  *  title is part of it. A pane carries NO subtitle or description line.
@@ -167,7 +181,7 @@ export function PaneHeader({
           style={{
             position: 'absolute',
             top: 0,
-            left: 16,
+            left: LEGEND_ROW_LEFT,
             right: 20,
             zIndex: 2,
             transform: 'translateY(-50%)',
@@ -177,7 +191,7 @@ export function PaneHeader({
             pointerEvents: 'none',
           }}
         >
-          <span onPointerDown={onGrabDown} {...grabAttr} style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', gap: grabbable ? 5 : 0, minWidth: 0, padding: '0 5px', pointerEvents: 'auto', ...grab }}>
+          <span onPointerDown={onGrabDown} {...grabAttr} style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', gap: grabbable ? 5 : 0, minWidth: 0, padding: `0 ${LEGEND_TITLE_PAD}px`, pointerEvents: 'auto', ...grab }}>
             <span style={cutTop} />
             <span style={cutBottom} />
             <span

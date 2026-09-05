@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { IconButton, PaneScroller, TrailChip, wrapTip } from '@/ds'
+import { IconButton, LEGEND_INSET, PaneScroller, TrailChip, wrapTip } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
@@ -48,7 +48,8 @@ export default function TrailStrip({ bus }: { bus: Bus }) {
   return (
     <div className="shrink-0 border-t border-slate-200 bg-white flex items-stretch h-[92px]" aria-label="trail-strip">
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="px-3 pt-1.5 text-[10px] font-bold text-slate-500 shrink-0">
+        {/* OB-143: the label's first letter sits under the legend's — left only, by the constant */}
+        <div className="pr-3 pt-1.5 text-[10px] font-bold text-slate-500 shrink-0" style={{ paddingLeft: LEGEND_INSET }}>
           Trail — {trail.length} visited (append-only; ⤳ marks a jump)
         </div>
         <PaneScroller axis="x" forwardRef={scroller} style={{ padding: '0 12px 8px' }}>

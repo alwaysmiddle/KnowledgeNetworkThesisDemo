@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { LEGEND_INSET } from '@/ds'
+
 import { byId, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { lensModel } from '../model/lens'
@@ -319,7 +321,10 @@ export default function LensPane({ bus, type }: LensPaneProps) {
 
   return (
     <div data-lens={type} className="h-full flex flex-col">
-      <header className="shrink-0 flex items-center gap-2 px-2 py-1 border-b border-slate-200 bg-white text-[11px]">
+      {/* OB-143, judged: this row starts with a SWATCH, not a letter, so the swatch's edge
+          takes the legend's inset and the first letter lands one gap further in. Named on
+          the receipt as the clause asks. Left only, by the constant. */}
+      <header className="shrink-0 flex items-center gap-2 pr-2 py-1 border-b border-slate-200 bg-white text-[11px]" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: EDGE_COLOR[type] }} />
         <span className="font-bold text-slate-700">{EDGE_LABEL[type]}</span>
         <span className="text-slate-300">·</span>

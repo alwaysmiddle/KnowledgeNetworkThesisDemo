@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { TreeRow } from '@/ds'
+import { LEGEND_INSET, TreeRow } from '@/ds'
 import type { DomainCode } from '@/ds'
 
 import { byId, childrenOf, domainOf, ROOT_ID } from '../corpus/graph'
@@ -59,12 +59,13 @@ export default function TreePanel({ bus }: { bus: Bus }) {
       {/* sticky needs its own face to stop rows scrolling through it — the one
           exception OB-039 keeps rather than strips, since this is a heading
           inside the scroller PaneScroller now owns, not the pane's own body */}
-      <div className="px-3 pt-2.5 pb-1.5 text-[11px] font-bold text-slate-800 border-b border-slate-100 sticky top-0 z-10" style={{ background: 'var(--surface-paper)' }}>
+      {/* OB-143: the heading's first letter sits under the legend's — left only, by the constant */}
+      <div className="pr-3 pt-2.5 pb-1.5 text-[11px] font-bold text-slate-800 border-b border-slate-100 sticky top-0 z-10" style={{ background: 'var(--surface-paper)', paddingLeft: LEGEND_INSET }}>
         Tree — {byId.get(treeRootId)!.title}
       </div>
       <div className="py-1">
         {rootChildren.length === 0 ? (
-          <div className="px-3 py-2 text-[11px] text-slate-400">no children — this is a leaf</div>
+          <div className="pr-3 py-2 text-[11px] text-slate-400" style={{ paddingLeft: LEGEND_INSET }}>no children — this is a leaf</div>
         ) : (
           rootChildren.map((c) => (
             <TreeNode

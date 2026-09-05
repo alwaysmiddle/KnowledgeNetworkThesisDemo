@@ -24,7 +24,7 @@
 
 import { useMemo, useState } from 'react'
 
-import { PaneScroller } from '@/ds'
+import { LEGEND_INSET, PaneScroller } from '@/ds'
 import { byId, domainIds, domainOf, DOMAIN_COLOR, EDGE_COLOR, EDGE_LABEL, topicsUnder } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 import { degreeOf, edgesTouching, HUB_IDS } from '../model/flat'
@@ -102,8 +102,9 @@ const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '
 /** The "pick a starting node" screen — hubs first, then every leaf by domain.
  * Shared with UnfoldGraphView.tsx, which grows the same corpus a different shape. */
 export function UnfoldStartPicker({ heading, sub, onStart }: { heading: string; sub: string; onStart: (id: string) => void }) {
+  // OB-143: the heading's first letter sits under the legend's — left only, by the constant
   return (
-    <PaneScroller style={{ padding: 24 }}>
+    <PaneScroller style={{ padding: `24px 24px 24px ${LEGEND_INSET}px` }}>
       <div className="max-w-[900px] mx-auto">
         <div className="text-[13px] font-bold text-slate-800">{heading}</div>
         <div className="text-[11px] text-slate-500 mt-0.5 mb-4">{sub}</div>
@@ -198,7 +199,8 @@ export default function UnfoldView() {
 
   return (
     <div className="relative h-full flex flex-col">
-      <div className="shrink-0 px-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600 bg-white border-b border-slate-200">
+      {/* OB-143: the row's first letter sits under the legend's — left only, by the constant */}
+      <div className="shrink-0 pr-4 pt-3 pb-2 flex items-center gap-3 text-[11px] text-slate-600 bg-white border-b border-slate-200" style={{ paddingLeft: LEGEND_INSET }}>
         <span className="font-bold text-slate-800 text-[12px]">Unfold — click a node, then click a link to grow it</span>
         <span className="text-slate-400">↺ marks a node that already appears elsewhere in this tree</span>
         <span className="flex-1" />
