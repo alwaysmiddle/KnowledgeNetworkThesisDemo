@@ -459,6 +459,32 @@ interface InlineTextProps {
   /** Shift+Enter breaks the line. Prose only — a hand-typed break in a NAME is a
    *  layout decision taken in the wrong place */
   multiline?: boolean
+  /** With `multiline`: a plain Enter INSERTS a line break and does not commit; the field
+   *  commits on blur, on the caller's own control (a pencil clicked again), or on
+   *  Ctrl/Cmd+Enter. For prose a person is writing — a note, a paragraph — where Enter
+   *  means "new line" (owner, 2026-09-04). ALSO CHANGES THE TIDY ON SAVE: prose keeps every
+   *  line break as typed (only the ends are trimmed); without this flag every blank line
+   *  collapses to a single break, the right rule for a description and the wrong one for
+   *  notes. Default false: Enter commits, Shift+Enter breaks. Ignored without `multiline`.
+   *  OB-144: the RULE is ported here, into this file's own field, rather than the DS's
+   *  `InlineText.jsx` as a file — this field is that component's ancestor and already
+   *  carries every other rule of it. No caller in this app passes it yet; the notes pane
+   *  (OB-145, #267) is the first that will. */
+  enterInserts?: boolean
+}
+
+/** THE TIDY ON SAVE, as a function so the rule can be asserted without a DOM. Every run of
+ *  spaces collapses and every line's ends are trimmed; whether BLANK LINES survive is the
+ *  whole difference between a description and prose. The collapse of every `\n\n` to `\n`
+ *  was written for a group's description, where a blank line is a slip; with `enterInserts`
+ *  the field is prose (a professor's notes) and the spacing they typed is theirs — first one
+ *  blank line came back glued (owner, 2026-09-04), then a first fix kept exactly one and still
+ *  ate the rest ("it just retains 1 new line"). Prose keeps every line break as typed; only
+ *  the ends are trimmed. */
+export function tidyMultiline(drawn: string, keepBlankLines: boolean): string {
+  const lines = drawn.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ')
+    .split('\n').map((l) => l.trim()).join('\n')
+  return (keepBlankLines ? lines : lines.replace(/\n{2,}/g, '\n')).trim()
 }
 
 /** EVERY EDITABLE STRING IN THE GROUP IS THIS: the line itself, made editable in
@@ -478,7 +504,7 @@ interface InlineTextProps {
  *  an empty string means — it clears a description and is refused for a name. */
 function InlineText({
   value, display, placeholder, editing, onOpen, onCommit, onCancel,
-  tooltip, style, editStyle, pointRef, multiline,
+  tooltip, style, editStyle, pointRef, multiline, enterInserts = false,
 }: InlineTextProps) {
   const ref = useRef<HTMLSpanElement | null>(null)
   const ownPoint = useRef<{ x: number; y: number } | null>(null)
@@ -510,14 +536,14 @@ function InlineText({
      included. Single-line strings keep `textContent`, which is cheaper and cannot
      surprise: a name has no breaks to preserve.
      Normalisation differs too — every line has its runs of spaces collapsed and its
-     ends trimmed; a multiline value keeps single breaks and collapses blank runs, a
-     single-line value loses breaks entirely. */
+     ends trimmed; a multiline value keeps single breaks and collapses blank runs unless
+     it is prose (`enterInserts` — see `tidyMultiline`), a single-line value loses breaks
+     entirely. */
   const readBack = (): string => {
     const el = ref.current
     if (!el) return ''
     if (!multiline) return (el.textContent || '').replace(/\s+/g, ' ').trim()
-    return el.innerText.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ')
-      .split('\n').map((l) => l.trim()).join('\n').replace(/\n{2,}/g, '\n').trim()
+    return tidyMultiline(el.innerText, enterInserts)
   }
   const commit = () => onCommit(readBack())
   const line = (
@@ -580,8 +606,11 @@ function InlineText({
           /* SHIFT+ENTER BREAKS THE LINE, ENTER COMMITS IT — and only where breaks
              are legal. On a NAME both spellings commit. `insertLineBreak` gives a
              real `<br>` rather than a paragraph, which is why the read-back uses
-             innerText. */
-          if (multiline && e.shiftKey) {
+             innerText.
+             `enterInserts` (OB-144): a NOTE is prose, and Enter in prose is a new line —
+             the field commits by blur or the caller's own control (owner, 2026-09-04).
+             Ctrl/Cmd+Enter still commits, the convention every chat box has taught. */
+          if (multiline && (e.shiftKey || (enterInserts && !e.ctrlKey && !e.metaKey))) {
             e.preventDefault()
             document.execCommand('insertLineBreak')
             return
