@@ -265,6 +265,20 @@ function bodyChrome(body: HTMLElement): HTMLElement[] {
  *   - a rounded clipping ancestor between a scrolling element and the frame, which is the
  *     configuration that bites the scrollbar's gutter.
  *  Pass `audit={false}` to silence it; it costs one pass per pane, once. */
+/** A RULE IS NOT A FACE (OB-141). A 1px child painted with a border colour is a hairline
+ *  divider, and the face check below used to call it a face and print the notch warning on
+ *  every mount of a correctly-built pane — the DS's own quick-actions deck puts one between its
+ *  two tile groups. Nothing 1px thick can bite a 20px corner arc: the fault the check exists
+ *  for is a WRAPPER, which by definition has the body's own extent. So thickness decides it.
+ *
+ *  Exported because vitest runs with no DOM and cannot mount a pane: this is the one line of
+ *  the audit that carries a threshold, and the threshold is what the unit test pins. The DS's
+ *  `.jsx` reads the height alone; OB-141's text says height OR width, and a 1px vertical rule
+ *  is the same case turned sideways, so both are read here. Reported on the receipt. */
+export function isHairlineRule(box: { width: number; height: number }): boolean {
+  return box.height <= 1 || box.width <= 1
+}
+
 function auditBody(frame: HTMLElement | null, body: HTMLElement | null) {
   if (!frame || !body || AUDITED.has(frame)) return
   AUDITED.add(frame)
@@ -280,6 +294,7 @@ function auditBody(frame: HTMLElement | null, body: HTMLElement | null) {
 
   for (const el of bodyChrome(body)) {
     if (el.dataset.paneBody === 'canvas') continue
+    if (isHairlineRule(el.getBoundingClientRect())) continue // a divider, not a face — see isHairlineRule
     const bg = getComputedStyle(el).backgroundColor
     if (bg === frameBg) continue // matches the frame's own face — a deliberate face, not the fault
     if (opaque(bg)) {
