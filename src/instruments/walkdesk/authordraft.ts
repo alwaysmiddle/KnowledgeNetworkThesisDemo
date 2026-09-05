@@ -298,16 +298,38 @@ function adjustAfterRemoval(target: Path, removed: Path): Path {
   return target
 }
 
-/** the selection as a contiguous run of siblings, or null if it isn't one */
-function contiguousRun(selected: ReadonlySet<string>): { parent: Path; from: number; to: number } | null {
+/** the selection as SIBLINGS — every selected block under one parent — with their
+ *  indices in chain order, or null when the selection spans parents (or is empty).
+ *  Gaps are allowed (OB-115, #257): until then this demanded a contiguous run, so
+ *  "Group" was disabled the moment the selection had a hole in it. What a gapped
+ *  group does about the hole is `gatherIntoGroup`'s rule, below. A selection that
+ *  reaches into two containers is still not groupable — a group is one list's
+ *  business, and pulling a step out of one box into another is a move, not a group. */
+export function siblingSelection(selected: ReadonlySet<string>): { parent: Path; indices: number[] } | null {
   if (selected.size === 0) return null
   const paths = [...selected].map(parsePath)
   const parent = paths[0].slice(0, -1)
   const pk = pathKey(parent)
   if (!paths.every((p) => pathKey(p.slice(0, -1)) === pk)) return null
-  const idx = paths.map((p) => p[p.length - 1]).sort((a, b) => a - b)
-  for (let k = 1; k < idx.length; k++) if (idx[k] !== idx[k - 1] + 1) return null
-  return { parent, from: idx[0], to: idx[idx.length - 1] }
+  const indices = paths.map((p) => p[p.length - 1]).sort((a, b) => a - b)
+  return { parent, indices }
+}
+
+/** THE GROUP RULE (OB-115, #257): the blocks at `indices` leave their slots and
+ *  collapse into ONE container, built by `wrap` from those blocks IN CHAIN ORDER
+ *  (not click order), standing at the FIRST selected block's slot. Whatever sat
+ *  between them now sits after the group — that reorder is the ask, not a side
+ *  effect: a group is a place in the chain, and its members are inside it, so they
+ *  cannot also hold their old places. For a contiguous run nothing between exists
+ *  and the result is exactly what grouping a run always was.
+ *
+ *      before  1 2 3 4 5 6      group 2 and 5
+ *      after   1 [2 5] 3 4 6    → renumbered 1 2 3 4 5                            */
+export function gatherIntoGroup(list: Stop[], indices: number[], wrap: (steps: Stop[]) => Stop): Stop[] {
+  const chosen = new Set(indices)
+  const first = Math.min(...indices)
+  const members = list.filter((_, i) => chosen.has(i))
+  return [...list.slice(0, first), wrap(members), ...list.slice(first + 1).filter((_, k) => !chosen.has(first + 1 + k))]
 }
 
 export interface AuthorState {
@@ -338,9 +360,11 @@ export interface AuthorState {
   addSelectionNode(): void
   /** move an existing block to a new position (drag) */
   moveBlock(from: Path, to: Path): void
-  /** wrap the selected run into a plain group — one variant holding the run. A
-   * fork is reached from here: group, then grow a variant on the card (#19), so
-   * there is no separate fork op. */
+  /** collapse the selected siblings into a plain group — one variant holding
+   * them, at the first one's slot; a gapped selection pulls its members together
+   * and what sat between moves after (OB-115, `gatherIntoGroup`). A fork is
+   * reached from here: group, then grow a variant on the card (#19), so there is
+   * no separate fork op. */
   groupSelection(): void
   /** delete exactly the block at `path` — the per-node close button (#15), which
    * acts on one node regardless of the current selection. */
@@ -399,7 +423,7 @@ export function useAuthorDraft(): AuthorState {
     setCaret(null)
   }
 
-  const run = contiguousRun(selected)
+  const siblings = siblingSelection(selected)
 
   const selectedStops = [...selected].map((k) => stopAt(stops, parsePath(k)))
 
@@ -459,17 +483,15 @@ export function useAuthorDraft(): AuthorState {
       commit(insertAt(rest, adjustAfterRemoval(to, from), removed))
     },
     groupSelection: () => {
-      if (!run) return
+      if (!siblings) return
       const key = nextBoxKey()
       commit(
-        rebuildListAt(stops, run.parent, (list) => [
-          ...list.slice(0, run.from),
+        rebuildListAt(stops, siblings.parent, (list) =>
           // empty title, not the literal "name this stage" (OB-081) — the card draws
           // that as titlePlaceholder now, an invitation rather than saved data an
           // unrenamed group would otherwise carry forever
-          { key, title: '', variants: [{ id: nextVid(), label: '', steps: list.slice(run.from, run.to + 1) }] },
-          ...list.slice(run.to + 1),
-        ]),
+          gatherIntoGroup(list, siblings.indices, (steps) => ({ key, title: '', variants: [{ id: nextVid(), label: '', steps }] })),
+        ),
       )
     },
     deleteAt: (path) => commit(removeAt(stops, path).rest),
@@ -542,7 +564,7 @@ export function useAuthorDraft(): AuthorState {
     relabelVariant: (key, idx, label) => {
       commitStops(mapBox(stops, key, (s) => ({ ...s, variants: s.variants.map((vr, k) => (k === idx ? { ...vr, label } : vr)) })), 'label:' + key + ':' + idx)
     },
-    canGroup: !!run,
+    canGroup: !!siblings,
     canOptional: selected.size > 0 && selectedStops.every((s) => s !== undefined && !isFork(s)),
     optionalActive: selected.size > 0 && selectedStops.every((s) => s !== undefined && s.optional === true),
     canIndent: !!prevSibling && isBox(prevSibling),

@@ -69,7 +69,7 @@ export default function WalkActionBar() {
       actions={[
         { glyph: <NewWalkMark size={13} />, label: 'New walk', title: 'start over with an empty slot', onClick: state.newWalk },
         { glyph: <AddNodeMark size={13} />, label: 'Add node', title: 'add a node at the selection', onClick: state.addSelectionNode },
-        { glyph: '⊞', label: 'Group', title: 'group the selected run', disabled: !state.canGroup, onClick: state.groupSelection },
+        { glyph: '⊞', label: 'Group', title: 'group the selected steps', disabled: !state.canGroup, onClick: state.groupSelection },
         {
           glyph: <OptionalMark size={13} />,
           label: 'Optional',
