@@ -5,7 +5,10 @@
 //   · the notes pane shows the SHOWN stop's prepared note, and says so when you roam away;
 //   · a note typed and sent lands in the During column with its time and its category tag, filed
 //     against the stop it was written about — so roaming to another stop hides it and coming back
-//     shows it again;
+//     shows it again, and a note written WHILE ROAMING files against the stop being read rather
+//     than the one the class is seeing;
+//   · a category the professor mints is theirs, and is offered again at the next stop and after
+//     a reload;
 //   · the prepared note's pencil edits IN PLACE and the correction survives a reload, without
 //     touching the walk the note was authored on;
 //   · the deck draws eight undecided slots and keeps six real actions on the shelf behind More;
@@ -119,25 +122,82 @@ try {
   const back = await rows()
   ok('stepping back shows the first stop\'s note again, and only that one', back.length === 1 && /stumbled on the handshake/.test(back[0] || ''), String(back.length))
 
+  // ── A NOTE WRITTEN WHILE ROAMING BELONGS TO THE STOP BEING READ ─────────────
+  // The record stays where the class is; the professor reads ahead and writes about what they
+  // are reading. Nothing in the host decides this — the pane stamps the note with the stop it
+  // was showing, which is the roamed one.
+  await leaveField()
+  await page.locator('[data-presenter-tick="3"]').click()
+  await page.waitForTimeout(400)
+  const roamChip = (await page.locator('[data-presenter-chip]').innerText()).replace(/\s+/g, ' ').trim()
+  ok('a click on a tick roams ahead while the record stays put', /^Roaming stop 4$/.test(roamChip), roamChip)
+  await write('this slide needs an example, not a definition')
+  const roamRows = await rows()
+  ok('the note written while roaming shows on the ROAMED stop', roamRows.length === 1 && /needs an example/.test(roamRows[0] || ''), String(roamRows.length))
+  ok('and it is stamped with the roamed stop, by the pane', await page.evaluate(() => {
+    const book = JSON.parse(localStorage.getItem('pkt.lecture.notes.v1:draft') || '{}')
+    const hit = (book.notes || []).find((n) => /needs an example/.test(n.text))
+    return !!hit && hit.stop === 3
+  }))
+  await leaveField()
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(400)
+  const backChip = (await page.locator('[data-presenter-chip]').innerText()).replace(/\s+/g, ' ').trim()
+  ok('ending the roam returns to the record, and the roamed note is not on it', /^Presenting stop 1$/.test(backChip) && (await during().locator('[data-lecture-note]').count()) === 1, backChip)
+
+  // ── A MINTED CATEGORY IS THE PROFESSOR'S, not the stop's ────────────────────
+  await notes().locator('[data-note-composer] [aria-label]').first().click().catch(() => {})
+  await page.locator('[data-note-composer]').locator('button').first().click()
+  await page.waitForTimeout(300)
+  ok('the category button opens the popover', (await page.locator('[data-note-categories]').count()) === 1)
+  await page.locator('[data-note-categories]').getByText('new category…').click()
+  await page.waitForTimeout(300)
+  await page.getByLabel('name the new category').fill('Homework')
+  await page.getByLabel('add this category').click()
+  await page.waitForTimeout(400)
+  ok('the minted category is stored against the professor, not the lecture',
+    await page.evaluate(() => (JSON.parse(localStorage.getItem('pkt.lecture.categories.v1') || '{}').list || []).some((c) => c.label === 'Homework')))
+  await leaveField()
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(400)
+  await page.locator('[data-note-composer]').locator('button').first().click()
+  await page.waitForTimeout(300)
+  ok('it is offered at the next stop too', (await page.locator('[data-note-categories]').getByText('Homework').count()) === 1)
+  await page.keyboard.press('Escape')
+  await leaveField()
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForTimeout(400)
+
   // ── the prepared note, corrected at the lectern ─────────────────────────────
   await notes().getByLabel('edit the prepared notes for this stop').dispatchEvent('click')
   await page.waitForTimeout(250)
   await page.keyboard.press('Control+A')
-  await page.keyboard.type('say the three-way handshake OUT LOUD before the diagram')
+  await page.keyboard.type('Say the handshake out loud before the diagram goes up.\n\nSYN, SYN-ACK, ACK — then ask what happens if the third is lost.')
   // PREPARED NOTES ARE PROSE, so the in-place editor treats the return key as a LINE BREAK and
   // commits on blur instead (or on a second press of the pencil). Looking away is the save.
   await leaveField()
   await page.waitForTimeout(500)
-  ok('the pencil commits the correction in place', /say the three-way handshake OUT LOUD/.test(await prepared().innerText()))
+  ok('the pencil commits the correction in place', /Say the handshake out loud/.test(await prepared().innerText()))
+  ok('and the blank line between the two paragraphs survives the round trip',
+    await page.evaluate(() => {
+      const book = JSON.parse(localStorage.getItem('pkt.lecture.notes.v1:draft') || '{}')
+      return Object.values(book.prepared || {}).some((v) => /goes up\.\n\nSYN/.test(v))
+    }))
   await page.reload()
   await page.waitForTimeout(1200)
   await openPalette()
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(800)
-  ok('the correction survives a reload', /say the three-way handshake OUT LOUD/.test(await prepared().innerText()),
+  ok('the correction survives a reload', /Say the handshake out loud/.test(await prepared().innerText()),
     'prepared = ' + (await page.evaluate(() => JSON.stringify((JSON.parse(localStorage.getItem('pkt.lecture.notes.v1:draft') || '{}')).prepared)))
     + ' · shown = ' + (await page.locator('[data-presenter-chip]').innerText()).replace(/\s+/g, ' ').trim())
   ok('and so do the notes taken', (await during().locator('[data-lecture-note]').count()) === 1)
+  await page.locator('[data-note-composer]').locator('button').first().click()
+  await page.waitForTimeout(300)
+  ok('and so does the minted category — it belongs to the professor, not the session',
+    (await page.locator('[data-note-categories]').getByText('Homework').count()) === 1)
+  await page.keyboard.press('Escape')
+  await leaveField()
 
   // ── the deck ────────────────────────────────────────────────────────────────
   ok('the deck draws eight tiles', (await deck().count()) === 8, String(await deck().count()))
@@ -182,13 +242,42 @@ try {
   })
   await page.waitForTimeout(500)
   ok('a shelf action dropped on a slot takes its place', swapped && (await page.locator('[data-quick-deck] [data-quick-action="flag"]').count()) === 1)
-  ok('and the displaced placeholder goes back to the shelf', (await page.locator('[data-quick-shelf] [data-quick-action="class-1"]').count()) === 1)
+  ok('and the displaced placeholder goes back to the shelf, LAST — where the eye looks for it',
+    (await page.locator('[data-quick-shelf] [data-quick-action]').last().getAttribute('data-quick-action')) === 'class-1',
+    await page.locator('[data-quick-shelf] [data-quick-action]').last().getAttribute('data-quick-action'))
+  // THE SHELF IS MOVABLE AND ITS PLACE IS REMEMBERED — as a DELTA from wherever it opens, so a
+  // position saved on a wide window cannot strand it off the edge of a narrow one.
+  const shelfBox = await shelf.boundingBox()
+  await page.mouse.move(shelfBox.x + 60, shelfBox.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(shelfBox.x + 60 - 90, shelfBox.y + 12 - 60, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
+  const moved = await shelf.boundingBox()
+  ok('the shelf can be dragged by its header', Math.round(shelfBox.x - moved.x) > 40, `${Math.round(shelfBox.x)} → ${Math.round(moved.x)}`)
+  ok('and where it was dropped is saved as a delta, not a point',
+    await page.evaluate(() => { const h = JSON.parse(localStorage.getItem('pkt.lecture.habits.v1') || '{}'); return !!h.shelfPosition && h.shelfPosition.x < -40 }),
+    await page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('pkt.lecture.habits.v1') || '{}').shelfPosition)))
   await page.reload()
   await page.waitForTimeout(1200)
   await openPalette()
   await page.getByLabel('studio-preset-present').click()
   await page.waitForTimeout(800)
   ok('the arrangement survives a reload', (await page.locator('[data-quick-deck] [data-quick-action="flag"]').count()) === 1)
+  await page.locator('[data-quick-shelf-toggle]').click()
+  await page.waitForTimeout(500)
+  const reopened = await page.locator('[data-quick-shelf]').boundingBox()
+  ok('the shelf reopens where it was left', Math.abs(reopened.x - moved.x) < 4, `${Math.round(moved.x)} → ${Math.round(reopened.x)}`)
+  // a delta saved on a wide window must not strand the shelf off a narrow one: the pane clamps
+  // it to the viewport when it opens
+  await page.setViewportSize({ width: 900, height: 950 })
+  await page.waitForTimeout(600)
+  const narrow = await page.locator('[data-quick-shelf]').boundingBox()
+  ok('and a narrow window pulls it back inside rather than off the edge', narrow.x >= 0 && narrow.x + narrow.width <= 900, `x ${Math.round(narrow.x)}, right ${Math.round(narrow.x + narrow.width)}`)
+  await page.setViewportSize({ width: 1750, height: 950 })
+  await page.waitForTimeout(500)
+  await page.locator('[data-quick-shelf-toggle]').click()
+  await page.waitForTimeout(300)
   ok('a real tile on the deck now shows its key', /\(F\)/i.test(await page.locator('[data-quick-deck] [data-quick-action="flag"]').innerText()))
 
   // ── the recap ───────────────────────────────────────────────────────────────
