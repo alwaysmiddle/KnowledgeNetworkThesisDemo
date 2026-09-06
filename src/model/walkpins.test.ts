@@ -371,3 +371,25 @@ describe('pinPosition — the walk\'s position counted in PINS (OB-132)', () => 
     expect(PIN_NO_POSITION).toEqual({ behind: false, active: 0, pinOpacity: 1, pinScale: 1 })
   })
 })
+
+describe('the printed number is the TOP-LEVEL step (#228, DS OB-114)', () => {
+  const route = WALKS[0].stops.map((s) => s.id)
+  const px = pxAt(0, 1.2)
+  test('without stepNumbers every stop is its own step — the labels are the stop indices', () => {
+    const pins = walkPins({ route, level: 0, px, labelBoxes: [] })
+    for (const p of pins) expect(p.label).toBe(p.step === p.stepEnd ? p.step : `${p.step}-${p.stepEnd}`)
+  })
+  test('a group\'s nodes all print the group\'s number, and a run merged inside one group reads as ONE number', () => {
+    // stops 2..4 belong to group 2; the rest are their own steps
+    const stepNumbers = route.map((_, i) => (i >= 1 && i <= 3 ? 2 : i < 1 ? i + 1 : i - 1))
+    const pins = walkPins({ route, level: 0, px, labelBoxes: [], stepNumbers })
+    for (const p of pins) {
+      const first = stepNumbers[p.step - 1]
+      const last = stepNumbers[p.stepEnd - 1]
+      expect(p.label).toBe(first === last ? first : `${first}-${last}`)
+      expect(String(p.label)).not.toContain('.')
+    }
+    // the stop indices behind the label are untouched — the band still counts in stops
+    expect(pins.map((p) => p.step)).toEqual(walkPins({ route, level: 0, px, labelBoxes: [] }).map((p) => p.step))
+  })
+})

@@ -79,7 +79,9 @@ export interface WalkPin {
    *  merged run. `pinPosition` reads both: a walk anywhere inside the run is ON this pin. */
   stepEnd: number
   c: XY
-  /** what is printed inside: a number, or a "6-9" range for a merged run */
+  /** what is printed inside: the TOP-LEVEL step number (a group's nodes all print
+   *  the group's number — #228, DS OB-114), or a "6-9" range when a merged run
+   *  spans more than one top-level step */
   label: number | string
   size: number
 }
@@ -95,6 +97,12 @@ export interface WalkPinInput {
   px: (v: number) => number
   /** every name drawn at this level, as boxes — what a pin has to stay off */
   labelBoxes: LabelBox[]
+  /** the TOP-LEVEL step each stop of `route` belongs to, 1-based, one per stop
+   *  (`routeNumbers(bus.routeSteps)`): a group's nodes share the group's number.
+   *  Omitted, every stop is its own step — a saved walk, a curriculum. Only the
+   *  printed label reads this; `step`/`stepEnd` stay stop indices, which is what
+   *  the fractional position counts in. */
+  stepNumbers?: readonly number[]
 }
 
 /** the size a pin takes when `n` pins are competing for the same spot. OB-087's
@@ -213,7 +221,7 @@ export function separate(pins: WalkPin[], px: (v: number) => number): void {
 }
 
 // ── the whole thing ─────────────────────────────────────────────────────────
-export function walkPins({ route, level, px, labelBoxes }: WalkPinInput): WalkPin[] {
+export function walkPins({ route, level, px, labelBoxes, stepNumbers }: WalkPinInput): WalkPin[] {
   if (route.length === 0) return []
   const groups = merged(resolved(route, level))
   if (groups.length === 0) return []
@@ -256,7 +264,12 @@ export function walkPins({ route, level, px, labelBoxes }: WalkPinInput): WalkPi
     //     owner. `pinSpotClear` does the proximity filtering; handing it the
     //     whole set keeps the decision about which labels count in one place.
     c = pinSpotClear(c, cellPolyOf(g.visId, g.c), labelBoxes, px(size / 2))
-    const label: number | string = g.steps.length > 1 ? `${g.steps[0]}-${g.steps[g.steps.length - 1]}` : g.steps[0]
+    // the printed number is the TOP-LEVEL step, so a run merged inside one group
+    // reads as that group's single number, and only a run that really crosses a
+    // step boundary reads as a range
+    const first = stepNumbers?.[g.steps[0] - 1] ?? g.steps[0]
+    const last = stepNumbers?.[g.steps[g.steps.length - 1] - 1] ?? g.steps[g.steps.length - 1]
+    const label: number | string = last !== first ? `${first}-${last}` : first
     return { key: `${g.visId}-${g.steps[0]}`, visId: g.visId, step: g.steps[0], stepEnd: g.steps[g.steps.length - 1], c, label, size }
   })
 

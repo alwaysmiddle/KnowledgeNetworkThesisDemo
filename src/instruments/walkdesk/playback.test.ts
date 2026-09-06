@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest'
 
 import { byId } from '../../corpus/graph'
 import type { Walk } from '../../model/walkstore'
-import { leafIds, resolveRoad } from './mockwalk'
+import { leafIds, resolveRoad, routeStepsOf } from './mockwalk'
+import { routeLeafIds, routeNumbers } from '../../model/route'
 import type { Stop } from './mockwalk'
 import { clampCursor, playSteps, routeIsWalk } from './playback'
 
@@ -73,6 +74,25 @@ describe('playSteps — the draft road', () => {
   it('titles every step from the corpus, not from the stop', () => {
     const road = resolveRoad([leaf(A)], {}, true)
     expect(playSteps(null, road)[0].title).toBe(byId.get(A)!.title)
+  })
+})
+
+describe('the road on the bus keeps its groups (#228, DS OB-114)', () => {
+  it('routeStepsOf walks the tree exactly as leafStops does', () => {
+    const road = resolveRoad([leaf(A), fork('f', [{ id: 'v0', label: 'one', steps: [leaf(B), leaf(C)] }]), leaf(A)], {}, true)
+    expect(routeLeafIds(routeStepsOf(road))).toEqual(leafIds(road))
+    expect(routeStepsOf(road)[1]).toEqual({ title: 'which way', steps: [{ node: B }, { node: C }] })
+  })
+
+  it('a step inside a group carries its full path; a top-level step carries none', () => {
+    const road = resolveRoad([leaf(A), fork('f', [{ id: 'v0', label: 'one', steps: [leaf(B), leaf(C)] }]), leaf(A)], {}, true)
+    expect(playSteps(null, road).map((s) => s.path)).toEqual([undefined, '2.1', '2.2', undefined])
+    expect(routeNumbers(routeStepsOf(road)).map((n) => n.step)).toEqual([1, 2, 2, 3])
+  })
+
+  it('a saved walk has no paths at all', () => {
+    const w: Walk = { id: 'w', title: 't', stops: [{ id: A, note: '' }, { id: B, note: '' }] } as Walk
+    expect(playSteps(w, []).every((s) => s.path === undefined)).toBe(true)
   })
 })
 

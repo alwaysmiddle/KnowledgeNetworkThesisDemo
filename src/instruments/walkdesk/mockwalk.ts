@@ -16,6 +16,7 @@
 // REVISIT (stk-tcp-udp stopped on twice), and mixed grain (a plain leaf between
 // groups at tier 0).
 
+import type { RouteStep } from '../../model/route'
 import { byId } from '../../corpus/graph'
 import { WALKS } from '../../corpus/walks'
 
@@ -133,9 +134,20 @@ export function leafStops(stops: Stop[]): (Stop & { node: string })[] {
   return out
 }
 
-/** the same leaves as ids alone — what the bus route wants. Expressed through
- * leafStops so the two can never walk the tree differently. */
+/** the same leaves as ids alone — the flat route. Expressed through leafStops so
+ * the two can never walk the tree differently. */
 export const leafIds = (stops: Stop[]): string[] => leafStops(stops).map((s) => s.node)
+
+/** the resolved road as the BUS's route type — groups kept (#228, DS OB-114): a
+ * container becomes a group holding its chosen variant's steps, a leaf becomes a
+ * node. Walks the tree exactly as leafStops does, so `routeLeafIds` of the
+ * result is `leafIds` of the road (playback.test.ts pins that). The bus's type
+ * rather than `Stop` itself: the bus must not depend on this file's spike data. */
+export function routeStepsOf(stops: Stop[]): RouteStep[] {
+  return stops.map((s) => (isLeaf(s)
+    ? { node: s.node }
+    : { title: s.title, steps: routeStepsOf(s.variants[0]?.steps ?? []) }))
+}
 
 // ── Road resolution ─────────────────────────────────────────────────────────
 // A branching draft still projects to ONE linear walk: at every container pick

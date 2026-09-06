@@ -37,7 +37,8 @@ import type { WalkStep } from '@/ds'
 import { byId } from '../../corpus/graph'
 import { walkById } from '../../model/walkstore'
 import type { Walk } from '../../model/walkstore'
-import { leafStops } from './mockwalk'
+import { leafStops, routeStepsOf } from './mockwalk'
+import { routeNumbers } from '../../model/route'
 import type { Stop } from './mockwalk'
 import { usePresentedRoad } from './presented'
 import type { Bus } from '../../studio/bus'
@@ -58,6 +59,11 @@ import type { Bus } from '../../studio/bus'
  *  `steps`, `cursor` and `seek` keep their shapes; `WalkViewer` needs no edit. */
 export interface PlayStep extends WalkStep {
   stop?: Stop
+  /** THE STEP'S FULL PATH when it sits inside a group on the desk's road — "3.1",
+   *  "1.1.1.2", the group's own local numbering (#228, DS OB-114). Undefined for a
+   *  top-level step and for every step of a saved walk (saved walks are flat). The
+   *  hover card is where it is printed; a map pin prints the top-level step only. */
+  path?: string
 }
 
 /** which of the two sources is playing. Exposed so a caller can preserve a
@@ -111,9 +117,13 @@ export interface Playback {
  *  ({id, note} — no containers, no optionals, no variants); a draft road is a
  *  resolved tree that still has to be walked down to its leaves. */
 export function playSteps(saved: Walk | null, road: Stop[]): PlayStep[] {
-  return saved
-    ? saved.stops.map((s) => ({ id: s.id, title: byId.get(s.id)!.title, note: s.note }))
-    : leafStops(road).map((s) => ({ id: s.node, title: byId.get(s.node)!.title, note: s.note, optional: s.optional, stop: s }))
+  if (saved) return saved.stops.map((s) => ({ id: s.id, title: byId.get(s.id)!.title, note: s.note }))
+  // one entry per leaf, in the same order — route.ts and leafStops walk the tree alike
+  const numbers = routeNumbers(routeStepsOf(road))
+  return leafStops(road).map((s, i) => ({
+    id: s.node, title: byId.get(s.node)!.title, note: s.note, optional: s.optional, stop: s,
+    path: numbers[i]?.grouped ? numbers[i].path : undefined,
+  }))
 }
 
 /** a cursor that is always a valid index, or 0 when there is nothing to index.
