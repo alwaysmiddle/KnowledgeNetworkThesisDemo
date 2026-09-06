@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tidyMultiline } from './VersionedGroup'
+import { tidyMultiline } from '../chrome/InlineText'
 import { EDIT_MARK_LIFT } from '../chrome/EditMark'
 import binSource from '../sidebar/BinMark.tsx?raw'
 

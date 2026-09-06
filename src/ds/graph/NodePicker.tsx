@@ -1,4 +1,4 @@
-import { createPortal } from 'react-dom'
+import { portalInto } from '../chrome/portal'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -252,7 +252,7 @@ export function NodePicker({
           different host element refs in TS. Dropped from the button: the span wraps it with
           no padding or border of its own, so their measured rects are identical. */}
       <span ref={anchorRef} style={{ display: 'inline-flex' }}>{anchorEl}</span>
-      {portalTarget && open && menu ? createPortal(menu, portalTarget) : menu}
+      {portalTarget && open && menu ? portalInto(portalTarget, menu) : menu}
     </>
   )
 }

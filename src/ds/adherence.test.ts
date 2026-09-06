@@ -341,7 +341,9 @@ describe('our DS ports document what the DS documents', () => {
   // DS-parity reasoning as every +N line above: MapFloatingButton's disabled/label/
   // children/onClick, ZoomControl's onZoomIn/onZoomOut/zoomInDisabled/zoomOutDisabled,
   // LevelPicker's onSelect, VisibilityMark's size/style, MapTooltip's kind/relationsOut.
-  const BUDGET = 91
+  // 91 -> 88 on 2026-09-05 (OB-110, #256): VersionedGroup's onRetitle / onDescribe / onSelect
+  // took the DS's prose with the edit-mode port.
+  const BUDGET = 88
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {
