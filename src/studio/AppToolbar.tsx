@@ -3,6 +3,8 @@ import type { ToolbarItemSpec } from '@/ds'
 
 import { redoDraft, undoDraft } from '../instruments/walkdesk/authordraft'
 import { PALETTE_HOOK, PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
+import { PRESENT_HOOK, PRESENT_TITLE } from './presentbutton'
+import type { PresentState } from './presentbutton'
 
 /** The application toolbar (#55): universal, app-level operations pinned directly
  *  under the app header — the DS Toolbar's designed slot. Built entirely on the
@@ -18,16 +20,20 @@ import { PALETTE_HOOK, PALETTE_TIP, PaletteGlyph } from './PaletteGlyph'
  *  model yet, so they render disabled, carrying their `Name (Ctrl+X)` tooltip
  *  until an app-level command/clipboard model exists. See #55.
  *
- *  PRESENT (#195) is app-level in the strongest sense — it replaces the whole
- *  screen — so it belongs here rather than on any instrument. It carries no
- *  keyboard shortcut on purpose: PowerPoint's F5 is the browser's reload, which
- *  in a Vite-heavy workflow is a key the author presses constantly. Shift+F5 is
- *  the candidate if one is ever wanted.
+ *  PRESENT (#195, #267) is app-level in the strongest sense — it replaces the
+ *  whole screen — so it belongs here rather than on any instrument. THE ▶ IS THE
+ *  ONLY START (DS OB-135 rule 1): it starts the lecture at the focus and puts the
+ *  live slide on the projector; the palette's Present is only a preview. Its
+ *  title reads "present" / "presenting" / "resume" for the three states, it is
+ *  unpressable exactly while a lecture is live, and pressing it once a lecture
+ *  has ended RESUMES. It carries no keyboard shortcut on purpose: PowerPoint's F5
+ *  is the browser's reload, which in a Vite-heavy workflow is a key the author
+ *  presses constantly. Shift+F5 is the candidate if one is ever wanted.
  *
  *  THE PALETTE TOGGLE IS THE ONE ITEM HERE THAT IS NOT OPTIONAL CHROME (OB-104):
  *  the palette pane's ✕ closes it, and this is the only thing that brings it back.
  *  Ship one without the other and the pane is a one-way door. */
-export function AppToolbar({ onPresent, palette }: { onPresent?: () => void; palette?: { on: boolean; onToggle: () => void } } = {}) {
+export function AppToolbar({ present, palette }: { present?: { state: PresentState; onClick: () => void }; palette?: { on: boolean; onToggle: () => void } } = {}) {
   // GROUP ORDER IS THE OBLIGATION, not a preference (OB-105): palette, then the
   // four document-lifecycle actions in the order they are actually used — create,
   // load, save, print (output last) — then editing, then the clipboard. `new map`
@@ -67,7 +73,8 @@ export function AppToolbar({ onPresent, palette }: { onPresent?: () => void; pal
   // the same family of act. `walk` is the tone the DS reserves for movement
   // through the corpus, which is what distinguishes this from the file-and-
   // clipboard verbs beside it.
-  const present: ToolbarItemSpec[] = [{ glyph: '▶', title: 'Present', tone: 'walk', onClick: onPresent }]
+  const state = present?.state ?? 'idle'
+  const presentGroup: ToolbarItemSpec[] = [{ glyph: '▶', title: PRESENT_TITLE[state], tone: 'walk', on: state === 'live', disabled: state === 'live', onClick: present?.onClick, hook: PRESENT_HOOK }]
   return (
     <Toolbar
       groups={[
@@ -75,7 +82,7 @@ export function AppToolbar({ onPresent, palette }: { onPresent?: () => void; pal
         { items: document },
         { items: editing },
         { items: clipboard },
-        { items: present },
+        { items: presentGroup },
       ]}
     />
   )

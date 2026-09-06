@@ -375,6 +375,79 @@
           "2026-09-05 NEW FILE, OB-110 (#256) — `portalInto(node, element)` is a real `createPortal`, as the DS's own docblock says a port makes it; the DS's render-in-place fallback (for a runtime with no ReactDOM global) has no case here and is not carried. VersionedGroup (menu, refusal panel) and NodePicker (option list) read it."
         ]
       },
+      "src/ds/chrome/FlagMark.tsx": {
+        "from": "components/chrome/FlagMark.jsx",
+        "contract": "components/chrome/FlagMark.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-136 (#267) — the flag on a pole, ported faithfully; drawn by FilmRoll, PresenterStrip and StopFinder."
+        ]
+      },
+      "src/ds/chrome/ExpandMark.tsx": {
+        "from": "components/chrome/ExpandMark.jsx",
+        "contract": "components/chrome/ExpandMark.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-136 (#267) — the full-screen brackets, ported faithfully; drawn by FilmRoll's expand button."
+        ]
+      },
+      "src/ds/chrome/FindMark.tsx": {
+        "from": "components/chrome/FindMark.jsx",
+        "contract": "components/chrome/FindMark.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-137/138 (#267) — the magnifier, ported faithfully; drawn by PresenterStrip's find button and inside StopFinder's query box."
+        ]
+      },
+      "src/ds/chrome/TextInput.tsx": {
+        "from": "components/chrome/TextInput.jsx",
+        "contract": "components/chrome/TextInput.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-137/138 (#267), taken here ahead of OB-101's connections rehaul (#253) because StopFinder types into it — the item says to take it first in that case. Ported faithfully; `inputRef` typed `RefObject<HTMLInputElement | null>` for React 19's ref shape. ConnectionsPane's own filter box does NOT render it yet — that adoption is #253's."
+        ]
+      },
+      "src/ds/chrome/MeasureBox.tsx": {
+        "from": "components/chrome/MeasureBox.jsx",
+        "contract": "components/chrome/MeasureBox.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-136/137 (#267) — `settleRead` (the settle ladder: now, next frame, the frame after, fonts ready, every resize) and `useSettledMeasure`, ported faithfully. ★ LOCAL note, not a change: the DS's `useSettledMeasure` creates a ResizeObserver it never tells what to observe; ported as written and documented on the hook, so a caller observes its own boxes. FilmRoll, PresenterStrip and the app's LectureSlide read `settleRead` directly."
+        ]
+      },
+      "src/ds/presenter/PresenterHeaderBar.tsx": {
+        "from": "components/presenter/PresenterHeaderBar.jsx",
+        "contract": "components/presenter/PresenterHeaderBar.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-135 (#267) — part 1 of the presenter split, ported faithfully with the four states (presenting/roaming/ended/preview), the controlled confirm, and `onResume` accepted and ignored. `PresenterState` is exported as the state union. Test hooks added (★ LOCAL, attributes only): `data-presenter-header`, `data-presenter-chip`, `data-presenter-clock`, an aria-label on ■ and a `role=\"dialog\"` on the confirm, so a driver reads the state without matching prose."
+        ]
+      },
+      "src/ds/presenter/FilmRoll.tsx": {
+        "from": "components/presenter/FilmRoll.jsx",
+        "contract": "components/presenter/FilmRoll.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 OB-136 — ★ LOCAL spelling, same drawing: the corner label's `borderBottomRightRadius: var(--radius-xs)` is written as `borderRadius: '0 0 var(--radius-xs) 0'`, because the house rule against bottom-only rounding (adherence.test.ts, PaneHeader rule 2) reads a lone bottom radius as a clipping-body fault; a tag hanging from the card's own top-left corner rounds only its free corner, and the shorthand says so on the same line.",
+          "2026-09-05 NEW FILE, OB-136 (#267) — part 2, ported from the 2026-09-04 source: whole neighbours, one flag corner, the edge chevrons, `projecting`, the settle-ladder scale read (clause 4, the corrected diagnosis), `FlagButton` exported (clause 5). Test hooks added (★ LOCAL, attributes only): `data-filmroll`, `data-filmroll-card`, `data-filmroll-label`, `data-filmroll-elapsed`, aria-labels on the flag, expand and chevron buttons."
+        ]
+      },
+      "src/ds/presenter/PresenterStrip.tsx": {
+        "from": "components/presenter/PresenterStrip.jsx",
+        "contract": "components/presenter/PresenterStrip.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-137 (#267) — part 3, ported from the 2026-09-04 source with BOTH amendments: the box-bounded fill (`fillBounds`, exported), no text selection on the row, the carry (the record moves only by a gesture that starts on it — the hold ring and a drag of the knob/current dot, both through `onMakeActive`), the settle-ladder width read, the row-as-one-object hover in whole pixels (closed) and factors (open) through `walkHoverStyle`, the end peeks at `peekOpacity`, the one-pitch slide vs re-centre. `PRESENTER_STRIP_PARTS` exported for reading. ★ LOCAL: every native `title` goes through `wrapTip` (the house rule adherence.test.ts enforces; the DS sets `s.title` raw on ticks and rows); `fillBounds` is a named export beside `PresenterStripMath`; test hooks (`data-presenter-strip/rail/row/tick/dot/knob/pill/crumbs`, `data-hold-ring`, aria-labels) are attributes only. Two effects keep the DS's own dependency lists (the one-pitch slide keys on the shown stop and half-width, not `center`; the open re-centre keys on `open`), with the lint rule disabled at those two lines and the reason written beside each."
+        ]
+      },
+      "src/ds/presenter/StopFinder.tsx": {
+        "from": "components/presenter/StopFinder.jsx",
+        "contract": "components/presenter/StopFinder.d.ts",
+        "syncedAt": "2026-09-05",
+        "deviations": [
+          "2026-09-05 NEW FILE, OB-138 (#267) — part 8, ported from the 2026-09-04 source including clause 4 (the list fits the room below the anchor, floor `minListHeight`, re-measured on resize). ★ LOCAL: the DS moves the keyboard selection to the first match from a `useEffect` on `query`; here the query's own change handler does it (`changeQuery`) — same selection at the same moment, nothing set from inside an effect. Row `title`s go through `wrapTip`; `data-stop-finder` and `role=\"listbox\"` on the list are test hooks, attributes only."
+        ]
+      },
       "src/ds/chrome/PillButton.tsx": {
         "from": "components/chrome/PillButton.jsx",
         "contract": "components/chrome/PillButton.d.ts",

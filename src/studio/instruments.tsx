@@ -321,15 +321,26 @@ export interface Preset {
   /** column order; strips always sit at the bottom */
   active: Slot[]
   flex?: Partial<Record<InstrumentId, number>>
+  /** THE PRESENTER'S PREVIEW (owner, 2026-09-03; DS OB-135 rule 1/5): picking this preset shows
+   *  the presenter screen laid out as a lecture would be, projecting NOTHING — no clock runs,
+   *  nothing is recorded. The toolbar ▶ turns the preview into the lecture. It is not a toggle:
+   *  pressed while previewing, nothing; pressed once a lecture has ended, back to the preview.
+   *  Picking any other preset leaves the presenter first. The label stays "Present" although it
+   *  is a preview — deferred by the owner; the hint carries the distinction. Do not re-ask. */
+  presenter?: true
 }
 
 export const PRESETS: Preset[] = [
   {
+    // THE OPENING COMPOSITION, and — since #267 — the presenter's PREVIEW when PICKED: the
+    // `active` list below is what the desk shows at launch and returns to; picking the button
+    // lays out the presenter screen with nothing projected. See `Preset.presenter`.
     id: 'present',
     label: 'Present',
-    hint: 'map + unfold + document + walk·viewer — accumulating, authored order',
+    hint: 'the presenter screen, previewed — nothing projected; ▶ on the toolbar starts the lecture',
     active: ['map', 'unfoldgraph', 'document', 'walkviewer'],
     flex: { map: 2, unfoldgraph: 1.4, document: 1 },
+    presenter: true,
   },
   {
     id: 'explore',

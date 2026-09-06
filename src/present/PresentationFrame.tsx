@@ -1,3 +1,12 @@
+// UNREACHABLE SINCE #267 (2026-09-05). The toolbar ▶ starts the PRESENTER MODE now
+// (src/present/PresenterScreen.tsx — the DS's lecture screen, owner's ruling
+// 2026-09-03) and the room sees a second window (ProjectorScreen.tsx) showing the
+// live slide. Nothing mounts this deck any more; it is kept, not deleted, because
+// #217 — what the ROOM should see — is still open, and this frame is the one
+// existing answer to it (map + document + walk strip for the stop). If #217
+// chooses it, it becomes the projector's content; if not, delete it with
+// session.ts and #214. Its driver, drive-present.mjs, is gone with its entrance.
+//
 // THE DECK — the Studio with the furniture taken away, one walk stop at a time.
 //
 // WHAT A SLIDE IS HERE. A slide is a walk stop. A deck is a walk — the saved one

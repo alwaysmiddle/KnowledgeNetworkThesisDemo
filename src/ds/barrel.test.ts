@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, InlineText, LeafMark, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -79,6 +79,27 @@ describe('ported but not adopted DS components', () => {
   // will be the first.
   it('InlineText — rendered only from inside VersionedGroup; no app importer', () => {
     expect(typeof InlineText).toBe('function')
+  })
+
+  // #267 presenter mode, parts 1–4 (OB-135..138): the four presenter components ARE adopted
+  // (src/present/PresenterScreen.tsx renders them); these are the pieces they import from
+  // inside src/ds, and the strip's and finder's published numbers, which the host reads
+  // through flex rather than arithmetic. `settleRead` is adopted by the app's LectureSlide.
+  it('FlagMark / ExpandMark / FindMark / TextInput / FlagButton — drawn only from inside the presenter components', () => {
+    expect(typeof FlagMark).toBe('function')
+    expect(typeof ExpandMark).toBe('function')
+    expect(typeof FindMark).toBe('function')
+    expect(typeof TextInput).toBe('function')
+    expect(typeof FlagButton).toBe('function')
+  })
+
+  it('PRESENTER_STRIP_METRICS / presenterStripHeight / PRESENTER_STRIP_PARTS / STOP_FINDER_METRICS / filterStops — published numbers and rules; the host lets flex lay the column out', () => {
+    expect(PRESENTER_STRIP_METRICS.closed).toBe(64)
+    expect(PRESENTER_STRIP_METRICS.open).toBe(107)
+    expect(presenterStripHeight({ open: true, roaming: true })).toBe(130)
+    expect(typeof PRESENTER_STRIP_PARTS.ClosedRail).toBe('function')
+    expect(STOP_FINDER_METRICS.minListHeight).toBe(112)
+    expect(filterStops([{ title: 'a' }, { title: 'b' }], '2')).toEqual([1])
   })
 
   it('Grip — ported (#126); Pane/PaneHeader place it, no direct app importer', () => {
