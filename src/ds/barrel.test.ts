@@ -158,11 +158,11 @@ describe('ported but not adopted DS components', () => {
     expect(typeof walkEase).toBe('function')
   })
 
-  // NOT LISTED HERE ANY MORE: `nestedFamilyPaint`. It was the map's territory
-  // fill from ed7a5e6 (OB-086) until b656ebc, when four-color adjacency replaced
-  // it, and #221 deleted the port on 2026-08-28 rather than carrying it unused.
-  // That is a deliberate divergence from the DS source — do not re-port it back
-  // in on the next design-pull without reading PROVENANCE's DomainDot entry
-  // first, which carries the measured reason (94 distinct colours across 711
-  // bordering regions, no matter how large the corpus gets).
+  // `nestedFamilyPaint` / `familySlots` / `FAMILY_SLOTS` are NOT listed here because
+  // they are ADOPTED: src/model/color.ts feeds the map's territory fill through them
+  // (OB-119, #250, 2026-09-05). History worth keeping: the OLD nestedFamilyPaint (a
+  // per-node paint keyed on sibling index and depth, OB-086) was deleted by #221 on
+  // 2026-08-28 for a measured reason — 94 distinct colours across 711 bordering
+  // regions. The DS REWROTE it: the input is now a slot from familySlots(), which
+  // the host feeds with real geometric adjacency, so the objection no longer holds.
 })

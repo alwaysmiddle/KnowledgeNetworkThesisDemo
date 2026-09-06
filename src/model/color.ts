@@ -16,6 +16,8 @@
 //    geography disambiguate),
 //  - a lightness parity nudge from generation 3 down — adjacent same-hue
 //    siblings still alternate light/dark.
+// (The MAP's territory fill no longer reads the recursive hue at all — see
+// "Territory fill" below; the anchor, ink and flat-fill swatches still do.)
 //
 // Three derived swatches per node, all from the same (hue, gen, nudge):
 //  colorOf    — the saturated identity anchor (borders, capitals, chips)
@@ -26,6 +28,7 @@
 //               type, not a muddy colored gray, on a hue-tinted/glowing cell
 
 import { childrenOf, domainIds, DOMAIN_COLOR } from '../corpus/graph'
+import { familySlots, nestedFamilyPaint } from '@/ds'
 import { provinceRings, territories } from './nested'
 import type { XY } from './derive'
 
@@ -33,7 +36,7 @@ import type { XY } from './derive'
 const lin = (u: number) => (u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4))
 const gam = (u: number) => (u <= 0.0031308 ? 12.92 * u : 1.055 * Math.pow(u, 1 / 2.4) - 0.055)
 
-function hexToOklch(hex: string): { l: number; c: number; h: number } {
+export function hexToOklch(hex: string): { l: number; c: number; h: number } {
   const n = parseInt(hex.slice(1), 16)
   const r = lin(((n >> 16) & 255) / 255)
   const g = lin(((n >> 8) & 255) / 255)
@@ -110,6 +113,8 @@ for (const d of domainIds) assign(d, hexToOklch(DOMAIN_COLOR[d]).h, DOMAIN_SPAN,
 // anchor over three generations, so each family keeps its character.
 const anchorMap = new Map<string, string>()
 const fillMap = new Map<string, string>()
+/** id → the domain it descends from: the lineage FAMILY the territory fill pins its hue to */
+const familyMap = new Map<string, string>()
 const inkMap = new Map<string, string>()
 const inkStrongMap = new Map<string, string>()
 
@@ -119,6 +124,7 @@ for (const d of domainIds) {
   const base = hexToOklch(DOMAIN_COLOR[d])
   const walk = (id: string) => {
     const s = slot.get(id)!
+    familyMap.set(id, d)
     const t = Math.min(1, s.gen / 3)
     const push = s.gen >= 3 ? s.nudge : 0
     anchorMap.set(id, s.gen === 0 ? DOMAIN_COLOR[d] : oklchToHex(lerp(base.l, 0.6, t) + push * 0.03, lerp(base.c, 0.125, t), s.hue))
@@ -136,35 +142,47 @@ for (const d of domainIds) {
 
 const FALLBACK = { anchor: '#64748b', fill: '#e2e8f0', ink: '#334155', inkStrong: '#1e2530' }
 
-// ── Territory fill: four-color adjacency WITHIN each family (2026-08-27) ────
-// First cut of this used four GLOBAL hues (an atlas red/green/blue/purple) —
-// correct (no two touching regions ever matched) but it threw away lineage
-// entirely: a node's color no longer said anything about which domain it's
-// under, and a rainbow next to this app's otherwise pale, restrained fills
-// read as garish. This version keeps the four-color GUARANTEE but spends it
-// inside the node's own family instead of across the whole map: the base hue
-// is still `slot`'s lineage hue (the same one `colorOf`/`inkOf` read), and the
-// adjacency coloring below only decides a SMALL step off that hue (plus a
-// lightness/chroma nudge) — enough that real geometric neighbors are always
-// told apart, never enough to leave the family. Domains need none of this:
-// each already owns its own authored anchor hue, distinct from every other
-// domain by construction, so they just reuse `fillMap` unchanged.
+// ── Territory fill: the family's hue, five slots by real adjacency (OB-119) ──
+// Three versions of this have shipped, and the two rejected ones are recorded
+// here so nobody retries them. (1) Four GLOBAL hues (an atlas red/green/blue/
+// purple): correct — no two touching regions ever matched — but it threw away
+// lineage entirely and read as garish beside this app's pale fills. (2) The
+// lineage hue plus a hue STEP off it (±14/28/42°, 2026-08-27, `b656ebc`): the
+// four-colour guarantee spent inside each family — but a 42° step inside amber
+// (65°) lands on olive (107°), two ring stops away, because amber's ring
+// neighbours are only 23° off. The owner's level-4 screenshots showed olive
+// cells inside the amber domain. They were not misassigned; they were amber
+// plus the largest step the ladder allowed.
 //
-// `regionAdjacency` finds neighbors by testing every edge of one polygon
-// against every edge of the other (a shared vertex counts too — stricter than
-// the theorem strictly needs, which only ever costs an extra step, never a
-// wrong one). `dsaturColor` (saturation-degree greedy) assigns step indices so
-// no edge in the adjacency graph connects two same-index regions. It's a
-// heuristic, not the theorem's constructive proof, but on this map's
-// low-degree Voronoi tessellation (each cell touches roughly 4-7 neighbors)
-// it lands on 4 or fewer steps in practice — STEP below carries a couple of
-// spares regardless, so a rare 5th/6th index just repeats a smaller step.
+// So (3), the design system's ruling (OB-119, 2026-08-29): HUE IS PINNED TO
+// THE FAMILY, ±6°, and neighbours are told apart in LIGHTNESS AND CHROMA —
+// a person reads a hue difference as "a different family" and an L/C
+// difference as "the same colour, a bit different". The ladder is the DS's
+// `nestedFamilyPaint(family, { slot })`: FIVE slots (four suffice on a planar
+// map, the fifth is head-room for a greedy assignment; six only shrank every
+// gap), L 0.900 → 0.720, C 0.050 → 0.130, hue 0/+6/−6/+4/−4. The FAMILY is
+// the node's domain — its ring stop, not this file's recursive-arc hue, which
+// the anchor/ink swatches above keep — so every fill's nearest ring stop IS
+// its own lineage hue, checkable and checked (territoryfill.test.ts). Depth
+// is no longer a channel at all: it was the wrong axis (who a region touches
+// decides confusability, not how deep it is) and the map already draws depth
+// as the ancestor boundary ladder. Domains need none of this: each owns its
+// authored anchor hue, distinct from every other by construction, so they
+// reuse `fillMap` unchanged.
 //
-// Colored in three independent groups, matching what the map actually paints
-// side by side at once: all provinces (level 1, which can sit shoulder to
-// shoulder across DIFFERENT domains — a province border can BE a domain
-// border), and each tier of the nested atlas separately (model/nested.ts) —
-// a level renders exactly one tier's cells as countries.
+// The ASSIGNMENT is the DS's too, `familySlots()`: a graph colouring only
+// promises two touching regions DIFFERENT slots and says nothing about how far
+// apart the colours are — lowest-free-index crowded the low end (worst border
+// 0.0269 against 0.0569 for the same colours differently spread). It takes the
+// free slot FURTHEST from what its neighbours already hold, in DSATUR order,
+// and ignores edges between different families, which hue already separates.
+// What stays ours is the topology: `regionAdjacency` finds neighbours by
+// testing every edge of one polygon against every edge of the other (a shared
+// vertex counts too — stricter than the theorem strictly needs, which only
+// ever costs an extra slot, never a wrong one), coloured in three independent
+// groups matching what the map paints side by side at once: all provinces
+// (level 1, which can sit shoulder to shoulder across DIFFERENT domains), and
+// each tier of the nested atlas separately (model/nested.ts).
 const EPS = 0.3 // world units — cells run 50+ units across (model/nested.ts)
 
 function segDist(a1: XY, a2: XY, b1: XY, b2: XY): number {
@@ -222,69 +240,41 @@ function regionAdjacency(regions: { id: string; rings: XY[][] }[]): Map<string, 
   return adj
 }
 
-/** saturation-degree greedy — the uncolored region touching the most already-
- *  used colors goes next, ties broken by raw degree */
-function dsaturColor(ids: string[], adj: Map<string, Set<string>>): Map<string, number> {
-  const color = new Map<string, number>()
-  const sat = new Map(ids.map((id) => [id, new Set<number>()]))
-  const remaining = new Set(ids)
-  while (remaining.size > 0) {
-    let pick: string | null = null
-    for (const id of remaining) {
-      if (!pick) {
-        pick = id
-        continue
-      }
-      const s = sat.get(id)!.size
-      const sp = sat.get(pick)!.size
-      if (s > sp || (s === sp && adj.get(id)!.size > adj.get(pick)!.size)) pick = id
-    }
-    const id = pick!
-    const used = sat.get(id)!
-    let c = 0
-    while (used.has(c)) c++
-    color.set(id, c)
-    remaining.delete(id)
-    for (const nb of adj.get(id) ?? []) if (remaining.has(nb)) sat.get(nb)!.add(c)
-  }
-  return color
-}
-
-// step index → (hue offset, lightness nudge, chroma nudge), all relative to
-// the region's OWN lineage hue/depth — alternating sign so consecutive
-// indices swing opposite ways rather than drifting one direction. Six entries
-// (four colors used in practice, two spares) same as the DSATUR header notes.
-const HUE_STEP = [0, 14, -14, 28, -28, 42]
-const L_STEP = [0, -0.03, 0.03, -0.05, 0.05, -0.07]
-const C_STEP = [0, 0.015, 0.015, 0.03, 0.03, 0.045]
-
-function familyVariant(id: string, index: number): string {
-  const s = slot.get(id)
-  if (!s) return FALLBACK.fill
-  const i = index % HUE_STEP.length
-  const d = Math.min(s.gen, 4)
-  const l = Math.min(0.95, Math.max(0.4, 0.9 - d * 0.028 + L_STEP[i]))
-  const c = Math.max(0.02, 0.06 + d * 0.012 + C_STEP[i])
-  return oklchToHex(l, c, s.hue + HUE_STEP[i])
+/** the DS's `nestedFamilyPaint` answers in `oklch()` strings — a computed member of the
+ *  ring's family has no token to point at — and everything downstream of this file
+ *  (the label-contrast pass below, the map's `fill=`) speaks hex. One parse, here. */
+function oklchStringToHex(css: string): string | null {
+  const m = /^oklch\(([\d.]+) ([\d.]+) (-?[\d.]+)\)$/.exec(css)
+  return m ? oklchToHex(Number(m[1]), Number(m[2]), Number(m[3])) : null
 }
 
 const territoryFillMap = new Map<string, string>()
+const territorySlotMap = new Map<string, number>()
+const territoryNeighbourMap = new Map<string, readonly string[]>()
 
-function fourColorGroup(regions: { id: string; rings: XY[][] }[]) {
+function paintGroup(regions: { id: string; rings: XY[][] }[]) {
   const adj = regionAdjacency(regions)
-  const coloring = dsaturColor(regions.map((r) => r.id), adj)
-  for (const r of regions) territoryFillMap.set(r.id, familyVariant(r.id, coloring.get(r.id)!))
+  const ids = regions.map((r) => r.id)
+  const at = new Map(ids.map((id, i) => [id, i]))
+  const neighbours = ids.map((id) => [...adj.get(id)!].map((n) => at.get(n)!))
+  const family = ids.map((id) => familyMap.get(id) ?? '')
+  const slots = familySlots(neighbours, { family })
+  ids.forEach((id, i) => {
+    territorySlotMap.set(id, slots[i])
+    territoryNeighbourMap.set(id, [...adj.get(id)!])
+    territoryFillMap.set(id, oklchStringToHex(nestedFamilyPaint(family[i], { slot: slots[i] }).fill) ?? FALLBACK.fill)
+  })
 }
 
 for (const d of domainIds) territoryFillMap.set(d, fillMap.get(d)!)
-fourColorGroup(Object.keys(provinceRings).map((m) => ({ id: m, rings: provinceRings[m] })))
+paintGroup(Object.keys(provinceRings).map((m) => ({ id: m, rings: provinceRings[m] })))
 
 const territoriesByTier = new Map<number, typeof territories>()
 for (const t of territories) {
   if (!territoriesByTier.has(t.tier)) territoriesByTier.set(t.tier, [])
   territoriesByTier.get(t.tier)!.push(t)
 }
-for (const group of territoriesByTier.values()) fourColorGroup(group.map((t) => ({ id: t.id, rings: [t.poly] })))
+for (const group of territoriesByTier.values()) paintGroup(group.map((t) => ({ id: t.id, rings: [t.poly] })))
 
 // ── Label ink: contrast against the cell the label actually sits on ─────────
 // OB-102 (2026-08-28), answering receipts/b656ebc.md + issue #220. The stepped
@@ -342,11 +332,20 @@ for (const [id, fill] of territoryFillMap) {
 export const colorOf = (id: string): string => anchorMap.get(id) ?? FALLBACK.anchor
 /** pale country fill — active-level territory paint */
 export const fillOf = (id: string): string => fillMap.get(id) ?? FALLBACK.fill
-/** the map's territory fill — the node's own lineage hue, nudged by a small
- *  geometric-adjacency-driven step (four-color-theorem style, see header) so
- *  real neighbors are never confusable, without leaving the family. Map-only:
+/** the map's territory fill — the family's ring hue (±6°), in one of five
+ *  lightness/chroma slots chosen by real geometric adjacency (see header) so
+ *  touching regions are never confusable and never leave the family. Map-only:
  *  other `fillOf` consumers (ConnectionsPane) are unaffected. */
 export const territoryFillOf = (id: string): string => territoryFillMap.get(id) ?? FALLBACK.fill
+/** which of the five family slots a map region was given — null for a domain
+ *  (which takes its own anchor) or an unknown id. Published for the audit that
+ *  re-measures the fill, not for drawing. */
+export const territorySlotOf = (id: string): number | null => territorySlotMap.get(id) ?? null
+/** the regions a map region shares a border with, as `regionAdjacency` found
+ *  them — the topology the slot assignment was fed. Same audience as above. */
+export const territoryNeighboursOf = (id: string): readonly string[] => territoryNeighbourMap.get(id) ?? []
+/** the domain a node descends from — the family its territory fill is pinned to */
+export const familyOf = (id: string): string | null => familyMap.get(id) ?? null
 /** dark hue-tinted text color — labels on the node's own fill */
 export const inkOf = (id: string): string => inkMap.get(id) ?? FALLBACK.ink
 /** the label ink for a MAP territory — `inkOf`, darkened toward

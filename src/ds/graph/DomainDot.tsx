@@ -15,10 +15,9 @@ export const HUE_RING: string[] = ['rose', 'brick', 'clay', 'amber', 'honey', 'o
  *  by hand, so treat it as data rather than as a list to tidy.
  *
  *  Sixteen is the honest ceiling of the palette. Past that a corpus wants
- *  grading INSIDE a family rather than a seventeenth stop — which the map now
- *  does in `model/color.ts`, off who a region actually touches. The DS's own
- *  per-node answer to that (`nestedFamilyPaint`) was ported here and deleted
- *  again on 2026-08-28; see PROVENANCE. */
+ *  grading INSIDE a family rather than a seventeenth stop — `familySlots()` and
+ *  `nestedFamilyPaint()` below, which `model/color.ts` feeds with who a region
+ *  actually touches (OB-119). */
 export const TOPIC_WALK: number[] = [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15]
 
 /** TOPICS WALK FORWARD, RELATION KINDS WALK BACKWARD, along the one
@@ -115,4 +114,162 @@ export function DomainDot({ topic, domain, size = 9, ring }: DomainDotProps) {
       }}
     />
   )
+}
+
+/** DEGREES, one per `HUE_RING` name — the one deliberate second copy of the ring's angles in
+ *  this file, and it exists ONLY for the arithmetic below (a hue shift needs a number to shift).
+ *  A hue added to `HUE_RING`/`tokens/colors.css` must add its degree here too — same obligation
+ *  as `tailwind/kn-theme.css`'s mirror, and for the same reason: no CSS custom property can be
+ *  added to or compared against another at runtime, so an arc-grading resolver has no choice but
+ *  to know the numbers. Do not read this table for anything else; read the tokens for that. */
+const HUE_DEGREES: Record<string, number> = { rose: 350, brick: 20, clay: 42, amber: 65, honey: 88, olive: 110, lime: 130, leaf: 148, fern: 166, jade: 183, teal: 198, river: 214, cobalt: 236, iris: 262, violet: 292, mallow: 322 }
+
+/** the resolved ring name behind a domain code or a bare ring name — the one lookup
+ *  `nestedFamilyPaint` needs and every other export already has a different-shaped version of. */
+function resolveHueName(domain?: string): string | null {
+  if (!domain) return null
+  if (HUE_RING.includes(domain)) return domain
+  return EXAMPLE_HUE[domain] || null
+}
+
+/** THE NUMBER OF SLOTS A FAMILY GRADES INTO, and five is DERIVED rather than chosen. A map is a
+ *  planar graph, so by the four-colour theorem four colours always suffice to give every pair of
+ *  TOUCHING regions different ones; the fifth is head-room for a greedy assignment, which is not
+ *  guaranteed to find the optimal four-colouring.
+ *
+ *  WHY THIS MATTERS MORE THAN IT LOOKS. The ladder this replaces had SIX slots, and six is what
+ *  forced them close together: spread across one usable range, more slots means smaller gaps, and
+ *  the gaps ARE the separation. Measured on the owner's own level-4 cells
+ *  (DS `guidelines/level4-family-options.html`, 2026-08-29), five widely-spaced slots beat six
+ *  crowded ones by 29% on the worst shared border — 0.0520 against 0.0404 in OKLab ΔE — while
+ *  ALSO holding hue inside ±6° of the family instead of wandering ±42°. Adding a sixth slot back
+ *  does not add a colour; it shrinks all five gaps. */
+export const FAMILY_SLOTS = 5
+
+/** THE SLOT LADDER. Lightness is the separating channel, chroma co-varies with it, and hue barely
+ *  moves — that split is the whole design and it is a claim about READING, not about arithmetic:
+ *  a person reads a hue difference as A DIFFERENT FAMILY and a lightness/chroma difference as the
+ *  same colour, a bit different. So family identity lives in hue and is pinned there; "which of
+ *  my neighbours am I not" lives in lightness and chroma, where the difference reads as related.
+ *
+ *  This is what the owner's level-4 screenshots were showing: amber sits at 65°, the old ladder
+ *  allowed ±42°, and 65 + 42 = 107° is `olive` — two ring stops away. Amber's nearest ring
+ *  neighbours are only 23° either side (`clay` 42°, `honey` 88°), so a 42° step could not land
+ *  anywhere but inside another family's territory. Password Hashing and Digital Signatures were
+ *  not misassigned; they were amber plus the largest step the ladder permitted.
+ *
+ *  Both numbers below are CHOSEN, not derived, and are not to be re-derived: ±6° is the widest
+ *  hue nudge that still reads as one family at these chromas, and the L range's floor of 0.720 is
+ *  where a territory fill stops reading as a tint. */
+const SLOT_L = [0.900, 0.855, 0.810, 0.765, 0.720]
+const SLOT_C = [0.050, 0.070, 0.090, 0.110, 0.130]
+const SLOT_H = [0, 6, -6, 4, -4]
+
+/** the distance between two slots, in OKLab, computed once. The hue offsets are small enough that
+ *  the base hue barely moves this, so it is a constant table rather than a per-family one. */
+const SLOT_DIST: number[][] = SLOT_L.map((_, i) => SLOT_L.map((__, j) => {
+  const p = [SLOT_L[i], SLOT_C[i] * Math.cos(SLOT_H[i] * Math.PI / 180), SLOT_C[i] * Math.sin(SLOT_H[i] * Math.PI / 180)]
+  const q = [SLOT_L[j], SLOT_C[j] * Math.cos(SLOT_H[j] * Math.PI / 180), SLOT_C[j] * Math.sin(SLOT_H[j] * Math.PI / 180)]
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
+}))
+
+/** THE SLOT ASSIGNMENT, as a call — the rule that decides which of two touching regions goes
+ *  lighter. Hand it one entry per region: `neighbours[i]` is the list of region indices region `i`
+ *  SHARES A BORDER WITH, and `family[i]` is that region's lineage family (a domain code or ring
+ *  hue name). Get back one slot number per region, ready for `nestedFamilyPaint`.
+ *
+ *  WHY THIS IS CODE AND NOT A DOCUMENTED RULE, the same reason `nextTopicSlot()` is: a machine
+ *  applies it, per region, at runtime, with nobody looking. And it has a specific failure that no
+ *  reviewer would ever catch by reading a call site — A GRAPH COLOURING GUARANTEES TWO TOUCHING
+ *  REGIONS GET DIFFERENT SLOTS, AND SAYS NOTHING ABOUT HOW FAR APART THE TWO COLOURS ARE. Take
+ *  the lowest free slot, as every textbook greedy does, and the assignment crowds into the low
+ *  indices; on a real tessellation that measured a worst border of 0.0269 against 0.0569 for the
+ *  same six colours differently distributed (DS `guidelines/nested-depth-probe.html`). So this
+ *  picks the free slot FURTHEST from what its neighbours already hold, by `SLOT_DIST`, in DSATUR
+ *  order (most-constrained region first).
+ *
+ *  EDGES BETWEEN DIFFERENT FAMILIES ARE IGNORED, deliberately: two touching regions in different
+ *  families are already separated by their hue, so constraining them would spend a slot to say
+ *  something the hue has already said. Pass `family` as all-one-value to constrain every edge.
+ *
+ *  WHAT A HOST STILL OWNS: the topology. Only the host knows which regions touch — geometrically,
+ *  from its own tessellation, not from the tree (two cousins can share a border and two siblings
+ *  can be nowhere near each other). And STORAGE, if the assignment is to be stable across an
+ *  edit: recompute it from a changed tessellation and every colour may move. */
+export function familySlots(neighbours: readonly (readonly number[])[] = [], { family = [] as readonly string[] }: { family?: readonly string[] } = {}): number[] {
+  const n = neighbours.length
+  const slot: number[] = new Array(n).fill(-1)
+  const sameFamily = (i: number, j: number) => family.length === 0 || family[i] === family[j]
+  const done = new Set<number>()
+  for (let step = 0; step < n; step++) {
+    /* DSATUR: the region with the most already-painted neighbours, ties to the highest degree */
+    let pick = -1
+    let bestSat = -1
+    let bestDeg = -1
+    for (let i = 0; i < n; i++) {
+      if (done.has(i)) continue
+      let sat = 0
+      for (const j of neighbours[i]) if (done.has(j) && sameFamily(i, j)) sat++
+      if (sat > bestSat || (sat === bestSat && neighbours[i].length > bestDeg)) { pick = i; bestSat = sat; bestDeg = neighbours[i].length }
+    }
+    let best = 0
+    let bestScore = -1
+    for (let k = 0; k < FAMILY_SLOTS; k++) {
+      let worst = Infinity
+      for (const j of neighbours[pick]) if (slot[j] >= 0 && sameFamily(pick, j)) worst = Math.min(worst, SLOT_DIST[k][slot[j]])
+      if (worst === Infinity) worst = 99
+      if (worst > bestScore) { bestScore = worst; best = k }
+    }
+    slot[pick] = best
+    done.add(pick)
+  }
+  return slot
+}
+
+/** PAINT FOR A NODE NESTED INSIDE A FAMILY'S HUE, arbitrarily deep — a map territory four levels
+ *  into one domain, a tree branch several folds deep, anywhere a whole subtree shares one
+ *  `topicPaint()` hue and would otherwise read as one undifferentiated blob.
+ *
+ *  Pass the `slot` `familySlots()` gave this node. That is the whole input: WHICH OF MY NEIGHBOURS
+ *  AM I NOT. Hue stays inside ±6° of the family so a descendant always reads as its ancestors'
+ *  colour; lightness and chroma carry the separation.
+ *
+ *  DEPTH IS DELIBERATELY NOT A CHANNEL HERE ANY MORE, and that is a reversal worth reading before
+ *  restoring it. The previous version graded L and C by depth (OB-086). It was measured against
+ *  the app's real corpus and the finding was that depth is the wrong axis: what decides whether
+ *  two regions are confusable is not how deep they are, it is WHO THEY TOUCH — and two siblings at
+ *  the same depth very often share a border (`receipts/b656ebc.md`). The depth term also cost
+ *  range that the neighbour axis needed, and it is redundant twice over on a map: a child sits
+ *  INSIDE its parent's outline, and the host already draws an ancestor boundary ladder (thin
+ *  between siblings, heavy between groups — confirmed live, 2026-08-29). A caller that wants depth
+ *  legible should spend a boundary weight on it, not a lightness step.
+ *
+ *  Returns raw `oklch()` strings, not `var()` — a shifted hue has no token to point at; this is a
+ *  computed member of the ring's family, not one of its sixteen named stops. `fill` is calibrated
+ *  as a map territory; `stroke` is the same hue and slot, darkened for a territory border.
+ *
+ *  `index`/`of` are the OLD positional arguments and still work, mapped to `slot` by position.
+ *  They are deprecated because their MEANING changed, not their name: a position among siblings is
+ *  not an adjacency-safe slot, and two siblings that share a border can perfectly well be handed
+ *  the same one. Move to `slot`. `depth` is accepted and ignored. */
+export function nestedFamilyPaint(domain?: string, { slot, index }: {
+  slot?: number
+  /** @deprecated positional, not adjacency-safe — pass `slot` from `familySlots()` */
+  index?: number
+  /** @deprecated no longer read */
+  of?: number
+  /** @deprecated no longer read — put depth on the boundary weight */
+  depth?: number
+} = {}): { hue: string | null; fill: string; stroke: string } {
+  const name = resolveHueName(domain)
+  if (!name) return { hue: null, fill: 'var(--swatch-fill-fallback)', stroke: 'var(--swatch-anchor-fallback)' }
+  const k = Math.abs(Math.round(slot != null ? slot : (index || 0))) % FAMILY_SLOTS
+  const L = SLOT_L[k]
+  const C = SLOT_C[k]
+  const h = HUE_DEGREES[name] + SLOT_H[k]
+  return {
+    hue: name,
+    fill: `oklch(${L.toFixed(3)} ${C.toFixed(3)} ${h.toFixed(1)})`,
+    stroke: `oklch(${(L - 0.2).toFixed(3)} ${(C + 0.05).toFixed(3)} ${h.toFixed(1)})`,
+  }
 }
