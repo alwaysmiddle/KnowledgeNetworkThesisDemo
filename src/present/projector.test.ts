@@ -6,7 +6,7 @@ import type { ProjectedState } from './projector'
 /* #267 (DS OB-135 clauses 2/3, #197) — the projector protocol, the pure half. The hooks need a
  * BroadcastChannel and two windows; a browser test drives those. */
 
-const live: ProjectedState = { live: true, slide: { id: 'x', title: 'X', territory: 'T', hue: 'amber', note: 'n', walk: 'w' }, stop: 3, count: 7 }
+const live: ProjectedState = { live: true, slide: { id: 'x', title: 'X', territory: 'T', hue: 'amber', note: 'n', walk: 'w' }, stop: 3, count: 7, mapUp: false, ids: ['x'], covered: [0, 1] }
 
 describe('receiveProjection — what the room holds after each message', () => {
   it('a state replaces whatever was there', () => {

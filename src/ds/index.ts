@@ -140,3 +140,5 @@ export { PresenterStrip, PRESENTER_STRIP_METRICS, presenterStripHeight, PRESENTE
 export type { PresenterStripProps, PresenterStripStep } from './presenter/PresenterStrip'
 export { StopFinder, STOP_FINDER_METRICS, filterStops } from './presenter/StopFinder'
 export type { StopFinderProps, StopFinderStep } from './presenter/StopFinder'
+export { ProjectedMap, PROJECTED_MAP_METRICS } from './presenter/ProjectedMap'
+export type { ProjectedMapProps } from './presenter/ProjectedMap'

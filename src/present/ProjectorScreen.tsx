@@ -11,11 +11,26 @@
 
 import { useEffect } from 'react'
 
+import { ProjectedMap } from '@/ds'
+
+import MapView from '../instruments/MapView'
+import { useStudioBus } from '../studio/bus'
 import { LectureSlide } from './LectureSlide'
 import { useProjectedState } from './projector'
+import { WallTransition } from './WallTransition'
 
 export default function ProjectorScreen() {
   const { state, closed } = useProjectedState()
+  /* THE ROOM'S OWN MAP (OB-139 rule 4) — the app's map pane, drawn here from a bus of this
+     window's own, whose route is the lecture the presenter published. Nothing else on this bus
+     is ever written. */
+  const bus = useStudioBus(() => {})
+  const idsKey = state.ids.join('\n')
+  useEffect(() => {
+    bus.setRoute(idsKey ? idsKey.split('\n') : [])
+    // the bus object is rebuilt every render; only the published stops should republish
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey])
   useEffect(() => { document.title = state.live && state.slide ? state.slide.title : 'projector' }, [state])
   // the presenter left: a screen nobody is watching must not keep showing a slide.
   // A script-opened window may close itself; one the user opened by hand ignores
@@ -25,7 +40,10 @@ export default function ProjectorScreen() {
     <div data-projector={state.live ? 'live' : 'dark'} style={{ position: 'fixed', inset: 0, background: 'var(--bark-900)', display: 'grid', placeItems: 'center' }}>
       {state.live && state.slide ? (
         <div style={{ position: 'relative', width: 'min(100vw, 177.78vh)', aspectRatio: '1120 / 630' }}>
-          <LectureSlide step={state.slide} index={state.stop - 1} count={state.count} />
+          <WallTransition up={state.mapUp} slide={<LectureSlide step={state.slide} index={state.stop - 1} count={state.count} />}
+            map={<ProjectedMap stop={state.stop} count={state.count} territory={state.slide.territory} title={state.slide.title}
+              map={<MapView bus={bus} wall={{ lit: state.stop - 1, covered: state.covered }} />}
+              footer={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{state.slide.walk} · the whole walk</span>} />} />
         </div>
       ) : (
         <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--fs-caption)', color: 'var(--bark-500)' }}>{closed ? 'the lecture has closed' : 'nothing is projected'}</div>

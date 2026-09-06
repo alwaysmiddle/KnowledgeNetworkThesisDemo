@@ -68,6 +68,8 @@ import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabel
 import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
 import { routeNumbers } from '../model/route'
+import { wallArrowShown, wallPinState } from '../model/walkwall'
+import type { WallView } from '../model/walkwall'
 import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
@@ -95,6 +97,12 @@ export const MAP_WATER = '#eef4f8'
 const L_MAX = maxTier
 const BASE_S = [0.8, 1.6, 3.0, 5.5, 9.5, 14]
 const LEVEL_S = Array.from({ length: L_MAX + 1 }, (_, i) => BASE_S[i] ?? BASE_S[BASE_S.length - 1] * Math.pow(1.5, i - (BASE_S.length - 1)))
+
+/** THE WALL (#267, DS OB-139): the map held up to the room opens at the province level — one
+ *  grain in from the atlas, where a walk's stops spread onto their own cells — with the camera
+ *  about the atlas's centre, the same arithmetic `flyToLevel` uses from the home view. */
+const WALL_LEVEL = 1
+const WALL_VIEW: View = { s: LEVEL_S[WALL_LEVEL], tx: U_CX - (U_CX / LEVEL_S[0]) * LEVEL_S[WALL_LEVEL], ty: U_CY - (U_CY / LEVEL_S[0]) * LEVEL_S[WALL_LEVEL] }
 
 /** How far the camera may drift, in WORLD units, before a pan has to re-render.
  *
@@ -189,12 +197,16 @@ interface View {
   s: number
 }
 
-export default function MapView({ bus }: { bus: Bus }) {
+/** `wall` (#267, DS OB-139 rule 4): the map as the room sees it when the professor holds it up.
+ *  A still picture — every stop of the lecture a pin, the covered stops and the lit stop joined
+ *  by the walk line, that stop lit, NO recency band, no dock, no floating chrome, no pin hover.
+ *  Everything else the map does (territories, labels, the camera) is unchanged. */
+export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const onFocus = (id: string) => bus.setFocus(id, 'map')
 
   const svgRef = useRef<SVGSVGElement>(null)
-  const [view, setView] = useState<View>({ tx: 0, ty: 0, s: LEVEL_S[0] })
-  const [level, setLevel] = useState(0)
+  const [view, setView] = useState<View>(() => (wall ? WALL_VIEW : { tx: 0, ty: 0, s: LEVEL_S[0] }))
+  const [level, setLevel] = useState(wall ? WALL_LEVEL : 0)
   const [clientBox, setClientBox] = useState<{ w: number; h: number } | null>(null)
   /** selected region — its topics' typed edges stay drawn until click-off */
   const [sel, setSel] = useState<string | null>(null)
@@ -230,7 +242,7 @@ export default function MapView({ bus }: { bus: Bus }) {
   // no effect — the rule itself is `src/model/walkvisibility.ts`.
   const [hiddenWalks, setHiddenWalks] = useState<ReadonlySet<string>>(() => new Set())
   const walkKey = walkKeyOf(bus.activeWalk)
-  const walkVisible = walkDrawn(hiddenWalks, walkKey)
+  const walkVisible = !!wall || walkDrawn(hiddenWalks, walkKey)
 
   // ── #246: THE WALK DOCK — the walk's own transport, docked on the pane's bottom
   // edge (DS OB-130). It plays the SAME walk the pins draw, through the same
@@ -241,7 +253,8 @@ export default function MapView({ bus }: { bus: Bus }) {
   // onto. `pinHover` is a pin's own hover — index into `play.steps` plus the
   // viewport anchor the DS's `WalkPreview` hangs the card from.
   const play = useWalkPlayback(bus)
-  const dockShown = routeIsWalk(bus.route, play.steps)
+  // the wall shows the whole walk still: no dock, no band (OB-139 rule 4)
+  const dockShown = !wall && routeIsWalk(bus.route, play.steps)
   const [pinHover, setPinHover] = useState<{ i: number; x: number; top: number } | null>(null)
   // THE LOOK FLIGHT'S INSET (DS OB-130: "the host insets its auto-fit by
   // WALK_DOCK_METRICS.closed"). This map has no auto-fit — its camera is level-
@@ -410,7 +423,10 @@ export default function MapView({ bus }: { bus: Bus }) {
   // Esc clears the selection overlay without touching the camera. It also
   // clears the FOCUS — "nothing selected" has to be a real, reachable state
   // for the Connections pane's hover preview to have anywhere to live.
+  const onWall = !!wall
   useEffect(() => {
+    // the wall (#267) is a picture inside the presenter, whose own keys own the window
+    if (onWall) return
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         setSel(null)
@@ -419,7 +435,7 @@ export default function MapView({ bus }: { bus: Bus }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [busClearFocus])
+  }, [busClearFocus, onWall])
 
   // A selection made ANYWHERE is the map's selection too. The map used to
   // reflect only a click that landed ON the map (local `sel`) and read bus.focus
@@ -766,7 +782,7 @@ export default function MapView({ bus }: { bus: Bus }) {
   // append-only and tagged, so its latest entry says who wrote the focus: a
   // selection the walk made does not recede the walk; a click on the map does.
   const lastFocus = bus.trail[bus.trail.length - 1]
-  const walkReceded = sel !== null && !(lastFocus !== undefined && lastFocus.id === sel && lastFocus.via === 'walk')
+  const walkReceded = !wall && sel !== null && !(lastFocus !== undefined && lastFocus.id === sel && lastFocus.via === 'walk')
 
 
   // territories in play: everything up to one tier below the stratum (so the
@@ -1335,6 +1351,8 @@ export default function MapView({ bus }: { bus: Bus }) {
                 // popped pins) and there is nothing to draw.
                 const wa = walkArrowBetween(i, pinPos, from.size / 2, to.size / 2, dist - walkArrowHead.head)
                 if (wa.hidden) return null
+                // THE WALL'S LINE joins the covered stops and the lit one, and nothing else
+                if (wall && !wallArrowShown(from, to, wall)) return null
                 // OB-090 — the TAIL is anchored at the source pin's own edge (toward
                 // the target), not its centre: a centred tail is the SAME point for
                 // every arrow leaving a pin, however many attach there. The band's
@@ -1357,7 +1375,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 // real pin-to-pin line, which the alternating sign depends on.
                 const tail = shaftTailOffset({ joins: PIN_RING_WIDTH, bow, casing: true, headSize: walkArrowHead })
                 return (
-                  <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} opacity={wa.opacity} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
+                  <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} opacity={wall ? 1 : wa.opacity} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
                     <g transform={`translate(${-tail.along} ${-tail.across})`}>
                       {/* OB-116 — `casing` on EVERY walk arrow, long and short,
                           quiet and current: a halo behind shaft and head so the
@@ -1372,9 +1390,9 @@ export default function MapView({ bus }: { bus: Bus }) {
                         bow={bow}
                         casing
                         tone={walkReceded ? 'hint' : 'quiet'}
-                        walked={wa.walked}
+                        walked={wall ? 1 : wa.walked}
                         walkedTone={walkReceded ? 'hint' : 'walk'}
-                        aheadOpacity={wa.opacity > 0 ? wa.aheadOpacity / wa.opacity : 1}
+                        aheadOpacity={wall ? 1 : wa.opacity > 0 ? wa.aheadOpacity / wa.opacity : 1}
                       />
                     </g>
                   </g>
@@ -1433,7 +1451,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                   onClick={() => regionClick(s.visId)}
                 >
                   <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
-                    <StepDot n={s.label} state={b.behind ? 'done' : 'ahead'} arrival={b.active} variant="pin" size={s.size} />
+                    <StepDot n={s.label} state={wall ? wallPinState(s, wall) : b.behind ? 'done' : 'ahead'} arrival={wall ? undefined : b.active} variant="pin" size={s.size} />
                   </foreignObject>
                 </g>
                 )
@@ -1721,6 +1739,8 @@ export default function MapView({ bus }: { bus: Bus }) {
           exist, and the selection summary folds into MapTooltip above. ── */}
       {/* #246: the floating chrome climbs over the closed dock while one is docked,
           so the level picker and the zoom buttons never sit under its rail */}
+      {/* the wall (#267) has no chrome of its own: the room is looking at a picture */}
+      {wall ? null : (<>
       <LevelPicker style={{ position: 'absolute', left: 12, bottom: 12 + (dockShown ? WALK_DOCK_METRICS.closed : 0), zIndex: 10 }} levels={LEVEL_LABELS} level={`L${level}`} onSelect={(l) => flyToLevel(Number(l.slice(1)))} />
       <div style={{ position: 'absolute', right: 12, bottom: 12 + (dockShown ? WALK_DOCK_METRICS.closed : 0), zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* names the DRAWING, not its nodes: the button moves pins and arrows together */}
@@ -1729,6 +1749,7 @@ export default function MapView({ bus }: { bus: Bus }) {
         </MapFloatingButton>
         <ZoomControl onZoomIn={() => flyToLevel(level + 1)} onZoomOut={() => flyToLevel(level - 1)} zoomInDisabled={level >= L_MAX} zoomOutDisabled={level <= 0} />
       </div>
+      </>)}
 
       {/* ── #246: THE WALK DOCK (DS OB-130), an overlay on the pane's bottom edge — the
           SVG never changes size when it opens, the pins under it show through. Same

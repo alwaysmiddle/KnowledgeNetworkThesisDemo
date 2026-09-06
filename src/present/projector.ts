@@ -49,9 +49,15 @@ export interface ProjectedState {
   stop: number
   /** how many stops the lecture has */
   count: number
+  /** THE MAP IS UP (OB-139): the wall shows the map with the walk on it instead of the slide */
+  mapUp: boolean
+  /** the lecture's stops, as corpus ids — what the projector's own map draws the walk from */
+  ids: string[]
+  /** the stops the record has covered, 0-based — the wall's line runs through them */
+  covered: number[]
 }
 
-export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0 }
+export const NOTHING_PROJECTED: ProjectedState = { live: false, slide: null, stop: 0, count: 0, mapUp: false, ids: [], covered: [] }
 
 export type ProjectorMessage =
   | { kind: 'connect' }

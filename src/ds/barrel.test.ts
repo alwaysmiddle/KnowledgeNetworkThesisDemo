@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -99,6 +99,7 @@ describe('ported but not adopted DS components', () => {
     expect(presenterStripHeight({ open: true, roaming: true })).toBe(130)
     expect(typeof PRESENTER_STRIP_PARTS.ClosedRail).toBe('function')
     expect(STOP_FINDER_METRICS.minListHeight).toBe(112)
+    expect(PROJECTED_MAP_METRICS.refWidth).toBe(1120)
     expect(filterStops([{ title: 'a' }, { title: 'b' }], '2')).toEqual([1])
   })
 

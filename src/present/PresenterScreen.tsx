@@ -26,15 +26,17 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { FilmRoll, Pane, PresenterHeaderBar, PresenterStrip, StopFinder } from '@/ds'
+import { FilmRoll, Pane, PresenterHeaderBar, PresenterStrip, ProjectedMap, StopFinder } from '@/ds'
 import type { PresenterState } from '@/ds'
 
+import MapView from '../instruments/MapView'
 import { useWalkPlayback } from '../instruments/walkdesk/playback'
 import { renderStopPreview } from '../instruments/walkdesk/stoppreview'
 import type { Bus } from '../studio/bus'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
 import { LectureSlide } from './LectureSlide'
 import { useProjectorSender } from './projector'
+import { WallTransition } from './WallTransition'
 import type { ProjectedState } from './projector'
 
 export interface PresenterScreenProps {
@@ -72,6 +74,11 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [ended, setEnded] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  /* THE MAP ON THE WALL (OB-139) — on request only. M puts it up, M takes it down; nothing else
+     puts it up. While up, stepping and roaming move the lit pin and the caption, not the map.
+     Ending the lecture takes it down. It replaces the slide on every wall surface (the roll's
+     live card, full screen, the projector) and on none of the others. */
+  const [mapUp, setMapUp] = useState(false)
   /* the clocks: lecture elapsed (stops when ended), and time on the current stop. Four instants,
      all STATE: `now` ticks once a second from the effect below, and the moments the lecture
      started, the stop started and the lecture ended are written from effects and handlers — so
@@ -146,6 +153,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
       else if (e.key === 'Backspace' && roaming) setRoamingStop(null)
       else if (e.key === 'f' || e.key === 'F') toggleFlag(shown)
       else if (e.key === 'e' || e.key === 'E') setStripOpen((o) => !o)
+      else if ((e.key === 'm' || e.key === 'M') && !ended) setMapUp((v) => !v)
       else if (e.key === 'j' || e.key === 'J') {
         const btn = stripRef.current?.querySelector<HTMLElement>('[aria-label="find a stop"], [aria-label="close the finder"]')
         setFinder((f) => (f ? null : btn ? btn.getBoundingClientRect() : null))
@@ -156,7 +164,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, roaming, shown, toggleFlag])
+  }, [step, roaming, shown, toggleFlag, ended])
   /* the shown stop is reported up so the shell's focus (and its visited count) follow the lecture */
   const setFocus = bus.setFocus
   useEffect(() => { const s = steps[shown]; if (s && bus.focus !== s.id) setFocus(s.id, 'walk') }, [shown, steps, setFocus, bus.focus])
@@ -180,11 +188,25 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
     slide: projecting && !ended && steps[shown] ? steps[shown] : null,
     stop: shown + 1,
     count: N,
-  }), [projecting, ended, steps, shown, N])
+    mapUp: mapUp && !ended,
+    ids: steps.map((st) => st.id),
+    covered,
+  }), [projecting, ended, steps, shown, N, mapUp, covered])
   useProjectorSender(projected)
 
   const state: PresenterState = !projecting ? 'preview' : ended ? 'ended' : roaming ? 'roaming' : 'presenting'
   const slideFor = (i: number) => <LectureSlide step={steps[i]} index={i} count={N} />
+  /* THE WALL'S CONTENT: the map while it is up, the slide otherwise — the ONE place that decides,
+     so every wall surface flips together. The foot keeps the slide's own slot with different
+     words (OB-139 rule 6b). `WallTransition` owns the up/down motion. The ✕ is full screen's
+     alone (rule 7): the roll's live card has its flag in that corner. */
+  const wall = (i: number, onClose?: () => void) => (
+    <WallTransition up={mapUp} slide={slideFor(i)}
+      map={<ProjectedMap stop={i + 1} count={N} territory={steps[i].territory} title={steps[i].title}
+        map={<MapView bus={bus} wall={{ lit: i, covered }} />}
+        footer={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{steps[i].walk} · the whole walk</span>}
+        onClose={onClose} />} />
+  )
   const nav = (i: number) => ({ content: slideFor(i), stopLabel: 'stop ' + (i + 1), flagged: flags.indexOf(i) >= 0, onNavigate: () => (roaming ? setRoamingStop(i) : step(i - activeStop)) })
   const courseName = course ?? play.title
   /* THE FRAME: a pane beside the palette while previewing or ended, the whole window while live.
@@ -206,7 +228,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
       <PresenterHeaderBar course={courseName} state={state} activeStop={activeStop + 1} roamingStop={roaming ? roamingStop + 1 : undefined}
         elapsed={ended || !projecting ? undefined : mmss(elapsedS)} bookedLength={ended || !projecting ? undefined : mmss(BOOKED_SECONDS)} progressPct={Math.min(100, (elapsedS / BOOKED_SECONDS) * 100)} endedTotal={ended ? mmss(elapsedS) + ' total' : undefined}
         confirmOpen={confirmOpen} onEndClick={projecting ? () => setConfirmOpen(true) : undefined} onCancelEnd={() => setConfirmOpen(false)}
-        onConfirmEnd={() => { setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null) }} />
+        onConfirmEnd={() => { setConfirmOpen(false); setEndedAt(Date.now()); setEnded(true); setRoamingStop(null); setMapUp(false) }} />
       {/* THE COLUMN: roll, strip, panes. The strip is `flex: none` (it sets that itself); the pane
           below is `flex: 1; min-height: 0`; the roll is `flex: none` at its own height. */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-3)' }}>
@@ -219,7 +241,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
             <div style={{ flex: 'none' }}>
               <FilmRoll height={286} projecting={projecting}
                 prev={shown > 0 ? nav(shown - 1) : null}
-                current={{ content: slideFor(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS) }}
+                current={{ content: wall(shown), flagged: flags.indexOf(shown) >= 0, elapsed: roaming || !projecting ? undefined : mmss(onStopS) }}
                 next={shown < N - 1 ? nav(shown + 1) : null}
                 onToggleFlag={(which) => toggleFlag(which === 'prev' ? shown - 1 : which === 'next' ? shown + 1 : shown)}
                 onExpand={() => setExpanded(true)} />
@@ -247,7 +269,7 @@ export default function PresenterScreen({ bus, projecting, resumeToken, onEnded,
         <div data-presenter-fullscreen onClick={() => setExpanded(false)} style={{
           position: 'fixed', inset: 0, zIndex: 80, background: 'var(--bark-900)', display: 'grid', placeItems: 'center', cursor: 'pointer',
         }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: 'min(100vw, 177.78vh)', aspectRatio: '1120 / 630', cursor: 'default' }}>{slideFor(shown)}</div>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: 'min(100vw, 177.78vh)', aspectRatio: '1120 / 630', cursor: 'default' }}>{wall(shown, () => setMapUp(false))}</div>
         </div>
       ) : null}
     </div>,
