@@ -47,7 +47,10 @@ function useRefScale(ref: { current: HTMLDivElement | null }): number {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const read = () => { if (ref.current) setS(ref.current.getBoundingClientRect().width / PROJECTED_MAP_METRICS.refWidth) }
+    /* LAYOUT width, not the bounding box: the wall mounts inside a `scale(0.3)` transform on its
+       way up (`WallTransition`), and a bounding rect read then is a third of the truth — and a
+       transform changing does not fire a ResizeObserver, so the early number would stick */
+    const read = () => { if (ref.current) setS(ref.current.offsetWidth / PROJECTED_MAP_METRICS.refWidth) }
     const stop = settleRead(read)
     let ro: ResizeObserver | null = null
     if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(read); ro.observe(el) }

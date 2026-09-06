@@ -1483,7 +1483,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
               past its cell's border, so the arrows point INTO territories
               instead of converging on the city dots. White-cased for
               readability, arrowhead at the target. ─────────────────────── */}
-          {sel && (
+          {sel && !wall && (
             <g data-seloverlay pointerEvents="none">
               {/* the selection's NEIGHBOURHOOD (2026-07-17): every cell a road
                   reaches gets a wash of its own color too — "what is this
