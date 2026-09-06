@@ -77,8 +77,12 @@ const levelNow = () => page.$eval('[data-nested]', (el) => Number(el.getAttribut
  *  CENTRE instead, so after two or three steps the camera has flown somewhere
  *  the walk never goes and every pin is legitimately off-screen: a picture of
  *  nothing, and a level sweep that says nothing about the walk. */
+// on a pin that is IN THE PANE: the first pin in the DOM is wherever the camera left
+// it, and a double-click on a box outside the pane dives nowhere
 const diveOnAPin = async () => {
-  const b = await page.locator('[data-routestop]').first().boundingBox()
+  const pane = await page.locator('[aria-label="map-view"]').boundingBox()
+  const boxes = await page.locator('[data-routestop]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })))
+  const b = boxes.find((r) => r.x >= pane.x && r.x + r.width <= pane.x + pane.width && r.y >= pane.y && r.y + r.height <= pane.y + pane.height)
   if (!b) return false
   await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2)
   await page.waitForTimeout(800)
@@ -110,6 +114,17 @@ await page.waitForTimeout(500)
 // obvious thing to reach for and is the WEAKER subject: `activateWalk` publishes
 // only the PLAYED PREFIX, so clicking ▶ gives a one-stop route, and a level
 // sweep over one pin proves almost nothing.
+// OB-132 — THE BAND DRAWS ONLY WHAT IS NEAR THE WALK'S POSITION: five stops behind it,
+// two ahead, nothing beyond. At the opening cursor that is three pins at every level, and
+// the merge invariant below ("deeper never loses a pin") would pass on three pins that
+// never change. Seeking to the third-last stop puts every stop of the seven-stop draft
+// inside the band, so the level sweep reads the whole walk again.
+await page.locator('[aria-label="map-view"] [data-walk-dock]').focus()
+await page.keyboard.press('End')
+await page.keyboard.press('ArrowLeft')
+await page.keyboard.press('ArrowLeft')
+await page.waitForTimeout(300)
+
 const atL0 = await pins()
 ok('the desk draft is already drawn on the map', atL0 > 1, `${atL0} pins at L0`)
 

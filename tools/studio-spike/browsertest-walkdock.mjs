@@ -129,9 +129,9 @@ ok('Home seeks back to the first', (await readout())?.cur === 1)
 
 // ── D. one clock for every surface ──────────────────────────────────────────
 await map.getByLabel('play the walk').click()
-await page.waitForTimeout(2100)
+await page.waitForTimeout(2400)
 const rPlay = await readout()
-ok('PLAY on the dock walks the walk (900ms a stop: at least two stops in 2.1s)', !!rPlay && rPlay.cur >= 3, JSON.stringify(rPlay))
+ok('PLAY on the dock walks the walk (900ms a stop: at least two stops in 2.4s)', !!rPlay && rPlay.cur >= 3, JSON.stringify(rPlay))
 ok('and the VIEWER\'S STRIP reads the same clock — its transport shows pause', (await viewer.getByLabel('pause the walk').count()) === 1)
 await viewer.getByLabel('pause the walk').click()
 await page.waitForTimeout(150)
@@ -139,6 +139,104 @@ const rPaused = await readout()
 await page.waitForTimeout(1200)
 ok('PAUSE on the strip stops the dock', (await readout())?.cur === rPaused?.cur, `${rPaused?.cur} then ${(await readout())?.cur}`)
 ok('and the dock\'s transport shows play again', (await map.getByLabel('play the walk').count()) === 1)
+
+// ── D2. #247 (OB-132): THE WALK ON THE MAP MOVES — the band, the pop, the travelling head ─
+// Down to L2, where the seven stops draw as separate pins rather than two ranges. THE
+// CHECKS ARE ON THE MECHANISM, never on a pixel count a different band would satisfy by
+// accident (the OB-129 lesson): each pin's opacity and scale are read off its own
+// attributes, each arrow's split off its own strokes, and the pop is a RATIO of one pin's
+// scale at two positions rather than a size.
+// down two levels THE WAY THE WALK IS FOLLOWED — a double-click on a pin's own cell, the
+// map's dive gesture (the drivers do the same), so the camera stays on the walk
+for (let dive = 0; dive < 2; dive++) {
+  const b = await map.locator('[data-routestop]').first().boundingBox()
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2)
+  await page.waitForTimeout(800)
+}
+ok('two dives on a pin reach L2', (await page.$eval('[data-nested]', (el) => el.getAttribute('data-level'))) === '2')
+// the dive's double-click also SELECTED the cell it landed on, and a selection recedes the
+// whole walk to --bark-300 (OB-117) — Escape clears it, so the paints read below are the band's
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+ok('and Escape clears the selection the dive made, so the walk is at full weight', (await map.locator('[data-routearrows]').getAttribute('data-receded')) === '0')
+/** every drawn pin, in walk order: its index, its band opacity and its drawn scale */
+const pinInfo = () => map.locator('[data-routestop]').evaluateAll((els) => els.map((el) => ({
+  k: Number(el.getAttribute('data-pin')),
+  opacity: Number(el.getAttribute('opacity')),
+  scale: Number((/scale\(([-\d.e]+)\)/.exec(el.getAttribute('transform') || '') || [])[1]),
+})).sort((a, b) => a.k - b.k))
+/** every drawn arrow: its index, its painted shafts' strokes in order, whether any is a
+ *  dash-split stroke, and its head's fill */
+const arrowInfo = () => map.locator('[data-routearrow]').evaluateAll((els) => els.map((el) => {
+  const strokes = [...el.querySelectorAll('line, path[fill="none"]')].filter((s) => !(s.getAttribute('stroke') || '').includes('surface-raised'))
+  const heads = [...el.querySelectorAll('path[fill]')].filter((p) => { const f = p.getAttribute('fill') || ''; return f !== 'none' && !f.includes('surface-raised') })
+  return { i: Number(el.getAttribute('data-routearrow')), paints: strokes.map((s) => s.getAttribute('stroke')), split: strokes.some((s) => s.hasAttribute('stroke-dasharray')), head: heads.length ? heads[heads.length - 1].getAttribute('fill') : null, opacity: Number(el.getAttribute('opacity')) }
+}).sort((a, b) => a.i - b.i))
+const ACORN = 'var(--accent-walk)'
+const QUIET = 'var(--bark-400)'
+
+// the whole walk inside the band first, to learn how many pins this level draws
+await dock().focus()
+await page.keyboard.press('End')
+await page.keyboard.press('ArrowLeft')
+await page.keyboard.press('ArrowLeft')
+await page.waitForTimeout(300)
+const total = (await pinInfo()).length
+ok('at L2 the draft draws more pins than the band shows at its first stop (so hiding is testable)', total > 3, `${total} pins`)
+
+await page.keyboard.press('Home')
+await page.waitForTimeout(300)
+let pins = await pinInfo()
+ok('AT THE FIRST STOP ONLY THE PINS WITHIN `lead` (2) OF IT ARE DRAWN — a pin outside the band draws nothing', pins.length === 3 && Math.max(...pins.map((p) => p.k)) === 2, JSON.stringify(pins))
+ok('the current pin is at full opacity; the two ahead fade over the lead', pins[0].opacity === 1 && pins[1].opacity < 1 && pins[1].opacity > pins[2].opacity && pins[2].opacity > 0, JSON.stringify(pins.map((p) => p.opacity)))
+const baseScale = pins[2].scale // two ahead: no arrival, no trail — the pin at rest
+ok('THE POP: the current pin is 1 + grow (1.36×) the resting pin', Math.abs(pins[0].scale / baseScale - 1.36) < 0.01, `${(pins[0].scale / baseScale).toFixed(3)}`)
+let arrows = await arrowInfo()
+ok('nothing is walked yet: every drawn arrow is one quiet stroke with a quiet head, unsplit', arrows.length === 2 && arrows.every((a) => a.paints.length === 1 && a.paints[0] === QUIET && a.head === QUIET && !a.split), JSON.stringify(arrows))
+
+await page.keyboard.press('End')
+await page.waitForTimeout(300)
+pins = await pinInfo()
+arrows = await arrowInfo()
+ok('at the last stop the pins behind it fade over the trail (5) and shrink; the one before it is not at full', pins.length >= 3 && pins[pins.length - 1].opacity === 1 && pins[pins.length - 2].opacity < 1 && pins[pins.length - 2].scale < pins[pins.length - 1].scale, JSON.stringify(pins))
+ok('every drawn arrow is walked: one acorn stroke, acorn head, unsplit', arrows.length > 0 && arrows.every((a) => a.paints.length === 1 && a.paints[0] === ACORN && a.head === ACORN && !a.split), JSON.stringify(arrows))
+const lastScaleAtEnd = pins[pins.length - 1].scale
+await page.keyboard.press('ArrowLeft')
+await page.waitForTimeout(300)
+arrows = await arrowInfo()
+ok('one stop back, the arrow INTO the last stop is quiet again while the one before it stays acorn', arrows.length >= 2 && arrows[arrows.length - 1].paints[0] === QUIET && arrows[arrows.length - 2].paints[0] === ACORN, JSON.stringify(arrows.map((a) => a.paints)))
+await page.keyboard.press('ArrowLeft')
+await page.waitForTimeout(300)
+pins = await pinInfo()
+ok('and two stops back the last pin has settled to rest — the same pin, 1.36× smaller than when it was current', Math.abs(lastScaleAtEnd / pins[pins.length - 1].scale - 1.36) < 0.01, `${(lastScaleAtEnd / pins[pins.length - 1].scale).toFixed(3)}`)
+
+// PLAYING: the animation IS the position. Sample the drawing while the clock runs.
+await page.keyboard.press('Home')
+await page.waitForTimeout(200)
+await map.getByLabel('play the walk').click()
+const fps = await page.evaluate(() => new Promise((res) => {
+  let n = 0
+  const t0 = performance.now()
+  const f = () => { n++; if (performance.now() - t0 < 1000) requestAnimationFrame(f); else res(n) }
+  requestAnimationFrame(f)
+}))
+ok('the map keeps at least 30 frames a second while the walk plays', fps >= 30, `${fps} fps`)
+const samples = []
+const tStart = Date.now()
+while (Date.now() - tStart < 1400) {
+  samples.push({ pins: await pinInfo(), arrows: await arrowInfo() })
+  await page.waitForTimeout(30)
+}
+await map.getByLabel('pause the walk').click()
+await page.waitForTimeout(150)
+const scalesOf1 = samples.map((s) => s.pins.find((p) => p.k === 1)?.scale).filter((v) => v !== undefined)
+const distinct = new Set(scalesOf1.map((v) => v.toFixed(4))).size
+ok('pin 2 POPS as the walk arrives — its scale passes through many values, not a jump', distinct >= 6, `${distinct} distinct scales over ${samples.length} samples`)
+ok('and reaches the full pop, 1.36× rest', Math.abs(Math.max(...scalesOf1) / baseScale - 1.36) < 0.02, `${(Math.max(...scalesOf1) / baseScale).toFixed(3)}`)
+const splitSeen = samples.filter((s) => s.arrows.some((a) => a.split))
+ok('while travelling, an arrow is SPLIT — an acorn stroke and a quiet stroke on one path, the head at the seam', splitSeen.length > 0, `${splitSeen.length} of ${samples.length} samples`)
+ok('and the split arrow\'s head is acorn (it has been reached)', splitSeen.every((s) => s.arrows.filter((a) => a.split).every((a) => a.head === ACORN)))
+ok('a pin outside the band comes INTO it as the walk advances', samples.some((s) => s.pins.some((p) => p.k === 3)), `pins seen: ${[...new Set(samples.flatMap((s) => s.pins.map((p) => p.k)))].join(',')}`)
 
 // ── E. a saved walk: the pin's own hover ────────────────────────────────────
 // give the map the room: the pin has to be inside the pane to be hovered

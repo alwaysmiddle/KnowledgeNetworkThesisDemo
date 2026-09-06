@@ -20,10 +20,18 @@
 // until now, playing a SAVED walk moved the strip and the map pins but left the
 // document sitting on whatever was last clicked. A navigator that does not
 // navigate is the bug; `seek` writes the focus for both sources, once.
+//
+// ONE CURSOR, TWO READINGS (#247, DS OB-132). `cursor` is the INTEGER stop the
+// bus holds — what the strip, the document and the presenter read. `position`
+// is the FRACTIONAL place the walk is while it plays: the same number while it
+// rests, and between two stops while the clock carries it from one to the next.
+// The map's pins and arrows and the dock's knob read `position`, because on
+// those drawings the animation is not drawn on top of the position, it IS the
+// position — an integer cursor lands and nothing moves.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 
-import { WALK_PLAYBACK_DEFAULTS } from '@/ds'
+import { walkAdvance } from '@/ds'
 import type { WalkStep } from '@/ds'
 
 import { byId } from '../../corpus/graph'
@@ -65,6 +73,12 @@ export interface Playback {
   steps: PlayStep[]
   /** always within [0, steps.length - 1]; 0 for an empty walk */
   cursor: number
+  /** WHERE THE WALK IS, fractionally: `cursor` at rest, and while playing the
+   *  DS's `walkAdvance` position — `cursor + eased fraction of the way to the
+   *  next stop`, the stop itself for the dwell. Every drawing that moves reads
+   *  this (the map's band, the dock's knob); everything that names a stop reads
+   *  `cursor`. Never past `steps.length - 1`. */
+  position: number
   atStart: boolean
   atEnd: boolean
   /** THE ONLY MUTATOR. next/prev/first/last are defined in terms of it, so a
@@ -74,14 +88,13 @@ export interface Playback {
    *  than there are slides should get nothing, not a crash. */
   seek(i: number): void
   next(): void
-  /** THE CLOCK (#246). True while the walk advances on its own, one stop per
-   *  `WALK_PLAYBACK_DEFAULTS.step` milliseconds (the DS's 900), stopping by itself
-   *  at the last stop. ONE clock for every surface: the viewer's strip, the map's
-   *  dock and the presenter all read the same flag and any of them may toggle it,
-   *  so pressing play on the map and pause on the strip is one gesture on one
-   *  walk, not two players disagreeing. The clock moves the INTEGER cursor — the
-   *  dock's fractional travel between stops (DS OB-130 clause 5) is not built;
-   *  the knob steps. */
+  /** THE CLOCK (#246, fractional since #247). True while the walk advances on
+   *  its own: one stop per `WALK_PLAYBACK_DEFAULTS.step` milliseconds (the DS's
+   *  900), moving for the first `travel` of each and dwelling for the rest,
+   *  stopping by itself at the last stop. ONE clock for every surface: the
+   *  viewer's strip, the map's dock and the presenter all read the same flag and
+   *  any of them may toggle it, so pressing play on the map and pause on the
+   *  strip is one gesture on one walk, not two players disagreeing. */
   playing: boolean
   toggle(): void
   prev(): void
@@ -122,41 +135,76 @@ export function routeIsWalk(route: readonly string[], steps: readonly { id: stri
   return route.length > 0 && route.length <= steps.length && route.every((id, i) => steps[i].id === id)
 }
 
-/** where one tick of the clock moves the cursor, or null when the walk is at
- *  its end and the clock should stop instead. */
-export function nextOnTick(cursor: number, len: number): number | null {
-  return cursor + 1 < len ? cursor + 1 : null
-}
-
 // ── the clock ───────────────────────────────────────────────────────────────
-// Module-level on purpose: `playing` is a fact about THE walk, not about any one
-// pane, and three panes mount this hook. Each mounted instance registers its
-// own ticker; the interval fires the FIRST one only, and since every instance
-// derives the same steps and cursor from the same bus, which one advances the
-// walk does not matter. When the last instance unmounts the next tick finds no
-// ticker and stops the clock.
+// Module-level on purpose: `playing` and the position are facts about THE walk,
+// not about any one pane, and three panes mount this hook. Each mounted
+// instance registers its own ticker; each frame runs the FIRST one only, and
+// since every instance derives the same steps and cursor from the same bus,
+// which one advances the walk does not matter. When the last instance unmounts
+// the next frame finds no ticker and stops the clock.
+//
+// THE ARITHMETIC IS THE DS'S. `walkAdvance` (src/ds/map/WalkDock.tsx, DS
+// OB-130/132) takes the integer step, the phase inside it and the milliseconds
+// since the last frame, and returns the next step, phase and FRACTIONAL
+// position — eased travel for `WALK_PLAYBACK_DEFAULTS.travel` of each step, a
+// dwell for the rest. It clamps its own dt (a hidden tab's stalled frame spends
+// at most one step; a negative dt spends none), so nothing here guards dt
+// again — two guards on one input is what the DS warns against. This loop owns
+// only the timer, the frame delta and the bus write when the integer step
+// changes.
 
 let playing = false
+/** the clock's own place in the walk: the DS's `{ step, phase }` plus the
+ *  position it last published, and the integer step it last wrote to the bus
+ *  (so a render that has not caught up with that write is not mistaken for a
+ *  seek from elsewhere). */
+const clock = { step: 0, phase: 0, position: 0, written: 0 }
+let lastFrame: number | null = null
+let raf: number | null = null
 const watchers = new Set<() => void>()
-const tickers = new Set<() => void>()
-let timer: ReturnType<typeof setInterval> | null = null
+const tickers = new Set<(dt: number) => void>()
 
-function tick() {
+function notify() {
+  for (const w of watchers) w()
+}
+
+function frame(now: number) {
+  if (!playing) return
+  const dt = lastFrame === null ? 0 : now - lastFrame
+  lastFrame = now
   const first = tickers.values().next().value
-  if (first) first()
+  if (first) first(dt)
   else setPlaying(false)
+  if (playing) raf = requestAnimationFrame(frame)
 }
 
 function setPlaying(next: boolean) {
   if (next === playing) return
   playing = next
-  if (playing) timer = setInterval(tick, WALK_PLAYBACK_DEFAULTS.step)
-  else if (timer) { clearInterval(timer); timer = null }
-  for (const w of watchers) w()
+  if (playing) {
+    lastFrame = null
+    raf = requestAnimationFrame(frame)
+  } else if (raf !== null) {
+    cancelAnimationFrame(raf)
+    raf = null
+  }
+  notify()
+}
+
+/** put the clock ON a stop, phase 0 — every seek does this, so a seek while
+ *  playing continues from the stop it landed on rather than from where the
+ *  clock was. */
+function jump(i: number) {
+  clock.step = i
+  clock.phase = 0
+  clock.position = i
+  clock.written = i
+  notify()
 }
 
 const subscribe = (w: () => void) => { watchers.add(w); return () => { watchers.delete(w) } }
-const snapshot = () => playing
+const playingNow = () => playing
+const positionNow = () => clock.position
 
 // ── the hook ────────────────────────────────────────────────────────────────
 
@@ -171,54 +219,74 @@ export function useWalkPlayback(bus: Bus): Playback {
   const steps = playSteps(saved, road)
   const cursor = clampCursor(saved ? bus.activeWalk!.cursor : bus.draftCursor, steps.length)
 
-  const seek = (i: number) => {
+  /** the bus write for one stop — the cursor and, for both sources, the focus
+   *  (see the header). 'walk' is the via-tag that colours the trail chip and
+   *  tells every listening pane where the move came from. */
+  const writeCursor = (i: number) => {
     const s = steps[i]
     if (!s) return
     if (saved) bus.activateWalk(saved.id, i)
     else bus.setDraftCursor(i)
-    // both sources, one focus write — see the header. 'walk' is the via-tag that
-    // colours the trail chip and tells every listening pane where the move came
-    // from.
     bus.setFocus(s.id, 'walk')
   }
+  const seek = (i: number) => {
+    if (!steps[i]) return
+    writeCursor(i)
+    jump(i)
+  }
 
-  const isPlaying = useSyncExternalStore(subscribe, snapshot)
-  // the ticker must read THIS render's cursor, steps and seek. They land in a ref
-  // from an effect after every render (a ref written during render is what
-  // react-hooks/refs forbids; an effect keyed on `seek`, a fresh closure per
-  // render, is what exhaustive-deps warns about), and the ticker itself is
-  // registered once and reads the ref when the clock fires.
-  const latest = useRef({ cursor, len: steps.length, seek })
-  useEffect(() => { latest.current = { cursor, len: steps.length, seek } })
+  const isPlaying = useSyncExternalStore(subscribe, playingNow)
+  const clockPosition = useSyncExternalStore(subscribe, positionNow)
+  // the ticker must read THIS render's step count and write through THIS
+  // render's bus. They land in a ref from an effect after every render (a ref
+  // written during render is what react-hooks/refs forbids; an effect keyed on
+  // `writeCursor`, a fresh closure per render, is what exhaustive-deps warns
+  // about), and the ticker itself is registered once and reads the ref when the
+  // clock fires.
+  const latest = useRef({ len: steps.length, writeCursor })
+  useEffect(() => { latest.current = { len: steps.length, writeCursor } })
   useEffect(() => {
-    const t = () => {
+    const t = (dt: number) => {
       const now = latest.current
-      const to = nextOnTick(now.cursor, now.len)
-      if (to === null) setPlaying(false)
-      else now.seek(to)
+      const r = walkAdvance({ step: clock.step, phase: clock.phase, dt, count: now.len })
+      clock.step = r.step
+      clock.phase = r.phase
+      clock.position = r.position
+      if (r.step !== clock.written) {
+        clock.written = r.step
+        now.writeCursor(r.step)
+      }
+      if (r.done) setPlaying(false)
+      else notify()
     }
     tickers.add(t)
     return () => { tickers.delete(t) }
   }, [])
 
+  const last = steps.length - 1
   return {
     source: saved ? 'saved' : 'draft',
     title: saved ? saved.title : 'the road you are authoring',
     steps,
     cursor,
+    // at rest the position IS the cursor; playing, it is the clock's, never past
+    // the last stop (the clock clamps there and stops itself)
+    position: isPlaying ? Math.min(Math.max(0, last), clockPosition) : cursor,
     atStart: cursor <= 0,
-    atEnd: cursor >= steps.length - 1,
+    atEnd: cursor >= last,
     seek,
     next: () => seek(cursor + 1),
     prev: () => seek(cursor - 1),
     first: () => seek(0),
-    last: () => seek(steps.length - 1),
+    last: () => seek(last),
     playing: isPlaying,
     // play at the end restarts from the first stop, the way every player does
     toggle: () => {
       if (isPlaying) { setPlaying(false); return }
       if (steps.length === 0) return
-      if (cursor >= steps.length - 1) seek(0)
+      const from = cursor >= last ? 0 : cursor
+      if (from !== cursor) writeCursor(from)
+      jump(from)
       setPlaying(true)
     },
   }

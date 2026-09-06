@@ -121,6 +121,28 @@ export interface NodeArrowProps {
    *  its own from its own length, which is exactly the emphasis fault `headForSet` exists to
    *  remove. Reported; delete this prop and pass the object however the DS decides to take it. */
   headSize?: { head: number; halfWidth: number }
+  /** ★ LOCAL — HOW MUCH OF THIS ARROW HAS BEEN WALKED, 0…1 (DS OB-132: `walkArrow().walked`).
+   *  Undefined draws exactly what this component always drew, so no existing caller moves.
+   *  Given, the shaft is drawn in two paints — the walked part in `walkedTone` from the tail,
+   *  the rest in `tone` at `aheadOpacity` — and THE HEAD RIDES THE SPLIT: strictly between 0
+   *  and 1 it sits at the walked point, in the walked paint, travelling along the line as the
+   *  walk plays; at 0 it is the resting head in `tone`, at 1 the resting head in
+   *  `walkedTone`. The DS's reference rig (guidelines/walk-strip-compact.html) draws this as
+   *  two dashed paths and a head placed by getPointAtLength; here the two paints are dash
+   *  offsets over one `pathLength`, and the head is placed from the arc-length arithmetic
+   *  the bow's own tangent already needs.
+   *
+   *  IT IS LOCAL BECAUSE THE DS PUBLISHED THE RECIPE WITH NO ARROW THAT TAKES IT. `walkArrow`
+   *  returns `walked`, `headTravels`, `headAcorn` and `aheadOpacity` for a host to draw, and
+   *  the rig draws them in raw SVG — but this map draws its walk with THIS component (OB-069),
+   *  and a host cannot reach inside it to split its shaft. Reported; delete these three props
+   *  and pass the reading however the DS decides to take it. */
+  walked?: number
+  /** the walked part's paint. 'walk' (acorn) unless the whole walk is receded (OB-117). */
+  walkedTone?: 'walk' | 'quiet' | 'hint'
+  /** the UNWALKED part's opacity, relative to the arrow — `walkArrow().aheadOpacity` over its
+   *  `.opacity`, i.e. `1 − walked · aheadFade`: the part ahead drops as the head passes. */
+  aheadOpacity?: number
 }
 
 const TONE: Record<string, string> = {
@@ -279,7 +301,7 @@ export function shaftTailOffset(
 }
 
 export function NodeArrow({
-  direction = 'down', length = 14, tone = 'walk', dashed, color, title, joins, bow = 0, casing = false, headSize,
+  direction = 'down', length = 14, tone = 'walk', dashed, color, title, joins, bow = 0, casing = false, headSize, walked, walkedTone = 'walk', aheadOpacity = 1,
 }: NodeArrowProps) {
   const paint = color || TONE[tone] || TONE.walk
   /* the rule, applied — the neighbour's form decides, and the default is the full-rank
@@ -302,6 +324,21 @@ export function NodeArrow({
   const casingT = T + CASING_EXTRA
   const casingHalf = scaledHalf + CASING_EXTRA / 2 + 0.6
   const casingBack = CASING_EXTRA / 2 + 0.6
+  /* THE SPLIT (★ LOCAL, `walked` — see the prop). `wk` is undefined for every caller that did
+     not ask, and every branch below then draws its old markup byte for byte: one shaft in
+     `paint`, the head at the end. Given, the shaft is one or two strokes — the walked part
+     from the tail in the walked paint, the rest in `paint` at `aheadOpacity` — split as dash
+     offsets over a `pathLength` of 1 so the same fraction reads on a line and on a curve; and
+     while the split is strictly inside the line the head sits AT it, in the walked paint. */
+  const wk = walked === undefined ? undefined : Math.max(0, Math.min(1, walked))
+  const walkedPaint = TONE[walkedTone] || TONE.walk
+  const headPaint = wk !== undefined && wk > 0 ? walkedPaint : paint
+  const travels = wk !== undefined && wk > 0 && wk < 1
+  const shafts: { paint: string; opacity?: number; dash?: string }[] =
+    wk === undefined ? [{ paint }]
+      : wk <= 0 ? [{ paint, opacity: aheadOpacity }]
+        : wk >= 1 ? [{ paint: walkedPaint }]
+          : [{ paint, opacity: aheadOpacity, dash: `0 ${wk} ${1 - wk} 1` }, { paint: walkedPaint, dash: `${wk} 1` }]
   if (bow) {
     /* ROUTING ONLY (OB-107) — for a host drawing an arbitrary line between two points that
        needs to separate it from another line running close beside it for part of its length
@@ -320,9 +357,23 @@ export function NodeArrow({
     const ctrl = mid + bow
     const du = length / 2
     const dv = mid - ctrl
-    const ang = Math.atan2(dv, du)
-    const tipU = length + scaledHead * Math.cos(ang)
-    const tipV = mid + scaledHead * Math.sin(ang)
+    /* WHERE THE HEAD SITS ON THE CURVE, and which way it points. At rest that is the curve's
+       end and the tangent there — the arithmetic this drawing always used, kept verbatim so a
+       resting arrow's markup does not move. Travelling, it is the point at the walked
+       fraction of the curve's ARC LENGTH (the same measure the dash split reads — a quadratic's
+       `t` is not its arc, and the two must agree or the head slides off the seam) and the
+       tangent at that point. */
+    let hu = length
+    let hv = mid
+    let ang = Math.atan2(dv, du)
+    if (travels) {
+      const at = bezierAtArc(length, mid, ctrl, wk!)
+      hu = at.u
+      hv = at.v
+      ang = at.ang
+    }
+    const tipU = hu + scaledHead * Math.cos(ang)
+    const tipV = hv + scaledHead * Math.sin(ang)
     const perpU = -Math.sin(ang) * scaledHalf
     const perpV = Math.cos(ang) * scaledHalf
     const toXY = (u: number, v: number): [number, number] => (down ? [v, u] : [u, v])
@@ -331,16 +382,16 @@ export function NodeArrow({
     const [sx, sy] = toXY(0, mid)
     const [cx, cy] = toXY(length / 2, ctrl)
     const [ex, ey] = toXY(length, mid)
-    const [p1x, p1y] = toXY(length + perpU, mid + perpV)
+    const [p1x, p1y] = toXY(hu + perpU, hv + perpV)
     const [tx, ty] = toXY(tipU, tipV)
-    const [p3x, p3y] = toXY(length - perpU, mid - perpV)
+    const [p3x, p3y] = toXY(hu - perpU, hv - perpV)
     const casingPerpU = -Math.sin(ang) * casingHalf
     const casingPerpV = Math.cos(ang) * casingHalf
-    const cTipU = length + (scaledHead + casingBack) * Math.cos(ang)
-    const cTipV = mid + (scaledHead + casingBack) * Math.sin(ang)
-    const [cp1x, cp1y] = toXY(length - casingBack * Math.cos(ang) + casingPerpU, mid - casingBack * Math.sin(ang) + casingPerpV)
+    const cTipU = hu + (scaledHead + casingBack) * Math.cos(ang)
+    const cTipV = hv + (scaledHead + casingBack) * Math.sin(ang)
+    const [cp1x, cp1y] = toXY(hu - casingBack * Math.cos(ang) + casingPerpU, hv - casingBack * Math.sin(ang) + casingPerpV)
     const [ctx, cty] = toXY(cTipU, cTipV)
-    const [cp3x, cp3y] = toXY(length - casingBack * Math.cos(ang) - casingPerpU, mid - casingBack * Math.sin(ang) - casingPerpV)
+    const [cp3x, cp3y] = toXY(hu - casingBack * Math.cos(ang) - casingPerpU, hv - casingBack * Math.sin(ang) - casingPerpV)
     const curve = `M${sx} ${sy} Q${cx} ${cy} ${ex} ${ey}`
     return (
       <svg
@@ -358,8 +409,11 @@ export function NodeArrow({
           {casing ? (
             <path d={`M${cp1x} ${cp1y} L${ctx} ${cty} L${cp3x} ${cp3y} Z`} fill={CASING_COLOR} fillOpacity={CASING_OPACITY} />
           ) : null}
-          <path d={curve} fill="none" stroke={paint} strokeWidth={T} strokeDasharray={dashed ? DASH : undefined} />
-          <path d={`M${p1x} ${p1y} L${tx} ${ty} L${p3x} ${p3y} Z`} fill={paint} />
+          {shafts.map((s, k) => (
+            <path key={k} d={curve} fill="none" stroke={s.paint} strokeWidth={T} strokeOpacity={s.opacity}
+              pathLength={s.dash ? 1 : undefined} strokeDasharray={s.dash ?? (dashed ? DASH : undefined)} />
+          ))}
+          <path d={`M${p1x} ${p1y} L${tx} ${ty} L${p3x} ${p3y} Z`} fill={headPaint} />
         </g>
       </svg>
     )
@@ -367,6 +421,10 @@ export function NodeArrow({
   const w = (down ? across : span) + PAD * 2
   const h = (down ? span : across) + PAD * 2
   const mid = across / 2
+  /* the head's base along the axis: the shaft's end at rest, the walked point travelling. At
+     rest `hx + scaledHead` is `span` by the same addition, so the resting path is unchanged. */
+  const hx = travels ? wk! * length : length
+  const hs = hx + scaledHead
   return (
     <svg
       width={w} height={h} viewBox={`0 0 ${w} ${h}`}
@@ -383,13 +441,15 @@ export function NodeArrow({
                 strokeWidth={casingT} strokeLinecap="round" strokeDasharray={dashed ? DASH : undefined} />
             ) : null}
             {casing ? (
-              <path d={`M${mid - casingHalf} ${length} L${mid} ${span + casingBack} L${mid + casingHalf} ${length} Z`}
+              <path d={`M${mid - casingHalf} ${hx} L${mid} ${hs + casingBack} L${mid + casingHalf} ${hx} Z`}
                 fill={CASING_COLOR} fillOpacity={CASING_OPACITY} />
             ) : null}
-            <line x1={mid} y1="0" x2={mid} y2={length + 1} stroke={paint} strokeWidth={T}
-              strokeDasharray={dashed ? DASH : undefined}
-              shapeRendering={dashed ? undefined : 'crispEdges'} />
-            <path d={`M${mid - scaledHalf} ${length} L${mid} ${span} L${mid + scaledHalf} ${length} Z`} fill={paint} />
+            {shafts.map((s, k) => (
+              <line key={k} x1={mid} y1="0" x2={mid} y2={length + 1} stroke={s.paint} strokeWidth={T} strokeOpacity={s.opacity}
+                pathLength={s.dash ? 1 : undefined} strokeDasharray={s.dash ?? (dashed ? DASH : undefined)}
+                shapeRendering={dashed ? undefined : 'crispEdges'} />
+            ))}
+            <path d={`M${mid - scaledHalf} ${hx} L${mid} ${hs} L${mid + scaledHalf} ${hx} Z`} fill={headPaint} />
           </>
         ) : (
           <>
@@ -398,16 +458,51 @@ export function NodeArrow({
                 strokeWidth={casingT} strokeLinecap="round" strokeDasharray={dashed ? DASH : undefined} />
             ) : null}
             {casing ? (
-              <path d={`M${length} ${mid - casingHalf} L${span + casingBack} ${mid} L${length} ${mid + casingHalf} Z`}
+              <path d={`M${hx} ${mid - casingHalf} L${hs + casingBack} ${mid} L${hx} ${mid + casingHalf} Z`}
                 fill={CASING_COLOR} fillOpacity={CASING_OPACITY} />
             ) : null}
-            <line x1="0" y1={mid} x2={length + 1} y2={mid} stroke={paint} strokeWidth={T}
-              strokeDasharray={dashed ? DASH : undefined}
-              shapeRendering={dashed ? undefined : 'crispEdges'} />
-            <path d={`M${length} ${mid - scaledHalf} L${span} ${mid} L${length} ${mid + scaledHalf} Z`} fill={paint} />
+            {shafts.map((s, k) => (
+              <line key={k} x1="0" y1={mid} x2={length + 1} y2={mid} stroke={s.paint} strokeWidth={T} strokeOpacity={s.opacity}
+                pathLength={s.dash ? 1 : undefined} strokeDasharray={s.dash ?? (dashed ? DASH : undefined)}
+                shapeRendering={dashed ? undefined : 'crispEdges'} />
+            ))}
+            <path d={`M${hx} ${mid - scaledHalf} L${hs} ${mid} L${hx} ${mid + scaledHalf} Z`} fill={headPaint} />
           </>
         )}
       </g>
     </svg>
   )
+}
+
+/** the point on the bowed shaft at a fraction of its ARC length, and the curve's direction
+ *  there — for the travelling head. The shaft is the quadratic from (0, mid) through the
+ *  control (length/2, ctrl) to (length, mid), in the drawing's own along/across axes. Arc
+ *  length has no closed form, so the curve is walked in 32 pieces and the fraction found by
+ *  interpolation: at 32 pieces over the bows this map draws the error is well under a pixel,
+ *  and the head sits on the seam between the two dashes rather than beside it. */
+function bezierAtArc(length: number, mid: number, ctrl: number, frac: number): { u: number; v: number; ang: number } {
+  const N = 32
+  const at = (t: number): [number, number] => {
+    const a = (1 - t) * (1 - t)
+    const b = 2 * (1 - t) * t
+    const c = t * t
+    return [b * (length / 2) + c * length, a * mid + b * ctrl + c * mid]
+  }
+  const pts: [number, number][] = []
+  const cum: number[] = [0]
+  for (let i = 0; i <= N; i++) {
+    const p = at(i / N)
+    pts.push(p)
+    if (i > 0) cum.push(cum[i - 1] + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]))
+  }
+  const target = frac * cum[N]
+  let i = 1
+  while (i < N && cum[i] < target) i++
+  const seg = cum[i] - cum[i - 1]
+  const t = ((i - 1) + (seg > 0 ? (target - cum[i - 1]) / seg : 0)) / N
+  const [u, v] = at(t)
+  // the tangent of a quadratic: 2(1−t)(C − P0) + 2t(P1 − C)
+  const tu = 2 * (1 - t) * (length / 2) + 2 * t * (length / 2)
+  const tv = 2 * (1 - t) * (ctrl - mid) + 2 * t * (mid - ctrl)
+  return { u, v, ang: Math.atan2(tv, tu) }
 }

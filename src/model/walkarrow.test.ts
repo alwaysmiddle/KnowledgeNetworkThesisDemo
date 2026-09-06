@@ -13,7 +13,9 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { BOW_CLOSE_DEG, BOW_LENGTH_RATIO, BOW_MAX_PX, bowFor, bowSignAt, bowedPoint, outwardAngleGap } from './walkarrow'
+import { WALK_ARROW_DEFAULTS, walkArrow } from '@/ds'
+
+import { BOW_CLOSE_DEG, BOW_LENGTH_RATIO, BOW_MAX_PX, bowFor, bowSignAt, bowedPoint, outwardAngleGap, walkArrowBetween } from './walkarrow'
 import type { XY } from './derive'
 
 const at = (x: number, y: number): XY => ({ x, y })
@@ -173,5 +175,43 @@ describe('bowSignAt — the sign that actually separates a doubled-back pair', (
 
   test('a walk that turns a real corner gets no bow at all', () => {
     expect(bowSignAt(at(400, 300), at(120, 320), at(410, 40))).toBe(0)
+  })
+})
+
+describe('walkArrowBetween — the DS\'s recipe read at two pin sizes (OB-132)', () => {
+  test('two pins of one size read exactly what the DS reads', () => {
+    expect(walkArrowBetween(2, 2.4, 11, 11, 180)).toEqual(walkArrow(2, 2.4, undefined, { pinRadius: 11, length: 180 }))
+  })
+
+  test('a smaller head pin gets ITS clearance, not the tail pin\'s', () => {
+    const r = walkArrowBetween(2, 2, 11, 8, 180)
+    const same = walkArrow(2, 2, undefined, { pinRadius: 11, length: 180 })
+    expect(r.tailClear).toBe(same.tailClear)
+    expect(r.headClear).toBe(walkArrow(2, 2, undefined, { pinRadius: 8 }).headClear)
+    expect(r.headClear).toBeLessThan(same.headClear)
+    expect(r.walked).toBe(same.walked)
+    expect(r.opacity).toBe(same.opacity)
+  })
+
+  test('and `hidden` is exact for the two radii — a shaft the smaller head pin leaves room for is drawn', () => {
+    // at position 2 the tail pin (2) is popped: tailClear = 11 · 1.36 + 3 = 17.96;
+    // the head pin (3) is one ahead at rest: headClear = r + 4
+    const tight = walkArrowBetween(2, 2, 11, 11, 17.96 + 15 + 0.5) // 11 + 4 = 15 → 0.5px of shaft
+    expect(tight.hidden).toBe(false)
+    expect(walkArrowBetween(2, 2, 11, 11, 17.96 + 15 - 0.5).hidden).toBe(true)
+    // the same length with an 8px head pin leaves 3.5px MORE shaft — the one-radius
+    // reading would have hidden it
+    expect(walkArrowBetween(2, 2, 11, 8, 17.96 + 15 - 0.5).hidden).toBe(false)
+    expect(walkArrowBetween(2, 2, 11, 8, 17.96 + 12 - 0.5).hidden).toBe(true)
+  })
+
+  test('no position: the arrow at rest — unwalked, quiet, clearances at the resting radii', () => {
+    const r = walkArrowBetween(0, null, 11, 8, 100)
+    expect(r).toEqual({
+      hidden: false, opacity: WALK_ARROW_DEFAULTS.quiet, walked: 0, aheadOpacity: WALK_ARROW_DEFAULTS.quiet,
+      tailClear: 11 + WALK_ARROW_DEFAULTS.clearTail, headClear: 8 + WALK_ARROW_DEFAULTS.clearHead,
+      headTravels: false, headAcorn: false,
+    })
+    expect(walkArrowBetween(0, null, 11, 11, 20).hidden).toBe(true)
   })
 })

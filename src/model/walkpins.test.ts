@@ -20,7 +20,7 @@ import { WALKS } from '../corpus/walks'
 import { topicIds } from '../corpus/graph'
 import { walkAnchorAt } from './atlas'
 import { maxTier } from './nested'
-import { PIN_GAP, PIN_SIZE, PIN_SIZE_MIN, crowdIds, pinSizeFor, separate, walkPins } from './walkpins'
+import { crowdIds, PIN_GAP, PIN_NO_POSITION, PIN_SIZE, PIN_SIZE_MIN, pinPosition, pinSizeFor, separate, walkPins } from './walkpins'
 import type { WalkPin } from './walkpins'
 
 const LEVELS = Array.from({ length: maxTier + 1 }, (_, i) => i)
@@ -58,7 +58,7 @@ describe('THE GUARANTEE — no two walk pins are ever drawn inside each other', 
       for (const level of LEVELS) {
         for (const f of FITS) {
           const px = pxAt(level, f)
-          const pins = walkPins({ route, level, cursorStep: 1, px, labelBoxes: [] })
+          const pins = walkPins({ route, level, px, labelBoxes: [] })
           const worst = worstOverlap(pins, px)
           expect(worst && `${walk.id} L${level} f${f}: ${describeOverlap(worst)}`).toBeNull()
         }
@@ -74,10 +74,10 @@ describe('THE GUARANTEE — no two walk pins are ever drawn inside each other', 
     const route = WALKS[0].stops.map((s) => s.id)
     for (const level of LEVELS) {
       const px = pxAt(level, 1.2)
-      const bare = walkPins({ route, level, cursorStep: 1, px, labelBoxes: [] })
+      const bare = walkPins({ route, level, px, labelBoxes: [] })
       // a fat box centred on every pin — the worst case the nudge can face
       const labelBoxes = bare.map((p) => ({ x0: p.c.x - px(60), y0: p.c.y - px(9), x1: p.c.x + px(60), y1: p.c.y + px(9) }))
-      const pins = walkPins({ route, level, cursorStep: 1, px, labelBoxes })
+      const pins = walkPins({ route, level, px, labelBoxes })
       const worst = worstOverlap(pins, px)
       expect(worst && `L${level}: ${describeOverlap(worst)}`).toBeNull()
     }
@@ -118,7 +118,7 @@ describe('several stops on ONE cell — OB-087 sizing, and none of them touching
       expect(pair).not.toBeNull()
       const [home, away] = pair!
       const px = pxAt(level, 1.2)
-      const pins = walkPins({ route: alternating(home, away, n), level, cursorStep: 1, px, labelBoxes: [] })
+      const pins = walkPins({ route: alternating(home, away, n), level, px, labelBoxes: [] })
 
       const homeCell = walkAnchorAt(home, level)!.visId
       const onHome = pins.filter((p) => p.visId === homeCell)
@@ -137,7 +137,7 @@ describe('several stops on ONE cell — OB-087 sizing, and none of them touching
     const [home, away] = twoApartAt(level)!
     const px = pxAt(level, 1.2)
     for (const n of [1, 2, 3, 5]) {
-      const pins = walkPins({ route: alternating(home, away, n), level, cursorStep: 1, px, labelBoxes: [] })
+      const pins = walkPins({ route: alternating(home, away, n), level, px, labelBoxes: [] })
       const homeCell = walkAnchorAt(home, level)!.visId
       const onHome = pins.filter((p) => p.visId === homeCell)
       for (const p of onHome) expect(p.size).toBe(pinSizeFor(n))
@@ -203,8 +203,8 @@ const pin = (step: number, x: number, y: number, size = PIN_SIZE): WalkPin => ({
   visId: `cell${step}`,
   step,
   c: { x, y },
+  stepEnd: step,
   label: step,
-  state: 'ahead',
   size,
 })
 /** the identity scale — 1 world unit is 1 screen px, so the numbers below are
@@ -290,7 +290,7 @@ describe('separation leaves real air, not a shared edge', () => {
     const level = 2
     const [home, away] = twoApartAt(level)!
     const px = pxAt(level, 1.2)
-    const pins = walkPins({ route: alternating(home, away, 2), level, cursorStep: 1, px, labelBoxes: [] })
+    const pins = walkPins({ route: alternating(home, away, 2), level, px, labelBoxes: [] })
     const homeCell = walkAnchorAt(home, level)!.visId
     const [a, b] = pins.filter((p) => p.visId === homeCell)
     const gap = Math.hypot(a.c.x - b.c.x, a.c.y - b.c.y) - px((a.size + b.size) / 2)
@@ -304,25 +304,70 @@ describe('what the pins say, which the layout must not change', () => {
 
   test('a CONTIGUOUS run on one cell is one pin with a range label (OB-069)', () => {
     const [home] = twoApartAt(level)!
-    const pins = walkPins({ route: [home, home, home], level, cursorStep: 1, px, labelBoxes: [] })
+    const pins = walkPins({ route: [home, home, home], level, px, labelBoxes: [] })
     expect(pins).toHaveLength(1)
     expect(pins[0].label).toBe('1-3')
   })
 
   test('a single stop keeps a NUMBER, never a one-element range', () => {
     const [home] = twoApartAt(level)!
-    const pins = walkPins({ route: [home], level, cursorStep: 1, px, labelBoxes: [] })
+    const pins = walkPins({ route: [home], level, px, labelBoxes: [] })
     expect(pins[0].label).toBe(1)
     expect(typeof pins[0].label).toBe('number')
   })
 
-  test('the cursor splits the walk into done / current / ahead', () => {
+  test('a merged run knows its LAST stop too, which is what puts the walk on the pin (OB-132)', () => {
     const [home, away] = twoApartAt(level)!
-    const pins = walkPins({ route: [home, away, home, away], level, cursorStep: 2, px, labelBoxes: [] })
-    expect(pins.map((p) => p.state)).toEqual(['done', 'current', 'ahead', 'ahead'])
+    const pins = walkPins({ route: [home, home, home, away], level, px, labelBoxes: [] })
+    expect(pins.map((p) => [p.step, p.stepEnd])).toEqual([[1, 3], [4, 4]])
   })
 
   test('an empty walk draws nothing', () => {
-    expect(walkPins({ route: [], level, cursorStep: 1, px, labelBoxes: [] })).toEqual([])
+    expect(walkPins({ route: [], level, px, labelBoxes: [] })).toEqual([])
+  })
+})
+
+describe('pinPosition — the walk\'s position counted in PINS (OB-132)', () => {
+  const run = (...runs: [number, number][]) => runs.map(([step, stepEnd]) => ({ step, stepEnd }))
+
+  test('one pin per stop is the identity — the fine map reads exactly the DS\'s rule', () => {
+    const pins = run([1, 1], [2, 2], [3, 3], [4, 4])
+    expect(pinPosition(pins, 0)).toBe(0)
+    expect(pinPosition(pins, 2)).toBe(2)
+    expect(pinPosition(pins, 1.25)).toBeCloseTo(1.25)
+    expect(pinPosition(pins, 3)).toBe(3)
+  })
+
+  test('anywhere inside a merged run is ON that pin — the whole run is "you are here"', () => {
+    const pins = run([1, 3], [4, 7])
+    expect(pinPosition(pins, 0)).toBe(0)
+    expect(pinPosition(pins, 1)).toBe(0)
+    expect(pinPosition(pins, 2)).toBe(0)
+    expect(pinPosition(pins, 3)).toBe(1)
+    expect(pinPosition(pins, 6)).toBe(1)
+  })
+
+  test('between two runs the position is the same fraction of the way between the two PINS', () => {
+    const pins = run([1, 3], [4, 7])
+    expect(pinPosition(pins, 2.5)).toBeCloseTo(0.5)
+    expect(pinPosition(pins, 2.1)).toBeCloseTo(0.1)
+  })
+
+  test('a stop the map dropped is crossed by the arrow, not by a missing pin', () => {
+    // stop 2 was unplaceable at this level: pin 0 ends at 1, pin 1 starts at 3
+    const pins = run([1, 1], [3, 3])
+    expect(pinPosition(pins, 1)).toBeCloseTo(0.5)
+    expect(pinPosition(pins, 0.5)).toBeCloseTo(0.25)
+  })
+
+  test('past the ends it clamps to the first and the last pin; no pins is 0', () => {
+    const pins = run([2, 2], [3, 3])
+    expect(pinPosition(pins, 0)).toBe(0)
+    expect(pinPosition(pins, 9)).toBe(1)
+    expect(pinPosition([], 3)).toBe(0)
+  })
+
+  test('a route with no position draws every pin at rest, ahead of nobody', () => {
+    expect(PIN_NO_POSITION).toEqual({ behind: false, active: 0, pinOpacity: 1, pinScale: 1 })
   })
 })

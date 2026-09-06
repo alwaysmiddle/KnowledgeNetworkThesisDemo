@@ -55,7 +55,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { ARROW_METRICS, headForSet, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_DOCK_METRICS, WalkDock, WalkPreview, ZoomControl } from '@/ds'
+import { ARROW_METRICS, headForSet, LevelPicker, MapFloatingButton, MapTooltip, NodeArrow, PaneCanvas, PIN_RING_WIDTH, previewAnchor, shaftTailOffset, StepDot, VisibilityMark, WALK_ARROW_DEFAULTS, WALK_DOCK_METRICS, walkBand, WalkDock, WalkPreview, ZoomControl } from '@/ds'
 import { byId, domainIds, EDGE_COLOR, EDGE_LABEL, MIXED_EDGE_COLOR, pathTo, ROOT_ID } from '../corpus/graph'
 import { DT } from './walkdesk/authordnd'
 import { routeIsWalk, useWalkPlayback } from './walkdesk/playback'
@@ -65,9 +65,9 @@ import type { XY } from '../model/derive'
 import { colorOf, inkStrongOf, labelInkOf, territoryFillOf } from '../model/color'
 import { countryPath, countryRings, maxTier, provincePath, provinceRings, territories } from '../model/nested'
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
-import { bowFor, bowSignAt } from '../model/walkarrow'
+import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
-import { walkPins } from '../model/walkpins'
+import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
 import { fitLabel, fitRegionLabel, labelBox } from '../model/labelfit'
@@ -661,19 +661,26 @@ export default function MapView({ bus }: { bus: Bus }) {
   // walkpins.test.ts; and the two items still queued against it (OB-114,
   // OB-132) have a named thing to change rather than a memo to re-derive.
   //
-  // bus.route is truncated to the played prefix while a SAVED walk is active
-  // (bus.ts's activateWalk), so the cursor is always the LAST raw step. With no
-  // saved walk, the route may instead be the DRAFT open on the desk
-  // (walkdesk/presented.ts publishes it live) — bus.draftCursor is that road's
-  // own cursor, moved by Walk·Viewer's seek bar or the walk editor.
-  const cursorStep = bus.activeWalk ? bus.activeWalk.cursor + 1 : bus.draftCursor + 1
+  // THE CURSOR IS NOT AN INPUT ANY MORE (OB-132). Where the walk IS on these
+  // pins is the band's question, read per frame from `play.position` below; the
+  // pins themselves are rebuilt only when the walk, the level or the zoom
+  // changes — never per frame, which is what lets a played walk redraw at the
+  // frame rate without re-laying-out its pins every time.
   const routeStops = useMemo(
-    () => walkPins({ route: bus.route, level, cursorStep, px, labelBoxes }),
+    () => walkPins({ route: bus.route, level, px, labelBoxes }),
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bus.route, level, cursorStep, f, view.s, labelBoxes],
+    [bus.route, level, f, view.s, labelBoxes],
   )
+  // ── OB-132: WHERE THE WALK IS, IN PINS. The DS's band (`walkBand`) fades every
+  // mark by its distance from the played position — full on the stop, five
+  // stops of trail behind, two of lead ahead, nothing beyond — and pops the mark
+  // the position is arriving at. It is read here in PIN units (`pinPosition`),
+  // because a pin at a coarse level stands for a run of stops. A route that is
+  // not the walk being played (a `bus.teach` curriculum) has no position and no
+  // band: `null`, and every pin and arrow draws at rest.
+  const pinPos = dockShown ? pinPosition(routeStops, play.position) : null
 
   // ── OB-126: ONE HEAD FOR THE WHOLE WALK, NOT ONE PER ARROW ──────────────
   // `headFor`'s length cap is written for a LONE line — it stops one long shaft
@@ -699,7 +706,7 @@ export default function MapView({ bus }: { bus: Bus }) {
       const worldDist = Math.hypot(to.c.x - from.c.x, to.c.y - from.c.y) || 1
       const dist = (worldDist * view.s) / f
       if (dist < 1) continue
-      lengths.push(Math.max(1, dist - to.size / 2 - ARROW_METRICS.head - from.size / 2))
+      lengths.push(Math.max(1, dist - (from.size / 2 + WALK_ARROW_DEFAULTS.clearTail) - (to.size / 2 + WALK_ARROW_DEFAULTS.clearHead) - ARROW_METRICS.head))
     }
     return headForSet({ joins: PIN_RING_WIDTH, lengths })
   }, [routeStops, view.s, f])
@@ -745,7 +752,16 @@ export default function MapView({ bus }: { bus: Bus }) {
   // OB-117 — the walk recedes while a node's relationships are on screen. The
   // relation arrows are drawn by the `sel` overlay and by nothing else, so the
   // selection IS the condition; deselecting restores full weight on its own.
-  const walkReceded = sel !== null
+  //
+  // UNLESS THE WALK MADE THE SELECTION ITSELF (OB-132, 2026-09-05). `sel` follows
+  // `bus.focus`, and every seek and every tick of the clock writes the focus
+  // (playback.ts, via 'walk'), so a walk being played was selecting each stop's
+  // cell as it arrived and receding ITSELF — bark-300 at 0.6, the band's pop and
+  // its acorn head drawn grey at the one moment they exist for. The trail log is
+  // append-only and tagged, so its latest entry says who wrote the focus: a
+  // selection the walk made does not recede the walk; a click on the map does.
+  const lastFocus = bus.trail[bus.trail.length - 1]
+  const walkReceded = sel !== null && !(lastFocus !== undefined && lastFocus.id === sel && lastFocus.via === 'walk')
 
 
   // territories in play: everything up to one tier below the stratum (so the
@@ -1302,18 +1318,26 @@ export default function MapView({ bus }: { bus: Bus }) {
                 const dist = (worldDist * view.s) / f // world units -> real px
                 if (dist < 1) return null
                 const angle = (Math.atan2(dy, dx) * 180) / Math.PI
-                // OB-090 — anchor the TAIL at the source pin's own edge (toward
-                // the target), not its centre. A centred tail is the SAME point
-                // for every arrow leaving a pin, however many attach there —
-                // exactly the "one shared anchor" the fix asks to stop. The
-                // head already anchored this way (short of `to`'s own radius,
-                // toward `from`); the tail now does the same in reverse, so
-                // every arrow's anchor is angled toward the end it actually
-                // connects to rather than a shared centre point.
-                const tailOffset = px(from.size / 2)
+                // OB-132 — THE ARROW IS A READING OF THE BAND, not a description of
+                // two pins: its opacity, the walked/quiet split, where its head sits
+                // and BOTH its clearances come from the DS's `walkArrow` recipe (through
+                // `walkArrowBetween`, which reads it at this map's two pin sizes),
+                // against the SCALED pins. The tail used to clip at the RESTING edge
+                // (OB-090); a pin popped to 1.36× as the walk arrives would swallow
+                // it at the one moment the eye is there. `length` handed to the
+                // recipe is centre to centre less the head, so `hidden` means the two
+                // clearances have eaten the whole shaft (two crowded stops, or two
+                // popped pins) and there is nothing to draw.
+                const wa = walkArrowBetween(i, pinPos, from.size / 2, to.size / 2, dist - walkArrowHead.head)
+                if (wa.hidden) return null
+                // OB-090 — the TAIL is anchored at the source pin's own edge (toward
+                // the target), not its centre: a centred tail is the SAME point for
+                // every arrow leaving a pin, however many attach there. The band's
+                // `tailClear` is that edge plus its gap, at the pin's drawn scale.
+                const tailOffset = px(wa.tailClear)
                 const tailX = from.c.x + (dx / worldDist) * tailOffset
                 const tailY = from.c.y + (dy / worldDist) * tailOffset
-                const length = Math.max(1, dist - to.size / 2 - walkArrowHead.head - from.size / 2)
+                const length = Math.max(1, dist - wa.tailClear - wa.headClear - walkArrowHead.head)
                 // OB-107 — magnitude is proportional to the shaft, capped: a bow
                 // is meant to open a gap between two lines, and a fixed px offset
                 // that reads as a gentle curve on a long line is a semicircle on a
@@ -1328,7 +1352,7 @@ export default function MapView({ bus }: { bus: Bus }) {
                 // real pin-to-pin line, which the alternating sign depends on.
                 const tail = shaftTailOffset({ joins: PIN_RING_WIDTH, bow, casing: true, headSize: walkArrowHead })
                 return (
-                  <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
+                  <g key={`ra-${to.key}`} data-routearrow={i} data-bow={bow.toFixed(2)} opacity={wa.opacity} transform={`translate(${tailX} ${tailY}) rotate(${angle}) scale(${f / view.s})`}>
                     <g transform={`translate(${-tail.along} ${-tail.across})`}>
                       {/* OB-116 — `casing` on EVERY walk arrow, long and short,
                           quiet and current: a halo behind shaft and head so the
@@ -1342,7 +1366,10 @@ export default function MapView({ bus }: { bus: Bus }) {
                         headSize={walkArrowHead}
                         bow={bow}
                         casing
-                        tone={walkReceded ? 'hint' : 'walk'}
+                        tone={walkReceded ? 'hint' : 'quiet'}
+                        walked={wa.walked}
+                        walkedTone={walkReceded ? 'hint' : 'walk'}
+                        aheadOpacity={wa.opacity > 0 ? wa.aheadOpacity / wa.opacity : 1}
                       />
                     </g>
                   </g>
@@ -1364,7 +1391,19 @@ export default function MapView({ bus }: { bus: Bus }) {
                   the receipt; opacity ships now because it is the half that is
                   ours to give. */}
               <g data-routepins data-receded={walkReceded ? 1 : 0} opacity={walkReceded ? 0.6 : 1} style={{ transition: 'opacity 120ms' }}>
-              {routeStops.map((s) => (
+              {routeStops.map((s, k) => {
+                /* OB-132 — EVERY PIN IS A READING OF THE BAND: its opacity is
+                   `pinOpacity`, its scale `pinScale` (the pop, 1.36× as the walk
+                   arrives), and its FACE is direction plus arrival — `state` says
+                   which side of the position it is on and `arrival` how far it is
+                   into looking current, so fill, ring and number cross continuously
+                   with no jump at the stop boundary. Never a rounded 'current': at
+                   the stop `arrival` is 1 and both directions reach the identical
+                   look, so the flip is invisible (StepDot's own docblock). A pin
+                   outside the band draws nothing at all — the owner's ruling. */
+                const b = pinPos === null ? PIN_NO_POSITION : walkBand(k, pinPos)
+                if (b.pinOpacity <= 0) return null
+                return (
                 /* #246: A PIN'S OWN HOVER AND CLICK. The pins' wrapper is pointer-transparent so
                    the cells under the walk keep their hover; each pin opts back in. Hover shows
                    the same preview card the dock and the strip show, anchored on the pin's box
@@ -1373,12 +1412,15 @@ export default function MapView({ bus }: { bus: Bus }) {
                    drag. Entering a pin leaves the cell under it, so the cell's MapTooltip goes
                    as this card comes — one card at a time. A click falls through to the cell
                    the pin stands on, so a pin is still a way to select its region. `s.step` is
-                   1-based; `play.steps` is the walk `bus.route` is a prefix of. */
+                   1-based; `play.steps` is the walk `bus.route` is a prefix of. `data-pin` is
+                   the pin's index in walk order — what an arrow's `data-routearrow` joins. */
                 <g
                   key={s.key}
                   data-routestop={s.visId}
                   data-step={s.step}
-                  transform={`translate(${s.c.x} ${s.c.y}) scale(${f / view.s})`}
+                  data-pin={k}
+                  opacity={b.pinOpacity}
+                  transform={`translate(${s.c.x} ${s.c.y}) scale(${(f / view.s) * b.pinScale})`}
                   pointerEvents={dockShown ? 'all' : 'none'}
                   style={dockShown ? { cursor: 'pointer' } : undefined}
                   onPointerEnter={(e) => { if (!dragging && dockShown) setPinHover({ i: s.step - 1, ...previewAnchor(e.currentTarget.getBoundingClientRect()) }) }}
@@ -1386,10 +1428,11 @@ export default function MapView({ bus }: { bus: Bus }) {
                   onClick={() => regionClick(s.visId)}
                 >
                   <foreignObject x={-s.size / 2} y={-s.size / 2} width={s.size} height={s.size} style={{ overflow: 'visible' }}>
-                    <StepDot n={s.label} state={s.state} variant="pin" size={s.size} />
+                    <StepDot n={s.label} state={b.behind ? 'done' : 'ahead'} arrival={b.active} variant="pin" size={s.size} />
                   </foreignObject>
                 </g>
-              ))}
+                )
+              })}
               </g>
             </g>
           )}
@@ -1689,7 +1732,7 @@ export default function MapView({ bus }: { bus: Bus }) {
       {dockShown && (
         <WalkDock
           steps={play.steps}
-          position={play.cursor}
+          position={play.position}
           playing={play.playing}
           onPlayToggle={play.toggle}
           onSeek={play.seek}

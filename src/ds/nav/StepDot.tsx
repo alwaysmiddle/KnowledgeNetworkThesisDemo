@@ -56,9 +56,9 @@ export interface StepDotProps {
    *  through grey; GEOMETRY DOES NOT BLEND (the optional dash, the shrunk fill and the
    *  ring weights all stay keyed on the discrete `state`).
    *
-   *  NOTHING IN THIS APP PASSES IT YET. It arrives here because DS OB-129 amends itself
-   *  to say the fix and this prop are the same authored file and must be re-ported
-   *  together; the caller is DS OB-132, the map's played walk, which is not started. */
+   *  ONE CALLER: MapView's walk pins (DS OB-132, 2026-09-05), which pass direction and
+   *  `walkBand().active`. The prop arrived earlier, with OB-129, because the fix and the
+   *  prop are the same authored file and were re-ported together. */
   arrival?: number
   /** rail (default) = filled dot for the walk strip; pin = paper-white face with the
    *  state's colour on the ring and number only, for the same dot pinned over a map,

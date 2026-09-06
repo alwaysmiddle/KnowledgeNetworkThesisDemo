@@ -9,6 +9,8 @@
 // coordinates, which is the only frame in which "do these two lines run together"
 // is a real question.
 
+import { WALK_ARROW_DEFAULTS, walkArrow } from '@/ds'
+
 import type { XY } from './derive'
 
 /** how far apart, in degrees (0–180), two neighbours lie AS SEEN FROM a shared
@@ -107,4 +109,33 @@ export function bowSignAt(at: XY, prev: XY, next: XY): number {
   while (turn > Math.PI) turn -= 2 * Math.PI
   while (turn < -Math.PI) turn += 2 * Math.PI
   return turn >= 0 ? 1 : -1
+}
+
+// ── OB-132: the arrow as a reading of the band ──────────────────────────────
+export type WalkArrowReading = ReturnType<typeof walkArrow>
+
+/** THE DS'S ARROW RECIPE, READ BETWEEN TWO OF THIS MAP'S PINS (OB-132). `walkArrow(i,
+ *  position, band, geom)` takes ONE `pinRadius` for both ends; this map's pins can differ
+ *  in size (a crowded pin shrinks, OB-087), so when the two radii differ the head end is
+ *  read again at its own radius and its clearance replaces the tail-radius one. `hidden`
+ *  stays the DS's own test rather than a copy of it: the tail-radius call is handed `length`
+ *  less the head end's EXTRA clearance, so its one-radius reading is exact for two.
+ *
+ *  `length` is the pin-centre-to-pin-centre distance in px LESS THE DRAWN HEAD, so "crushed"
+ *  means no shaft is left once both clearances and the head have taken their share.
+ *
+ *  A `null` position is a route nobody is walking (see `PIN_NO_POSITION`): the arrow at
+ *  rest — unwalked, at the recipe's `quiet`, clearances at the resting radii. */
+export function walkArrowBetween(k: number, position: number | null, tailRadius: number, headRadius: number, length: number): WalkArrowReading {
+  if (position === null) {
+    const G = WALK_ARROW_DEFAULTS
+    const tailClear = tailRadius + G.clearTail
+    const headClear = headRadius + G.clearHead
+    return { hidden: length - headClear <= tailClear, opacity: G.quiet, walked: 0, aheadOpacity: G.quiet, tailClear, headClear, headTravels: false, headAcorn: false }
+  }
+  if (headRadius === tailRadius) return walkArrow(k, position, undefined, { pinRadius: tailRadius, length })
+  const atTail = walkArrow(k, position, undefined, { pinRadius: tailRadius })
+  const atHead = walkArrow(k, position, undefined, { pinRadius: headRadius })
+  const extra = atHead.headClear - atTail.headClear
+  return { ...walkArrow(k, position, undefined, { pinRadius: tailRadius, length: length - extra }), headClear: atHead.headClear }
 }
