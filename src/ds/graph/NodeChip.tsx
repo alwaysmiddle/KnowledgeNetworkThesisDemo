@@ -3,6 +3,7 @@ import type { DomainCode } from './vocab'
 import { DOMAIN_TOKEN } from './vocab'
 import { Caret, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
 import { RESIZE_TIP, useRecede, wrapTip } from '../chrome/IconButton'
+import { canMeasure, linesOf, measure } from './textMeasure'
 
 /** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
  *  WEIGHT OF WHAT IT CONNECTS AND NEVER ABOVE IT. The nodes are the objects; a line
@@ -367,19 +368,9 @@ export const CHIP_METRICS = {
   normalLh: 1.36,
 }
 
-type FontKind = 'ui' | 'mono'
-const FONTS: Partial<Record<FontKind, string>> = {}
-function fontOf(kind: FontKind): string {
-  const cached = FONTS[kind]
-  if (cached) return cached
-  let fam = kind === 'mono' ? 'ui-monospace, monospace' : 'system-ui, sans-serif'
-  if (typeof document !== 'undefined' && document.documentElement) {
-    const v = getComputedStyle(document.documentElement).getPropertyValue('--font-' + kind).trim()
-    if (v) fam = v
-  }
-  FONTS[kind] = fam
-  return fam
-}
+/* `fontOf`, `measure` and `linesOf` come from ./textMeasure.ts since OB-110 (#256) — the DS's
+   one copy of the canvas predictor, shared with `VersionedGroup`; this file carried a
+   byte-similar copy of each until then. */
 
 /** a numeric design token, read once from the stylesheet the style block writes
  *  against. `1.5px` and `1.35` both parse; anything unreadable keeps the fallback,
@@ -411,22 +402,6 @@ export function usedStroke(authored: number): number {
   return device >= 1 ? device / r : authored
 }
 
-let ctx2d: CanvasRenderingContext2D | null | false = null
-function measure(text: unknown, weight: number, size: number, kind: FontKind): number {
-  const str = String(text == null ? '' : text)
-  if (!str) return 0
-  if (typeof document !== 'undefined') {
-    if (!ctx2d) {
-      try { ctx2d = document.createElement('canvas').getContext('2d') } catch { ctx2d = false }
-    }
-    if (ctx2d) {
-      ctx2d.font = weight + ' ' + size + 'px ' + fontOf(kind)
-      return ctx2d.measureText(str).width
-    }
-  }
-  return str.length * size * 0.55
-}
-
 /** OB-074: Firefox's `canvas.measureText()` undershoots its OWN real DOM text layout by
  *  up to ~0.5px at this chip's font (measured directly, six titles, `Nunito` 13px/600 —
  *  Chromium's two subsystems agree to ~0.01px, Firefox's do not). `chipSize()` below sizes
@@ -440,30 +415,6 @@ function measure(text: unknown, weight: number, size: number, kind: FontKind): n
  *  this much costs nothing visible (the extra column is sub-pixel against a chip's own
  *  rounding) and is cheap insurance against a gap that is real but not worth chasing tighter. */
 const WRAP_SAFETY_PX = 1
-
-/** lines a title takes at a given column, honouring the chip's `overflow-wrap:
- *  break-word`: word boundaries first, and only a word that cannot fit at all is
- *  split inside itself — which is what the drawn label does. */
-function linesOf(text: unknown, width: number, weight: number, size: number, kind: FontKind, clamp: number): number {
-  const str = String(text == null ? '' : text).trim()
-  if (!str) return 0
-  if (!(width > 0)) return clamp || 1
-  const words = str.split(/\s+/)
-  let lines = 1
-  let cur = ''
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i]
-    const trial = cur ? cur + ' ' + w : w
-    if (measure(trial, weight, size, kind) <= width) { cur = trial; continue }
-    if (cur) { lines++; cur = w } else cur = w
-    const solo = measure(cur, weight, size, kind)
-    if (solo > width) {
-      lines += Math.ceil(solo / width) - 1
-      cur = ''
-    }
-  }
-  return clamp ? Math.min(lines, clamp) : lines
-}
 
 /** what a chip is going to be, given what it will be handed. The props named
  *  here are the ones that MOVE the box; everything else a chip takes (hue, lit,
@@ -575,8 +526,8 @@ export function chipSize(spec?: ChipSpec): ChipSize {
      the chip wants to be. On a full-rank chip it is its own row and costs height, not width. */
   const oneLine = measure(s.title, fwText, fsText, 'ui')
     + (optional && quiet ? measure(' (optional)', fwIndex, fsText, 'ui') : 0)
-  /* measured LAST of the reads above, so ctx2d has been settled by the call */
-  const measured = ctx2d !== false && ctx2d !== null
+  /* read LAST of the measurements above, so the canvas has been settled by the call */
+  const measured = canMeasure()
   /* + WRAP_SAFETY_PX: see its own docblock. Padding here, not inside linesOf()'s fit test,
      because titleColumn is deliberately sized to just barely hold oneLine (the ceiling
      rounds up by less than 1px, sometimes far less) — margin subtracted from linesOf()'s

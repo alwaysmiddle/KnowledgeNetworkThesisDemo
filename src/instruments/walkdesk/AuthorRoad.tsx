@@ -39,7 +39,7 @@ import {
 } from '@/ds'
 import type { DomainCode, GroupSpec, NodeOption } from '@/ds'
 import type { AuthorState, Path } from './authordraft'
-import { pathKey } from './authordraft'
+import { pathKey, useFreshGroup } from './authordraft'
 import { bandFor, DT, gapFor, handleDrop } from './authordnd'
 import type { Band } from './authordnd'
 import { chosenIdx, chosenSteps, isLeaf } from './mockwalk'
@@ -448,10 +448,12 @@ export default function AuthorRoad({
   const boardRef = useRef<HTMLDivElement>(null)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const marqueeDragRef = useRef(false)
+  const [freshGroup, setFreshGroup] = useFreshGroup()
   // Title, description and version-name editing, the version menu, the delete
-  // confirm and the ungroup refusal are all the DS card's own now — it opens its
-  // fields on a click, asks before a delete, and refuses a multi-version ungroup
-  // with its own note. The road only hears the results, as ops on `authordraft`.
+  // confirm and the ungroup refusal are all the DS card's own now — its pencil
+  // opens all three fields at once (OB-110), it asks before a delete, and refuses a
+  // multi-version ungroup with its own note. The road only hears the results, as
+  // ops on `authordraft`.
 
   const toggle = (key: string) => {
     const next = new Set(collapsed)
@@ -1053,6 +1055,12 @@ export default function AuthorRoad({
                   }}
                   onSelect={(id) => pickBranch(s.key!, id)}
                   onAddVersion={() => createVersion(s)}
+                  // a FRESHLY GATHERED group opens straight into edit mode (OB-110 clause 5):
+                  // `groupSelection` marks its key, this card reads it once on its first
+                  // mount, and the mark clears when the edit closes so a later remount
+                  // (undo, reload) does not reopen it
+                  defaultEditMode={s.key === freshGroup}
+                  onEditModeChange={(on) => { if (!on && freshGroup === s.key) setFreshGroup(null) }}
                   onDeleteVersion={(id) => deleteVersion(pl.path, s, id)}
                   onToggleFold={() => toggle(s.key!)}
                   onClose={() => state.promote(pl.path, chosen)}

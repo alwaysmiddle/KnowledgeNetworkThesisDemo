@@ -109,6 +109,10 @@ const caretStore = store<Path | null>(null)
  * the active version (#92). The walk editor writes it; the projection reads it. */
 const choicesStore = store<Record<string, string>>(restored?.choices ?? {})
 const optionalsStore = store(restored?.withOptionals ?? true)
+/** the key of the group `groupSelection` made most recently and nobody has finished naming:
+ * the road opens THAT card straight into edit mode (OB-110 clause 5) and clears this when the
+ * edit closes. Session state, never persisted — a reload has no fresh group. */
+const freshGroupStore = store<string | null>(null)
 // resumed past whatever the restored tree already uses, so a group made after a
 // reload cannot be handed a key the plan is already using (draftpersist.nextIds)
 const seq = nextIds(stopsStore.get())
@@ -216,6 +220,11 @@ export function usePreviewOpen() {
 }
 
 /** the road's resolution knobs, shared by the walk editor and the projection */
+/** the freshly-made group's key, and the way to say it has been named — see `freshGroupStore` */
+export function useFreshGroup(): [string | null, (key: string | null) => void] {
+  return useStore(freshGroupStore)
+}
+
 export function useRoad() {
   const [choices, setChoices] = useStore(choicesStore)
   const [withOptionals, setWithOptionals] = useStore(optionalsStore)
@@ -485,6 +494,7 @@ export function useAuthorDraft(): AuthorState {
     groupSelection: () => {
       if (!siblings) return
       const key = nextBoxKey()
+      freshGroupStore.set(key)
       commit(
         rebuildListAt(stops, siblings.parent, (list) =>
           // empty title, not the literal "name this stage" (OB-081) — the card draws

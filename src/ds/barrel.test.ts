@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, LeafMark, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, IconButton, InlineText, LeafMark, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -71,6 +71,14 @@ describe('ported but not adopted DS components', () => {
   // directly (its own docblock says so).
   it('IconButton — no app-code importer; rendered only from inside other DS components', () => {
     expect(typeof IconButton).toBe('function')
+  })
+
+  // OB-110 (#256): the DS split InlineText out of VersionedGroup on 2026-08-28 and this port
+  // followed on 2026-09-05. VersionedGroup renders it three times (title, description, version
+  // name) from inside src/ds; no app code opens a line of its own yet — the notes pane (#267)
+  // will be the first.
+  it('InlineText — rendered only from inside VersionedGroup; no app importer', () => {
+    expect(typeof InlineText).toBe('function')
   })
 
   it('Grip — ported (#126); Pane/PaneHeader place it, no direct app importer', () => {
