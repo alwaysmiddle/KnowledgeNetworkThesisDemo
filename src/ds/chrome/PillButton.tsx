@@ -3,10 +3,10 @@ import type { ReactNode } from 'react'
 
 import { wrapTip } from './IconButton'
 
-/** The five tones. Each is a {background, border, ink, hover-background} quad;
+/** The six tones. Each is a {background, border, ink, hover-background} quad;
  *  `selected` overrides all of them with the moss ring wash, so a toggled pill
  *  reads the same regardless of its resting tone. */
-type Tone = 'quiet' | 'primary' | 'walk' | 'danger' | 'ghost'
+type Tone = 'quiet' | 'primary' | 'walk' | 'danger' | 'ghost' | 'neutral'
 
 const TONES: Record<Tone, { bg: string; bd: string; ink: string; hoverBg: string }> = {
   quiet: { bg: 'transparent', bd: 'var(--border-rule)', ink: 'var(--text-2)', hoverBg: 'var(--surface-hover)' },
@@ -14,6 +14,11 @@ const TONES: Record<Tone, { bg: string; bd: string; ink: string; hoverBg: string
   walk: { bg: 'var(--accent-walk-wash)', bd: 'var(--acorn-300)', ink: 'var(--text-walk)', hoverBg: 'var(--acorn-100)' },
   danger: { bg: 'var(--state-danger-wash)', bd: 'var(--berry-100)', ink: 'var(--state-danger)', hoverBg: 'var(--berry-100)' },
   ghost: { bg: 'transparent', bd: 'transparent', ink: 'var(--text-2)', hoverBg: 'var(--surface-hover)' },
+  /* NEUTRAL IS QUIET WITH A FLOOR UNDER IT. `quiet` is transparent, which is right in a toolbar
+     sitting on paper and wrong for a pill standing alone at the bottom of a pane — there it reads
+     as a caption until the pointer finds it. Same border and same ink, a bark wash instead of
+     nothing, so it is legible at rest without claiming the emphasis `primary` carries. */
+  neutral: { bg: 'var(--bark-50)', bd: 'var(--border-rule)', ink: 'var(--text-2)', hoverBg: 'var(--bark-100)' },
 }
 
 /** A small round-cornered action. Labels name a STATE or an action in lower
@@ -21,7 +26,8 @@ const TONES: Record<Tone, { bg: string; bd: string; ink: string; hoverBg: string
 export interface PillButtonProps {
   /** quiet = the default bordered pill; primary = moss; walk = acorn
    *  (movement — a walk, a stop, a jump); danger = berry; ghost = no resting
-   *  border */
+   *  border; neutral = quiet with a bark wash under it, for a pill standing
+   *  alone rather than in a bar */
   tone?: Tone
   size?: 'sm' | 'md'
   /** a Unicode glyph from the house set (e.g. '▶' or '✦'), or one of the DS's drawn
@@ -32,6 +38,10 @@ export interface PillButtonProps {
   /** on/toggled — draws the moss ring wash rather than a separate colour */
   selected?: boolean
   title?: string
+  /** fill the row and centre the label, for a pill that stands alone in a column rather than
+   *  beside others in a bar (the recap's closing action). Omit and the pill is inline and takes
+   *  only the width its own label needs */
+  block?: boolean
   onClick?: () => void
   /** e.g. preventDefault so a toolbar press does not steal focus from the field
    *  the action applies to */
@@ -39,7 +49,7 @@ export interface PillButtonProps {
   children?: ReactNode
 }
 
-export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selected, onClick, onMouseDown, title, children }: PillButtonProps) {
+export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selected, block, onClick, onMouseDown, title, children }: PillButtonProps) {
   const t = TONES[tone] ?? TONES.quiet
   const [hot, setHot] = useState(false)
   const pad = size === 'sm' ? '3px 9px' : '6px 13px'
@@ -53,7 +63,9 @@ export function PillButton({ tone = 'quiet', size = 'md', glyph, disabled, selec
       onMouseEnter={() => setHot(true)}
       onMouseLeave={() => setHot(false)}
       style={{
-        display: 'inline-flex',
+        display: block ? 'flex' : 'inline-flex',
+        width: block ? '100%' : undefined,
+        justifyContent: block ? 'center' : undefined,
         alignItems: 'center',
         gap: 'var(--space-15)',
         minHeight: size === 'sm' ? 24 : 'var(--hit-min)',
