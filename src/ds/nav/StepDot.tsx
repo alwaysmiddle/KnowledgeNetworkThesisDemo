@@ -30,7 +30,16 @@ export interface StepDotProps {
    *  `String(n).length > 1`, and this port carried it faithfully — so every stop from
    *  ten on took the auto-width pill branch and drew flattened, in any walk over nine
    *  stops, since the `pin` variant landed. `WalkStrip` and `MapView` both pass a
-   *  number, so both were drawing them. (DS OB-129.) */
+   *  number, so both were drawing them. (DS OB-129.)
+   *
+   *  A MAP PIN CARRIES THE TOP-LEVEL STEP NUMBER, NEVER A DOTTED PATH (owner, 2026-09-03,
+   *  OB-114 / #228). A walk step that is a `VersionedGroup` is ONE step; every node inside
+   *  it, at any nesting depth, draws a pin numbered with that step ("3"), so several pins on
+   *  the map may share a number. Never pass "3.1" or "1.1.1.2" — a dotted label would take
+   *  the PILL branch and read as a range, and a deep path does not fit a circle at any size.
+   *  The path is the hover's (`WalkPreview`) and the chain's. A pin's number is therefore
+   *  NOT an id; do not key anything on it — `MapView` keys its pins on the cell and the stop
+   *  index, and `walkPins` prints the number from `routeNumbers(bus.routeSteps)`. */
   n: number | string
   /** done = behind the cursor, current = the cursor, ahead = not yet reached */
   state?: 'done' | 'current' | 'ahead'

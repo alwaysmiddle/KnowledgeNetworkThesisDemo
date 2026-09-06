@@ -18,10 +18,13 @@ import { byId, ROOT_ID } from '../corpus/graph'
 import { walkById } from '../model/walkstore'
 import { curriculum } from '../model/lens'
 import { HISTORY_EMPTY, isInSubtree, mark, parentOf, step, visit } from '../model/nav'
+import { routeLeafIds, routeOfIds } from '../model/route'
+import type { RouteStep } from '../model/route'
 import type { ActiveWalkState, History, TrailEntry, TrailVia } from '../model/nav'
 import type { InstrumentId } from './instruments'
 
 export type { ActiveWalkState, History, TrailEntry, TrailVia }
+export type { RouteStep }
 
 /** the "no search running" value — one shared instance so a cleared channel is
  * referentially stable and never churns a memo that depends on it */
@@ -58,7 +61,15 @@ export interface BusState {
   /** history steps available behind/ahead of the cursor — see back()/forward() */
   canBack: boolean
   canForward: boolean
-  /** an ordered path — a built walk, or a generated curriculum */
+  /** an ordered path — a built walk, or a generated curriculum — WITH ITS GROUPS
+   * (#228, DS OB-114): a step either lands on a node or holds steps of its own.
+   * The desk publishes its resolved tree here; the saved-walk and curriculum
+   * writers publish flat lists. A group counts as ONE step and numbers its own
+   * contents underneath itself — `model/route.ts` carries the numbering. */
+  routeSteps: RouteStep[]
+  /** the same route flat — every node the walk lands on, in order. DERIVED from
+   * `routeSteps` (`routeLeafIds`), never written on its own: every reader that
+   * never cared about groups keeps reading this, unchanged. */
   route: string[]
   /** the unified history engine's value (model/nav.ts) — ALL navigation-order
    * state in one dataset: the append-only log and the browsable stack+cursor
@@ -108,7 +119,11 @@ export interface BusActions {
   /** publish the current search hit set — see BusState.matches. One writer at a
    * time (whichever supply pane is live); an empty set clears the map. */
   setMatches(ids: ReadonlySet<string>): void
+  /** publish a FLAT route — every step a node, no groups (a saved walk's played
+   * prefix, a curriculum) */
   setRoute(r: string[]): void
+  /** publish a route with its groups intact — the desk's resolved road */
+  setRouteSteps(steps: RouteStep[]): void
   clearRoute(): void
   setTreeRoot(id: string): void
   /** a trail entry with NO focus change — Unfold·Graph places a node on its own
@@ -136,7 +151,10 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   const [hover, setHoverState] = useState<string | null>(null)
   const [peek, setPeekState] = useState<{ id: string; seq: number } | null>(null)
   const [matches, setMatchesState] = useState<ReadonlySet<string>>(NO_MATCHES)
-  const [route, setRouteState] = useState<string[]>([])
+  const [routeSteps, setRouteStepsState] = useState<RouteStep[]>([])
+  // the flat projection, memoised on the tree so its identity moves only when
+  // the route does — the map's pin layout keys its memo on it
+  const route = useMemo(() => routeLeafIds(routeSteps), [routeSteps])
   // the unified history engine (model/nav.ts): the trail AND the back/forward
   // line are two readings of this one value
   const [hist, setHist] = useState(HISTORY_EMPTY)
@@ -191,10 +209,12 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     land(s.id)
   }
 
-  const setRoute = (r: string[]) => {
-    setRouteState(r)
-    if (r.length > 0) markTrail(r[r.length - 1], 'walk')
+  const setRouteSteps = (steps: RouteStep[]) => {
+    setRouteStepsState(steps)
+    const ids = routeLeafIds(steps)
+    if (ids.length > 0) markTrail(ids[ids.length - 1], 'walk')
   }
+  const setRoute = (r: string[]) => setRouteSteps(routeOfIds(r))
 
   const setDraftCursor = (i: number) => setDraftCursorState(Math.max(0, i))
 
@@ -226,6 +246,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     hover,
     peek,
     matches,
+    routeSteps,
     route,
     history: hist,
     trail: hist.log,
@@ -245,6 +266,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     peekAt,
     setMatches,
     setRoute,
+    setRouteSteps,
     setDraftCursor,
     setTreeRoot,
     reveal,
@@ -259,7 +281,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     // the end is. `seek(i)` answers all three.
     deactivateWalk: () => setActiveWalk(null),
     clearRoute: () => {
-      setRouteState([])
+      setRouteStepsState([])
       setActiveWalk(null)
       setDraftCursorState(0)
     },
@@ -277,7 +299,7 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
       setHoverState(null)
       setPeekState(null)
       setMatchesState(NO_MATCHES)
-      setRouteState([])
+      setRouteStepsState([])
       setHist(HISTORY_EMPTY)
       setActiveWalk(null)
       setDraftCursorState(0)

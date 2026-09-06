@@ -67,6 +67,7 @@ import { countryPath, countryRings, maxTier, provincePath, provinceRings, territ
 import { countryLabels, endpointAtTier, flightTargetOf, outlineOf, provinceLabels, ringsCrossT, roadsFor } from '../model/atlas'
 import { bowFor, bowSignAt, walkArrowBetween } from '../model/walkarrow'
 import { hoverMarks } from '../model/maphover'
+import { routeNumbers } from '../model/route'
 import { PIN_NO_POSITION, pinPosition, walkPins } from '../model/walkpins'
 import { toggleWalkHidden, walkDrawn, walkKeyOf } from '../model/walkvisibility'
 import type { Bundle } from '../model/atlas'
@@ -666,12 +667,16 @@ export default function MapView({ bus }: { bus: Bus }) {
   // pins themselves are rebuilt only when the walk, the level or the zoom
   // changes — never per frame, which is what lets a played walk redraw at the
   // frame rate without re-laying-out its pins every time.
+  // #228 (DS OB-114): the number a pin PRINTS is the top-level step, read off the
+  // route's groups — a group's nodes all print the group's number. The stop index
+  // (what the band and the clock count in) stays what it was.
+  const stepNumbers = useMemo(() => routeNumbers(bus.routeSteps).map((n) => n.step), [bus.routeSteps])
   const routeStops = useMemo(
-    () => walkPins({ route: bus.route, level, px, labelBoxes }),
+    () => walkPins({ route: bus.route, level, px, labelBoxes, stepNumbers }),
     // px closes over f/view.s, both already deps; a fresh px reference every
     // render would otherwise recompute this memo every render regardless
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bus.route, level, f, view.s, labelBoxes],
+    [bus.route, stepNumbers, level, f, view.s, labelBoxes],
   )
   // ── OB-132: WHERE THE WALK IS, IN PINS. The DS's band (`walkBand`) fades every
   // mark by its distance from the played position — full on the stop, five

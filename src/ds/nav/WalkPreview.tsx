@@ -38,7 +38,13 @@ export interface WalkPreviewProps {
  *
  *  WHAT THE CALLER MUST DO (WalkPreview.d.ts): render it only while a hover is live, never during
  *  a drag or a seek; pass VIEWPORT coordinates and re-read `top` on every hover move; CURSOR HOVER
- *  ONLY — a hover published by another pane has no pointer over this surface to anchor to.
+ *  ONLY — a hover published by another pane has no pointer over this surface to anchor to; and
+ *  NAME THE STOP BY ITS FULL STEP PATH when the stop sits inside a `VersionedGroup` on the walk
+ *  ("3.1", "1.1.1.2" — the group's own `numberScope`/`localIndex` numbering). A map pin shows
+ *  only the top-level step and several pins may share it (OB-114 / #228, owner 2026-09-03); this
+ *  card is where the path has room, and the ONLY place on the map it is readable. A stop at the
+ *  top level names its plain number as before. The app's `renderStopPreview` does exactly that
+ *  from `PlayStep.path`.
  *
  *  Typed port of the DS WalkPreview.jsx (contract: WalkPreview.d.ts), OB-131. */
 export function WalkPreview({ x, top, gap = PREVIEW_GAP, children }: WalkPreviewProps) {
