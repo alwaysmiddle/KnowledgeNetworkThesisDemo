@@ -25,9 +25,11 @@ import { AppHeader, CountBadge, EDGE_TOKEN, FamilyColumn, InstrumentGroup, Instr
 import type { DomainCode, EdgeKind } from '@/ds'
 
 import { byId, domainOf } from '../corpus/graph'
-import PresentationFrame from '../present/PresentationFrame'
-import { usePresentSession } from '../present/session'
+import { platform } from '../platform'
+import PresenterScreen from '../present/PresenterScreen'
+import { PROJECTOR_QUERY, PROJECTOR_WINDOW } from '../present/projector'
 import { AppToolbar } from './AppToolbar'
+import type { PresentState } from './presentbutton'
 import { PALETTE_HOOK_SELECTOR } from './PaletteGlyph'
 import { useStudioBus } from './bus'
 import { FAMILIES } from './families'
@@ -177,10 +179,37 @@ export default function StudioView() {
         ? 'none'
         : 'transform var(--dur-flight) var(--ease-settle), opacity var(--dur-flight) var(--ease-settle), margin-right var(--dur-flight) var(--ease-settle)',
   }
-  // presenting is a MODE, not a composition (#195) — it takes the whole screen
-  // and leaves active/mounted/flexMap/presetId untouched, so exiting restores
-  // exactly the desk that was there. Declared above ensureActive, which reads it.
-  const { presenting, fullscreen, enter, exit } = usePresentSession()
+  // THE PRESENTER IS A MODE OF THE STUDIO, NOT A COMPOSITION (#195, #267; owner
+  // 2026-09-03). Live — projecting and not ended — it takes the whole screen: app
+  // header, toolbar and palette go, and the presenter's own bar is the chrome. As
+  // a PREVIEW (the palette's Present, `projecting: false`) or once ENDED it sits
+  // framed beside the palette with the chrome kept, so ending is always a way
+  // home. `returnTo` is the composition to come back to; active/mounted/flexMap
+  // stay untouched underneath, so leaving restores exactly the desk that was there.
+  // Declared above ensureActive, which reads it.
+  const [presenter, setPresenter] = useState<{ projecting: boolean; ended: boolean; resumeToken: number; returnTo: Preset['id'] | null } | null>(null)
+  const presenting = presenter !== null && presenter.projecting && !presenter.ended
+  const presentState: PresentState = presenter === null ? 'idle' : !presenter.projecting ? 'preview' : presenter.ended ? 'ended' : 'live'
+  /* THE ▶ (DS OB-135 rules 1–3): the only start. Idle → the lecture starts at the focus;
+     previewing → the same panes start projecting; ended → resume. Always with the projector
+     window opened — SYNCHRONOUSLY from the click, the popup blocker's one condition — under a
+     fixed name, so a second press re-lands the same window rather than opening another. */
+  const pressPresent = () => {
+    if (presentState === 'live') return
+    platform.openWindow('?' + PROJECTOR_QUERY, PROJECTOR_WINDOW)
+    setPresenter((p) => (p === null
+      ? { projecting: true, ended: false, resumeToken: 0, returnTo: presetId }
+      : p.ended ? { ...p, resumeToken: p.resumeToken + 1 } : { ...p, projecting: true }))
+  }
+  /* the palette's Present (rule 5): not a toggle. Idle → the preview; previewing → nothing;
+     ended → back to the preview (the ended pane goes, nothing projected). */
+  const pressPreview = () => {
+    setPresenter((p) => (p === null
+      ? { projecting: false, ended: false, resumeToken: 0, returnTo: presetId }
+      : p.ended ? { ...p, projecting: false, ended: false } : p))
+  }
+  const leavePresenter = () => setPresenter(null)
+  const onLectureEnded = (ended: boolean) => setPresenter((p) => (p === null || p.ended === ended ? p : { ...p, ended }))
   // measured once over ALL family names and given to every group, so the counts
   // form one column instead of each group orphaning its own number
   const familyColumn = FamilyColumn([...FAMILIES])
@@ -215,6 +244,10 @@ export default function StudioView() {
   }
 
   const applyPreset = (p: Preset) => {
+    // the Present preset is the presenter's PREVIEW (Preset.presenter); any other
+    // composition preset leaves the presenter first
+    if (p.presenter) { pressPreview(); setPresetId(p.id); return }
+    setPresenter(null)
     setActive(p.active)
     setFlexMap(p.flex ?? {})
     setPresetId(p.id)
@@ -291,10 +324,20 @@ export default function StudioView() {
   // every driver locator ambiguous. Returning early keeps exactly one instance
   // of everything, on the SAME bus, so focus / route / trail / activeWalk are
   // literally the same values on both sides of the transition.
-  if (presenting) return <PresentationFrame bus={bus} onExit={exit} fullscreen={fullscreen} />
+  // THE LECTURE RENDERS INSTEAD OF THE DESK, NOT OVER IT (#195's rule, kept), and
+  // the chrome comes off by not putting it on (DS OB-135 rule 4): while a lecture
+  // is live the header, the toolbar and the palette are simply not rendered. Every
+  // one of them is a `{cond ? … : null}` SLOT, never an early return — the presenter
+  // screen must keep one position in the tree across live ↔ framed, or ending a
+  // lecture would remount it and lose the record. The screen draws its own frame.
+  const presenterScreen = presenter ? (
+    <PresenterScreen bus={bus} projecting={presenter.projecting} resumeToken={presenter.resumeToken} onEnded={onLectureEnded} framed={!presenting} onLeave={leavePresenter} />
+  ) : null
 
   return (
     <div className="h-full flex flex-col bg-canopy">
+      {presenting ? null : (
+      <>
       {/* The header renders from the DS AppHeader; the live counts are DS
           CountBadges (OB-065 dropped the session-control PillButtons outright,
           not relocated — bus.teach()/bus.reset()/bus.clearRoute() are untouched,
@@ -324,9 +367,11 @@ export default function StudioView() {
       </div>
 
       {/* #55: app-level operations, pinned directly under the app header */}
-      <AppToolbar onPresent={enter} palette={{ on: showPalette, onToggle: () => (showPalette ? closePalette() : openPalette()) }} />
+      <AppToolbar present={{ state: presentState, onClick: pressPresent }} palette={{ on: showPalette, onToggle: () => (showPalette ? closePalette() : openPalette()) }} />
+      </>
+      )}
 
-      <div className="flex-1 min-h-0 flex gap-3 p-3">
+      <div className={presenting ? 'flex-1 min-h-0 flex' : 'flex-1 min-h-0 flex gap-3 p-3'}>
         {/* #96: the palette is a pane — paper face, border-frame hairline,
             rounded-lg, legend header. It was a flat bordered sidebar
             (border-r border-slate-200 bg-white) which read as an unfinished
@@ -336,7 +381,7 @@ export default function StudioView() {
             frame is exactly how the app ended up without one. The wrapper div is
             not decoration: it owns the width and the flight transform, so the
             pane inside is free to be a plain full-height pane. */}
-        {showPalette ? (
+        {showPalette && !presenting ? (
         <div ref={paletteWrapRef} style={paletteStyle}>
         <Pane
           as="aside"
@@ -416,6 +461,13 @@ export default function StudioView() {
         {/* #77/#96: the canopy desk. Panes float on it with gap-3 between them;
             the 12px gutter matches the p-3 window inset on the outer flex row.
             Canopy is now on the root div — no inline background needed here. */}
+        {presenter ? (
+          /* THE PRESENTER — framed like a pane beside the palette while previewing or ended,
+             the whole window while live; the screen draws the frame itself so this slot never
+             changes shape. The instruments are not mounted meanwhile — one instance of
+             everything, the same rule the deck kept. */
+          presenterScreen
+        ) : (
         <div className="flex-1 min-w-0 flex flex-col gap-3">
           <div className="flex-1 min-h-0 flex gap-3">
             {columnSlots.map(({ order, members }) =>
@@ -460,6 +512,7 @@ export default function StudioView() {
             ),
           )}
         </div>
+        )}
       </div>
     </div>
   )

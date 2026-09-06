@@ -38,6 +38,24 @@ describe('webPlatform.name', () => {
   })
 })
 
+describe('webPlatform.openWindow — the projector window (#267)', () => {
+  it('answers false with no window at all, and does not throw', () => {
+    expect(webPlatform.openWindow('?projector', 'kn-projector')).toBe(false)
+  })
+
+  it('answers false when the host refuses — a popup blocker returns null', () => {
+    g.window = { open: () => null }
+    expect(webPlatform.openWindow('?projector', 'kn-projector')).toBe(false)
+  })
+
+  it('answers true when a window came back, and passes the path and the name through', () => {
+    const calls: unknown[][] = []
+    g.window = { open: (...args: unknown[]) => { calls.push(args); return {} } }
+    expect(webPlatform.openWindow('?projector', 'kn-projector')).toBe(true)
+    expect(calls).toEqual([['?projector', 'kn-projector']])
+  })
+})
+
 describe('webPlatform.screens', () => {
   it('answers [] with no window at all', async () => {
     expect(await webPlatform.screens()).toEqual([])

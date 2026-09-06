@@ -45,8 +45,12 @@
 //
 //   keepAwake(): Promise<() => void>    // navigator.wakeLock / powerSaveBlocker
 //
-// deliberately absent today — see #195. It is named here only so the next author
-// knows the interface was left open on purpose rather than considered finished.
+// deliberately absent today — see #195 and #197. It is named here only so the
+// next author knows the interface was left open on purpose rather than
+// considered finished. `openWindow` earned its place with presenter mode (#267):
+// a lecture's projector is a second window of this app, and which host opens a
+// window — `window.open` on a gesture, or a `BrowserWindow` on a chosen display —
+// is exactly the kind of question this seam exists to keep out of callers.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** ONE DISPLAY, as this app needs to talk about one — deliberately not the DOM's
@@ -122,4 +126,17 @@ export interface Platform {
    *  user-visible cost, so call it when the user is choosing a display, not on
    *  mount. */
   screens(): Promise<ScreenInfo[]>
+
+  /** Open a SECOND window of this app at `path` (a path + query on our own origin,
+   *  e.g. `?projector`), named `name` so a later call re-lands the same window
+   *  rather than opening another. Resolves to whether a window was opened.
+   *
+   *  SYNCHRONOUS AND GESTURE-BOUND, like `enterFullscreen`: the web answer is
+   *  `window.open`, which a popup blocker refuses outside a user activation — so
+   *  call it straight from the click, never after an `await`. A `false` is not an
+   *  error: the presenter still runs in the window it has, and the professor can
+   *  open the projector by hand at the same address. A desktop host answers with
+   *  a `BrowserWindow`, placed on a chosen display (#197's second row — the one
+   *  thing Chromium cannot do). Where the window lands is never decided here. */
+  openWindow(path: string, name: string): boolean
 }

@@ -81,6 +81,19 @@ export const webPlatform: Platform = {
     return () => document.removeEventListener('fullscreenchange', fn)
   },
 
+  openWindow(path, name) {
+    const w = globalThis.window as Window | undefined
+    if (!w || typeof w.open !== 'function') return false
+    try {
+      // `noopener` would sever the opener and let the popup blocker treat it as a
+      // stranger; a named, same-origin window with an opener is the ordinary
+      // "open the notes window" gesture every presenter app makes
+      return w.open(path, name) !== null
+    } catch {
+      return false
+    }
+  },
+
   async screens() {
     // `globalThis.window?.` rather than bare `window`, matching index.ts: vitest
     // runs `environment: 'node'`, and this is the one method a node test calls.
