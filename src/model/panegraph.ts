@@ -5,7 +5,8 @@
 // deleted, deliberately and not by oversight: retiring a tested model module is a
 // separate call from landing the rehaul, and it is filed as its own cleanup ticket
 // so it happens once, on purpose, rather than inside a pull request about
-// something else. Do not read its presence as evidence that the wheel is still a
+// something else — that ticket is #290, and it is where the keep-or-delete call
+// gets made. Do not read its presence as evidence that the wheel is still a
 // reading this app offers.
 //
 // Pane graph — the radial subtree layout the Children pane draws (2026-07-12:
