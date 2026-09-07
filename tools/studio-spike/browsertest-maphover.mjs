@@ -11,14 +11,15 @@
 // Those are different claims, and only the second one catches passing the wrong
 // value into a correct function.
 //
-// WHICH PANE PUBLISHES THE HOVER, AND WHY IT IS NOT THE TREE. The obligation names
-// a tree row, and no tree row can do this in this build: `TreePanel` publishes
-// FOCUS (`bus.setFocus`) and never a hover. The panes that actually write
-// `bus.hover` today are `ConnectionsPane` and the four walk-desk views, which share
-// `useHover`'s `bind()` — the thing that stamps `data-lit` on a row. This driver
-// hovers the WALK PALETTE rather than the connections pane on purpose: #253
-// replaces `ConnectionsPane` whole, and a driver pointed at it would have to be
-// re-pointed the same week.
+// WHICH PANES PUBLISH THE HOVER. Section 2 sweeps the WALK PALETTE, and did so
+// originally because the obligation's own example — a tree row — could not do this
+// in that build: `TreePanel` publishes FOCUS (`bus.setFocus`) and never a hover.
+//
+// SECTION 4 IS THE TREE ROW, AND IT EXISTS NOW. #253 landed (`97f9a84`), and the
+// contains column inside the rebuilt connections pane publishes a hover on the ROW
+// itself. That is OB-142's ask (#272) on the tree that survives #265's retirement of
+// `TreePanel`, so it is asserted here rather than left to a re-home that would only
+// rename the host. Two panes, one rule, one file.
 //
 // THE SPOTLIGHT IS ASSERTED SEPARATELY FROM THE CARD, over a sweep of rows rather
 // than one. A palette row names a corpus node, and a node only draws a spotlight
@@ -170,6 +171,118 @@ if (cellPoint && rowCount > 0) {
   await glideTo(cellPoint)
   ok('after a published hover, our own cursor still gets its card', await tipUp())
 }
+
+// ── 4. THE SURVIVING TREE: a contains row publishes it too (#272, DS OB-142) ──
+// OB-142 asks that a tree row publish a HOVER as well as the focus it already
+// publishes, so the map lights that territory on the way past without selecting
+// anything. Every clause is asserted here except "click still focuses and selects",
+// which `browsertest-connections.mjs` already owns (a row click re-aims the pane).
+//
+// THE CARD CLAUSE IS ABOUT THE MAP'S CARD, and only that one. The connections pane
+// raises its OWN preview beside the row — that is the split pane's design and not a
+// map tooltip — so what must stay absent here is `[data-maptip]`.
+// PICKING A PRESET CLOSES THE SIDEBAR IT WAS PICKED FROM (OB-106), so the second
+// preset of a run has to reopen it first. Same two lines every driver here uses.
+if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
+  await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+  await page.waitForTimeout(500)
+}
+await page.getByLabel('studio-preset-explore').click()
+await page.waitForTimeout(800)
+ok('the explore desk puts the map and the connections pane side by side',
+  (await has('svg[data-nested]')) && (await has('[aria-label="connections-pane"]')))
+
+// open a few levels, so the sweep has rows under the six domains. ONE CARET PER RENDER:
+// the tree is controlled by its host, which resolves the next open map from the last
+// RENDERED one, so a batch of clicks all compute from the same base and only the last
+// survives. Documented at length in browsertest-connections.mjs.
+for (let i = 0; i < 6; i++) {
+  const opened = await page.evaluate(() => {
+    const pane = document.querySelector('[aria-label="connections-pane"]')
+    const closed = [...pane.querySelectorAll('[data-node-id]')].filter((r) => r.getAttribute('data-open') === '0' && r.querySelector('[data-caret]'))
+    if (!closed.length) return false
+    closed[closed.length - 1].querySelector('[data-caret]').click()
+    return true
+  })
+  await page.waitForTimeout(180)
+  if (!opened) break
+}
+
+const treeRows = page.locator('[aria-label="connections-pane"] [data-node-id]')
+const treeCount = Math.min(await treeRows.count(), ROWS)
+ok('the contains column has hoverable rows', treeCount > 0, `${treeCount} swept`)
+
+/** which cell the map is spotlighting, by name, or null for none */
+const spotId = () => page.evaluate(() => document.querySelector('svg[data-nested] [data-spot]')?.getAttribute('data-spot') ?? null)
+/** the app's current selection, as the map itself reports it */
+const selId = () => page.evaluate(() => document.querySelector('svg[data-nested]')?.getAttribute('data-sel') ?? null)
+
+const treeLit = []
+const treeCardOn = []
+for (let i = 0; i < treeCount; i++) {
+  await park()
+  await treeRows.nth(i).hover().catch(() => {})
+  await page.waitForTimeout(190)
+  if (await spotUp()) treeLit.push(i)
+  if (await tipUp()) treeCardOn.push(i)
+}
+ok('(1) a contains row lights the territory', treeLit.length > 0,
+  `${treeLit.length}/${treeCount} rows lit a cell (the rest name nodes with no outline at this level)`)
+ok('(1) and draws NO card on the map', treeCardOn.length === 0,
+  treeCardOn.length ? `rows ${treeCardOn.join(', ')} raised one` : `${treeCount} rows, none did`)
+
+// (2) ROW TO ROW WITH NO PARK IN BETWEEN. The clause is written as "without the map
+// blanking between adjacent rows", and the blank itself lives inside a transition no
+// sampling driver can see honestly. What IS checkable, and is the failure the clause
+// describes, is the state it would leave behind: crossing straight from one lighting row
+// to the next must leave the map lit on the SECOND one, never stuck dark on the way.
+let crossings = 0
+const stuckDark = []
+for (let k = 1; k < treeLit.length; k++) {
+  const [from, to] = [treeLit[k - 1], treeLit[k]]
+  await treeRows.nth(from).hover().catch(() => {})
+  await page.waitForTimeout(170)
+  await treeRows.nth(to).hover().catch(() => {})   // straight across — no park
+  await page.waitForTimeout(170)
+  crossings++
+  if (!(await spotId())) stuckDark.push(`${from}->${to}`)
+}
+ok('(2) crossing straight from one row to the next leaves the map lit, never dark',
+  crossings > 0 && stuckDark.length === 0,
+  stuckDark.length ? `dark after ${stuckDark.join(', ')}` : `${crossings} crossings, all lit`)
+
+// (5) CLICK IS UNCHANGED and still selects — asserted here rather than assumed, because
+// this is the clause that would quietly die if hover were ever made to "confirm" itself.
+await park()
+const pickRow = treeLit[0]
+const pickId = await treeRows.nth(pickRow).getAttribute('data-node-id')
+await treeRows.nth(pickRow).click()
+await page.waitForTimeout(500)
+const selAfterClick = await selId()
+ok('(5) clicking a contains row still selects that node', selAfterClick === pickId, `${selAfterClick} vs ${pickId}`)
+
+// (4) and (3). A hover changes nothing about the selection, and letting go of the hover
+// hands the map back to that selection rather than blanking it.
+const otherRow = treeLit.find((i) => i !== pickRow)
+if (otherRow !== undefined) {
+  await treeRows.nth(otherRow).hover().catch(() => {})
+  await page.waitForTimeout(220)
+  ok('(4) a hover does not change the selection', (await selId()) === selAfterClick, String(await selId()))
+}
+await park()
+await page.waitForTimeout(320)
+ok('(3) the published light goes out when the pointer leaves the column', !(await spotUp()))
+const restingState = await page.evaluate(() => ({
+  sel: document.querySelector('svg[data-nested]')?.getAttribute('data-sel') ?? null,
+  outline: !!document.querySelector('svg[data-nested] [data-seloutline]'),
+  overlay: !!document.querySelector('svg[data-nested] [data-seloverlay]'),
+}))
+// THE MAP IS NOT LEFT BLANK, and the mark it falls back to is the SELECTION's own, not the
+// spotlight: `hoverMarks` keeps a selected cell out of the spotlight deliberately, because
+// two outlines on one cell read as a bug. So the fallback is asserted as "the selection is
+// still drawn", which is what the clause is protecting.
+ok('(3) and the map falls back to what the SELECTION lights, not to nothing',
+  restingState.sel === pickId && (restingState.outline || restingState.overlay), JSON.stringify(restingState))
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()
