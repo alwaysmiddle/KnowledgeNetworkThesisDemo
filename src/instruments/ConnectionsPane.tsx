@@ -23,10 +23,11 @@
 // omission:
 //   · the internal ⇄ external MODE TOGGLE. The containment reading is a column
 //     now, not a mode, so both readings are on screen at once and there is nothing
-//     to switch between. `model/panegraph.ts` (the wheel's layout) has no caller
-//     here any more.
-//   · the external SUMMARY grain for a region (`regionStarFor(id, 'summary')`,
-//     which rolled a region's outside links up to one arrow per other AREA). It
+//     to switch between. `model/panegraph.ts` (the wheel's layout) was DELETED with
+//     it on 2026-09-07 (#290), where its design reasoning is preserved in full.
+//   · the external SUMMARY grain for a region, which rolled a region's outside
+//     links up to one arrow per other AREA — also now deleted from `model/star.ts`
+//     itself (#290), so `regionStarFor` takes no grain at all. It
 //     cannot compose with this pane: the whole mechanism here is that hovering a
 //     card lights its node in the graph and the other way round, and those two
 //     surfaces must therefore name the same ids. A summary node IS a region while
@@ -277,8 +278,6 @@ interface Spoke {
   type: keyof typeof EDGE_COLOR
   /** relative to the centre */
   dir: 'out' | 'in' | 'both'
-  /** the ×n badge in a rolled-up strand; 1 for a single edge */
-  n: number
 }
 
 /** THE PANE'S REAL GRAPH — the typed relation star, counterparts ringed at their TRUE map
@@ -317,15 +316,15 @@ function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: Bus }) {
      detailed star instead, and a node below one gets nothing, with the cards saying where its
      relations actually live. */
   const isAnchor = topic.anchor === id
-  const region = isAnchor ? null : regionStarFor(id, 'detailed')
+  const region = isAnchor ? null : regionStarFor(id)
   const nodes: { id: string; x: number; y: number; spokes: Spoke[] }[] = isAnchor
     ? topic.nodes.map((sn) => ({
         id: sn.id, x: sn.x, y: sn.y,
-        spokes: sn.edges.map((e) => ({ key: e.id, type: e.type, dir: (e.source === topic.anchor ? 'out' : 'in') as Spoke['dir'], n: 1 })),
+        spokes: sn.edges.map((e) => ({ key: e.id, type: e.type, dir: (e.source === topic.anchor ? 'out' : 'in') as Spoke['dir'] })),
       }))
     : (region?.nodes ?? []).map((sn) => ({
         id: sn.id, x: sn.x, y: sn.y,
-        spokes: sn.strands.map((s) => ({ key: s.key, type: s.type, dir: s.dir, n: s.n })),
+        spokes: sn.strands.map((s) => ({ key: s.key, type: s.type, dir: s.dir })),
       }))
   // relations live at the TOPIC grain: a node below one has none of its own, and this pane
   // refuses the lift (2026-07-17 — drawing its owning topic's star made every deep selection
@@ -388,7 +387,7 @@ function RelationStar({ api, bus }: { api: ConnectionsGraphApi; bus: Bus }) {
                   textAnchor="middle" fontSize={EDGE_FS} fontWeight={700} fill={EDGE_COLOR[s.type]}
                   stroke="#ffffff" strokeWidth={3} paintOrder="stroke" style={{ userSelect: 'none' }}
                 >
-                  {EDGE_LABEL[s.type]}{s.n > 1 ? ` ×${s.n}` : ''}
+                  {EDGE_LABEL[s.type]}
                 </text>
               </g>
             )

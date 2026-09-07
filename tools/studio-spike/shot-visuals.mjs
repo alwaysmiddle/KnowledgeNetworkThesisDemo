@@ -1,4 +1,12 @@
 // One-shot visual check for the Studio (nested atlas + children pane).
+//
+// HALF OF THIS IS STALE, AND KNOWINGLY SO. Every frame below that reaches for
+// `[data-panegraph]` or `[data-childpreview]` is driving the connections pane's
+// containment WHEEL and its hover chip — neither of which the app has drawn since
+// #253 rebuilt that pane (`97f9a84`), and whose layout module was deleted with #290.
+// The atlas frames still work. This is an INSTRUMENT, not a test: the browser-test
+// runner skips `shot-*` on purpose, so nothing gates on it — but do not read a
+// failure here as a regression in the app. Re-pointing it is its own call.
 // Spawns vite ITSELF as a child process — backgrounded dev servers die on
 // this machine, so the script owns the server lifecycle: spawn, wait for
 // readiness, screenshot, kill. createRequire -> playwright-core, msedge,
