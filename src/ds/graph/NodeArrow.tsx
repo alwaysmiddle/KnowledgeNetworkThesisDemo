@@ -1,4 +1,15 @@
+import type { CSSProperties } from 'react'
+
+import { wrapTip } from '../chrome/IconButton'
 import { chipBorder } from './NodeChip'
+import { fitLines } from './textFit'
+
+/** the label-fitting function `NodeArrow fill` uses, re-exported from the helper file it lives
+ *  in — moved out of `RelationCards`' private copy upstream on 2026-08-28, so a pill's label and
+ *  an arrow's label fit through ONE function rather than two that can drift. Re-exported here
+ *  and not only from `textFit`, because that is where the DS publishes it. */
+export { fitLines } from './textFit'
+export type { FitLinesOptions } from './textFit'
 
 /** The arrow between two nodes — sequence, not a typed relation. Port of DS
  *  components/graph/NodeArrow.jsx. Drawn in SVG so shapeRendering snaps the
@@ -143,6 +154,36 @@ export interface NodeArrowProps {
   /** the UNWALKED part's opacity, relative to the arrow — `walkArrow().aheadOpacity` over its
    *  `.opacity`, i.e. `1 − walked · aheadFade`: the part ahead drops as the head passes. */
   aheadOpacity?: number
+  /** THE FILL VARIANT — a horizontal connector that FILLS its row instead of drawing a fixed
+   *  pixel span, added upstream 2026-08-28 for `RelationCards`' relationship rows: a card's row
+   *  width is only known at layout time, unlike a walk's fixed chain gap. Every prop below this
+   *  one applies ONLY when `fill` is true, and `direction`, `length`, `joins`, `bow`, `casing`,
+   *  `headSize` and the three `walked` props are the fixed-span variant's own and do nothing
+   *  here. Default false, which keeps every existing caller — `NodeChain`, the road, the map —
+   *  on the original SVG drawing, unchanged. */
+  fill?: boolean
+  /** the corpus's own wording for this relationship (`kindLabel`), floated ABOVE the shaft so a
+   *  wrapped label never pushes the line down. Fitted with `fitLines` against `width`, never
+   *  against `ARROW_METRICS.fillMin` — pass the real column width or the label wraps early */
+  label?: string
+  /** the column width available to this arrow — used to fit `label` and, on the fill variant,
+   *  as the arrow's own flex/measurement basis. Omit and it falls back to `ARROW_METRICS.fillMin` */
+  width?: number
+  /** THE SEVERAL-ARROWS-INTO-ONE-PILL LAYOUT: `width: 100%` plus `minHeight`, in place of the
+   *  lone arrow's `flex: 1 0 fillMin` / `minHeight: 34`. NOT cosmetic — the default root's flex
+   *  basis is a WIDTH, and inside a column CSS reads a basis as a HEIGHT, so an unflagged arrow
+   *  in a stack sizes its own height off a width constant. Pass `minHeight` alongside it; there
+   *  is deliberately no built-in default for the pair, because the spacing that makes a stack
+   *  read as belonging to one pill (`REL_CARD_METRICS`' `blockGap`/`arrowStacked` ratio) is that
+   *  caller's rhythm decision and not a fact about arrows */
+  stacked?: boolean
+  /** overrides the fill variant's own default box height (34 unstacked, none stacked — see
+   *  `stacked`). The caller's rhythm decision; this component supplies no stacked default */
+  minHeight?: number
+  /** the fill variant's arrowheads: 'out' (target end only, the default), 'in' (source end
+   *  only), 'both' (a symmetric relation such as `see_also`). The fixed-span variant always
+   *  draws one head, at the direction it travels; this prop does nothing there */
+  heads?: 'out' | 'in' | 'both'
 }
 
 const TONE: Record<string, string> = {
@@ -183,6 +224,12 @@ export const ARROW_METRICS = {
   /** the cross-axis extent of the whole drawing; the shaft sits at `across / 2` ONLY in the
    *  plain case (full rank, no casing, no bow, short) — `shaftTailOffset` is the real answer */
   across: 4.4 * 2 + 3,
+  /** THE FILL VARIANT'S OWN FLOOR — how narrow a filling connector may draw before a head and
+   *  a shred of shaft stop reading as an arrow at all. Independent of any `arrowMin`-shaped
+   *  number a caller's layout maths derives (`REL_CARD_METRICS.arrowMin` is the connections
+   *  card's own, and happens to agree): this is what `NodeArrow fill` falls back to when no
+   *  `width` is passed at all. Only the fill variant reads it. */
+  fillMin: 38,
   /** THE HEAD'S CEILING ON A LONG LINE, as a fraction of the shaft's own `length`. CHOSEN,
    *  not derived (OB-126). The head is sized off the shaft's WEIGHT, which was the whole story
    *  while every caller drew a 14px gap between two chips. On a long routed line it is the
@@ -300,9 +347,65 @@ export function shaftTailOffset(
   return { along: pad, across: pad + (bow >= 0 ? across / 2 : across / 2 + Math.abs(bow)) }
 }
 
+/* the fill variant's head is a CSS triangle rather than an SVG path, and that is upstream's
+   choice rather than an inconsistency: this arrow's shaft is a `borderTop` on a flex child that
+   takes whatever the row leaves, so the head has to be a flex sibling of it. An SVG head would
+   need its own measured width to sit flush against a shaft nobody has measured yet. */
+function FillArrowHead({ color, flip }: { color: string; flip?: boolean }) {
+  return (
+    <span
+      style={{
+        width: 0, height: 0, flexShrink: 0,
+        borderTop: '3px solid transparent', borderBottom: '3px solid transparent',
+        ...(flip ? { borderRight: '5px solid ' + color } : { borderLeft: '5px solid ' + color }),
+      }}
+    />
+  )
+}
+
+/** THE FILL VARIANT — a horizontal connector that fills its row, with an optional LABEL floating
+ *  above the shaft (absolutely positioned, so a wrapped label never pushes the line down) and a
+ *  head at either end per `heads`. What a relationship card's arrow needs and a walk's chain
+ *  arrow never has: the row width is only known at layout time, and the kind label is the
+ *  corpus's own wording rather than decoration. Moved upstream out of `RelationCards`' private
+ *  `RelArrow` on 2026-08-28 — same drawing, so a relation diagram anywhere else gets a labelled
+ *  arrow without a second copy of it. */
+function FillArrow({ label, color, tone, heads = 'out', width, stacked, minHeight, dashed }: NodeArrowProps) {
+  const paint = color || TONE[tone || 'walk'] || TONE.walk
+  const lines = label ? fitLines(label, Math.max(ARROW_METRICS.fillMin, width || ARROW_METRICS.fillMin), { fontPx: 9, pad: 0 }) : []
+  const left = heads === 'both' || heads === 'in'
+  const right = heads === 'both' || heads === 'out'
+  const root: CSSProperties = stacked
+    ? { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minWidth: ARROW_METRICS.fillMin, minHeight: minHeight || ARROW_METRICS.fillMin }
+    : { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '1 0 ' + ARROW_METRICS.fillMin + 'px', minWidth: ARROW_METRICS.fillMin, minHeight: minHeight || 34 }
+  return (
+    <div style={root}>
+      {label ? (
+        <span
+          title={wrapTip(label)}
+          style={{
+            position: 'absolute', bottom: '52%', left: 0, right: 0, width: '100%', boxSizing: 'border-box',
+            textAlign: 'center', fontSize: 9, fontWeight: 'var(--fw-medium)', color: 'var(--text-3)',
+            lineHeight: 1.15, overflow: 'hidden',
+          }}
+        >
+          {lines.map((ln, i) => <div key={i}>{ln}</div>)}
+        </span>
+      ) : null}
+      <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+        {left ? <FillArrowHead color={paint} flip /> : <span style={{ width: 6, flexShrink: 0 }} />}
+        <div style={{ flex: 1, height: 0, borderTop: '1px ' + (dashed ? 'dashed' : 'solid') + ' ' + paint, opacity: 0.75 }} />
+        {right ? <FillArrowHead color={paint} /> : <span style={{ width: 6, flexShrink: 0 }} />}
+      </div>
+    </div>
+  )
+}
+
 export function NodeArrow({
   direction = 'down', length = 14, tone = 'walk', dashed, color, title, joins, bow = 0, casing = false, headSize, walked, walkedTone = 'walk', aheadOpacity = 1,
+  fill, label, width, stacked, minHeight, heads,
 }: NodeArrowProps) {
+  if (fill) return <FillArrow fill label={label} color={color} tone={tone} heads={heads} width={width} stacked={stacked} minHeight={minHeight} dashed={dashed} />
   const paint = color || TONE[tone] || TONE.walk
   /* the rule, applied — the neighbour's form decides, and the default is the full-rank
      chain that draws most of these */
