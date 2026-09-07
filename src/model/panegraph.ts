@@ -1,3 +1,13 @@
+// NO SCREEN DRAWS THIS ANY MORE, as of 2026-09-06 (#253). The connections pane's
+// rehaul replaced the containment WHEEL this file lays out with a column of pills
+// (`ds/connections/ContainTree`), so `paneGraph`, `placeLabels` and `subtreeSize`
+// are now reached only by `panegraph.test.ts`. The file is kept rather than
+// deleted, deliberately and not by oversight: retiring a tested model module is a
+// separate call from landing the rehaul, and it is filed as its own cleanup ticket
+// so it happens once, on purpose, rather than inside a pull request about
+// something else. Do not read its presence as evidence that the wheel is still a
+// reading this app offers.
+//
 // Pane graph — the radial subtree layout the Children pane draws (2026-07-12:
 // the in-map flip retired; the map stays territory at every depth and THIS is
 // where the node-link reading lives). Root at the origin, rings by depth,

@@ -283,6 +283,7 @@ export default function StudioView() {
       face={inst.face}
       onClose={() => toggle(inst.id as InstrumentId)}
       scroll={inst.body === 'none' ? 'none' : 'y'}
+      bodyStyle={inst.bodyStyle}
       actions={inst.actions ? inst.actions(bus) : undefined}
       actionBar={inst.actionBar ? inst.actionBar(bus) : undefined}
       style={{ display: on ? 'flex' : 'none', ...style }}

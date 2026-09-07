@@ -343,7 +343,12 @@ describe('our DS ports document what the DS documents', () => {
   // LevelPicker's onSelect, VisibilityMark's size/style, MapTooltip's kind/relationsOut.
   // 91 -> 88 on 2026-09-05 (OB-110, #256): VersionedGroup's onRetitle / onDescribe / onSelect
   // took the DS's prose with the edit-mode port.
-  const BUDGET = 88
+  // 88 -> 87 on 2026-09-06 (OB-101, #253): NodeChip's `domain` was bare here while the DS's own
+  // .d.ts documented it, and the connections rehaul had to widen it from the six-code union to
+  // `string` anyway — so it took that prose on the way past. Every prop the three new
+  // connections components and the two new shared ones (Breadcrumb, CollapseChevron) added is
+  // documented, so the rehaul itself moves this number by nothing.
+  const BUDGET = 87
 
   const undocumented: string[] = []
   for (const f of tsxUnder('src/ds')) {
@@ -413,7 +418,10 @@ describe('DS IconButton — every tooltip on a DOM element is folded', () => {
   const raw: string[] = []
   for (const f of tsxUnder(...TREES)) {
     const src = stripComments(readFileSync(f, 'utf8'))
-    for (const m of src.matchAll(/\btitle=(["{])/g)) {
+    // `(?<![-\w])`, NOT a plain word boundary — a HYPHEN IS ONE, so the old pattern matched the tail of
+    // `data-pill-title="1"` and reported the DS's own published measurement hook as an unfolded
+    // tooltip (2026-09-06, #253). An attribute whose NAME merely ends in "title" is not one.
+    for (const m of src.matchAll(/(?<![-\w])title=(["{])/g)) {
       const tag = tagAt(src, m.index)
       if (!tag || tag[0] !== tag[0].toLowerCase()) continue // a prop, not a tooltip
       const value = valueAt(src, m.index + 6)

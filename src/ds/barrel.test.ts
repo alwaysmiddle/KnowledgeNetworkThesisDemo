@@ -37,18 +37,29 @@ describe('ported but not adopted DS components', () => {
     expect(typeof EdgeDash).toBe('function')
   })
 
-  // #87 is CLOSED — it asked for the port, and the port landed (#112 verified the
-  // file exists). What is still open is ADOPTION: nothing renders it, and the
-  // connections rail that would is the remaining half of #97.
-  it('EdgeEntry — ported (#87 closed); no host yet, tracked on #97', () => {
+  // THE WAIT IS OVER, AND THE ANSWER IS NO — 2026-09-06, #253. #97's last open row said
+  // EdgeEntry was "waiting on a host: the connections rail that would render it", and
+  // #253 said that rail "is either that host or the end of its chances". The rehaul
+  // landed and did not use it: the design system's own `RelationCards` composes the two
+  // ends out of `NodeChip mark="border-2"` and `NodeArrow fill` DIRECTLY, which is the
+  // same drawing EdgeEntry makes and the newer arrangement of it — plus the grouping
+  // (one source card, one pill per target, a stack of arrows) that a per-entry component
+  // cannot express. So this is no longer a component waiting for a screen; it is a
+  // component whose screen arrived and chose the parts it is made of instead.
+  //
+  // It is KEPT rather than deleted, and that is the owner's call to make rather than a
+  // porter's: the DS still ships and maintains it. What changed is that nothing is
+  // pending — do not re-attach it to #97, which this closes.
+  it('EdgeEntry — its host arrived (#253) and composed the parts instead; nothing pending', () => {
     expect(typeof EdgeEntry).toBe('function')
   })
 
   // #127 shipped this port (OB-037 for NodeChip's disclosure mark, OB-038 for the rail
   // itself — which also folds in OB-019 and OB-020, both satisfied by construction).
-  // What is still open is ADOPTION: nothing renders it, and the connections rail that
-  // would is the remaining half of #97 — the same wait EdgeEntry is in, just above.
-  it('NodeRail / RailStop — ported (#127); no host yet, tracked on #97', () => {
+  // SAME ANSWER AS EdgeEntry ABOVE, for the same reason and on the same day: the rail
+  // these were waiting for is the connections rehaul, and it draws a `ContainTree` of
+  // pills on one side and `RelationCards` on the other. Neither is a NodeRail.
+  it('NodeRail / RailStop — its host arrived (#253) and used other components; nothing pending', () => {
     expect(typeof NodeRail).toBe('function')
     expect(typeof RailStop).toBe('function')
   })

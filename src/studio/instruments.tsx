@@ -11,7 +11,7 @@
 // array, so a preset cannot name a pane that does not exist, and reveal() cannot
 // be handed a typo.
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 import { EDGE_LABEL } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
@@ -19,7 +19,7 @@ import { EDGE_TYPES } from '../model/nav'
 import type { Bus } from './bus'
 import type { Family } from './families'
 
-import ConnectionsPane from '../instruments/ConnectionsPane'
+import ConnectionsPane, { CONNECTIONS_BODY_STYLE, ConnectionsPaneActions } from '../instruments/ConnectionsPane'
 import ContoursView from '../instruments/ContoursView'
 import ClustersView from '../instruments/ClustersView'
 import DocumentPanel from '../instruments/DocumentPanel'
@@ -67,6 +67,12 @@ export interface Instrument {
    * `PaneCanvas` itself — set this whenever the instrument's root would otherwise
    * be double-wrapped in two nested scrollers. */
   body?: 'y' | 'none'
+  /** merged into the pane's BODY box (DS `Pane.bodyStyle`) — padding and flow, never a
+   *  background. Only for an instrument whose own root has a layout contract with the box
+   *  around it: the connections split publishes `CONNECTIONS_BODY_STYLE` because each of its
+   *  columns owns a scroller, so the BODY must not scroll or the scrollbar sits inboard
+   *  behind a reserved gutter instead of flush at the pane's inner edge. */
+  bodyStyle?: CSSProperties
   /** the pane's OWN actions, docked under its header via `Pane`'s `actionBar` slot
    * (DS `PaneActionBar` — labelled pills, never floating or icon-only). Most
    * instruments have no pane-local actions and leave this out; the shell mounts it
@@ -228,6 +234,12 @@ const VIEWS = [
     // #143 (OB-054): ConnectionsPane owns its own PaneCanvas/PaneScroller split
     // internally now — wrapping it in one PaneCanvas here caught its bottom
     // scrolling section in the canvas's own rounded, clipped box.
+    // #253: the split's two columns each own a scroller, so the pane BODY must not
+    // scroll — that is what CONNECTIONS_BODY_STYLE says, published by the DS beside
+    // the component rather than restated here.
+    bodyStyle: CONNECTIONS_BODY_STYLE,
+    // the split has no chrome row of its own, so back/forward live in the header
+    actions: (bus) => <ConnectionsPaneActions bus={bus} />,
     render: (bus) => <ConnectionsPane bus={bus} />,
   },
   {

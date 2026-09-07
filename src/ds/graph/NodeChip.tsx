@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import type { DomainCode } from './vocab'
-import { DOMAIN_TOKEN } from './vocab'
+import { domainToken } from './DomainDot'
 import { Caret, CARET_FIRST_LINE_INSET } from '../nav/TreeRow'
 import { RESIZE_TIP, useRecede, wrapTip } from '../chrome/IconButton'
+import { fitLines } from './textFit'
 import { canMeasure, linesOf, measure } from './textMeasure'
 
 /** WHAT EACH FORM'S BORDER WEIGHS, published because A CONNECTOR IS DRAWN AT THE BORDER
@@ -70,7 +70,19 @@ export interface NodeChipProps {
   /** the node's step number in its container ("2.1") — derived, mono, tabular,
    *  --fs-micro at --text-3: a figure glanced at beside the name, never level with it */
   index?: string
-  domain: DomainCode
+  /** A RING HUE NAME (`'teal'`) OR ONE OF THE SHIPPED EXAMPLE PALETTE'S CODES (`'net'`), resolved
+   *  by `domainToken()` with ring names winning. **Widened from the six-code `DomainCode` union
+   *  to `string` here on 2026-09-06**, catching up with the DS's own 2026-08-21j change: the
+   *  union was compiled into their adherence lint, and a general corpus passing a ring hue was
+   *  reported as an invalid prop. The NAME is still wrong — this is a topic, not a domain — and
+   *  DS OB-061 decides that rename on both sides at once rather than half-renaming six props.
+   *
+   *  ★ LOCAL, and reported on #74: OPTIONAL here where the DS's `.d.ts` says `domain: string`
+   *  required. Their own `RelationCards.jsx` passes `domain={t.targetDomain}` from a relation
+   *  whose target domain the corpus may not carry, so the contract is already violated by a
+   *  sibling in that project — and `domainToken(undefined)` answers the fallback swatch by
+   *  design. Ported to what the `.jsx` does rather than to what the `.d.ts` claims. */
+  domain?: string
   /** which carrier holds the domain colour. 'dot' (default) is the dense form for
    *  trails, legends and rails; 'border' is a 1.5px domain-coloured edge with no disc,
    *  for a node standing on its own — a stop inside a group, a node on the road;
@@ -136,6 +148,29 @@ export interface NodeChipProps {
    *  `lit`: those are things a user does or a pointer causes and change while the pane
    *  stays put; this is a fact about what the pane is FOR, decided when it is built. */
   focus?: boolean
+  /** THE ANCESTOR PATH ABOVE THIS CHIP'S NAME — `'border-2'` ONLY, and only drawn when `width`
+   *  is also a number, because the measured layout needs a fixed box to fit into. A LIST, not a
+   *  string: an ancestor name is shown WHOLE or dropped entirely, keeping the longest run that
+   *  ENDS AT THE PARENT and fits — so what is lost is the FAR end of the chain, the part a
+   *  reader can infer, never the middle of a word. Drawn quiet (`CHIP_METRICS.pathFontPx`,
+   *  `--text-3`) above the name.
+   *
+   *  WHEN THE ROOT ITSELF IS DROPPED THE LINE SAYS SO: `"../ "` prefixes a path that no longer
+   *  starts at `path[0]`. Trimming the far end is silent because a reader can infer it;
+   *  dropping the near end removes context that cannot be recovered, so it is stated.
+   *
+   *  Added upstream 2026-08-28, absorbing `RelationCards`' private `RelCardPill` — the
+   *  connections pane's grouped source pill is its one caller today. */
+  path?: string[]
+  /** the ceiling on the ANCESTOR PATH's own lines (default 2). Ignored without `path` */
+  pathMaxLines?: number
+  /** RAISES THE NAME PAST ONE TRUNCATED LINE — `'border-2'` ONLY, and only when `width` is a
+   *  number. Without this (or `path`) a `border-2` chip keeps the plain single-line CSS ellipsis
+   *  it always had, so the mode is additive and no existing caller moves; passing either switches
+   *  to `fitLines`-measured lines with a real ellipsis on the last, since a citation this small
+   *  reads a mid-word CSS break worse than a hard cut. Defaults to 2 when `path` is set without
+   *  an explicit value */
+  maxLines?: number
   /** THIS CHIP HEADS A DISCLOSURE — an opt-in capability, like `selectable`, `resizable`
    *  and `onDelete`: the surface asks for it and the chip grows a control. Draws the
    *  shared disclosure mark (`Caret` from `../nav/TreeRow`) at the chip's LEADING
@@ -343,6 +378,13 @@ export const CHIP_METRICS = {
   /** 'border-2': the mention form. Tighter than the others and 1px rather than --stroke-rule,
    *  because it is a citation rather than an object */
   padXQuiet: 9, padYQuiet: 2, quietBorder: 1,
+  /** 'border-2' MEASURED-MENTION MODE (upstream 2026-08-28, absorbing `RelationCards`' private
+   *  `RelCardPill`): an ancestor `path` line and/or a multi-line truncated `title` (`maxLines`),
+   *  both fitted with `fitLines` rather than CSS wrap — the citation form is small enough that a
+   *  hard ellipsis reads better than a mid-word CSS break. `pathFontPx` is tied to no named
+   *  token: `RelCardPill` chose it for a small dense pill and no second consumer has asked for
+   *  another size to reconcile it against. */
+  pathFontPx: 8.5, pathGap: 1,
   dot: 7,
   /** where the disc sits on a STACKED chip — measured, see DOT_FIRST_LINE_INSET. Replaces
    *  the old `dotTop: 6`, which was a correction for top alignment and has no job under
@@ -400,6 +442,16 @@ export function usedStroke(authored: number): number {
   const r = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
   const device = Math.floor(authored * r)
   return device >= 1 ? device / r : authored
+}
+
+/** the room left for text inside a 'border-2' chip at a GIVEN total width — the same
+ *  subtraction `chipSize()` does for the quiet form, pulled out so the measured-mention render
+ *  path fits `path` and a multi-line `title` against the exact box the CSS will draw rather
+ *  than a guess. Only meaningful for `mark="border-2"`; every other form sizes itself from its
+ *  own content and never asks. */
+function mentionContentWidth(totalWidth: number): number {
+  const M = CHIP_METRICS
+  return Math.max(10, totalWidth - usedStroke(M.quietBorder) * 2 - M.padXQuiet * 2)
 }
 
 /** OB-074: Firefox's `canvas.measureText()` undershoots its OWN real DOM text layout by
@@ -602,6 +654,7 @@ export const ChipGeometry = { CHIP_METRICS, chipSize, chipSpec, chipSizeOf, CHIP
 
 export function NodeChip({
   title, index, domain, mark = 'dot', dim, optional, lit, focus, note, wrap, onClick, onDelete,
+  path, pathMaxLines, maxLines,
   disclosable, open, hovered,
   selectable = false, selected, defaultSelected = false, onSelectedChange,
   resizable = false,
@@ -611,7 +664,10 @@ export function NodeChip({
 }: NodeChipProps) {
   /* the SAME table chipSize() above predicts from — read, never copied */
   const M = CHIP_METRICS
-  const hue = DOMAIN_TOKEN[domain] || 'var(--swatch-anchor-fallback)'
+  /* through the RESOLVER, not the table: `domainToken` accepts a ring name as well as an example
+     code and answers the fallback swatch for anything it does not know — which a bare
+     `DOMAIN_TOKEN[…]` lookup cannot do now that `domain` is a string. */
+  const hue = domainToken(domain)
   const quiet = mark === 'border-2'
   const bordered = mark === 'border' || quiet
   const plain = mark === 'none'
@@ -657,6 +713,43 @@ export function NodeChip({
      source of truth — an interactive chip still washes on its own pointer, and
      `hovered` only ever adds. `dim` refuses either way. */
   const washed = (interactive || hovered) && (hov || hovered) && !dim
+  /* MEASURED-MENTION MODE: only the 'border-2' rank, only when the caller has both given a
+     fixed `width` and asked for `path` and/or more than one truncated line. Every other
+     'border-2' chip — a bare mention, `EdgeEntry`'s two ends — keeps the plain single-line CSS
+     ellipsis it always had, so this is purely additive and no existing caller moves. */
+  const mentionMeasured = quiet && typeof width === 'number' && typeof title === 'string' && !!(path || (maxLines && maxLines > 1))
+  let titleLines: string[] | null = null
+  let pathLines: string[] | null = null
+  let mentionCut = false
+  if (mentionMeasured && typeof width === 'number' && typeof title === 'string') {
+    const contentW = mentionContentWidth(width)
+    /* the fit is compared to its input with whitespace squashed out, because `fitLines` rebuilds
+       the string a line at a time and a re-joined run differs from the original by its spaces
+       alone. Only a genuinely LOST character should arm the tooltip. */
+    const squashEq = (a: unknown, b: unknown) => String(a || '').replace(/\s+/g, '') === String(b || '').replace(/\s+/g, '')
+    titleLines = fitLines(title, contentW, { fontPx: tokenNum('--fs-caption', 12), bold: focus, maxLines: maxLines || 2, pad: 0 })
+    const titleCut = !squashEq(titleLines.join(''), title)
+    const parts = (path || []).filter(Boolean)
+    const pathOpts = { fontPx: CHIP_METRICS.pathFontPx, maxLines: pathMaxLines || 2, pad: 0 }
+    let pathText: string | null = null
+    let pathCut = false
+    /* the longest run ENDING AT THE PARENT that fits, tried from the root inward. `../ ` marks
+       that the chain no longer starts at the root: trimming the FAR end is silent (a reader can
+       infer what a name implies) while dropping the NEAR end removes context that cannot be
+       recovered — so any `i > 0` here has already lost the root and says so. */
+    for (let i = 0; i < parts.length; i++) {
+      const candidate = (i > 0 ? '../ ' : '') + parts.slice(i).join(' / ') + ' /'
+      const wrapped = fitLines(candidate, contentW, pathOpts)
+      if (squashEq(wrapped.join(''), candidate)) { pathLines = wrapped; pathText = candidate; break }
+    }
+    if (!pathLines && parts.length) {
+      /* nothing fits whole — draw the parent alone and let it ellipsise, rather than nothing */
+      pathText = (parts.length > 1 ? '../ ' : '') + parts[parts.length - 1] + ' /'
+      pathLines = fitLines(pathText, contentW, pathOpts)
+    }
+    if (pathText) pathCut = !squashEq(pathLines!.join(''), pathText)
+    mentionCut = titleCut || pathCut
+  }
   const shell = useRef<HTMLSpanElement | null>(null)
   const given: SizeState | null = width === undefined && height === undefined ? null
     : { w: width || null, h: height || null }
@@ -682,7 +775,12 @@ export function NodeChip({
          which is why the contract says to pass `note` alongside a non-string title. Falling
          back to `undefined` rather than stringifying: React would render "[object Object]"
          into the attribute, and a tooltip that lies is worse than one that is absent. */
-      title={wrapTip(note || (typeof title === 'string' ? title : undefined))}
+      /* a MEASURED MENTION carries the whole citation — ancestry and name — and only when
+         something was actually cut; the drawn lines already say the rest, and a tooltip
+         repeating what is on screen is noise on every pill in the list. */
+      title={mentionMeasured
+        ? (mentionCut ? wrapTip((path || []).filter(Boolean).concat([String(title)]).join(' / ')) : undefined)
+        : wrapTip(note || (typeof title === 'string' ? title : undefined))}
       /* announced, not just drawn — only when the chip is actually the control:
          `aria-expanded` on a span nothing can activate promises a keyboard behaviour
          that is not there. */
@@ -850,7 +948,10 @@ export function NodeChip({
           opportunity, which on a narrow chip left single letters sitting against
           the border. Word boundaries first; only split a word that cannot fit. */}
       <span style={{
-        minWidth: 0, flex: onDelete ? 1 : '0 1 auto',
+        /* a told-width mention fills its box, so its centred lines are centred on the CHIP and
+           not on their own longest line — which is what makes a two-line citation read as one
+           block. Every other form keeps sizing to its content. */
+        minWidth: 0, flex: (quiet && typeof width === 'number') ? 1 : (onDelete ? 1 : '0 1 auto'),
         /* block, so the name and the (optional) line below it are two rows rather than one
            inline run with a block in the middle of it */
         display: optional && !quiet ? 'block' : undefined,
@@ -859,7 +960,16 @@ export function NodeChip({
         overflowWrap: wrap ? 'break-word' : undefined, wordBreak: wrap ? 'normal' : undefined,
         textOverflow: wrap ? 'clip' : 'ellipsis',
         paddingRight: onDelete ? M.titlePadRight : 0,
-      }}>{title}{optional && quiet ? (
+      }}>{mentionMeasured ? (
+        <>
+          {pathLines ? (
+            <span style={{ display: 'block', fontSize: M.pathFontPx, fontWeight: 'var(--fw-medium)', color: 'var(--text-3)', lineHeight: 1.2, marginBottom: M.pathGap }}>
+              {pathLines.map((ln, i) => <span key={i} style={{ display: 'block' }}>{ln}</span>)}
+            </span>
+          ) : null}
+          {titleLines!.map((ln, i) => <span key={i} style={{ display: 'block' }}>{ln}</span>)}
+        </>
+      ) : (<>{title}{optional && quiet ? (
         <span style={{ fontStyle: 'italic', fontWeight: 'var(--fw-regular)', color: 'var(--text-3)' }}> (optional)</span>
       ) : null}{optional && !quiet ? (
         /* ITALIC AT REGULAR WEIGHT, and that pairing is not a taste call: Nunito is loaded at
@@ -874,7 +984,7 @@ export function NodeChip({
           display: 'block', fontSize: 'var(--fs-micro)', fontWeight: 'var(--fw-regular)',
           fontStyle: 'italic', color: 'var(--text-3)', lineHeight: 'var(--lh-snug)',
         }}>(optional)</span>
-      ) : null}</span>
+      ) : null}</>)}</span>
       {resizable ? (
         <>
           <span aria-hidden="true" title={wrapTip(RESIZE_TIP)}
