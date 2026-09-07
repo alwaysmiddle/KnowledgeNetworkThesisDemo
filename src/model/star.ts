@@ -129,12 +129,17 @@ export function starFor(currentId: string): Star {
 // "external view shows nothing" when a whole region is selected.
 //
 // The fix reads that same edge set as a one-hop ego graph, centred on the
-// region. A settings toggle on the graph picks the counterpart grain:
-//   summary  — counterparts are other REGIONS (domains for a domain, modules for
-//              a module); links bundled by type with an ×n count. This is the
-//              star of the map's roads — same rollup, same compass.
-//   detailed — counterparts are the individual OUTSIDE topics the region's
-//              members link to, one strand per real typed edge.
+// region: the counterparts are the individual OUTSIDE topics the region's members
+// link to, one strand per real typed edge.
+//
+// THERE WAS A SECOND GRAIN, AND IT IS GONE (2026-09-07, #290). `summary` rolled the
+// same edges up to one arrow per other REGION — the star of the map's roads, same
+// rollup, same compass — behind a toggle on the graph. #253's rehaul retired the
+// toggle and with it the only screen that ever asked for the grain, and it cannot
+// come back to that pane: the pane's whole mechanism is that hovering a card lights
+// its node in the graph and the other way round, so both surfaces have to name the
+// same ids — and a summary node IS a region while every card's target is a topic.
+// Deleted rather than left unreachable. Its shape and the reasoning are on #290.
 
 // Region centres — the raw centroids the map's roads leave from (mirrors
 // atlas.ts:38-39). Recomputed here, not imported, to keep star a self-contained
@@ -163,22 +168,17 @@ function ringLayout(ids: string[], posOf: (id: string) => XY, origin: XY): Map<s
   return new Map(seeded.map((s, i) => [s.id, { x: Math.cos(angles[i]) * RX_STAR, y: Math.sin(angles[i]) * R_STAR }]))
 }
 
-export type RegionStarMode = 'summary' | 'detailed'
-
-/** one drawn spoke between the region centre and a counterpart: a single typed
- * edge (detailed) or a rolled-up group of same-type edges (summary) */
+/** one drawn spoke between the region centre and a counterpart: one typed edge */
 export interface RegionStrand {
-  /** unique per spoke — an edge id (detailed) or `type` (summary) */
+  /** unique per spoke — the edge's own id */
   key: string
   type: EdgeType
-  /** raw edges rolled in: 1 in detailed, the ×n badge in summary */
-  n: number
   /** relative to the CENTRE — does the region point out, in, or both ways */
   dir: 'out' | 'in' | 'both'
 }
 
 export interface RegionStarNode {
-  /** the counterpart: another region (summary) or an outside topic (detailed) */
+  /** the counterpart: an outside topic */
   id: string
   x: number
   y: number
@@ -190,7 +190,6 @@ export interface RegionStarNode {
 export interface RegionStar {
   /** the focused region, pinned at the centre */
   center: string
-  mode: RegionStarMode
   /** 0 = domain, 1 = module */
   tier: number
   nodes: RegionStarNode[]
@@ -198,37 +197,21 @@ export interface RegionStar {
   edges: GEdge[]
 }
 
-/** Bundle a counterpart's edges into drawn strands. Detailed keeps every edge;
- * summary collapses per type into one strand carrying the count and the merged
- * direction. Both come out in edge-type order, so the star and list agree. */
-function strandsOf(es: GEdge[], mode: RegionStarMode, out: (e: GEdge) => boolean): RegionStrand[] {
-  if (mode === 'detailed') {
-    return es
-      .slice()
-      .sort((a, b) => EDGE_TYPES.indexOf(a.type) - EDGE_TYPES.indexOf(b.type))
-      .map((e) => ({ key: e.id, type: e.type, n: 1, dir: out(e) ? ('out' as const) : ('in' as const) }))
-  }
-  const byType = new Map<EdgeType, { n: number; out: boolean; in: boolean }>()
-  for (const e of es) {
-    const g = byType.get(e.type) ?? { n: 0, out: false, in: false }
-    g.n++
-    if (out(e)) g.out = true
-    else g.in = true
-    byType.set(e.type, g)
-  }
-  return EDGE_TYPES.filter((t) => byType.has(t)).map((t) => {
-    const g = byType.get(t)!
-    return { key: t, type: t, n: g.n, dir: g.out && g.in ? ('both' as const) : g.out ? ('out' as const) : ('in' as const) }
-  })
+/** A counterpart's edges as drawn strands — one per edge, in edge-type order, so the
+ * star and the list beside it read in the same order. */
+function strandsOf(es: GEdge[], out: (e: GEdge) => boolean): RegionStrand[] {
+  return es
+    .slice()
+    .sort((a, b) => EDGE_TYPES.indexOf(a.type) - EDGE_TYPES.indexOf(b.type))
+    .map((e) => ({ key: e.id, type: e.type, dir: out(e) ? ('out' as const) : ('in' as const) }))
 }
 
 /** A star for a REGION, or null when `sel` is not one. Topics keep using starFor;
  * the root returns null too (all its links are internal — nothing reaches out). */
-export function regionStarFor(sel: string, mode: RegionStarMode): RegionStar | null {
+export function regionStarFor(sel: string): RegionStar | null {
   const tier = domainIds.includes(sel) ? 0 : provinceIds.includes(sel) ? 1 : -1
   if (tier < 0) return null
 
-  const regionOf = tier === 0 ? domainOf : provinceOf
   const members = new Set(topicsUnder(sel))
 
   // region-crossing edges only: one endpoint inside, one outside. Dedup by id —
@@ -239,13 +222,10 @@ export function regionStarFor(sel: string, mode: RegionStarMode): RegionStar | n
   const edges = [...seen.values()].filter((e) => members.has(e.source) !== members.has(e.target))
 
   const origin = regionCenter.get(sel)!
-  // "out" = the region is the source end; the counterpart is the outside end,
-  // lifted to its region in summary and kept raw in detailed.
+  // "out" = the region is the source end; the counterpart is the outside end itself,
+  // a topic, never lifted to whatever region it happens to sit in.
   const out = (e: GEdge) => members.has(e.source)
-  const counterpartOf = (e: GEdge) => {
-    const outside = members.has(e.source) ? e.target : e.source
-    return mode === 'summary' ? regionOf(outside) : outside
-  }
+  const counterpartOf = (e: GEdge) => (members.has(e.source) ? e.target : e.source)
 
   const groups = new Map<string, GEdge[]>()
   for (const e of edges) {
@@ -255,10 +235,12 @@ export function regionStarFor(sel: string, mode: RegionStarMode): RegionStar | n
     else groups.set(cp, [e])
   }
 
-  const place = ringLayout([...groups.keys()], (id) => regionCenter.get(id) ?? leafPos[id], origin)
+  // every counterpart is a topic now, so it has a leaf position of its own — the
+  // `regionCenter` fallback that used to sit here was the summary grain's
+  const place = ringLayout([...groups.keys()], (id) => leafPos[id], origin)
   const nodes: RegionStarNode[] = [...groups.entries()].map(([cp, es]) => {
     const p = place.get(cp)!
-    return { id: cp, x: p.x, y: p.y, strands: strandsOf(es, mode, out), n: es.length }
+    return { id: cp, x: p.x, y: p.y, strands: strandsOf(es, out), n: es.length }
   })
-  return { center: sel, mode, tier, nodes, edges }
+  return { center: sel, tier, nodes, edges }
 }
