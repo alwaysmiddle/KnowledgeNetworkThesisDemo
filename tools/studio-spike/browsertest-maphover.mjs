@@ -212,23 +212,77 @@ const treeRows = page.locator('[aria-label="connections-pane"] [data-node-id]')
 const treeCount = Math.min(await treeRows.count(), ROWS)
 ok('the contains column has hoverable rows', treeCount > 0, `${treeCount} swept`)
 
-let treeLit = 0
+/** which cell the map is spotlighting, by name, or null for none */
+const spotId = () => page.evaluate(() => document.querySelector('svg[data-nested] [data-spot]')?.getAttribute('data-spot') ?? null)
+/** the app's current selection, as the map itself reports it */
+const selId = () => page.evaluate(() => document.querySelector('svg[data-nested]')?.getAttribute('data-sel') ?? null)
+
+const treeLit = []
 const treeCardOn = []
 for (let i = 0; i < treeCount; i++) {
   await park()
   await treeRows.nth(i).hover().catch(() => {})
   await page.waitForTimeout(190)
-  if (await spotUp()) treeLit++
+  if (await spotUp()) treeLit.push(i)
   if (await tipUp()) treeCardOn.push(i)
 }
-ok('a contains row lights the territory', treeLit > 0,
-  `${treeLit}/${treeCount} rows lit a cell (the rest name nodes with no outline at this level)`)
-ok('and draws NO card on the map', treeCardOn.length === 0,
+ok('(1) a contains row lights the territory', treeLit.length > 0,
+  `${treeLit.length}/${treeCount} rows lit a cell (the rest name nodes with no outline at this level)`)
+ok('(1) and draws NO card on the map', treeCardOn.length === 0,
   treeCardOn.length ? `rows ${treeCardOn.join(', ')} raised one` : `${treeCount} rows, none did`)
 
+// (2) ROW TO ROW WITH NO PARK IN BETWEEN. The clause is written as "without the map
+// blanking between adjacent rows", and the blank itself lives inside a transition no
+// sampling driver can see honestly. What IS checkable, and is the failure the clause
+// describes, is the state it would leave behind: crossing straight from one lighting row
+// to the next must leave the map lit on the SECOND one, never stuck dark on the way.
+let crossings = 0
+const stuckDark = []
+for (let k = 1; k < treeLit.length; k++) {
+  const [from, to] = [treeLit[k - 1], treeLit[k]]
+  await treeRows.nth(from).hover().catch(() => {})
+  await page.waitForTimeout(170)
+  await treeRows.nth(to).hover().catch(() => {})   // straight across — no park
+  await page.waitForTimeout(170)
+  crossings++
+  if (!(await spotId())) stuckDark.push(`${from}->${to}`)
+}
+ok('(2) crossing straight from one row to the next leaves the map lit, never dark',
+  crossings > 0 && stuckDark.length === 0,
+  stuckDark.length ? `dark after ${stuckDark.join(', ')}` : `${crossings} crossings, all lit`)
+
+// (5) CLICK IS UNCHANGED and still selects — asserted here rather than assumed, because
+// this is the clause that would quietly die if hover were ever made to "confirm" itself.
 await park()
-await page.waitForTimeout(300)
-ok('leaving the row puts the light out again', !(await spotUp()))
+const pickRow = treeLit[0]
+const pickId = await treeRows.nth(pickRow).getAttribute('data-node-id')
+await treeRows.nth(pickRow).click()
+await page.waitForTimeout(500)
+const selAfterClick = await selId()
+ok('(5) clicking a contains row still selects that node', selAfterClick === pickId, `${selAfterClick} vs ${pickId}`)
+
+// (4) and (3). A hover changes nothing about the selection, and letting go of the hover
+// hands the map back to that selection rather than blanking it.
+const otherRow = treeLit.find((i) => i !== pickRow)
+if (otherRow !== undefined) {
+  await treeRows.nth(otherRow).hover().catch(() => {})
+  await page.waitForTimeout(220)
+  ok('(4) a hover does not change the selection', (await selId()) === selAfterClick, String(await selId()))
+}
+await park()
+await page.waitForTimeout(320)
+ok('(3) the published light goes out when the pointer leaves the column', !(await spotUp()))
+const restingState = await page.evaluate(() => ({
+  sel: document.querySelector('svg[data-nested]')?.getAttribute('data-sel') ?? null,
+  outline: !!document.querySelector('svg[data-nested] [data-seloutline]'),
+  overlay: !!document.querySelector('svg[data-nested] [data-seloverlay]'),
+}))
+// THE MAP IS NOT LEFT BLANK, and the mark it falls back to is the SELECTION's own, not the
+// spotlight: `hoverMarks` keeps a selected cell out of the spotlight deliberately, because
+// two outlines on one cell read as a bug. So the fallback is asserted as "the selection is
+// still drawn", which is what the clause is protecting.
+ok('(3) and the map falls back to what the SELECTION lights, not to nothing',
+  restingState.sel === pickId && (restingState.outline || restingState.overlay), JSON.stringify(restingState))
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()
