@@ -266,7 +266,50 @@ if (aimedAt) {
   }
 }
 
-// ── 10. THE DRAWN WIDTH IS DERIVED, and a stored width is never written back ──
+// ── 10. THE CHAIN SAYS WHEN IT HAS LOST ITS ROOT — "../" (#254, DS OB-111) ───
+// A card's source pill carries the ancestor chain above the name. When the chain does
+// not fit, the fit drops segments from the FRONT, and the front is the true root — the
+// one part a reader cannot infer back from what is left. So a chain that no longer
+// starts at the root is prefixed "../ ", and a chain that does start there carries no
+// prefix at all. Both halves are the rule; only asserting the marked one would pass a
+// build that marked everything.
+//
+// IT TAKES A NARROW PANE TO SEE IT, which is why this sweeps widths rather than
+// asserting once. At a full-width desk every chain in this corpus fits whole — exactly
+// the case that must NOT be marked — and the cut only happens once the pill is small.
+//
+// The pane is re-aimed at a DOMAIN first: only a "via children" row draws a chain at all
+// (a direct row's source IS the selection, which the breadcrumb above it already places),
+// and Software Engineering is the branch that reaches four segments down.
+await page.evaluate(() => document.querySelector('[aria-label="connections-pane"] [data-node-id="se"]')?.click())
+await page.waitForTimeout(500)
+/** every drawn chain in the pane. The chain is the only 8.5px run there
+ *  (`CHIP_METRICS.pathFontPx`), and its container holds one span per DRAWN LINE — so
+ *  filtering to elements that have children keeps the containers and drops the lines,
+ *  and joining with a space undoes the line split that would otherwise read as one word. */
+const drawnChains = () => page.evaluate(() => {
+  const pane = document.querySelector('[aria-label="connections-pane"]')
+  return [...pane.querySelectorAll('span')]
+    .filter((el) => getComputedStyle(el).fontSize === '8.5px' && el.children.length)
+    .map((el) => [...el.children].map((c) => c.textContent).join(' ').trim())
+})
+const wideChains = await drawnChains()
+ok('a via-children card draws the chain above its source', wideChains.length > 0, `${wideChains.length} chains`)
+ok('at full width the chain is whole, so it carries NO marker',
+  wideChains.length > 0 && wideChains.every((p) => !p.includes('../')), JSON.stringify(wideChains.slice(0, 2)))
+ok('and the chains run deep enough that a cut would really lose something',
+  wideChains.some((p) => p.split('/').filter((seg) => seg.trim()).length >= 3), JSON.stringify(wideChains[0] ?? null))
+
+await page.setViewportSize({ width: 680, height: 950 })
+await page.waitForTimeout(600)
+const cutChains = await drawnChains()
+ok('squeezed, the pill drops the root — and says so',
+  cutChains.length > 0 && cutChains.every((p) => p.startsWith('../')),
+  `${cutChains.length} chains, e.g. ${JSON.stringify(cutChains[0] ?? null)}`)
+await page.setViewportSize({ width: 1750, height: 950 })
+await page.waitForTimeout(400)
+
+// ── 11. THE DRAWN WIDTH IS DERIVED, and a stored width is never written back ──
 // Amendment 1, and the one fault a port loses by omission: a width restored from
 // storage into a smaller pane used to push the divider past the right edge, where the
 // body's overflow:hidden clips it — the handle you need in order to fix it is the thing

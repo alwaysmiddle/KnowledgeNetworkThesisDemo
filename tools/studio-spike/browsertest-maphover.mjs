@@ -11,14 +11,15 @@
 // Those are different claims, and only the second one catches passing the wrong
 // value into a correct function.
 //
-// WHICH PANE PUBLISHES THE HOVER, AND WHY IT IS NOT THE TREE. The obligation names
-// a tree row, and no tree row can do this in this build: `TreePanel` publishes
-// FOCUS (`bus.setFocus`) and never a hover. The panes that actually write
-// `bus.hover` today are `ConnectionsPane` and the four walk-desk views, which share
-// `useHover`'s `bind()` — the thing that stamps `data-lit` on a row. This driver
-// hovers the WALK PALETTE rather than the connections pane on purpose: #253
-// replaces `ConnectionsPane` whole, and a driver pointed at it would have to be
-// re-pointed the same week.
+// WHICH PANES PUBLISH THE HOVER. Section 2 sweeps the WALK PALETTE, and did so
+// originally because the obligation's own example — a tree row — could not do this
+// in that build: `TreePanel` publishes FOCUS (`bus.setFocus`) and never a hover.
+//
+// SECTION 4 IS THE TREE ROW, AND IT EXISTS NOW. #253 landed (`97f9a84`), and the
+// contains column inside the rebuilt connections pane publishes a hover on the ROW
+// itself. That is OB-142's ask (#272) on the tree that survives #265's retirement of
+// `TreePanel`, so it is asserted here rather than left to a re-home that would only
+// rename the host. Two panes, one rule, one file.
 //
 // THE SPOTLIGHT IS ASSERTED SEPARATELY FROM THE CARD, over a sweep of rows rather
 // than one. A palette row names a corpus node, and a node only draws a spotlight
@@ -170,6 +171,64 @@ if (cellPoint && rowCount > 0) {
   await glideTo(cellPoint)
   ok('after a published hover, our own cursor still gets its card', await tipUp())
 }
+
+// ── 4. THE SURVIVING TREE: a contains row publishes it too (#272, DS OB-142) ──
+// OB-142 asks that a tree row publish a HOVER as well as the focus it already
+// publishes, so the map lights that territory on the way past without selecting
+// anything. Every clause is asserted here except "click still focuses and selects",
+// which `browsertest-connections.mjs` already owns (a row click re-aims the pane).
+//
+// THE CARD CLAUSE IS ABOUT THE MAP'S CARD, and only that one. The connections pane
+// raises its OWN preview beside the row — that is the split pane's design and not a
+// map tooltip — so what must stay absent here is `[data-maptip]`.
+// PICKING A PRESET CLOSES THE SIDEBAR IT WAS PICKED FROM (OB-106), so the second
+// preset of a run has to reopen it first. Same two lines every driver here uses.
+if ((await page.locator('[aria-label="studio-sidebar"]').count()) === 0) {
+  await page.locator('[data-toolbar-hook="palette-toggle"]').click()
+  await page.waitForTimeout(500)
+}
+await page.getByLabel('studio-preset-explore').click()
+await page.waitForTimeout(800)
+ok('the explore desk puts the map and the connections pane side by side',
+  (await has('svg[data-nested]')) && (await has('[aria-label="connections-pane"]')))
+
+// open a few levels, so the sweep has rows under the six domains. ONE CARET PER RENDER:
+// the tree is controlled by its host, which resolves the next open map from the last
+// RENDERED one, so a batch of clicks all compute from the same base and only the last
+// survives. Documented at length in browsertest-connections.mjs.
+for (let i = 0; i < 6; i++) {
+  const opened = await page.evaluate(() => {
+    const pane = document.querySelector('[aria-label="connections-pane"]')
+    const closed = [...pane.querySelectorAll('[data-node-id]')].filter((r) => r.getAttribute('data-open') === '0' && r.querySelector('[data-caret]'))
+    if (!closed.length) return false
+    closed[closed.length - 1].querySelector('[data-caret]').click()
+    return true
+  })
+  await page.waitForTimeout(180)
+  if (!opened) break
+}
+
+const treeRows = page.locator('[aria-label="connections-pane"] [data-node-id]')
+const treeCount = Math.min(await treeRows.count(), ROWS)
+ok('the contains column has hoverable rows', treeCount > 0, `${treeCount} swept`)
+
+let treeLit = 0
+const treeCardOn = []
+for (let i = 0; i < treeCount; i++) {
+  await park()
+  await treeRows.nth(i).hover().catch(() => {})
+  await page.waitForTimeout(190)
+  if (await spotUp()) treeLit++
+  if (await tipUp()) treeCardOn.push(i)
+}
+ok('a contains row lights the territory', treeLit > 0,
+  `${treeLit}/${treeCount} rows lit a cell (the rest name nodes with no outline at this level)`)
+ok('and draws NO card on the map', treeCardOn.length === 0,
+  treeCardOn.length ? `rows ${treeCardOn.join(', ')} raised one` : `${treeCount} rows, none did`)
+
+await park()
+await page.waitForTimeout(300)
+ok('leaving the row puts the light out again', !(await spotUp()))
 
 await page.evaluate(() => localStorage.clear())
 await browser.close()
