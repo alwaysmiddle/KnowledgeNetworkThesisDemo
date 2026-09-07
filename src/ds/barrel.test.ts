@@ -49,7 +49,9 @@ describe('ported but not adopted DS components', () => {
   //
   // It is KEPT rather than deleted, and that is the owner's call to make rather than a
   // porter's: the DS still ships and maintains it. What changed is that nothing is
-  // pending — do not re-attach it to #97, which this closes.
+  // PENDING on it any more. #97 itself stays open on its other two rows — EdgeLegend,
+  // still correctly held behind #69, and LeafMark, still a design call — so do not read
+  // this as that issue being finished.
   it('EdgeEntry — its host arrived (#253) and composed the parts instead; nothing pending', () => {
     expect(typeof EdgeEntry).toBe('function')
   })
