@@ -760,7 +760,7 @@
         "syncedAt": "2026-09-06",
         "deviations": [
           "2026-09-06 NEW FILE, OB-101 (#253). Ported faithfully: CONTAIN_METRICS, CaretHit, containsSummary, findTreePath, treeKeyNav and the caret carve-out from the subtree double-click all present.",
-          "NOTE FOR #221: this REVIVES `nestedFamilyPaint`, which the map's four-colouring superseded (b656ebc) and which #221 lists as a dead chain. It is not dead any more, and the use is sound rather than a relapse: a tree stacks its siblings in a COLUMN, so the only pairs that touch are consecutive ones and `index % FAMILY_SLOTS` genuinely cannot give two touching pills the same slot. That is the one place deriving a slot positionally is safe - a map cannot, because there adjacency is geometry. #221's premise for that entry is gone."
+          "NOTE ON `nestedFamilyPaint`, correcting a claim this entry carried for one commit: this is the SECOND consumer, not a revival. src/model/color.ts already feeds the map's territory fill through it (OB-119, #250, 2026-09-05), and src/ds/barrel.test.ts already says so - #221's dead-chain premise for that symbol was resolved before this rehaul, not by it. What IS worth recording is why deriving the slot POSITIONALLY is sound here when the map has to compute real geometric adjacency for it: a tree stacks its siblings in a column, so the only pairs that touch are consecutive ones, and `index % FAMILY_SLOTS` cannot give two touching pills the same slot. A map cannot make that argument, because there adjacency is geometry."
         ]
       },
       "src/ds/connections/RelationCards.tsx": {
