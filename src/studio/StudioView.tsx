@@ -261,6 +261,39 @@ export default function StudioView() {
   // ── the bus ───────────────────────────────────────────────────────────────
   const bus = useStudioBus(ensureActive)
 
+  // ── coming back from the presenter (#214) ─────────────────────────────────
+  // The desk's panes are NOT mounted while the presenter is up — one instance of
+  // everything, the rule #195 set and #267 kept — so every pane is built fresh on
+  // the way back and the map arrives at its default whole-world framing, pointing
+  // at nothing in particular. You could have spent forty minutes in there.
+  //
+  // Everything that answers WHERE AM I survives, because it lives on the bus and
+  // the bus is not inside any pane: focus, route, trail, visited, the active walk.
+  // So the honest repair is not to preserve pixels but to re-publish the place: a
+  // look at the current focus, which flies the map to that node's territory in
+  // exactly the way ENTERING already does. The same place, not the same pixels —
+  // #195's own rule, applied to the half of the round trip that never had it.
+  //
+  // Watching `presenter` rather than patching each exit means every way out is
+  // covered: the presenter pane's ✕, and picking a different preset (which also
+  // clears it). In a rAF frame because writing bus state in an effect body is what
+  // `react-hooks/set-state-in-effect` forbids — the shape the deck's own arrival
+  // effect uses.
+  const wasPresenting = useRef(presenter !== null)
+  useEffect(() => {
+    const leaving = wasPresenting.current && presenter === null
+    wasPresenting.current = presenter !== null
+    if (!leaving) return
+    const id = bus.focus
+    if (!id) return
+    const f = requestAnimationFrame(() => bus.peekAt(id))
+    return () => cancelAnimationFrame(f)
+    // the bus's writers are referentially stable by contract (see bus.ts); this
+    // fires on the TRANSITION, and re-running it on every bus change would fight
+    // the user for the camera they just took back
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presenter])
+
   // ── layout ────────────────────────────────────────────────────────────────
   // A pane does not decide its own size: where it sits does. A lone column, one
   // half of a stacked column and a bottom strip need three different styles, so
@@ -313,7 +346,9 @@ export default function StudioView() {
     .filter((s) => s.members.length > 0)
 
   // mounted but not in the composition: kept in the tree at display:none so an
-  // unfold canvas or a zoom level survives being toggled off and back on
+  // unfold canvas or a zoom level survives being toggled off and back on. That
+  // only works because these are rendered in the SAME keyed list as the panes
+  // that are on — see the note at the list itself (#296).
   const benchedColumns = INSTRUMENTS.filter(
     (i) => i.slot === 'column' && mounted.has(i.id as InstrumentId) && !onScreen.includes(i.id as InstrumentId),
   )
@@ -470,31 +505,50 @@ export default function StudioView() {
           presenterScreen
         ) : (
         <div className="flex-1 min-w-0 flex flex-col gap-3">
+          {/* ONE KEYED LIST, on panes and benched panes together (#296). Written as
+              two adjacent expressions — `{columns}{benched}` — this was two separate
+              child slots, and React matches keys only WITHIN one array. So switching
+              a pane off did not flip a flag on a component that stayed put; it moved
+              the component from one child slot to the other, which is an unmount and
+              a fresh mount. `display:none` never got the chance to do the job the
+              comment above credits it with, and an unfold canvas or a map camera was
+              thrown away every time the composition changed. Spreading both into a
+              SINGLE array is the whole fix: identity now travels with the key, and
+              `on` is just a prop.
+
+              STILL TRUE, and deliberately not fixed here: a pane moving in or out of
+              a STACK (Plan's palette-over-document) does change parent, because a
+              stack is a real wrapper element. Only Plan stacks anything today, and
+              what it costs is a scroll position rather than a canvas. Fixing it means
+              expressing stacks in CSS instead of nesting, which is a layout rewrite
+              and wants its own change. */}
           <div className="flex-1 min-h-0 flex gap-3">
-            {columnSlots.map(({ order, members }) =>
-              members.length === 1 ? (
-                pane(members[0], true, { order, ...widthOf(members[0]) }, '')
-              ) : (
-                <div
-                  key={members.map((m) => m.id).join('+')}
-                  aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
-                  className="flex flex-col min-w-0 min-h-0 gap-3"
-                  style={{ order, ...widthOf(members[0]) }}
-                >
-                  {members.map((m) =>
-                    pane(
-                      m,
-                      true,
-                      // stackGrow:false sizes the pane to its content and hands the
-                      // slack to its stack-mates; the default takes an even share.
-                      { flex: m.stackGrow === false ? '0 0 auto' : '1 1 0%' },
-                      '',
-                    ),
-                  )}
-                </div>
+            {[
+              ...columnSlots.map(({ order, members }) =>
+                members.length === 1 ? (
+                  pane(members[0], true, { order, ...widthOf(members[0]) }, '')
+                ) : (
+                  <div
+                    key={members.map((m) => m.id).join('+')}
+                    aria-label={`studio-stack-${members.map((m) => m.id).join('-')}`}
+                    className="flex flex-col min-w-0 min-h-0 gap-3"
+                    style={{ order, ...widthOf(members[0]) }}
+                  >
+                    {members.map((m) =>
+                      pane(
+                        m,
+                        true,
+                        // stackGrow:false sizes the pane to its content and hands the
+                        // slack to its stack-mates; the default takes an even share.
+                        { flex: m.stackGrow === false ? '0 0 auto' : '1 1 0%' },
+                        '',
+                      ),
+                    )}
+                  </div>
+                ),
               ),
-            )}
-            {benchedColumns.map((i) => pane(i, false, {}, ''))}
+              ...benchedColumns.map((i) => pane(i, false, {}, '')),
+            ]}
           </div>
           {strips.map((i) =>
             pane(

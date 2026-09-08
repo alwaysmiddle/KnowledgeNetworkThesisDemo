@@ -91,17 +91,6 @@ const fail = (msg) => {
   console.log('FAIL:', msg)
 }
 
-/** A check that is KNOWN to be failing against an open bug. It prints, loudly,
- *  and does not fail the run — so the suite going red still means "something
- *  changed", while the expectation itself stays written down and executable
- *  rather than deleted and forgotten. Turn it back into `fail` when the issue
- *  closes. If a pending check ever PASSES, that is worth knowing too, so it
- *  says so. */
-const pending = (issue, ok, msg) => {
-  if (ok) console.log(`PENDING #${issue} NOW PASSES — promote it back to a real assertion: ${msg}`)
-  else console.log(`PENDING #${issue} (known failure, not gating): ${msg}`)
-}
-
 const LENS_TYPES = ['depends_on', 'see_also', 'uses']
 // The Studio header's focus readout. Scoped to the header because the
 // Connections pane now publishes data-focus too, which made a bare
@@ -129,7 +118,11 @@ const withPalette = async (fn) => {
     await page.waitForTimeout(600)
   }
   await fn()
-  if (!wasOpen) {
+  // RESTORE BY STATE, NOT BY UNDOING THE CLICK. The wrapped action may have closed
+  // the palette itself — picking a preset does, deliberately (OB-106) — and a blind
+  // second toggle would then RE-OPEN it, leaving the palette's flight animation
+  // sitting over whatever the next step tries to click.
+  if ((await isOpen()) !== wasOpen) {
     await page.locator('[data-toolbar-hook="palette-toggle"]').click()
     await page.waitForTimeout(600)
   }
@@ -468,22 +461,17 @@ await withPalette(async () => {
 })
 await page.waitForTimeout(500)
 
-// KNOWN FAILURE. `StudioView` says a benched pane "stays mounted at display:none
-// so its internal state (an unfold canvas, a zoom level) survives being toggled
-// off and back on". It does not: an ACTIVE column pane is rendered inside its
-// slot's wrapper element while a BENCHED one is rendered as a direct sibling of
-// those wrappers, so switching moves the component to a different parent and
-// React remounts it from scratch. Reproduced at its simplest — grow the graph,
-// toggle the pane off, toggle it on, and the graph is gone; while benched, its
-// nodes are not in the DOM at all, which display:none alone would never do.
-// Filed separately; this stays executable so the day it is fixed, it says so.
+// THE LOAD-BEARING ONE. `StudioView` promises a benched pane "stays mounted at
+// display:none so its internal state (an unfold canvas, a zoom level) survives
+// being toggled off and back on". It did not, until #296: an on pane and a
+// benched pane were rendered from two SEPARATE child lists, and React matches
+// keys only within one list, so switching moved the component to the other list
+// and remounted it from scratch. Both lists are now spread into one array. This
+// check is what caught it and what keeps it caught.
 const unfoldNodeCountAfterRoundtrip = await unfoldPane.locator('circle[data-node]').count()
-console.log('unfold pane circle[data-node] after roundtrip =', unfoldNodeCountAfterRoundtrip, '(want', unfoldNodeCountAtScenario7, '— unchanged)')
-pending(
-  296,
-  unfoldNodeCountAfterRoundtrip === unfoldNodeCountAtScenario7,
-  `a benched pane lost its state across a preset round trip — grew ${unfoldNodeCountAtScenario7} nodes, came back with ${unfoldNodeCountAfterRoundtrip}`,
-)
+console.log('unfold pane circle[data-node] after roundtrip =', unfoldNodeCountAfterRoundtrip, '(expect', unfoldNodeCountAtScenario7, '— unchanged)')
+if (unfoldNodeCountAfterRoundtrip !== unfoldNodeCountAtScenario7)
+  fail(`a benched pane lost its state across a preset round trip — grew ${unfoldNodeCountAtScenario7} nodes, came back with ${unfoldNodeCountAfterRoundtrip}`)
 
 const routeBadgeAfterRoundtrip = await page.locator('[aria-label="studio-route"]').innerText()
 console.log('route badge after roundtrip =', routeBadgeAfterRoundtrip, '(expect', routeBadgeBeforeRoundtrip, '— unchanged)')
@@ -564,6 +552,51 @@ const lensHeaderBack = await page.locator('[data-lens="depends_on"] header').inn
 if (!lensHeaderBack.includes('TLS & Certificates')) fail(`deps lens did not recenter on the topic: "${lensHeaderBack.replace(/\s+/g, ' ')}"`)
 await page.screenshot({ path: `${OUT}/11-below-topic.png` })
 console.log('11-below-topic.png taken')
+
+// ── 12. leaving the presenter puts the map back where the session stands ───
+// #214. The desk's panes are not mounted while the presenter is up — one instance
+// of everything, the rule #195 set and #267 kept — so every pane is rebuilt on the
+// way back. Before the fix the map came back at its default whole-world framing,
+// pointing at nothing, after however long you had been presenting.
+//
+// The check is deliberately NOT "the camera has the same transform it had". The
+// rule the app chose is THE SAME PLACE, NOT THE SAME PIXELS: on the way out it
+// re-publishes a look at the current focus, exactly as entering does. So what must
+// be true is that the map declares it is looking at where the session stands, and
+// that it is not sitting at the whole-world default.
+const camDefault = 'translate(0 0) scale(0.8)'
+await withPalette(async () => {
+  await page.getByLabel('studio-preset-present').click()
+})
+// long enough for the palette's own FLIGHT to land. Picking a preset closes the
+// palette through an animated transition, and while that is in the air its
+// absolutely-positioned wrapper sits over the presenter's chrome.
+await page.waitForTimeout(1600)
+const panesWhilePresenting = await page.locator('[aria-label^="studio-pane-"]').count()
+console.log('desk panes while the presenter is up =', panesWhilePresenting, '(expect 0 — one instance of everything)')
+if (panesWhilePresenting !== 0) fail(`the desk stayed mounted behind the presenter (${panesWhilePresenting} panes)`)
+
+// LEAVE BY PICKING A COMPOSITION, which is how a person actually gets back to the
+// desk, and which runs the same `setPresenter(null)` the presenter's own ✕ does —
+// the effect that re-aims the map watches the presenter going away, not which
+// gesture sent it away. (The ✕ is not used here because in this composition it
+// ends up underneath the presenter's own body: a real thing to look at one day,
+// and not what this scenario is about.)
+await withPalette(async () => {
+  await page.getByLabel('studio-preset-explore').click()
+})
+await page.waitForTimeout(1600) // the look flight is 750ms
+
+const focusOnReturn = await focusReadout.getAttribute('data-focus')
+const peekOnReturn = await page.locator('[data-nested]').getAttribute('data-peek')
+const camOnReturn = await page.$eval('[data-nested] > g', (g) => g.getAttribute('transform'))
+console.log('on return: focus =', JSON.stringify(focusOnReturn), '· map declares peek =', JSON.stringify(peekOnReturn))
+console.log('on return: camera =', camOnReturn, `(must not be the default ${camDefault})`)
+if (!focusOnReturn) fail('the session lost its focus across the presenter — that lives on the bus and must survive')
+if (peekOnReturn !== focusOnReturn) fail(`leaving the presenter did not aim the map at the focus: map says ${peekOnReturn}, focus is ${focusOnReturn}`)
+if (camOnReturn === camDefault) fail('the map came back at its whole-world default — the camera was thrown away')
+await page.screenshot({ path: `${OUT}/12-return-from-presenter.png` })
+console.log('12-return-from-presenter.png taken')
 
 await browser.close()
 vite.kill()
