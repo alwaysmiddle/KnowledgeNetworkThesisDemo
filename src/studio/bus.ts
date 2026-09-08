@@ -14,10 +14,10 @@
 
 import { useCallback, useMemo, useState } from 'react'
 
-import { byId, ROOT_ID } from '../corpus/graph'
+import { byId } from '../corpus/graph'
 import { walkById } from '../model/walkstore'
 import { curriculum } from '../model/lens'
-import { HISTORY_EMPTY, isInSubtree, mark, parentOf, step, visit } from '../model/nav'
+import { HISTORY_EMPTY, mark, step, visit } from '../model/nav'
 import { routeLeafIds, routeOfIds } from '../model/route'
 import type { RouteStep } from '../model/route'
 import type { ActiveWalkState, History, TrailEntry, TrailVia } from '../model/nav'
@@ -88,8 +88,6 @@ export interface BusState {
    * no saved walk is active, so the draft gets the same done/current/ahead
    * treatment a saved walk does. */
   draftCursor: number
-  /** the tree instrument's root — auto-re-rooted, REACTIVELY, by setFocus */
-  treeRoot: string
 }
 
 // ── What instruments may WRITE ──────────────────────────────────────────────
@@ -125,7 +123,6 @@ export interface BusActions {
   /** publish a route with its groups intact — the desk's resolved road */
   setRouteSteps(steps: RouteStep[]): void
   clearRoute(): void
-  setTreeRoot(id: string): void
   /** a trail entry with NO focus change — Unfold·Graph places a node on its own
    * canvas without dragging the rest of the Studio there */
   visit(id: string, via: TrailVia): void
@@ -160,7 +157,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
   const [hist, setHist] = useState(HISTORY_EMPTY)
   const [activeWalk, setActiveWalk] = useState<ActiveWalkState | null>(null)
   const [draftCursor, setDraftCursorState] = useState(0)
-  const [treeRoot, setTreeRoot] = useState(ROOT_ID)
 
   const visited = useMemo(() => new Set(hist.log.filter((t) => byId.get(t.id)?.topic).map((t) => t.id)), [hist.log])
 
@@ -174,9 +170,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     setFocusState(id)
     setPeekState(null) // a selection supersedes any lingering look
     setHist((h) => visit(h, id, via, jump))
-    // AUTO-RE-ROOT — the cockpit invariant: a focus outside the tree's current
-    // root re-roots it to the node's parent. Reactive only, never on its own.
-    setTreeRoot((root) => (isInSubtree(id, root) ? root : parentOf(id)))
   }
 
   /** land on a place the history already decided: everything setFocus does
@@ -184,7 +177,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
    * mark) has done that */
   const land = (id: string) => {
     setFocusState(id)
-    setTreeRoot((root) => (isInSubtree(id, root) ? root : parentOf(id)))
   }
 
   const back = () => {
@@ -253,7 +245,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     visited,
     activeWalk,
     draftCursor,
-    treeRoot,
     canBack: hist.cursor > 0 || (focus === null && hist.cursor >= 0),
     canForward: hist.cursor < hist.stack.length - 1,
 
@@ -268,7 +259,6 @@ export function useStudioBus(reveal: (inst: InstrumentId) => void): Bus {
     setRoute,
     setRouteSteps,
     setDraftCursor,
-    setTreeRoot,
     reveal,
     visit: markTrail,
     activateWalk,

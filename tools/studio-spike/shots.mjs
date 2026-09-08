@@ -1,3 +1,12 @@
+// SCENARIOS 2, 3, 4, 9 AND 11 DRIVE A PANE THAT NO LONGER EXISTS. The standalone Tree
+// instrument was retired on 2026-09-07 (#265) once `ContainTree` brought a tree inside
+// the connections pane, so every step below that opens `studio-inst-tree`, reads
+// `studio-pane-tree`, or walks its rows now fails. Nothing gates on this file - it is an
+// INSTRUMENT, not a test, and the browser-test runner collects `browsertest-` and
+// `drive-` only - so it is left standing rather than half-rewritten inside a pull
+// request about deleting a panel. Re-pointing it at the contains column (which stamps
+// the same `data-node-id` hooks) or retiring it is filed as its own ticket.
+//
 // Verification for the Studio (src/studio/StudioView.tsx, LensPane.tsx,
 // lens.ts): every view is a pickable INSTRUMENT sharing one sync bus (focus /
 // route / visited), and a PRESET is a curated instrument list + layout. Same

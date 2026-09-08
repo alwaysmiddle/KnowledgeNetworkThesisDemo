@@ -4,9 +4,17 @@
 // the handoff's file list verbatim (it says "optionally layout.ts"); adding
 // this one small file for the same reason logged as a deviation in RESULTS.
 
-import { byId, childrenOf, EDGE_LABEL, pathTo, ROOT_ID } from '../corpus/graph'
+import { byId, childrenOf, EDGE_LABEL, ROOT_ID } from '../corpus/graph'
 import type { EdgeType } from '../corpus/graph'
 
+/** How a visit was made — the provenance stamped on a trail entry.
+ *
+ *  `'tree'` OUTLIVED THE TREE PANEL IT WAS NAMED FOR (#265, 2026-09-07). It never meant
+ *  "the Tree instrument"; it means the selection came from an OUTLINE-SHAPED LIST, which
+ *  is still exactly what its two remaining writers are — the connections pane's contains
+ *  column and the neighborhood panel. Kept rather than renamed for that reason, and
+ *  because a stored trail written before the rename would carry a `via` the type no
+ *  longer admits (#170: persisted payloads have no version field). */
 export type TrailVia = 'map' | 'tree' | 'link' | 'trail' | 'walk' | 'graph' | 'nav' | 'desk'
 
 /** Fixed edge-type order, derived once from graph.ts's own declaration order
@@ -76,11 +84,6 @@ export function step(h: History, dir: -1 | 1): { hist: History; id: string } | n
   if (c < 0 || c >= h.stack.length) return null
   const id = h.stack[c]
   return { hist: { ...mark(h, id, 'nav'), cursor: c }, id }
-}
-
-/** Is `id` inside (or equal to) the subtree rooted at `rootId`? */
-export function isInSubtree(id: string, rootId: string): boolean {
-  return pathTo(id).includes(rootId)
 }
 
 /** Containment parent, falling back to ROOT_ID itself — root stays root. */

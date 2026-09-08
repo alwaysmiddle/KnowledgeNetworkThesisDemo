@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Bullet, CARET_INK, Caret, CaretStack, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
+import { Bullet, CARET_INK, Caret, CaretStack, TreeRow, CHIP_METRICS, Check, ChipGeometry, EdgeDash, EdgeEntry, EdgeLegend, Grip, ExpandMark, FindMark, FlagButton, FlagMark, IconButton, InlineText, LeafMark, PRESENTER_STRIP_METRICS, PRESENTER_STRIP_PARTS, PROJECTED_MAP_METRICS, STOP_FINDER_METRICS, TextInput, filterStops, presenterStripHeight, NESTING, NodeRail, OptionalSuffix, PlayToggle, RailStop, RestoreMark, StopTitle, WalkParts, WalkPinHover, chipSpec, segmentWalked, usedStroke, walkEase, walkHoverStyle } from '@/ds'
 
 // These components are exported from @/ds but have no direct importer outside
 // src/ds/ — ported, but not yet adopted by the app. The list is explicit here
@@ -186,6 +186,16 @@ describe('ported but not adopted DS components', () => {
 
   it('WalkPinHover — for HTML pins; the map binds the recipe on its SVG pins itself', () => {
     expect(typeof WalkPinHover).toBe('function')
+  })
+
+  // TreeRow JOINED THIS LIST ON 2026-09-07 rather than being deleted (#265). Its only
+  // renderer was `instruments/TreePanel`, retired because `ContainTree` brings a tree
+  // inside the connections pane and two trees of one corpus is one too many. The DS
+  // keeps the component — their own contains tree is expected to draw rows — and its
+  // PARTS are still adopted everywhere: `Caret`, `CaretStack`, `NESTING` and `CARET_INK`
+  // have readers in eight files. It is the assembled ROW that has no screen.
+  it('TreeRow — its host was retired with #265; the row keeps no app renderer, its parts do', () => {
+    expect(typeof TreeRow).toBe('function')
   })
 
   it('segmentWalked / walkEase — read by walkArrow and walkAdvance from inside src/ds', () => {

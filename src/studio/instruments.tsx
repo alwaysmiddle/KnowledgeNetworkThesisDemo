@@ -28,7 +28,6 @@ import MapCountReadout from '../instruments/MapCountReadout'
 import MapView, { MAP_WATER } from '../instruments/MapView'
 import NeighborhoodPanel from '../instruments/NeighborhoodPanel'
 import TrailStrip from '../instruments/TrailStrip'
-import TreePanel from '../instruments/TreePanel'
 import UnfoldGraphView from '../instruments/UnfoldGraphView'
 import UnfoldView from '../instruments/UnfoldView'
 import WalkPaletteView from '../instruments/walkdesk/WalkPaletteView'
@@ -216,14 +215,6 @@ const VIEWS = [
     slot: 'column',
     body: 'none',
     render: () => <ClustersView />,
-  },
-  {
-    id: 'tree',
-    label: 'Tree',
-    family: 'reading',
-    slot: 'column',
-    flex: { fixed: 240 },
-    render: (bus) => <TreePanel bus={bus} />,
   },
   {
     id: 'connections',
