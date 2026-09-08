@@ -3,7 +3,7 @@
 // searches, and putting a stop on the road is always an EXPLICIT gesture — a
 // plain click never inserts; the row's + appends and clears; recents record the
 // clean resolved TITLE, not the typed keystrokes. Same server-owns-its-lifecycle
-// pattern as shot-visuals.mjs beside it (backgrounded dev servers die here).
+// pattern as browsertest-mapconnections.mjs beside it (backgrounded dev servers die here).
 //
 // Also covers the map↔road sync it feeds (#23): typing lights the hit set on the
 // territory, deep hits rolling up to a visible ancestor with a count (#25); and

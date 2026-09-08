@@ -8,7 +8,7 @@
 // running app: edit → reload → still there → save → reload → the Trail offers it.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine, so the
-// script owns the server lifecycle. Same pattern as shot-visuals.mjs beside it.
+// script owns the server lifecycle. Same pattern as browsertest-mapconnections.mjs beside it.
 //
 // Run from anywhere:  node tools/studio-spike/drive-persistence.mjs
 // Exits nonzero on any failed check or any page error.

@@ -18,7 +18,7 @@ const SELECTABLE = [...domainIds, ...provinceIds, ...topicIds]
 
 describe('ONE ROAD PER PAIR — the map draws a road, not a bundle of curves', () => {
   test('no unordered pair is ever drawn twice, for any selection in the corpus', () => {
-    // This is the assertion shot-visuals.mjs makes by splitting data-seledge
+    // This is the assertion browsertest-mapconnections.mjs makes by splitting data-seledge
     // attributes out of the DOM, on exactly two selections. Here it runs on all
     // 75 selectable regions — including every reciprocal pair, which is the case
     // that regresses (A→B and B→A drawn as two bowed arrows past each other).
