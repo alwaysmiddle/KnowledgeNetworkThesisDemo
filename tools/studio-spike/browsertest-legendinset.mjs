@@ -34,7 +34,6 @@ const TOLERANCE = 1
  *  legend actually prints (lower case), so the report reads like the screen. */
 const PADDED = {
   document: 'document',
-  tree: 'tree',
   trail: 'trail',
   'walk·columns': 'walkcolumns',
   unfold: 'unfold',
