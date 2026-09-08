@@ -1,6 +1,6 @@
 // Follow-up verification for the plex (the radial relationship diagram that
 // replaced the flat Jira-style Roads-from-here list). Same pattern as
-// shots.mjs: createRequire -> playwright-core, msedge, headless, viewport
+// browsertest-studiodesk.mjs: createRequire -> playwright-core, msedge, headless, viewport
 // 1750x950, collect pageerror/console errors, exit nonzero on any.
 import { createRequire } from 'node:module'
 const require = createRequire('D:/ShiZhong/MyCode/KnowledgeNetworkThesisDemo/package.json')
@@ -35,7 +35,7 @@ await page.screenshot({ path: `${OUT}/plex-container.png` })
 console.log('plex-container.png taken')
 
 // ── leaf case: zoom into Computer Systems, select Binary & Data
-// Representation — the same computed hub shots.mjs uses to demonstrate JUMP.
+// Representation — the same computed hub browsertest-studiodesk.mjs uses to demonstrate JUMP.
 const sysLabel = page.locator('[aria-label="map-panel"] svg text', { hasText: 'Computer Systems' }).first()
 const sysBox = await sysLabel.boundingBox()
 if (!sysBox) throw new Error('could not find the Computer Systems label on the map')

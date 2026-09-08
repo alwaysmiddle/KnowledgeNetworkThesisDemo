@@ -3,7 +3,7 @@
 // pane's header (src/instruments/walkdesk/WalkActionBar.tsx, mounted via the
 // Instrument registry's `actionBar` slot, not inside WalkEditorView's own render).
 //
-// Same idiom as shots.mjs beside this file — own the vite lifecycle (backgrounded
+// Same idiom as browsertest-studiodesk.mjs beside this file — own the vite lifecycle (backgrounded
 // dev servers die on this machine), msedge headless, collect pageerror/console
 // errors, exit nonzero on any. What this driver provokes:
 //   1. MOUNT — switch to the Plan preset; the walk editor pane appears with its

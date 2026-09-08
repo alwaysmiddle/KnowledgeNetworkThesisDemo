@@ -1,4 +1,4 @@
-// #76 FloatingPanel interaction proof. Same idiom as tools/studio-spike/shots.mjs
+// #76 FloatingPanel interaction proof. Same idiom as tools/studio-spike/browsertest-studiodesk.mjs
 // (createRequire -> playwright-core, msedge, headless, script OWNS the vite
 // lifecycle because backgrounded dev servers die on this machine). What the unit
 // tests in src/ui/floatingPanel.test.ts CANNOT reach — real pointer input flowing

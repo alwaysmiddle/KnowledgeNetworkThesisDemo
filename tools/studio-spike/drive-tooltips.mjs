@@ -18,7 +18,7 @@
 // carrying a title rather than a list someone has to remember to update.
 //
 // Spawns vite ITSELF — backgrounded dev servers die on this machine, so the
-// script owns the server lifecycle. Same pattern as shot-visuals.mjs beside it.
+// script owns the server lifecycle. Same pattern as browsertest-mapconnections.mjs beside it.
 //
 // Run from anywhere:  node tools/studio-spike/drive-tooltips.mjs
 // Exits nonzero on any failed check or any page error.

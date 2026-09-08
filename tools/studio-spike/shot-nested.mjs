@@ -4,7 +4,7 @@
 // optional leaf (web-sockets-apis), and plain leaves — so no authoring is needed
 // to reach them; the Plan preset mount is enough.
 //
-// Same server-owning idiom as shots.mjs beside this file. Most of #72 is visual
+// Same server-owning idiom as browsertest-studiodesk.mjs beside this file. Most of #72 is visual
 // (arrowhead size, button/counter proportion, jiggle, wrap, selection outline) —
 // the screenshots carry those. Two are asserted here:
 //   #5 arrowhead — the road marker shrank from 7 to 5.
