@@ -65,8 +65,11 @@ console.log('first visible route circle step =', circleStep, '(expect 1)')
 if (circleStep !== '1') fail(`expected first circle to be step 1, got ${circleStep}`)
 
 // ── 4. dive to topic level and re-check the path ──────────────────────────
-await page.locator('[aria-label="nested-level-2"]').click()
-await page.waitForTimeout(400)
+// the `nested-level-N` button row went with the map's bottom info bar (`1e530af`,
+// OB-094/096); the level is chosen from a floating DS LevelPicker now.
+await page.locator('[aria-label="levels"]').click()
+await page.locator('[aria-label="levels"] ~ div button', { hasText: /^L2$/ }).click()
+await page.waitForTimeout(700)
 if (!(await routePath.isVisible())) fail('data-routepath not visible at L2')
 const stopCount2 = await page.locator('[data-routestop]').count()
 console.log('route circle count at L2 =', stopCount2, '(expect ≥ step count at L0)')

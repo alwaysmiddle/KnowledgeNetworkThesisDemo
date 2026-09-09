@@ -187,7 +187,13 @@ try {
   const pins0 = await liveCard().locator('[data-routestop]').count()
   const arrows0 = await liveCard().locator('[data-routearrow]').count()
   ok('the map on the wall carries the walk\'s pins, unbanded (every pin drawn)', pins0 >= 3, `${pins0} pins, ${arrows0} arrows`)
-  ok('and no dock, no chrome on the wall', (await liveCard().locator('[data-walk-dock]').count()) === 0 && (await liveCard().locator('[aria-label="map-level"], [data-levelpicker]').count()) === 0)
+  // THIS USED TO LOOK FOR `[aria-label="map-level"], [data-levelpicker]`. Neither
+  // name has ever existed in the app: the level control is a DS LevelPicker whose
+  // button is labelled "levels", and the zoom control beside it "zoom in"/"zoom out".
+  // So that half of the check passed no matter what was on the wall — a green tick
+  // for a question never asked. Found by src/studio/browsertestguard.test.ts.
+  const wallChrome = await liveCard().locator('[aria-label="levels"], [aria-label="zoom in"], [aria-label="zoom out"]').count()
+  ok('and no dock, no floating chrome on the wall', (await liveCard().locator('[data-walk-dock]').count()) === 0 && wallChrome === 0, `${wallChrome} floating controls`)
   if (projector) {
     await projector.waitForTimeout(600)
     ok('the projector shows the map too', (await projector.locator('[data-projected-map]').count()) === 1)

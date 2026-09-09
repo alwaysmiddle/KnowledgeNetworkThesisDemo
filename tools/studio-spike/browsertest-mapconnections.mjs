@@ -102,14 +102,18 @@ const goLevel = async (n) => {
  *  click has to bring it back first. The toolbar's handle is stable across the
  *  flip — that is `PALETTE_HOOK_SELECTOR`'s whole job (OB-104). */
 const withPalette = async (fn) => {
-  const open = async () => (await page.locator('[aria-label^="studio-inst-"]').count()) > 0
-  const wasOpen = await open()
+  const isOpen = async () => (await page.locator('[aria-label^="studio-inst-"]').count()) > 0
+  const wasOpen = await isOpen()
   if (!wasOpen) {
     await page.locator('[data-toolbar-hook="palette-toggle"]').click()
     await page.waitForTimeout(600)
   }
   await fn()
-  if (!wasOpen) {
+  // RESTORE BY STATE, NOT BY UNDOING THE CLICK. The wrapped action may have closed
+  // the palette itself — picking a preset does, deliberately (OB-106) — and a blind
+  // second toggle would then RE-OPEN it, leaving the palette's flight animation
+  // sitting over whatever the next step tries to click.
+  if ((await isOpen()) !== wasOpen) {
     await page.locator('[data-toolbar-hook="palette-toggle"]').click()
     await page.waitForTimeout(600)
   }

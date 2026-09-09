@@ -1,5 +1,13 @@
 // PRESENTING AS A SESSION — the mode flag, the host's fullscreen bit, and the
-// keys that drive a deck. No rendering; PresentationFrame.tsx does that.
+// keys that drive a deck. No rendering.
+//
+// NOTHING IMPORTS THIS TODAY, deliberately, and src/unreachedmodule.test.ts records
+// that as a decision rather than letting it pass unnoticed. Its only reader was
+// PresentationFrame.tsx, the #195 deck, which #267 replaced with PresenterScreen —
+// and PresenterScreen does its own fullscreen without this. What is kept here is the
+// REASONING below, which the Electron slices (#201, #204) will want and which reads
+// the platform seam the way #211 settled. Delete it if those slices end up not
+// wanting it; do not quietly re-implement it beside this file.
 //
 // TWO FLAGS, DELIBERATELY INDEPENDENT.
 //
