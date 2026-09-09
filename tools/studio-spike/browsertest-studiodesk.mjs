@@ -233,6 +233,34 @@ for (const t of LENS_TYPES) {
   console.log(`lens ${t}: header ok, data-lens-node count = ${nodeCount}`)
   if (t === 'depends_on' && nodeCount === 0) fail(`deps pane has zero data-lens-node chips`)
 }
+
+// ── 2b. the frontier label's INK RESOLVED (DS OB-154) ────────────────────────
+// "⤳ 2" on a chip means two more of this relation that the cone does not show.
+// It used to be drawn in Tailwind slate-400 — 2.45:1 on the surface behind it,
+// well under the 4.5:1 body text needs — and now takes `--text-2`.
+//
+// THIS ASSERTION EXISTS BECAUSE THE FIX HAS A SILENT FAILURE MODE. A token in an
+// SVG `fill=` PRESENTATION ATTRIBUTE computes to `none` and the glyph renders
+// BLACK, with no error anywhere — measured in a real browser for the edge palette
+// and the reason EDGE_COLOR holds copies rather than var() references. So the
+// colour is set as a CSS property instead, and the only way to know that held is
+// to read it back off a live page. Reading the literal out of the source would
+// pass just as happily with the glyph rendering black.
+const frontier = await page.evaluate(() =>
+  [...document.querySelectorAll('[data-frontier]')].map((el) => getComputedStyle(el).fill),
+)
+console.log('frontier labels =', frontier.length, '· fills =', [...new Set(frontier)].join(', '))
+if (frontier.length === 0) {
+  // Not a skip. If the corpus ever stops producing a cone with onward links at
+  // TLS, this check silently stops checking, which is the #294 failure exactly.
+  fail('no [data-frontier] label rendered on the lens workspace — the OB-154 ink check asserted nothing')
+}
+const TEXT_2 = 'rgb(78, 72, 62)' // --text-2 -> --bark-700 -> #4e483e
+for (const f of new Set(frontier)) {
+  if (f === 'rgb(0, 0, 0)') fail(`frontier label is BLACK — a var() in a presentation attribute failed silently`)
+  else if (f !== TEXT_2) fail(`frontier label ink is ${f}, expected --text-2 ${TEXT_2}`)
+}
+
 await page.screenshot({ path: `${OUT}/02-coding-focused.png` })
 console.log('02-coding-focused.png taken')
 

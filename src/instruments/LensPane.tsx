@@ -309,8 +309,27 @@ export default function LensPane({ bus, type }: LensPaneProps) {
 
         {scene.frontier.map((f) => {
           const p = toSvg(f.at)
+          // INK, NOT FURNITURE, AND SET THROUGH CSS (DS OB-154). This was Tailwind's
+          // slate-400, the one call site still holding the raw value the relation
+          // table dropped at OB-123. MEASURED on the surface actually behind it (the
+          // scroll body below, `bg-slate-50` = #f8fafc): 2.45:1 before, 8.65:1 now, against
+          // the 4.5:1 body text needs. `--text-2` is the
+          // token because a frontier label NAMES something on the canvas: the DS's rule
+          // is that --text-3 is for furniture that repeats and anything carrying meaning
+          // takes --text-2.
+          //
+          // The colour goes in `style`, not in a `fill=` attribute. The DS's stated reason
+          // is that `var()` in an SVG PRESENTATION ATTRIBUTE is dropped and the glyph
+          // renders black, silently — which is why EDGE_COLOR holds copies rather than
+          // var() references. THAT DID NOT REPRODUCE HERE, and it was tried rather than
+          // assumed: `fill="var(--text-2)"` on this element computes to rgb(78, 72, 62)
+          // in Edge/Chromium, the same as the CSS property. The earlier finding was
+          // `oklch()` in a `stroke` attribute on a map shape, which is not this case.
+          // The CSS property is kept anyway — it is the form the item asked for and the
+          // one that is unambiguously supported — and the divergence is reported back so
+          // the rule in their contract says what is actually true.
           return (
-            <text key={`f-${f.side}-${f.id}`} x={p.x} y={p.y} textAnchor="middle" fontSize={10} fill="#94a3b8" style={{ pointerEvents: 'none' }}>
+            <text key={`f-${f.side}-${f.id}`} x={p.x} y={p.y} textAnchor="middle" fontSize={10} data-frontier={f.n} style={{ fill: 'var(--text-2)', pointerEvents: 'none' }}>
               ⤳ {f.n}
             </text>
           )
