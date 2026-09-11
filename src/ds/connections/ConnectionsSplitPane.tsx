@@ -197,16 +197,29 @@ export interface ConnectionsSplitPaneProps {
   /** opt the divider width, the collapse and the tree's open set into localStorage, under keys
    *  prefixed with this. Omit and every one of them resets on reload */
   persistKey?: string | null
-  /** ★ LOCAL — THE CONTAINS TREE'S OPEN SET, CONTROLLED. `ContainTree` publishes an
-   *  `open`/`onOpenChange` pair for exactly this ("a host with its own layout store passes
-   *  `open`/`onOpenChange` instead"), and the DS's own split pane does not forward it — so a host
-   *  whose tree is bigger than one domain has no way to keep the path down to the selection open,
-   *  and the column can show a tree with nothing highlighted anywhere in it. Named for the thing
-   *  it opens rather than `open`, which on a pane with two columns and a collapse says nothing.
-   *  Given, it wins over `persistKey`'s stored set. Reported on #74. */
+  /** THE CONTAINS TREE'S OPEN SET, CONTROLLED — forwarded to `ContainTree`'s `open`, for a host
+   *  whose own store already knows where the selection is. Named for WHAT it opens rather than
+   *  `open`, which on a pane with two columns and a collapse of its own says nothing.
+   *
+   *  WHY A HOST NEEDS IT: neither `defaultOpen` nor `persistKey` can force the ancestors of a
+   *  MOVING selection open, so selecting a topic from another pane leaves the contains column
+   *  drawing closed domains with nothing highlighted anywhere in it — and a "you are here"
+   *  column that cannot show where you are is the one state it may not be in. The host unions
+   *  the user's own toggles with the path down to the selection each render.
+   *
+   *  PASSING THIS TURNS PERSISTENCE OFF for the tree's open set, so the host's store is the only
+   *  claimant and remembering across reloads becomes the host's business. The divider width and
+   *  the collapse are unaffected.
+   *
+   *  Was ★ LOCAL here (reported on #74, asked twice in receipts). ADOPTED UPSTREAM at DS OB-167
+   *  in this spelling, so it is no longer a divergence — the local copy is deleted rather than
+   *  reconciled, the same way `walked`/`walkedTone` went at OB-158. */
   treeOpen?: OpenMap
-  /** the controlled setter for `treeOpen`. Receives the WHOLE next map */
-  onTreeOpenChange?: (next: OpenMap) => void
+  /** the controlled setter for `treeOpen`. Receives an UPDATER, never a resolved map — React's
+   *  own setter is a legal value and is the intended one. Not a style: a resolved map has to be
+   *  computed against the render it came from, which drops every toggle but the last when
+   *  several land in one batch. Our finding, taken upstream as a contract change */
+  onTreeOpenChange?: (updater: (prev: OpenMap) => OpenMap) => void
   /** what the cards say when there are none. The host knows why better than the list does */
   emptyLabel?: string
   /** HOLD THE TWO-COLUMN SPLIT AT EVERY WIDTH — for a host whose pane is a desktop flex column
@@ -439,7 +452,9 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
             <ContainTree
               key={tree ? tree.id : 'none'} root={tree || { id: selected.id, title: selected.title }} domain={domain}
               compact scale={scale} selectedId={selected.id} hoveredId={hoveredTreeId} onSelect={onSelect}
-              query={query} open={treeOpen} onOpenChange={onTreeOpenChange}
+              /* `onOpenUpdate`, NOT the deprecated `onOpenChange`: the updater is handed
+                 out unresolved so two caret toggles inside one React batch both survive */
+              query={query} open={treeOpen} onOpenUpdate={onTreeOpenChange}
               /* a CONTROLLED tree keeps no state of its own, so storing one would write a set
                  nothing ever reads back */
               persistKey={treeOpen ? null : pk('_open')}
