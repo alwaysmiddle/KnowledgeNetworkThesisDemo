@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 
+import { wrapTip } from '../chrome/IconButton'
 import { FAMILY_SLOTS, nestedFamilyPaint, topicPaint } from '../graph/DomainDot'
 import { Caret } from '../nav/TreeRow'
 
@@ -9,6 +10,14 @@ import { Caret } from '../nav/TreeRow'
 export interface ContainNode {
   id: string
   title: string
+  /** THIS NODE'S OWN TOPIC — a domain code or ring hue name. Its pill's border is this topic's
+   *  colour, the same value the map's territory draws. Omit it and the node inherits its nearest
+   *  ancestor's (the tree-level `domain` at the root), which is the right reading for a corpus
+   *  where only containers carry a topic. A host that HAS a per-node topic and does not pass it
+   *  gets a single-coloured column — the fault reported on the running app, DS OB-174. */
+  domain?: string
+  /** the same field under the newer name; `domain` wins if both are given */
+  topic?: string
   children?: ContainNode[]
 }
 
@@ -80,6 +89,64 @@ function collectIds(node: ContainNode, set: Set<string>): Set<string> {
   return set
 }
 
+/** one pill's resolved border: which topic it belongs to, that topic's hue, which slot of the
+ *  family ladder it took, and the stroke to draw. `ContainPill` takes an entry whole as `paint`. */
+export interface ContainPaintEntry {
+  /** the topic this node resolved to — its own, or the nearest ancestor's */
+  topic?: string
+  /** the ring hue that topic maps to, or null when the code does not resolve */
+  hue: string | null
+  /** which step of the family ladder this pill took. 0 is the topic's TRUE colour */
+  slot: number
+  /** the border colour to draw */
+  stroke: string
+}
+
+/** EVERY PILL'S BORDER COLOUR IN ONE PASS, keyed by node id — a node's OWN topic, never the
+ *  tree's. Hand it the root, the tree's fallback `domain`, and `isOpen`; hand each entry to a
+ *  `ContainPill` as `paint`.
+ *
+ *  WHY THIS REPLACED `index % FAMILY_SLOTS` INSIDE THE PILL (DS OB-174). The old resolver graded
+ *  ONE tree-level `domain` by sibling position, so every pill in the column drew the same family
+ *  and the whole contains tree read as one colour — owner-reported on the running app, on a tree
+ *  whose nodes each belong to a different topic on the map. The data was already arriving:
+ *  `node.domain` was read one line away for the hover preview and dropped for the border.
+ *
+ *  A NODE WHOSE HUE IS NOT ITS NEIGHBOUR'S DRAWS ITS TRUE TOPIC COLOUR — slot 0, `topicPaint`,
+ *  the same value the map's territory uses. The family ladder is spent only where it is needed: a
+ *  run of pills sharing one hue steps down one slot per pill, so two pills that TOUCH are never
+ *  the same shade.
+ *
+ *  THE WALK IS IN VISIBLE ORDER, and a closed node's children are skipped — a hidden pill touches
+ *  nothing. That is what makes deriving the slot safe here and NOT on a map: a tree stacks its
+ *  pills in one column, so the only pill that touches this one is the one drawn immediately
+ *  before it. On a map, who touches whom is geometry, and the host must call `familySlots()`.
+ *
+ *  An unresolvable topic keeps the anchor fallback at slot 0 rather than being graded into a
+ *  family it has no hue for. */
+export function ContainPaint(
+  root: ContainNode | null | undefined,
+  { domain, isOpen }: { domain?: string; isOpen?: (node: ContainNode) => boolean } = {},
+): Record<string, ContainPaintEntry> {
+  const map: Record<string, ContainPaintEntry> = {}
+  if (!root) return map
+  let prevHue: string | null = null
+  let prevSlot = 0
+  const visit = (node: ContainNode, inherited?: string) => {
+    const topic = node.domain || node.topic || inherited
+    const flat = topicPaint(topic)
+    const hue = flat.hue
+    const slot = hue && hue === prevHue ? (prevSlot + 1) % FAMILY_SLOTS : 0
+    map[node.id] = { topic, hue, slot, stroke: slot ? nestedFamilyPaint(topic, { slot }).stroke : flat.stroke }
+    prevHue = hue
+    prevSlot = slot
+    const kids = node.children || []
+    if (kids.length && (!isOpen || isOpen(node))) kids.forEach((c) => visit(c, topic))
+  }
+  visit(root, domain)
+  return map
+}
+
 /** THE PATH FROM A TREE'S ROOT DOWN TO `id`, inclusive at both ends — the breadcrumb's input and
  *  the via-children walk's anchor. Null when `id` is not in the tree, so a selection that left
  *  the containment tree renders as a lone pill and never as the stale previous tree. */
@@ -138,8 +205,14 @@ export function treeKeyNav(e: ReactKeyboardEvent, containerEl: HTMLElement | nul
 export interface ContainPillProps {
   /** the node's name */
   title: string
-  /** the topic hue this pill's family is drawn from — a ring name or an example-palette code */
+  /** the topic hue this pill's family is drawn from — a ring name or an example-palette code.
+   *  Only read when no `paint` is given */
   domain?: string
+  /** the entry `ContainPaint` returned for this node — pass it whole, never a colour. Inside a
+   *  tree this is always given; without it the pill falls back to resolving a family from
+   *  `domain` + `index`, which is a STANDALONE SPECIMEN shape only, because a lone pill has no
+   *  visible neighbour to grade itself against */
+  paint?: ContainPaintEntry
   /** how deep this node sits. 0 takes the topic's own stroke; anything below takes a family slot */
   depth?: number
   /** this node's position among its SIBLINGS — the slot input, never a colour */
@@ -167,8 +240,8 @@ export interface ContainPillProps {
   scale?: number
 }
 
-export function ContainPill({ title, domain, depth = 0, index = 0, focus, note, caret, open, selected, hovered, onCaretClick, compact, scale = 1 }: ContainPillProps) {
-  const stroke = depth ? nestedFamilyPaint(domain, { slot: index % FAMILY_SLOTS }).stroke : topicPaint(domain).stroke
+export function ContainPill({ title, domain, paint, depth = 0, index = 0, focus, note, caret, open, selected, hovered, onCaretClick, compact, scale = 1 }: ContainPillProps) {
+  const stroke = paint ? paint.stroke : (depth ? nestedFamilyPaint(domain, { slot: index % FAMILY_SLOTS }).stroke : topicPaint(domain).stroke)
   const s = compact ? scale : 1
   const B = CONTAIN_METRICS.caretBox
   return (
@@ -220,9 +293,11 @@ function useOpenState(persistKey: string | null | undefined, fallback: OpenMap):
   return [open, setOpen]
 }
 
-function ContainRow({ node, domain, open, setOpen, isRoot, compact, scale = 1, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, forceOpenIds, depth = 0, index = 0 }: {
+function ContainRow({ node, domain, paint, counts, open, setOpen, isRoot, compact, scale = 1, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, forceOpenIds, depth = 0, index = 0 }: {
   node: ContainNode
   domain?: string
+  paint?: Record<string, ContainPaintEntry>
+  counts?: 'hover' | 'pill'
   open: OpenMap
   setOpen: (fn: OpenMap | ((o: OpenMap) => OpenMap)) => void
   isRoot?: boolean
@@ -240,7 +315,16 @@ function ContainRow({ node, domain, open, setOpen, isRoot, compact, scale = 1, s
   const kids = node.children
   const hasKids = !!(kids && kids.length)
   const isOpen = forceOpenIds ? forceOpenIds.has(node.id) : !!open[node.id]
-  const note = hasKids ? kids!.length + ' node' + (kids!.length === 1 ? '' : 's') : undefined
+  /* THE COUNT IS A SECOND LINE ONLY WHEN THE HOST ASKS FOR ONE (DS OB-174, the owner's own
+     second ask). By default it is not on the pill at all: "2 nodes" doubled the height of EVERY
+     container row for a number that is furniture at rest. The caret already says a node has
+     children, and how many is a thing you go and ask for. It is answered on hover instead — the
+     host's preview card carries `containsSummary(node)`, the fuller reading with totals — and by
+     the pill's own native tooltip when the host draws no preview. NEVER BOTH: the tooltip is
+     suppressed the moment an `onNodeEnter` exists, because two answers to one question in the
+     same gesture is worse than either. */
+  const note = counts === 'pill' && hasKids ? kids!.length + ' node' + (kids!.length === 1 ? '' : 's') : undefined
+  const nativeTip = counts !== 'pill' && hasKids && !onNodeEnter ? containsSummary(node) : undefined
   const onClick = onSelect ? (e: ReactMouseEvent) => { e.stopPropagation(); onSelect({ id: node.id, title: node.title, domain }) } : undefined
   /* double-click expands the node AND every descendant; double-click again contracts the whole
      subtree — the tree's own shortcut, like a folder tree. The caret stays one level.
@@ -280,11 +364,11 @@ function ContainRow({ node, domain, open, setOpen, isRoot, compact, scale = 1, s
       <div
         onClick={onClick} onDoubleClick={onDbl}
         onMouseEnter={onNodeEnter ? (e) => onNodeEnter(e, node) : undefined} onMouseLeave={onNodeLeave}
-        data-node-id={node.id} data-open={isOpen ? '1' : '0'}
+        data-node-id={node.id} data-open={isOpen ? '1' : '0'} title={nativeTip ? wrapTip(nativeTip) : undefined}
         style={{ position: 'relative', padding: compact ? '4px 0' : '6px 0', display: 'flex', cursor: onSelect ? 'pointer' : 'default', userSelect: 'none' }}
       >
         <ContainPill
-          title={node.title} domain={domain} depth={depth} index={index} focus={isRoot} note={note}
+          title={node.title} domain={domain} paint={paint ? paint[node.id] : undefined} depth={depth} index={index} focus={isRoot} note={note}
           caret={hasKids} open={isOpen} compact={compact} scale={scale}
           selected={!!onSelect && selectedId === node.id} hovered={hoveredId === node.id}
           onCaretClick={onCaretClick}
@@ -298,7 +382,7 @@ function ContainRow({ node, domain, open, setOpen, isRoot, compact, scale = 1, s
         }}>
           {kids!.map((c, i) => (
             <ContainRow
-              key={c.id} node={c} domain={domain} open={open} setOpen={setOpen} compact={compact} scale={scale}
+              key={c.id} node={c} domain={domain} paint={paint} counts={counts} open={open} setOpen={setOpen} compact={compact} scale={scale}
               selectedId={selectedId} hoveredId={hoveredId} onSelect={onSelect}
               onNodeEnter={onNodeEnter} onNodeLeave={onNodeLeave} forceOpenIds={forceOpenIds}
               depth={depth + 1} index={i}
@@ -348,6 +432,11 @@ export interface ContainTreeProps {
   onNodeEnter?: (e: ReactMouseEvent, node: ContainNode) => void
   /** the pointer left a row */
   onNodeLeave?: () => void
+  /** where a container's node count is drawn. Omitted or `'hover'`: NOT on the pill — the host's
+   *  hover preview carries `containsSummary(node)`, or the pill's own native tooltip does when
+   *  there is no `onNodeEnter`. `'pill'` restores the second line inside every border, for a host
+   *  with no hover surface at all */
+  counts?: 'hover' | 'pill'
   /** filter to matching titles plus their ancestors, and force-open what survives. Empty shows all */
   query?: string
   /** the dense column form. The wide form is for a tree standing on its own */
@@ -356,7 +445,7 @@ export interface ContainTreeProps {
   scale?: number
 }
 
-export function ContainTree({ root, domain, defaultOpen, persistKey, open: openProp, onOpenUpdate, onOpenChange, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
+export function ContainTree({ root, domain, counts, defaultOpen, persistKey, open: openProp, onOpenUpdate, onOpenChange, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
   const [openState, setOpenState] = useOpenState(persistKey, defaultOpen || (root ? { [root.id]: 1 } : {}))
   const open = openProp || openState
   /* A CONTROLLED TREE HANDS THE UPDATER STRAIGHT OUT, UNRESOLVED (DS OB-167). Calling
@@ -376,11 +465,15 @@ export function ContainTree({ root, domain, defaultOpen, persistKey, open: openP
       ? (fn) => onOpenChange(typeof fn === 'function' ? fn(open) : fn)
       : setOpenState
   if (!root) return null
-  const common = { domain, open, setOpen, compact, scale, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave }
+  const common = { domain, counts, open, setOpen, compact, scale, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave }
+  /* THE PAINT PASS IS COMPUTED HERE, NOT PER ROW, because a pill's shade depends on the pill
+     drawn immediately ABOVE it — which no row can see on its own. It walks the same open set the
+     rows read, so the two never disagree about what is visible. */
   if (query) {
     const filtered = filterTree(root, query)
     if (!filtered) return <div style={{ fontSize: 12, color: 'var(--text-2)', padding: '6px 0' }}>No matches for {query}</div>
-    return <ContainRow node={filtered} isRoot {...common} forceOpenIds={collectIds(filtered, new Set())} />
+    /* a filtered tree is entirely force-open, so the paint pass counts every surviving node */
+    return <ContainRow node={filtered} isRoot {...common} paint={ContainPaint(filtered, { domain, isOpen: () => true })} forceOpenIds={collectIds(filtered, new Set())} />
   }
-  return <ContainRow node={root} isRoot {...common} />
+  return <ContainRow node={root} isRoot {...common} paint={ContainPaint(root, { domain, isOpen: (n) => !!open[n.id] })} />
 }

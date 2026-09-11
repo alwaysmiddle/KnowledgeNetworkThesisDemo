@@ -191,6 +191,68 @@ const storage = await page.evaluate(() => {
 ok('no open-set key is written while the tree is controlled', storage.open.length === 0, JSON.stringify(storage.all))
 ok('the pane still persists its OTHER layout state', storage.all.length > 0, JSON.stringify(storage.all))
 
+// ── 4d. EVERY PILL DRAWS ITS OWN NODE'S TOPIC COLOUR (DS OB-174) ──────────────────
+// The reported fault, in the owner's words: "the connections pane's contains tree node
+// pill border colours are all the same colour, they should not be all the same colour
+// they should be the colour of each node pill's topic colour from the map". The cause
+// was that the pill graded ONE tree-level domain by sibling position, so the whole
+// column drew one family — while `node.domain` was being read one line away for the
+// hover card and dropped for the border.
+//
+// The arithmetic is pinned in src/ds/connections/containpaint.test.ts, where it belongs:
+// a look cannot tell you a pill took slot 2 for the right reason. What is checked HERE is
+// the part only a real page can answer — that the column is not monochrome, and that no
+// two pills which actually TOUCH resolved to the same colour once the browser has
+// computed them.
+const pills = await page.evaluate(() => {
+  const pane = document.querySelector('[aria-label="connections-pane"]')
+  return [...pane.querySelectorAll('[data-node-id]')].map((row) => ({
+    id: row.getAttribute('data-node-id'),
+    colour: row.firstElementChild ? getComputedStyle(row.firstElementChild).borderTopColor : null,
+  }))
+})
+const distinct = new Set(pills.map((p) => p.colour))
+console.log(`contains pills = ${pills.length} · distinct border colours = ${distinct.size}`)
+ok('the contains column is not one colour', pills.length > 2 && distinct.size > 1,
+  `${pills.length} pills, ${distinct.size} colour(s): ${[...distinct].join(' | ')}`)
+
+const touching = pills.slice(1).filter((p, i) => p.colour === pills[i].colour)
+ok('no two pills that touch draw the same colour', touching.length === 0,
+  touching.map((p) => p.id).join(', ') || 'none')
+
+// ── 4e. THE NODE COUNT IS OFF THE PILL AND ONTO THE HOVER (DS OB-174) ──────────────────
+// The owner's second ask. "2 nodes" doubled the height of every container row for a
+// number that is furniture at rest — the caret already says a node HAS children. It is
+// answered on the node you are pointing at instead, and the fuller reading at that
+// (totals included), on the pane's own preview card.
+const pillText = await page.evaluate(() =>
+  [...document.querySelectorAll('[aria-label="connections-pane"] [data-node-id]')]
+    .map((r) => (r.innerText || '').trim())
+    .filter((t) => /\b\d+\s+nodes?\b/.test(t)))
+ok('no pill prints its own node count', pillText.length === 0, pillText.slice(0, 3).join(' / '))
+
+// hover a row that HAS children — the count has to be readable somewhere, or it is simply gone
+const containerId = await page.evaluate(() => {
+  const pane = document.querySelector('[aria-label="connections-pane"]')
+  const row = [...pane.querySelectorAll('[data-node-id]')].find((r) => r.querySelector('[data-caret]'))
+  return row ? row.getAttribute('data-node-id') : null
+})
+if (!containerId) {
+  fail('no container row on screen — the OB-174 count check asserted nothing')
+} else {
+  await page.locator(`[aria-label="connections-pane"] [data-node-id="${containerId}"]`).first().hover()
+  await page.waitForTimeout(400)
+  const contains = await page.evaluate(() => {
+    const el = document.querySelector('[data-preview-contains]')
+    return el ? el.textContent.trim() : null
+  })
+  console.log(`hover ${containerId} → preview contains line = ${JSON.stringify(contains)}`)
+  ok('hovering a container answers the count on the preview card', !!contains && /\d/.test(contains), String(contains))
+  await page.mouse.move(4, 4)
+  await page.waitForTimeout(300)
+}
+
+
 // ── 5. aim the pane at a node that has relationships ───────────────────────
 // One caret at a time here, deliberately — not to dodge the batching fault above, which
 // is fixed, but because this sweep walks DOWN one branch and each step has to see the
