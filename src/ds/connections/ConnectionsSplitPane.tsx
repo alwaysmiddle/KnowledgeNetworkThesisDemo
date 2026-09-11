@@ -42,9 +42,15 @@ export interface NodePreviewCardProps {
   title: string
   /** the corpus's own one-liner. Absent draws the skeleton */
   summary?: string
+  /** THE NODE'S COUNT LINE, drawn last — `containsSummary(node)`. This is where the contains
+   *  tree's "N nodes" lives since DS OB-174: on the pill it was furniture on every row at rest,
+   *  and here it is an answer about the one node you are pointing at. A host that draws its OWN
+   *  preview instead of this card has to carry the line, or the count has nowhere left to be
+   *  read */
+  contains?: string
 }
 
-export function NodePreviewCard({ domain, title, summary }: NodePreviewCardProps) {
+export function NodePreviewCard({ domain, title, summary, contains }: NodePreviewCardProps) {
   const hue = topicPaint(domain).mark
   return (
     <div style={{ position: 'relative' }}>
@@ -73,6 +79,9 @@ export function NodePreviewCard({ domain, title, summary }: NodePreviewCardProps
               <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-sunken)', width: '68%' }} />
             </div>
           )}
+        {contains ? (
+          <div data-preview-contains style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border-hair)', color: 'var(--text-3)', fontSize: 'var(--fs-caption)', lineHeight: 'var(--lh-snug)' }}>{contains}</div>
+        ) : null}
       </div>
     </div>
   )
@@ -220,6 +229,11 @@ export interface ConnectionsSplitPaneProps {
    *  computed against the render it came from, which drops every toggle but the last when
    *  several land in one batch. Our finding, taken upstream as a contract change */
   onTreeOpenChange?: (updater: (prev: OpenMap) => OpenMap) => void
+  /** forwarded to `ContainTree`'s `counts`. Default: a container's node count is NOT drawn on its
+   *  pill — the pane's own hover preview carries it, which is where it belongs (furniture on every
+   *  row at rest, an answer on the node you are pointing at). `'pill'` restores the second line
+   *  inside every border */
+  treeCounts?: 'hover' | 'pill'
   /** what the cards say when there are none. The host knows why better than the list does */
   emptyLabel?: string
   /** HOLD THE TWO-COLUMN SPLIT AT EVERY WIDTH — for a host whose pane is a desktop flex column
@@ -230,7 +244,7 @@ export interface ConnectionsSplitPaneProps {
   alwaysSplit?: boolean
 }
 
-export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relationsOf, summaryOf, renderGraph, persistKey, treeOpen, onTreeOpenChange, emptyLabel, alwaysSplit }: ConnectionsSplitPaneProps) {
+export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relationsOf, summaryOf, renderGraph, persistKey, treeOpen, onTreeOpenChange, treeCounts, emptyLabel, alwaysSplit }: ConnectionsSplitPaneProps) {
   const outerRef = useRef<HTMLDivElement | null>(null)
   const [paneWidth, setPaneWidth] = useState(380)
   useEffect(() => {
@@ -333,7 +347,7 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
      `renderGraph`'s api. Every node that can raise a preview is a descendant of the layer, so
      `closest('[data-tip-layer]')` off the event's own target resolves the same element and stays
      scoped to THIS pane, where a document-wide query would not. Reported on #74. */
-  const showPreviewAt = (e: PreviewPointerEvent, node: { id: string; title: string; domain?: string }, source: 'graph' | 'tree') => {
+  const showPreviewAt = (e: PreviewPointerEvent, node: { id: string; title: string; domain?: string; children?: ContainNode[] }, source: 'graph' | 'tree') => {
     const from = e.target as Element | null
     const layer = from && typeof from.closest === 'function' ? from.closest('[data-tip-layer]') : null
     if (!layer) return
@@ -345,7 +359,14 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
       x: Math.max(4, Math.min(x, r.width - PM.tipW - 4)),
       y: Math.max(4, Math.min(y, r.height - PM.tipH - 4)),
       source,
-      info: { domain: node.domain || domain, title: node.title, summary: summaryOf ? summaryOf(node.id) : undefined },
+      /* the count line rides on the TREE's hover only, and only for a container: a relation
+         graph node is not being asked "what is inside you", and a leaf has no answer to give */
+      info: {
+        domain: node.domain || domain,
+        title: node.title,
+        summary: summaryOf ? summaryOf(node.id) : undefined,
+        contains: source === 'tree' && node.children && node.children.length ? containsSummary(node as ContainNode) : undefined,
+      },
     })
   }
   const hidePreview = () => setPreview(null)
@@ -451,7 +472,7 @@ export function ConnectionsSplitPane({ tree, domain, selected, onSelect, relatio
             <FilterInput value={query} onChange={setQuery} />
             <ContainTree
               key={tree ? tree.id : 'none'} root={tree || { id: selected.id, title: selected.title }} domain={domain}
-              compact scale={scale} selectedId={selected.id} hoveredId={hoveredTreeId} onSelect={onSelect}
+              compact scale={scale} selectedId={selected.id} hoveredId={hoveredTreeId} onSelect={onSelect} counts={treeCounts}
               /* `onOpenUpdate`, NOT the deprecated `onOpenChange`: the updater is handed
                  out unresolved so two caret toggles inside one React batch both survive */
               query={query} open={treeOpen} onOpenUpdate={onTreeOpenChange}

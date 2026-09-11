@@ -80,7 +80,18 @@ export { CONNECTIONS_BODY_STYLE }
  *  root's id) and drop the open set with it. */
 function buildContainTree(id: string): ContainNode {
   const kids = childrenOf.get(id) ?? []
-  const node: ContainNode = { id, title: byId.get(id)!.title }
+  // EVERY NODE CARRIES ITS OWN TOPIC (DS OB-174 clause 6). Without this the column draws one
+  // colour for the whole tree — the fault reported on the running app — because the component
+  // can only fall back to the pane's single `domain`. It cannot invent a per-node topic, and
+  // our corpus has had one all along: `domainOf` is what the map's territories already read.
+  //
+  // THE CORPUS ROOT IS THE ONE PILL THIS DRAWS GREY, and that is the wanted answer rather
+  // than an accident to tidy up. `domainOf(ROOT_ID)` is the root's own id, which is not a
+  // topic, so it takes the anchor fallback. The contract's alternative — leave the root
+  // without a domain and let it inherit the PANE's — would paint "everything" in whichever
+  // topic you happen to be standing in, so the top of the column would change colour as you
+  // navigate. A root that means "all of it" has no one topic, and says so.
+  const node: ContainNode = { id, title: byId.get(id)!.title, domain: domainOf(id) }
   if (kids.length) node.children = kids.map((k) => buildContainTree(k.id))
   return node
 }
