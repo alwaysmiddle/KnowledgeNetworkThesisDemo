@@ -144,13 +144,57 @@ ok('the tree draws the node the pane is aimed at', selectedRowVisible.drawn, JSO
 const pillCount = await page.evaluate(() => document.querySelectorAll('[aria-label="connections-pane"] [data-pill-title]').length)
 ok('the tree draws pills', pillCount > 1, `${pillCount} pills`)
 
+// ── 4b. TWO CARETS IN ONE BATCH BOTH SURVIVE (DS OB-167 clause 3) ────────────────────
+// The tree here is CONTROLLED: the host owns the open set so the path down to the
+// selection is always open. That used to carry a real fault — the tree resolved its
+// next open map against the map it was last RENDERED with, so several caret toggles
+// landing in one React batch all computed from the same base and only the last
+// survived. A person clicks one caret per render and never sees it; this driver did,
+// which is how it was found (`4b637d1`), and the design system took it upstream as a
+// contract change: the callback receives an UPDATER now, handed out unresolved.
+//
+// So this asserts the fix rather than working around it. Both clicks go inside ONE
+// page.evaluate — one synchronous task, therefore one React batch. That is the whole
+// point of the check, and it is a state a person cannot produce by hand.
+const batched = await page.evaluate(() => {
+  const pane = document.querySelector('[aria-label="connections-pane"]')
+  const closed = [...pane.querySelectorAll('[data-node-id]')]
+    .filter((r) => r.getAttribute('data-open') === '0' && r.querySelector('[data-caret]'))
+  if (closed.length < 2) return { enough: false, ids: [] }
+  const ids = [closed[0], closed[1]].map((r) => r.getAttribute('data-node-id'))
+  closed[0].querySelector('[data-caret]').click()
+  closed[1].querySelector('[data-caret]').click()   // same task, same batch
+  return { enough: true, ids }
+})
+if (!batched.enough) {
+  // Not a skip. An empty set would make this check assert nothing at all, quietly.
+  fail('fewer than two closed caret rows to batch — the OB-167 batching check asserted nothing')
+} else {
+  await page.waitForTimeout(400)
+  const openNow = await page.evaluate((ids) => ids.map((id) => {
+    const r = document.querySelector(`[aria-label="connections-pane"] [data-node-id="${CSS.escape(id)}"]`)
+    return r ? r.getAttribute('data-open') : 'gone'
+  }), batched.ids)
+  ok('two caret toggles in ONE React batch both survive', openNow.every((v) => v === '1'),
+    `${batched.ids.join(', ')} -> ${openNow.join(', ')}`)
+}
+
+// ── 4c. A CONTROLLED TREE IS NOT ALSO PERSISTED (DS OB-167 clause 5) ────────────────────
+// Handing the pane `treeOpen` stops it giving the tree a storage key for the open set,
+// so the host's store is the only claimant — two writers for one piece of state is the
+// worse failure. The second assertion is the guard on the first: without it, a pane that
+// persisted NOTHING at all would pass this as happily as a pane that got it right.
+const storage = await page.evaluate(() => {
+  const keys = Object.keys(localStorage).filter((k) => k.startsWith('kn-connections'))
+  return { open: keys.filter((k) => k.includes('_open')), all: keys }
+})
+ok('no open-set key is written while the tree is controlled', storage.open.length === 0, JSON.stringify(storage.all))
+ok('the pane still persists its OTHER layout state', storage.all.length > 0, JSON.stringify(storage.all))
+
 // ── 5. aim the pane at a node that has relationships ───────────────────────
-// ONE CARET AT A TIME, and that is not politeness — the tree here is CONTROLLED (the
-// host drives its open set so the path down to the selection is always open), and a
-// controlled tree resolves its next open map from the map it was last RENDERED with.
-// Six caret clicks inside one synchronous batch therefore all compute from the same
-// base and only the last survives. A person clicks one caret per render, so a driver
-// that wants to reach a topic has to as well.
+// One caret at a time here, deliberately — not to dodge the batching fault above, which
+// is fixed, but because this sweep walks DOWN one branch and each step has to see the
+// rows the step before it revealed.
 const descend = async () => page.evaluate(() => {
   const pane = document.querySelector('[aria-label="connections-pane"]')
   const closed = [...pane.querySelectorAll('[data-node-id]')].filter((r) => r.getAttribute('data-open') === '0' && r.querySelector('[data-caret]'))

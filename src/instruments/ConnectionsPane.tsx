@@ -496,11 +496,23 @@ export default function ConnectionsPane({ bus }: { bus: Bus }) {
   const currentId = previewId ?? focusId
   const node = byId.get(currentId)!
 
-  // THE CONTAINS COLUMN'S OPEN SET IS THE HOST'S, through the published `open`/`onOpenChange`
-  // pair — because the ANCESTORS OF THE SELECTION MUST BE OPEN or the column shows a tree
-  // with nothing highlighted in it, which is the one state a "you are here" column may not
-  // be in. The user's own toggles are kept underneath and win everywhere else; only the path
-  // down to where you stand is forced, and it re-forces itself as the selection moves.
+  // THE CONTAINS COLUMN'S OPEN SET IS THE HOST'S, through the pane's `treeOpen` /
+  // `onTreeOpenChange` pair — because the ANCESTORS OF THE SELECTION MUST BE OPEN or the
+  // column shows a tree with nothing highlighted in it, which is the one state a "you are
+  // here" column may not be in. The user's own toggles are kept underneath and win everywhere
+  // else; only the path down to where you stand is forced, and it re-forces itself as the
+  // selection moves.
+  //
+  // THIS UNION IS OURS AND STAYS OURS (DS OB-167): which ancestors count as "the path" is a
+  // corpus question, and the design system said so explicitly when it adopted the pair.
+  // `setUserOpen` is passed straight in because the callback now takes an UPDATER — React's
+  // own setter is the intended value, and it is what makes two caret toggles inside one batch
+  // both survive instead of only the last.
+  //
+  // AND NOTHING PERSISTS THIS SET. Handing the pane `treeOpen` stops it giving the tree a
+  // storage key, deliberately: two writers for one piece of state is the worse failure. So the
+  // open set is rebuilt each mount from the root plus the path to wherever you are — which is
+  // the useful state to be in anyway. The divider width and the collapse still persist.
   const [userOpen, setUserOpen] = useState<OpenMap>({ [ROOT_ID]: 1 })
   const open: OpenMap = { ...userOpen }
   for (const id of pathTo(currentId)) open[id] = 1

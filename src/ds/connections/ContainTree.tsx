@@ -325,11 +325,17 @@ export interface ContainTreeProps {
   /** which nodes start open when the tree keeps its own state. Defaults to the root alone */
   defaultOpen?: OpenMap
   /** opt the tree's OWN open state into localStorage, so a reload does not read as the tree
-   *  forgetting what you just did. Ignored when `open`/`onOpenChange` are given */
+   *  forgetting what you just did. Ignored when `open` is given */
   persistKey?: string | null
-  /** CONTROLLED open state — for a host with its own layout store. Pass `onOpenChange` with it */
+  /** CONTROLLED open state — for a host with its own layout store. Pass `onOpenUpdate` with it */
   open?: OpenMap
-  /** the controlled setter, taking either the next map or an updater over the current one */
+  /** the controlled setter, receiving an UPDATER and never a resolved map. React's own
+   *  `setState` is a legal value and is the intended one */
+  onOpenUpdate?: (updater: (prev: OpenMap) => OpenMap) => void
+  /** @deprecated the older resolved-map setter. It carries a real fault and is kept only for
+   *  callers already on it: resolving the next map here resolves it against the map THIS
+   *  render was given, so several caret toggles landing in one React batch all compute from
+   *  the same base and only the last survives. Use `onOpenUpdate` */
   onOpenChange?: (next: OpenMap) => void
   /** the node the rest of the pane is aimed at — bold, primary wash */
   selectedId?: string
@@ -350,12 +356,25 @@ export interface ContainTreeProps {
   scale?: number
 }
 
-export function ContainTree({ root, domain, defaultOpen, persistKey, open: openProp, onOpenChange, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
+export function ContainTree({ root, domain, defaultOpen, persistKey, open: openProp, onOpenUpdate, onOpenChange, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave, query, compact, scale = 1 }: ContainTreeProps) {
   const [openState, setOpenState] = useOpenState(persistKey, defaultOpen || (root ? { [root.id]: 1 } : {}))
   const open = openProp || openState
-  const setOpen: (fn: OpenMap | ((o: OpenMap) => OpenMap)) => void = onOpenChange
-    ? (fn) => onOpenChange(typeof fn === 'function' ? fn(open) : fn)
-    : setOpenState
+  /* A CONTROLLED TREE HANDS THE UPDATER STRAIGHT OUT, UNRESOLVED (DS OB-167). Calling
+     `fn(open)` here resolves it against the map THIS render was handed, so several caret
+     toggles dispatched inside one React batch all compute from the same base and only the
+     last survives — a person clicks one caret per render and never sees it, a driver does.
+     Found by our own `4b637d1` run and adopted upstream as a contract change rather than a
+     footnote, which is why the NAME changed with the meaning instead of the same prop
+     quietly starting to mean something else.
+
+     `onOpenChange` keeps the old resolved shape AND the old fault, deprecated. The tree only
+     ever calls `setOpen` with a function; the non-function branch exists so the published
+     signature stays honest rather than throwing at a caller the type would have allowed. */
+  const setOpen: (fn: OpenMap | ((o: OpenMap) => OpenMap)) => void = onOpenUpdate
+    ? (fn) => onOpenUpdate(typeof fn === 'function' ? fn : () => fn)
+    : onOpenChange
+      ? (fn) => onOpenChange(typeof fn === 'function' ? fn(open) : fn)
+      : setOpenState
   if (!root) return null
   const common = { domain, open, setOpen, compact, scale, selectedId, hoveredId, onSelect, onNodeEnter, onNodeLeave }
   if (query) {
