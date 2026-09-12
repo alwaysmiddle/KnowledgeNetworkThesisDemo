@@ -121,18 +121,19 @@ export interface NodeArrowProps {
    *  adjacent territories) as fully as a long one. Works with `bow`; the casing follows the
    *  curve too. Default false. */
   casing?: boolean
-  /** ★ LOCAL — THE HEAD THIS ARROW MUST DRAW, when a view has computed one head for a whole
-   *  SET of arrows. Takes `headForSet`'s result verbatim and overrides this arrow's own
-   *  `headFor({ joins, length })`.
+  /** THE HEAD THIS ARROW MUST DRAW, when a view has computed one head for a whole SET of
+   *  arrows. Takes `headForSet`'s result verbatim and overrides this arrow's own
+   *  `headFor({ joins, length })`. `shaftTailOffset` takes it too — a set-sized head with a
+   *  per-arrow tail puts the shaft off the centre of its own box.
    *
-   *  IT IS LOCAL BECAUSE THE DS PUBLISHED `headForSet` WITH NOWHERE TO PUT ITS ANSWER. That
-   *  function's whole contract is "call it ONCE per view and pass the result to all of them",
-   *  and OB-126's done-when asks for two rendered heads on one map to measure the same
-   *  triangle — but `NodeArrow` exposes no prop that accepts a head, so every arrow re-derives
-   *  its own from its own length, which is exactly the emphasis fault `headForSet` exists to
-   *  remove. Reported; delete this prop and pass the object however the DS decides to take it. */
+   *  WAS ★ LOCAL, and is not any more (DS OB-150, adopted 2026-09-11). `headForSet`'s whole
+   *  contract is "call it ONCE per view and pass the result to all of them", and this arrow had
+   *  no prop that could accept a head — so every arrow re-derived its own from its own length,
+   *  which is exactly the emphasis fault `headForSet` exists to remove. We added the prop here
+   *  to satisfy OB-126 clause (5) and reported it; the design system took the shape verbatim,
+   *  so the local copy is deleted rather than reconciled. */
   headSize?: { head: number; halfWidth: number }
-  /** ★ LOCAL — HOW MUCH OF THIS ARROW HAS BEEN WALKED, 0…1 (DS OB-132: `walkArrow().walked`).
+  /** HOW MUCH OF THIS ARROW HAS BEEN WALKED, 0…1 (DS OB-132: `walkArrow().walked`).
    *  Undefined draws exactly what this component always drew, so no existing caller moves.
    *  Given, the shaft is drawn in two paints — the walked part in `walkedTone` from the tail,
    *  the rest in `tone` at `aheadOpacity` — and THE HEAD RIDES THE SPLIT: strictly between 0
@@ -143,11 +144,20 @@ export interface NodeArrowProps {
    *  offsets over one `pathLength`, and the head is placed from the arc-length arithmetic
    *  the bow's own tangent already needs.
    *
-   *  IT IS LOCAL BECAUSE THE DS PUBLISHED THE RECIPE WITH NO ARROW THAT TAKES IT. `walkArrow`
-   *  returns `walked`, `headTravels`, `headAcorn` and `aheadOpacity` for a host to draw, and
-   *  the rig draws them in raw SVG — but this map draws its walk with THIS component (OB-069),
-   *  and a host cannot reach inside it to split its shaft. Reported; delete these three props
-   *  and pass the reading however the DS decides to take it. */
+   *  UNDEFINED IS THE PLAIN ARROW, AND THAT IS A CALLER RULE RATHER THAN A DEFAULT. An arrow
+   *  the walk has NOT entered passes no `walked` at all (with `tone="quiet"` if it should
+   *  recede), because 0 means something else: the walk standing exactly at this arrow's tail,
+   *  head at the tail, nothing acorn yet. Reading 0 as "not entered" would put the head at the
+   *  far end at w=0 and at the near end at w=0.01 — a jump of the whole shaft on the
+   *  animation's first frame. Our own map was passing 0 at rest until 2026-09-11; see
+   *  `src/model/walkarrow.ts`.
+   *
+   *  WAS ★ LOCAL, and is not any more (DS OB-159, adopted 2026-09-11). The design system
+   *  published the recipe with no arrow that took it — `walkArrow` returns `walked`,
+   *  `headTravels`, `headAcorn` and `aheadOpacity` for a host to draw, and their reference rig
+   *  draws them in raw SVG, while this map draws its walk with THIS component (OB-069). We grew
+   *  the three props here and reported them; they were adopted verbatim, names, defaults and
+   *  arc table, so the two files converge instead of diverging twice. */
   walked?: number
   /** the walked part's paint. 'walk' (acorn) unless the whole walk is receded (OB-117). */
   walkedTone?: 'walk' | 'quiet' | 'hint'
@@ -240,6 +250,13 @@ export const ARROW_METRICS = {
    *  line is already unmissable; the head only has to end it. 0.03 puts a 450px line on a
    *  13.5px head 14.9px across — 3.7× its shaft. Tune the LOOK upstream; no arithmetic forces
    *  0.03. */
+  /** THE ARC-LENGTH TABLE the walked split reads on a BOWED arrow, in pieces. CHOSEN, and the
+   *  number is ours (`receipts/d9d5288.md`): 32 chords over a quadratic this shallow put the
+   *  seam within a fraction of a pixel of its true arc position, which is finer than the head
+   *  drawn on it can show. The straight case needs no table — the seam is `length * walked`.
+   *  Published upstream at OB-159 so the two sides read one number instead of each picking its
+   *  own and drawing seams that creep against each other mid-animation. */
+  walkedSeamSegments: 32,
   headLengthMax: 0.03,
 } as const
 
@@ -435,8 +452,19 @@ export function NodeArrow({
      while the split is strictly inside the line the head sits AT it, in the walked paint. */
   const wk = walked === undefined ? undefined : Math.max(0, Math.min(1, walked))
   const walkedPaint = TONE[walkedTone] || TONE.walk
-  const headPaint = wk !== undefined && wk > 0 ? walkedPaint : paint
-  const travels = wk !== undefined && wk > 0 && wk < 1
+  /* a head on a walked arrow is the WALK's, at every position including its tail: the walk has
+     arrived there, which is what having a position at all means. Absent `walked`, it is the
+     arrow's own tone. */
+  const headPaint = wk !== undefined ? walkedPaint : paint
+  /* THE HEAD IS PLACED BY THE WALK'S POSITION WHENEVER THERE IS ONE — including at 0 (DS
+     OB-159, adopted 2026-09-11). This used to read `wk > 0 && wk < 1`, so `walked={0}` drew a
+     resting head at the FAR end and `walked={0.01}` drew it at the tail: the head jumped the
+     whole shaft on the animation's first frame. The design system's own file places the head at
+     `length * wk` for every defined `wk`, and their reading of 0 is the one that makes that
+     continuous — 0 means the walk is STANDING AT THIS ARROW'S TAIL, not "unwalked". Unwalked is
+     `walked` absent, which is the branch below.
+     Our `src/model/walkarrow.ts` was returning 0 at rest and had to be fixed in the same pull. */
+  const travels = wk !== undefined
   const shafts: { paint: string; opacity?: number; dash?: string }[] =
     wk === undefined ? [{ paint }]
       : wk <= 0 ? [{ paint, opacity: aheadOpacity }]
@@ -580,11 +608,14 @@ export function NodeArrow({
 /** the point on the bowed shaft at a fraction of its ARC length, and the curve's direction
  *  there — for the travelling head. The shaft is the quadratic from (0, mid) through the
  *  control (length/2, ctrl) to (length, mid), in the drawing's own along/across axes. Arc
- *  length has no closed form, so the curve is walked in 32 pieces and the fraction found by
- *  interpolation: at 32 pieces over the bows this map draws the error is well under a pixel,
- *  and the head sits on the seam between the two dashes rather than beside it. */
+ *  length has no closed form, so the curve is walked in `ARROW_METRICS.walkedSeamSegments`
+ *  pieces and the fraction found by interpolation: at that count, over the bows this map
+ *  draws, the error is well under a pixel and the head sits on the seam between the two dashes
+ *  rather than beside it. The count is READ rather than retyped (DS OB-159) — it is published
+ *  upstream now, so the two sides cannot draw seams that creep against each other if it is
+ *  ever tuned. */
 function bezierAtArc(length: number, mid: number, ctrl: number, frac: number): { u: number; v: number; ang: number } {
-  const N = 32
+  const N = ARROW_METRICS.walkedSeamSegments
   const at = (t: number): [number, number] => {
     const a = (1 - t) * (1 - t)
     const b = 2 * (1 - t) * t

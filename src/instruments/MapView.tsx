@@ -1390,7 +1390,16 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
                         bow={bow}
                         casing
                         tone={walkReceded ? 'hint' : 'quiet'}
-                        walked={wall ? 1 : wa.walked}
+                        /* AN ARROW THE WALK HAS NOT ENTERED PASSES NO `walked` AT ALL (DS
+                           OB-159). `walkArrow` returns `walked: 0` for every arrow ahead of the
+                           walk AND at rest, but 0 does not mean "unwalked" to `NodeArrow`: it
+                           means the walk is standing at this arrow's TAIL, so the head is drawn
+                           down at the tail in acorn. Passing it straight through put an acorn
+                           head on the tail of every arrow the walk had not reached yet.
+                           `headAcorn` is the recipe's OWN published test for "has the walk
+                           entered this arrow" (`walked > 0`), so it is the gate rather than a
+                           comparison retyped here. */
+                        walked={wall ? 1 : wa.headAcorn ? wa.walked : undefined}
                         walkedTone={walkReceded ? 'hint' : 'walk'}
                         aheadOpacity={wall ? 1 : wa.opacity > 0 ? wa.aheadOpacity / wa.opacity : 1}
                       />
