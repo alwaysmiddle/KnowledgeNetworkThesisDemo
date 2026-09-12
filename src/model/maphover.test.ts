@@ -22,6 +22,7 @@ const NOTHING: HoverSources = {
   selectedCell: null,
   publishedCell: null,
   lookedAtCell: null,
+  walkStopCell: null,
   onRelation: false,
 }
 
@@ -93,5 +94,49 @@ describe('a relation under the pointer wins the card', () => {
     const marks = hoverMarks({ ...NOTHING, publishedCell: 'topic-a', onRelation: false })
 
     expect(marks.card).toBeNull()
+  })
+})
+
+describe('the walk’s own stop is a light, not a selection (DS OB-173)', () => {
+  // Playing a walk writes the focus, and a focus is a SELECTION on the map — an outline plus
+  // every relation the stop has, drawn across it. So playback was flashing a relationship
+  // diagram over the walk on every stop. The owner asked for the hover's treatment instead.
+  // The map decides `walkStopCell` (only while a walk is actually on it); this file decides
+  // what that light beats and what beats it.
+  test('a walk stop lights the map like a published hover does', () => {
+    const marks = hoverMarks({ ...NOTHING, walkStopCell: 'stop-3' })
+    expect(marks.spotlightId).toBe('stop-3')
+  })
+
+  test('and never raises a card — nobody is pointing at it', () => {
+    // the same rule OB-127 set for a published hover: a card is FOR a cursor over this pane.
+    expect(hoverMarks({ ...NOTHING, walkStopCell: 'stop-3' }).card).toBeNull()
+  })
+
+  test('a cursor somewhere ELSE does not put the walk’s light out', () => {
+    // Two different questions, two different answers, both worth drawing: the walk marks
+    // where the lecture is, the cursor marks what the hand is asking about. The same rule a
+    // published hover already follows.
+    const marks = hoverMarks({ ...NOTHING, walkStopCell: 'stop-3', cursorCell: 'topic-a' })
+    expect(marks.spotlightId).toBe('stop-3')
+    expect(marks.card).toEqual({ kind: 'node', id: 'topic-a' })
+  })
+
+  test('another pane\'s live hover beats it too', () => {
+    expect(hoverMarks({ ...NOTHING, walkStopCell: 'stop-3', publishedCell: 'topic-b' }).spotlightId).toBe('topic-b')
+  })
+
+  test('but it beats the LOOK, which is the older answer to \'where are we\'', () => {
+    expect(hoverMarks({ ...NOTHING, walkStopCell: 'stop-3', lookedAtCell: 'topic-c' }).spotlightId).toBe('stop-3')
+  })
+
+  test('the walk standing on the cell our own cursor is on lights nothing twice', () => {
+    // two treatments on one cell read as a bug — the same reason a published hover that is
+    // only our own cell echoing back is dropped.
+    expect(hoverMarks({ ...NOTHING, walkStopCell: 'topic-a', cursorCell: 'topic-a' }).spotlightId).toBeNull()
+  })
+
+  test('no walk on the map is no light — nothing is left stuck on', () => {
+    expect(hoverMarks({ ...NOTHING, walkStopCell: null }).spotlightId).toBeNull()
   })
 })

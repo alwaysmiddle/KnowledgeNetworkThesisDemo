@@ -140,6 +140,36 @@ await page.waitForTimeout(1200)
 ok('PAUSE on the strip stops the dock', (await readout())?.cur === rPaused?.cur, `${rPaused?.cur} then ${(await readout())?.cur}`)
 ok('and the dock\'s transport shows play again', (await map.getByLabel('play the walk').count()) === 1)
 
+// ── D1b. A WALK STOP IS A HIGHLIGHT, NOT A SELECTION (DS OB-173) ────────
+// Every seek and every tick writes the focus, and a focus is a SELECTION on this map: an
+// outline, plus every relation the selected node has drawn across it. So playing a walk was
+// flashing a different node's relationship diagram over the walk on every stop — the one
+// drawing the professor is watching, removed by the act of watching it. The owner asked for
+// the hover's treatment instead, and the map already had one: the spotlight another pane's
+// hover lights a cell with.
+//
+// Asserted as BOTH halves. "Something is lit" would pass with the selection still drawn
+// underneath it, which is the state this replaced.
+const walkMarks = async () => await page.evaluate(() => ({
+  spot: (document.querySelector('[data-spot]') || { getAttribute: () => null }).getAttribute('data-spot'),
+  selOutlines: document.querySelectorAll('[data-seloutline]').length,
+  receded: (document.querySelector('[data-routearrows]') || { getAttribute: () => null }).getAttribute('data-receded'),
+}))
+const beforeStep = await walkMarks()
+await page.keyboard.press('Home')
+await page.waitForTimeout(400)
+await map.getByLabel('play the walk').click()
+await page.waitForTimeout(1800)
+const lit = await walkMarks()
+await viewer.getByLabel('pause the walk').click()
+await page.waitForTimeout(200)
+ok('playing the walk LIGHTS the stop — the same spotlight a hover from another pane gives',
+  !!lit.spot, JSON.stringify(lit))
+ok('and draws NO selection outline for it — the stop is highlighted, not selected',
+  lit.selOutlines === 0, `${lit.selOutlines} outline(s) · spot ${lit.spot}`)
+ok('so the walk keeps full weight: nothing recedes because a stop became current',
+  lit.receded === '0', `receded=${lit.receded} (was ${beforeStep.receded} before playing)`)
+
 // ── D2. #247 (OB-132): THE WALK ON THE MAP MOVES — the band, the pop, the travelling head ─
 // Down to L2, where the seven stops draw as separate pins rather than two ranges. THE
 // CHECKS ARE ON THE MECHANISM, never on a pixel count a different band would satisfy by

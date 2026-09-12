@@ -255,6 +255,31 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const play = useWalkPlayback(bus)
   // the wall shows the whole walk still: no dock, no band (OB-139 rule 4)
   const dockShown = !wall && routeIsWalk(bus.route, play.steps)
+
+  // ── OB-173: A WALK STOP IS A HIGHLIGHT, NOT A SELECTION ────────────────────
+  // Every seek and every tick of the clock writes the focus (playback.ts, via 'walk'), and a
+  // focus is a SELECTION here: an outline, plus every relation the selected node has drawn
+  // across the map. So playing a walk was flashing a different node's relationship diagram
+  // over the walk on every stop — the one drawing the professor is watching, removed by the
+  // act of watching it. The owner asked for the hover's treatment instead, and the hover's
+  // treatment already exists: the spotlight another pane's hover lights a cell with.
+  //
+  // FOCUS ITSELF STAYS. It is the app's "where am I": the document pane reads the stop, the
+  // connections pane re-aims, the breadcrumb follows. Taking it away to fix a drawing would
+  // stop all of that. What changes is only what THIS pane draws for it — the item's own
+  // instruction was to separate the legitimate half from the dimming rather than keep both.
+  //
+  // GATED ON THE WALK BEING ON THE MAP (`dockShown`), which is also what answers "no
+  // highlight stuck on when playback ends": dismiss the walk and there is no walk stop, so
+  // there is nothing to light. Pausing keeps it, deliberately — a paused walk is still
+  // standing somewhere, and a seek is an advance too.
+  const lastFocusEntry = bus.trail[bus.trail.length - 1]
+  const walkDroveFocus =
+    dockShown && sel !== null && lastFocusEntry !== undefined && lastFocusEntry.id === sel && lastFocusEntry.via === 'walk'
+  /** the selection AS THIS PANE DRAWS IT — null while the walk is the one standing there, so
+   *  the outline and the relations overlay both stand down. `sel` itself is untouched: the
+   *  click behaviour, the dashed preselect and the deselect-on-second-click all still read it. */
+  const selDrawn = walkDroveFocus ? null : sel
   const [pinHover, setPinHover] = useState<{ i: number; x: number; top: number } | null>(null)
   // THE LOOK FLIGHT'S INSET (DS OB-130: "the host insets its auto-fit by
   // WALK_DOCK_METRICS.closed"). This map has no auto-fit — its camera is level-
@@ -548,7 +573,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // ── the selection overlay, whole: which topics the selection resolves to,
   // which of their edges survive the roll-up to this grain, and how those
   // collapse into one road per pair. All of it is model/atlas.ts's job now.
-  const { tier: selTier, bundles } = useMemo(() => roadsFor(sel), [sel])
+  const { tier: selTier, bundles } = useMemo(() => roadsFor(selDrawn), [selDrawn])
   // a changed (or cleared) selection unmounts the old roads outright — no
   // pointerleave ever fires on them — so a stale hoverEdge would otherwise
   // survive pointing at a bundle object from the previous selection
@@ -781,8 +806,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   // its acorn head drawn grey at the one moment they exist for. The trail log is
   // append-only and tagged, so its latest entry says who wrote the focus: a
   // selection the walk made does not recede the walk; a click on the map does.
-  const lastFocus = bus.trail[bus.trail.length - 1]
-  const walkReceded = !wall && sel !== null && !(lastFocus !== undefined && lastFocus.id === sel && lastFocus.via === 'walk')
+  const walkReceded = !wall && selDrawn !== null
 
 
   // territories in play: everything up to one tier below the stratum (so the
@@ -793,7 +817,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
   const isActive = (t: { tier: number; leaf: boolean }) => t.tier === level || (t.leaf && t.tier < level)
   const isMuted = (t: { tier: number; leaf: boolean }) => t.leaf && t.tier < level
 
-  const selOutline = sel ? outlineOf(sel) : undefined
+  const selOutline = selDrawn ? outlineOf(selDrawn) : undefined
   const hoverOutline = hover && hover !== sel && !dragging ? outlineOf(hover) : undefined
 
   // SPOTLIGHT — a hover published by ANOTHER instrument: "the thing your cursor
@@ -821,6 +845,7 @@ export default function MapView({ bus, wall }: { bus: Bus; wall?: WallView }) {
     selectedCell: sel,
     publishedCell: hoverId,
     lookedAtCell: lookId,
+    walkStopCell: walkDroveFocus ? sel : null,
     onRelation: hoverEdge !== null,
   })
   const spotId = marks.spotlightId

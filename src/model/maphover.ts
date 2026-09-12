@@ -45,6 +45,15 @@ export type HoverSources = {
   publishedCell: string | null
   /** The last cell clicked in another pane, which stays lit after that pointer leaves. */
   lookedAtCell: string | null
+  /** THE CELL THE WALK IS STANDING ON while a walk is on the map, and null otherwise
+   *  (DS OB-173). Playing a walk writes the focus, and a focus draws the SELECTION
+   *  treatment — an outline plus every relation the stop has, laid across the map. The
+   *  owner, watching the dock play: "is it possible instead of focusing on the walk's node
+   *  to make it like a highlight instead of focuses (like same effect as when mouse hovers
+   *  over that node)?" So the walk's stop comes in HERE, as a third light, and the map
+   *  draws no selection for it. The walk laid across the map is the thing being watched;
+   *  playback may not be what removes it. */
+  walkStopCell: string | null
   /** The pointer is on one of the selection's relation lines rather than on territory. */
   onRelation: boolean
 }
@@ -54,18 +63,27 @@ export type HoverSources = {
  * a card. They take different inputs on purpose — see the note at the top.
  */
 export function hoverMarks(from: HoverSources): HoverMarks {
-  const { cursorCell, selectedCell, publishedCell, lookedAtCell, onRelation } = from
+  const { cursorCell, selectedCell, publishedCell, lookedAtCell, walkStopCell, onRelation } = from
 
   // A published hover that is only our own cell echoing back is dropped: that cell
   // already carries the dashed preselect, and two outlines on one cell read as a
   // bug. The look is the fallback, and it stands aside for the selection for the
   // same reason.
+  //
+  // THE WALK'S STOP SITS BELOW BOTH POINTERS AND ABOVE THE LOOK. Below the pointers because
+  // a hover is a live gesture and the walk is ambient — a person pointing at something is
+  // asking about THAT, and a walk that overrode them would make the map argue with the hand
+  // on it. Above the look because the look is the older of the two: it is where a click in
+  // another pane left the light, and a walk stepping through the map now is the more recent
+  // answer to "where are we".
   const spotlightId =
     publishedCell && publishedCell !== cursorCell
       ? publishedCell
-      : lookedAtCell && lookedAtCell !== selectedCell
-        ? lookedAtCell
-        : null
+      : walkStopCell && walkStopCell !== cursorCell
+        ? walkStopCell
+        : lookedAtCell && lookedAtCell !== selectedCell
+          ? lookedAtCell
+          : null
 
   // THE RULE. `publishedCell` and `lookedAtCell` are deliberately absent from this
   // expression: they light the map, and they stop there. A relation hover wins over
