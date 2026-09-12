@@ -227,7 +227,7 @@ describe('a set of arrows drawn together shares one head (OB-126 amendment)', ()
   })
 })
 
-describe('walked — the split shaft and the travelling head (★ LOCAL, OB-132)', () => {
+describe('walked — the split shaft and the travelling head (OB-132, adopted upstream at OB-159)', () => {
   const base: NodeArrowProps = { direction: 'right', length: 100, casing: true }
   /** every painted shaft stroke in draw order: its paint and its dash, or none */
   const shaftsOf = (svg: string) =>
@@ -246,10 +246,28 @@ describe('walked — the split shaft and the travelling head (★ LOCAL, OB-132)
     expect(draw({ direction: 'right', length: 40, bow: 8, walked: undefined })).toBe(draw({ direction: 'right', length: 40, bow: 8 }))
   })
 
-  test('0 is one quiet shaft with the head at the end in the quiet paint; 1 is one acorn shaft, acorn head', () => {
-    const none = draw({ ...base, tone: 'quiet', walked: 0 })
-    expect(shaftsOf(none)).toEqual([{ paint: 'var(--bark-400)', dash: null, pathLength: false }])
-    expect(headOf(none)).toEqual({ x: 100, fill: 'var(--bark-400)' })
+  test('0 is the walk STANDING AT THE TAIL — head at the tail, in acorn (DS OB-159)', () => {
+    // This asserted head-at-the-far-end in the quiet paint until 2026-09-11, which was our own
+    // reading of 0 as "unwalked". It is not: unwalked is `walked` ABSENT (the test above), and 0
+    // means the walk has arrived at this arrow's tail with none of the shaft behind it yet.
+    // Ours had a discontinuity because of it — the head sat at the far end at 0 and at the tail
+    // at 0.01, jumping the whole shaft on the animation's first frame. The design system's file
+    // places the head at `length * wk` for every defined `wk`, so the walk's own position is
+    // always where the head is.
+    const atTail = draw({ ...base, tone: 'quiet', walked: 0 })
+    expect(shaftsOf(atTail)).toEqual([{ paint: 'var(--bark-400)', dash: null, pathLength: false }])
+    expect(headOf(atTail)).toEqual({ x: 0, fill: 'var(--accent-walk)' })
+  })
+
+  test('and the head moves continuously off the tail rather than jumping the shaft', () => {
+    // the fault the change fixes, pinned as the thing it fixes: a hair past 0 must be a hair
+    // past the tail, not the whole shaft away from where 0 drew.
+    const at0 = headOf(draw({ ...base, tone: 'quiet', walked: 0 })).x
+    const at1pc = headOf(draw({ ...base, tone: 'quiet', walked: 0.01 })).x
+    expect(Math.abs(at1pc - at0)).toBeLessThan(2)
+  })
+
+  test('1 is one acorn shaft with an acorn head at the far end', () => {
     const all = draw({ ...base, tone: 'quiet', walked: 1 })
     expect(shaftsOf(all)).toEqual([{ paint: 'var(--accent-walk)', dash: null, pathLength: false }])
     expect(headOf(all)).toEqual({ x: 100, fill: 'var(--accent-walk)' })
