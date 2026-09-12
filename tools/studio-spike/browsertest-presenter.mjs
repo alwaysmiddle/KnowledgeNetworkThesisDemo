@@ -206,6 +206,60 @@ try {
   await page.keyboard.press('m')
   await page.waitForTimeout(1500)
   ok('a second M brings the slide back', (await liveCard().locator('[data-projected-map]').count()) === 0 && (await liveCard().locator('[data-slide-title]').count()) === 1)
+
+  // ── what the room actually SEES on a slide (DS OB-172, closing #217) ─────────
+  // The owner's ruling: "the room (projector) should see just the thing being projected
+  // on the projector, which is the contents of the node's document so far". So the slide
+  // draws the NODE'S DOCUMENT, not the walk's note about the stop — the wall shows the
+  // corpus, the tour through it is the professor's business.
+  //
+  // Asserted as a DIFFERENCE, not just as presence: the slide printed the note until
+  // 2026-09-12, and a note is a non-empty string too, so "the body has text in it" would
+  // have passed for the whole time the wall was wrong.
+  const slideBody = async () => (await liveCard().locator('[data-slide-body]').innerText()).replace(/\s+/g, ' ').trim()
+  const body = await slideBody()
+  ok('the slide draws a body at all', body.length > 20, JSON.stringify(body.slice(0, 60)))
+  // the presenter's own notes column holds the stop's note (or the prepared note that
+  // falls back to it). Whatever it holds, the wall must not be showing the same thing.
+  const notesText = ((await page.locator('[data-lecture-notes]').count())
+    ? (await page.locator('[data-lecture-notes]').innerText()).replace(/\s+/g, ' ').trim()
+    : '')
+  ok('and it is NOT the professor\'s notes column — neither column is ever projected (OB-166)',
+    notesText === '' || !notesText.includes(body), `notes ${notesText.length} chars, body ${body.length}`)
+
+  // ── pressing M moves nothing but the content (OB-172 clause 3) ─────────────
+  // `ProjectedMap` 6b pins the map's foot to the same band the slide's own foot occupies,
+  // precisely so the flip never shifts the picture. Measured rather than trusted: the two
+  // feet are different elements in different components, which is exactly how a band
+  // drifts. The owner asked whether the foot should stay at all; it stays because
+  // dropping it would make M shift everything up, and this is the check that says so.
+  const footBox = await liveCard().locator('[data-slide-foot]').boundingBox()
+  await page.keyboard.press('m')
+  await page.waitForTimeout(1200)
+  /* THE MAP'S FOOT CARRIES NO HOOK OF ITS OWN, so it is found by structure — the last child
+     of the map, which `ProjectedMap` renders only when the host passes a `footer`. A
+     structural selector is exactly the kind that rots in silence, so this one CHECKS WHAT IT
+     FOUND: a band under 60px tall (the 32px slot, scaled) carrying a top border. If the map's
+     layout changes shape, this fails saying so rather than measuring some other box. */
+  const mapFoot = await liveCard().locator('[data-projected-map] > div:last-child').boundingBox()
+  const mapFootIsABand = await page.evaluate(() => {
+    const el = document.querySelector('[data-filmroll-card="live"] [data-projected-map] > div:last-child')
+    if (!el) return 'no last child'
+    const cs = getComputedStyle(el)
+    if (parseFloat(cs.borderTopWidth) < 0.5) return 'no top border: ' + cs.borderTopWidth
+    if (el.getBoundingClientRect().height > 60) return 'too tall: ' + el.getBoundingClientRect().height
+    return 'ok'
+  })
+  ok('the element measured as the map\'s foot really is one', mapFootIsABand === 'ok', String(mapFootIsABand))
+  await page.keyboard.press('m')
+  await page.waitForTimeout(1200)
+  const footBack = await liveCard().locator('[data-slide-foot]').boundingBox()
+  const near = (a, b, tol) => a !== null && b !== null && Math.abs(a - b) <= tol
+  ok('the map\'s foot lands in the SAME band as the slide\'s — M moves the content, not the frame',
+    footBox && mapFoot && near(footBox.y, mapFoot.y, 2) && near(footBox.height, mapFoot.height, 2),
+    `slide foot y=${footBox && footBox.y.toFixed(1)} h=${footBox && footBox.height.toFixed(1)} | map foot y=${mapFoot && mapFoot.y.toFixed(1)} h=${mapFoot && mapFoot.height.toFixed(1)}`)
+  ok('and the slide comes back to the band it left',
+    footBox && footBack && near(footBox.y, footBack.y, 2), `${footBox && footBox.y.toFixed(1)} -> ${footBack && footBack.y.toFixed(1)}`)
   // full screen: the ✕ is a second M, never a way out of full screen (rule 7)
   const lb = await liveCard().boundingBox()
   await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2)

@@ -4,8 +4,8 @@
 // one is active, else the road open on the desk), read once into the shape the
 // presenter's four parts share: a title, the stop's TERRITORY (its domain's name,
 // what the strip's breadcrumb and the finder's outline group by), the territory's
-// ring hue, the stop's note (what the slide prints), and the walk's name (the
-// slide's foot). No React here — `PresenterScreen.tsx` holds the store, this
+// ring hue, the stop's DOCUMENT (what the slide prints), the stop's own authored
+// note, and the walk's name (the slide's foot). No React here — `PresenterScreen.tsx` holds the store, this
 // holds the arithmetic it reads, so the arithmetic can be asked directly.
 //
 // THREE FACTS THE SCREEN KEEPS, named here because every part reads them the
@@ -16,6 +16,7 @@
 
 import { topicPaint } from '@/ds'
 
+import { DOC_BODY } from '../corpus/docs'
 import { byId, domainOf } from '../corpus/graph'
 import type { PlayStep } from '../instruments/walkdesk/playback'
 
@@ -27,7 +28,13 @@ export interface LectureStep {
   territory: string
   /** the domain's ring hue name (`'amber'`), absent for a stop nobody has a hue for */
   hue?: string
-  /** the stop's authored note — what the slide prints under the title */
+  /** THE NODE'S DOCUMENT AS IT STANDS — what the slide prints under the title, and the
+   *  only thing the room ever sees of a stop besides its name (owner's ruling closing #217,
+   *  DS OB-172). Not the walk's note: the wall shows the corpus, not the tour of it. */
+  document: string
+  /** the stop's own authored note — the walk's wording for this stop. NOT PROJECTED since
+   *  OB-172; it is the strip's and the dock's line, and the presenter's fallback for a
+   *  prepared note the professor has not written yet. */
   note: string
   /** the walk's name — the slide's foot */
   walk: string
@@ -43,6 +50,10 @@ export function lectureSteps(steps: readonly PlayStep[], walkTitle: string): Lec
       title: s.title,
       territory: byId.get(domain)?.title ?? '',
       hue: topicPaint(domain).hue ?? undefined,
+      /* a stop is always a topic id (walks.ts), and every topic is authored a body — pinned
+         by lecture.test.ts rather than papered over with invented prose, because a wall that
+         quietly shows nothing is worse than a test that fails. */
+      document: DOC_BODY[s.id] ?? '',
       note: s.note ?? '',
       walk: walkTitle,
     }

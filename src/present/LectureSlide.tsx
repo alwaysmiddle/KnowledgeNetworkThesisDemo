@@ -3,13 +3,22 @@
 // or the projector window gives it (#267, DS OB-135/136).
 //
 // WHAT A SLIDE IS. The DS's reference host draws a stop as its territory over its
-// title over its NOTE, with the walk's name as a 32px foot — and says the app's
+// title over its body, with the walk's name as a 32px foot — and says the app's
 // slide is the host's to draw, on ONE renderer for every surface (OB-136 clause
 // 2: "the slide content is the SAME renderer the projector surface shows"). This
 // is that renderer, taken as the DS drew it. It is deliberately not the #195 deck
 // (map + document + walk strip): three of those in the roll's cards would be
-// three MapViews, and #217 — what the room should see at all — is still open.
-// When that is decided this file is the one place the slide changes.
+// three MapViews.
+//
+// AND THE BODY IS THE NODE'S DOCUMENT, not the walk's note — #217, asked here for
+// four days and closed by the owner 2026-09-09: "the room (projector) should see
+// just the thing being projected on the projector, which is the contents of the
+// node's document so far". Filed as DS OB-172 and taken 2026-09-12. The wall shows
+// the CORPUS; the tour through it is the professor's business, and the stop's own
+// note stays where it already was — the strip, the dock, and the presenter's
+// private notes column, which no projected surface reads (OB-166, ruled the same
+// day: both notes columns are private, so a slide printing one would be showing
+// the class the professor's own preparation).
 
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -44,7 +53,7 @@ export function Scaled({ children }: { children: ReactNode }) {
   )
 }
 
-/** the slide for one stop — territory eyebrow, title, note, and the walk's foot */
+/** the slide for one stop — territory eyebrow, title, the node's DOCUMENT, and the walk's foot */
 export function LectureSlide({ step, index, count }: { step: LectureStep; index: number; count: number }) {
   return (
     <Scaled>
@@ -52,9 +61,9 @@ export function LectureSlide({ step, index, count }: { step: LectureStep; index:
         <div style={{ flex: 1, minHeight: 0, padding: '62px 62px 0' }}>
           <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 'var(--fw-bold)', letterSpacing: 'var(--ls-caps)', textTransform: 'uppercase', color: step.hue ? 'var(--hue-' + step.hue + '-ink)' : 'var(--text-2)' }}>{step.territory} · stop {index + 1} of {count}</div>
           <div data-slide-title style={{ fontFamily: 'var(--font-display)', fontSize: 42, lineHeight: 1.12, fontWeight: 'var(--fw-bold)', color: 'var(--text-1)', letterSpacing: 'var(--ls-display)', marginTop: 12 }}>{step.title}</div>
-          <div style={{ fontFamily: 'var(--font-ui)', fontSize: 21, lineHeight: 1.65, color: 'var(--text-1)', marginTop: 22, maxWidth: 820, textWrap: 'pretty' }}>{step.note}</div>
+          <div data-slide-body style={{ fontFamily: 'var(--font-ui)', fontSize: 21, lineHeight: 1.65, color: 'var(--text-1)', marginTop: 22, maxWidth: 820, textWrap: 'pretty' }}>{step.document}</div>
         </div>
-        <div style={{ flex: 'none', height: 32, borderTop: '1px solid var(--border-hair)', background: 'var(--bark-100)', display: 'flex', alignItems: 'center', padding: '0 26px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{step.walk}</div>
+        <div data-slide-foot style={{ flex: 'none', height: 32, borderTop: '1px solid var(--border-hair)', background: 'var(--bark-100)', display: 'flex', alignItems: 'center', padding: '0 26px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-3)' }}>{step.walk}</div>
       </div>
     </Scaled>
   )

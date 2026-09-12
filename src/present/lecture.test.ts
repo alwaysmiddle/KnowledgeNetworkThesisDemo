@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { WALKS } from '../corpus/walks'
+import { DOC_BODY } from '../corpus/docs'
 import { byId, domainOf } from '../corpus/graph'
 import { playSteps } from '../instruments/walkdesk/playback'
 import { BOOKED_SECONDS, clampStop, coveredBefore, lectureStart, lectureSteps, mmss } from './lecture'
@@ -30,9 +31,39 @@ describe('lectureSteps — the walk being played, as the presenter reads it', ()
       expect(typeof s.hue).toBe('string')
     }
   })
-  it('carries the note for the slide and the walk\'s name for the foot', () => {
+  it('carries the stop\'s own note and the walk\'s name for the foot', () => {
     expect(steps[0].note).toBe(walk.stops[0].note)
     expect(steps.every((s) => s.walk === walk.title)).toBe(true)
+  })
+
+  it('carries the NODE\'S DOCUMENT for the slide, not the walk\'s note (DS OB-172)', () => {
+    // What the room sees is the corpus, not the tour through it — the owner's ruling closing
+    // #217. The two are different strings for the same stop, so this asserts the IDENTITY
+    // rather than just "something non-empty": a slide printing the note again would pass a
+    // presence check and still be showing the wrong thing.
+    expect(steps[0].document).toBe(DOC_BODY[walk.stops[0].id])
+    expect(steps[0].document).not.toBe(steps[0].note)
+  })
+})
+
+describe('every stop the room can be shown has a document to show (DS OB-172)', () => {
+  // `lectureSteps` falls back to '' for a stop with no authored body, which on a projected
+  // wall is a blank slide in front of a room. That fallback must never fire, so the corpus is
+  // asserted rather than the fallback trusted: every stop of every authored walk carries one.
+  it('no authored walk has a stop whose document is missing or empty', () => {
+    const blank: string[] = []
+    for (const w of WALKS) {
+      for (const st of lectureSteps(playSteps(w, []), w.title)) {
+        if (!st.document || !st.document.trim()) blank.push(w.title + ' -> ' + st.id)
+      }
+    }
+    expect(blank, 'these stops would project a blank slide: ' + blank.join(', ')).toEqual([])
+  })
+
+  it('and the walks it checked were not an empty set', () => {
+    // the guard on the guard: zero walks would make the sweep above pass saying nothing.
+    expect(WALKS.length).toBeGreaterThan(0)
+    expect(WALKS.every((w) => w.stops.length > 0)).toBe(true)
   })
 })
 
