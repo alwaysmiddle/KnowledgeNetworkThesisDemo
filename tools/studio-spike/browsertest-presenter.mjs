@@ -5,8 +5,9 @@
 // projected); the toolbar ▶ starts the lecture (the chrome goes, the clock starts at 00:00, the
 // projector window opens and shows the live slide); the roll's neighbour advances the record and
 // the projector follows; the strip's tick only ROAMS (chip "Roaming stop N", the record unchanged),
-// the finder's ↵ roams too, the hold ring makes the roamed stop active; ■ → confirm ends the
-// lecture (chrome back, chip "Lecture ended", projector dark); the ▶ then reads "resume" and
+// the finder's ↵ roams too, the hold ring makes the roamed stop active — and still does with the
+// PROJECTOR window in front, where the page gets no animation frames (OB-165); ■ → confirm ends
+// the lecture (chrome back, chip "Lecture ended", projector dark); the ▶ then reads "resume" and
 // resumes; the palette's Present after an end returns to the preview.
 //
 // The projector is a second page in the same browser context, caught off the `page` event the
@@ -88,9 +89,10 @@ try {
     playBtn().click(),
   ])
   // THE PRESENTER'S WINDOW COMES BACK TO THE FRONT. Opening the projector focuses it, and a
-  // background window gets no animation frames from Chromium — the hold ring's clock and the
-  // walk's own clock both run on them. A professor's window is the one they are working in;
-  // this puts the test's window in the same position (and the finding is in the receipt).
+  // background window gets no animation frames from Chromium — the walk's own clock runs on
+  // them (the hold ring's no longer does: OB-165, exercised on purpose further down with the
+  // projector left in front). A professor's window is the one they are working in; this puts
+  // the test's window in the same position.
   await page.bringToFront()
   await page.waitForTimeout(900)
   ok('▶ opened a second window — the projector', !!projector, projector ? projector.url() : 'no page event')
@@ -154,6 +156,57 @@ try {
   await page.waitForTimeout(300)
   ok('holding the ring makes stop 3 the active node', (await chipText()) === 'Presenting stop 3', await chipText())
   ok('the strip fell back to its closed height (64)', Math.round((await strip().boundingBox()).height) === 64, String((await strip().boundingBox()).height))
+
+  // ── OB-165: the hold must not depend on animation frames ─────────────────────
+  // With the PROJECTOR in front, Chromium stops this page's `requestAnimationFrame` outright
+  // (measured below: a handful of frames in a second) while its intervals keep the full 16ms
+  // cadence — the page still reports `visibilityState` "visible". A frame-driven hold clock
+  // therefore never advanced: the ring filled to nothing and the commit was dead until the
+  // presenter's own window came forward. The hold now ticks on an interval and reads
+  // `performance.now()`, so this hold — begun and released entirely in the background — commits.
+  // The frames are counted DURING the hold, not before it: they keep flowing for a couple of
+  // seconds after the page goes to the background and only then stop (measured 2026-09-12 —
+  // 61 frames in the first second, 2 in 1.5s once settled), so the page is given that settle
+  // first. The frame count is its own check so that, should Chromium ever keep frames flowing
+  // to a background page, the run says the condition is no longer being exercised rather than
+  // quietly passing on a hold that never left the foreground.
+  await page.locator('[data-presenter-tick="0"]').click()
+  await page.waitForTimeout(400)
+  ok('a second roam, to stop 1, ahead of the background hold', (await chipText()) === 'Roaming stop 1', await chipText())
+  if (projector) {
+    await projector.bringToFront()
+    await projector.waitForTimeout(3000)
+    const rb2 = await ring.boundingBox()
+    await page.mouse.move(rb2.x + rb2.width / 2, rb2.y + rb2.height / 2)
+    const framesDuringHold = page.evaluate(() => new Promise((res) => {
+      let frames = 0
+      const raf = () => { frames++; requestAnimationFrame(raf) }
+      requestAnimationFrame(raf)
+      setTimeout(() => res({ frames, visibility: document.visibilityState }), 900)
+    }))
+    await page.mouse.down()
+    await page.waitForTimeout(900)
+    await page.mouse.up()
+    const bg = await framesDuringHold
+    await page.waitForTimeout(300)
+    ok('with the projector in front the presenter page got (almost) no animation frames during the hold — the state the hold must survive', bg.frames <= 5, `${bg.frames} frames in 900ms, visibility "${bg.visibility}"`)
+    ok('a 900ms hold with the projector window in front still makes stop 1 the active node (OB-165)', (await chipText()) === 'Presenting stop 1', await chipText())
+    // BACK IN FRONT, THE RECORD GOES BACK ON STOP 3: every check after the ■ was written against
+    // it. This is also the focused-window control — the same gesture, frames flowing.
+    await page.bringToFront()
+    await page.waitForTimeout(300)
+    await page.locator('[data-presenter-tick="2"]').click()
+    await page.waitForTimeout(400)
+    const rb3 = await ring.boundingBox()
+    await page.mouse.move(rb3.x + rb3.width / 2, rb3.y + rb3.height / 2)
+    await page.mouse.down()
+    await page.waitForTimeout(900)
+    await page.mouse.up()
+    await page.waitForTimeout(300)
+    ok('back in front, a hold on stop 3 makes it the active node again — the record the later checks expect', (await chipText()) === 'Presenting stop 3', await chipText())
+  } else {
+    ok('the background hold ran', false, 'skipped: the projector window never opened')
+  }
 
   // ── ■ → confirm ends the lecture; the chrome comes back ───────────────────────
   await page.locator('[aria-label="end lecture"]').click()
