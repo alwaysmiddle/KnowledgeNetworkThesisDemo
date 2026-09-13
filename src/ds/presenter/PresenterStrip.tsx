@@ -74,22 +74,37 @@ const SIDE_PAD = 36
 const UP: CSSProperties = { transform: 'rotate(225deg) translate(-' + CARET_INK + 'px, -' + CARET_INK + 'px)' }
 
 /** The hold gesture, one clock — `progress` 0→100 over `holdMs` while held, firing `onComplete`
- *  at 100 and resetting. Released early, it eases back to 0 rather than snapping. */
+ *  at 100 and resetting. Released early, it eases back to 0 rather than snapping.
+ *
+ *  THE TICK IS AN INTERVAL, NOT `requestAnimationFrame`, AND THAT IS THE WHOLE POINT (2026-09-06,
+ *  found by this app in a real browser with a real projector window; OB-165). A window that is not
+ *  in front gets NO animation frames, and opening the projector focuses it — so a hold begun while
+ *  the professor is looking at the projector never advanced at all: the ring filled to nothing and
+ *  the gesture that COMMITS the record was simply dead until their own window came forward. A
+ *  background interval is throttled but it still fires, and because elapsed is read from
+ *  `performance.now()` rather than counted in frames, the first tick after the throttle lands on
+ *  the true progress instead of resuming where it stopped. Cost, stated: the fill is not
+ *  vsync-aligned, so it is a hair less smooth than a rAF fill on a 600ms gesture. Worth it — an
+ *  animation may stall in a window nobody is watching; a commit may not.
+ *
+ *  Measured here 2026-09-12 (`browsertest-presenter.mjs`, the second hold): with the projector in
+ *  front the presenter's page still reports `visibilityState` "visible" and `hasFocus()` true, so
+ *  its intervals keep the full 16ms cadence — it is only the frames that stop (2 in 1.5s). */
 function useHold(holdMs: number, onComplete?: () => void): [number, () => void, () => void] {
   const [progress, setProgress] = useState(0)
-  const raf = useRef<number | null>(null)
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedAt = useRef(0)
-  const stop = () => { if (raf.current) cancelAnimationFrame(raf.current); raf.current = null }
+  const stop = () => { if (timer.current) clearInterval(timer.current); timer.current = null }
   const start = () => {
     stop()
     startedAt.current = performance.now()
-    const tick = (t: number) => {
-      const p = Math.min(100, ((t - startedAt.current) / holdMs) * 100)
+    const tick = () => {
+      const p = Math.min(100, ((performance.now() - startedAt.current) / holdMs) * 100)
       setProgress(p)
-      if (p >= 100) { stop(); if (onComplete) onComplete(); setProgress(0); return }
-      raf.current = requestAnimationFrame(tick)
+      if (p >= 100) { stop(); if (onComplete) onComplete(); setProgress(0) }
     }
-    raf.current = requestAnimationFrame(tick)
+    timer.current = setInterval(tick, 16)
+    tick()
   }
   const cancel = () => { stop(); setProgress(0) }
   useEffect(() => stop, [])
@@ -468,7 +483,14 @@ export interface PresenterStripProps {
    *  `activeStop`, typically clears `roamingStop`, and records the stop in `covered`. Omitted,
    *  the ring is inert and nothing can be carried. */
   onMakeActive?: (index: number) => void
-  /** ms to hold before `onMakeActive` fires. Default 600 — still an open call per the plan. */
+  /** ms to hold before `onMakeActive` fires. Default 600 — still an open call per the plan.
+   *  THE HOLD'S CLOCK IS AN INTERVAL READING `performance.now()`, NEVER A FRAME COUNT, and a port
+   *  must keep it that way (2026-09-06; `receipts/5db0dea.md`, OB-165). A window that is not in
+   *  front gets no animation frames, and starting a lecture focuses the projector window — so a
+   *  rAF-driven hold begun while the professor looks at the projector never advances at all, and
+   *  the one gesture that COMMITS the record is dead with nothing on screen to say so. A throttled
+   *  interval still fires, and a monotonic read lands on the true progress rather than resuming
+   *  where it stopped. The fill is a hair less smooth than vsync in exchange; that is the trade. */
   holdMs?: number
   /** controlled open state (rail vs. named row). Omit to let the strip own it via `defaultOpen`. */
   open?: boolean
